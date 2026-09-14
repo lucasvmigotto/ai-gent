@@ -23,7 +23,23 @@ Applies to committing, branching, and merging in any git repo this user works in
   - `feat/user-auth`
   - `fix/login-crash`
   - `refactor/api-client`
-- **Sub-branches for stages/contexts:** for larger work, branch again off the working branch per context, component, or development stage (e.g. `feat/user-auth` → `feat/user-auth/db-schema`, `feat/user-auth/api-routes`). This keeps each sub-branch's history focused on one thing.
+- **Sub-branches for stages/contexts:** for larger work, branch again off the working branch per context, component, or development stage (e.g. `feat/user-auth` → `feat/user-auth-db-schema`, `feat/user-auth-api-routes`). This keeps each sub-branch's history focused on one thing.
+  - Use a **flat suffix**, not a nested path: git keeps branches as files under `refs/heads/`, so `feat/user-auth/db-schema` cannot be created while `feat/user-auth` exists (`fatal: cannot lock ref ... exists`).
+- **When the trunk is off-limits** — the user works on a long-lived integration branch because `main`/`master`/`develop` are protected — that integration branch *is* the parent working branch here: branch the contexts off it, and merge them back into it.
+
+### Merge each context back as soon as it is done — the part most easily missed
+
+The merge commits are what mark the stages in the parent's history. They only mark anything if each context is merged back **the moment that context is finished**, and the next context then starts from the **updated parent**.
+
+Repeat this cycle once per context:
+
+1. `git checkout <parent>` — always start from the parent.
+2. `git checkout -b <parent>-<context>` — branch off the parent's *current* tip, never off a sibling sub-branch.
+3. Commit the work of that one context there.
+4. Merge it back into `<parent>` before opening the next sub-branch.
+
+**Never chain sub-branches** (`context-a` → `context-b` → `context-c`) **and never save all the merges for the end**, even when a later context depends on code from an earlier one — that dependency is satisfied by having merged the earlier one back first. Chaining makes every sub-branch carry its predecessors' commits, so the merge commits stop delimiting anything and the parent's history reads as one flat run.
+
 - **Merging a sub-branch back into its parent working branch:**
   - Count the commits on the sub-branch first (`git log <parent>..<sub-branch> --oneline | wc -l`).
   - **4 or more commits:** `git merge --no-ff` — preserves the sub-branch's history as a distinct block with a merge commit.
@@ -46,5 +62,6 @@ Format: `type(scope): subject`
 1. On `main`/`master`? → create a branch first (ask for the name/type if unclear).
 2. About to run `git commit`? → ask first, every time.
 3. About to run `git push`? → don't, unless explicitly told to in this message.
-4. About to merge a sub-branch back? → count its commits, ask first, then `--no-ff` (≥4 commits) or `--ff` (<4 commits).
-5. Writing the message? → `type(scope): subject`, Conventional Commits, no body paragraph, no co-author trailer.
+4. Finished a context? → merge it back into the parent **now**, before opening the next sub-branch — and start that next one from the updated parent, never from the sub-branch just finished.
+5. About to merge a sub-branch back? → count its commits, ask first, then `--no-ff` (≥4 commits) or `--ff` (<4 commits).
+6. Writing the message? → `type(scope): subject`, Conventional Commits, no body paragraph, no co-author trailer.
