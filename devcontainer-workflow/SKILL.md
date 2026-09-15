@@ -1,6 +1,6 @@
 ---
 name: devcontainer-workflow
-description: Work with any project that has a .devcontainer setup and no matching toolchain on the host (no local Java/Node/Python/etc.) — how to discover the container, split file read/write actions (local tools, host filesystem) from environment actions (docker exec, container runtime), and run build/test/run commands safely (foreground vs. backgrounded) without corrupting the workspace.
+description: Autonomously manage devcontainer projects via devcontainer CLI when available (up/exec/rebuild without prompting), fallback to docker exec plus manual rebuild hints when not. Split host file edits from container toolchain runs.
 ---
 
 # Working with a devcontainer
@@ -14,6 +14,38 @@ installed locally."
 
 The container and the host almost always share the project files via a
 bind mount. That single fact is what drives every rule below.
+
+## Step -1: probe for the `devcontainer` CLI — manage autonomously if present
+
+Do this once at the start of the session and cache the result:
+
+```bash
+command -v devcontainer && devcontainer --version
+```
+
+- **If available (`CLI_AVAILABLE=true`):** manage the container lifecycle
+  yourself without disturbing the user — `up` (create-or-start),
+  `exec` (run commands), and `up --recreate` (rebuild after a
+  `devcontainer.json`/`features`/`image` change) are all autonomous,
+  non-destructive operations. Do not ask the user to start/rebuild via
+  VS Code when you can just run the CLI. Announce what you did after
+  the fact.
+- **If missing or broken (`command -v devcontainer` empty, or
+  `devcontainer --version` fails — e.g. a `bun`-installed shim with no
+  `node` runtime):** fall back to the manual flow
+  below (`docker ps` discovery + `docker exec`, ask the user to
+  start/rebuild in their editor). Mention the install hint exactly once
+  per session — prefer `bun`, fall back to `npm`/`yarn` — and never
+  auto-install without asking:
+  ```bash
+  bun install -g @devcontainers/cli
+  # fallback:
+  npm install -g @devcontainers/cli
+  # or: yarn global add @devcontainers/cli
+  ```
+- Never hand-roll a `docker run` to replicate `devcontainer.json` —
+  with or without the CLI, that won't reproduce the
+  volumes/features/env-file/network wiring.
 
 ## Step 0: discover the container's actual facts — don't assume
 
@@ -49,14 +81,22 @@ anything, read `.devcontainer/devcontainer.json` (or
 
 Confirm it's actually running before doing anything else:
 
-```bash
-docker ps --format '{{.Names}}' | grep -i <project-or-container-name>
-```
-
-If it's not running, tell the user to start the devcontainer (VS Code
-"Reopen in Container", or `devcontainer up`) rather than hand-rolling a
-`docker run` yourself — a manually started container won't replicate the
-volumes/features/env-file/network wiring `devcontainer.json` declares.
+- **CLI available:** ensure it with one idempotent command (creates if
+  missing, starts if stopped, no-op if running) — no user prompt needed:
+  ```bash
+  devcontainer up --workspace-folder <host-absolute-path-to-project-root>
+  ```
+  Use the host path that contains `.devcontainer.json` (or the repo root
+  when the config lives in `.devcontainer/`). The CLI resolves container
+  name, `remoteUser`, and `workspaceFolder` from the config itself, so
+  you don't need to derive them by hand for lifecycle/exec purposes.
+- **CLI missing:** check manually, then ask the user to start it rather
+  than hand-rolling `docker run`:
+  ```bash
+  docker ps --format '{{.Names}}' | grep -i <project-or-container-name>
+  ```
+  Tell the user to start the devcontainer (VS Code "Reopen in
+  Container") and wait for confirmation.
 
 If any of the above is genuinely ambiguous from the config (e.g. multiple
 containers, unclear which one hosts this project, no obvious name match),
@@ -67,15 +107,15 @@ container silently produces confusing failures.
 
 | Kind | Examples | How |
 |---|---|---|
-| **File actions** — reading or changing anything under version control | edit a config/manifest file, read source, check a diff | **Local tools**: `Read`, `Edit`, `Write`, `git` via `Bash` on the **host** path. Never go through `docker exec`. |
-| **Environment actions** — anything that needs the container's toolchain, runtime, or OS | compiling, running the test suite, starting the app/server, resolving package versions, inspecting a build artifact | **`docker exec` into the container.** Never on the host if the host lacks the toolchain. |
+| **File actions** — reading or changing anything under version control | edit a config/manifest file, read source, check a diff | **Local tools**: `Read`, `Edit`, `Write`, `git` via `Bash` on the **host** path. Never go through `devcontainer exec` / `docker exec`. |
+| **Environment actions** — anything that needs the container's toolchain, runtime, or OS | compiling, running the test suite, starting the app/server, resolving package versions, inspecting a build artifact | **In the container.** Prefer `devcontainer exec` when the CLI is available; use `docker exec` only as fallback. Never on the host if the host lacks the toolchain. |
 
 Why this split, specifically:
 
 - The bind mount means a `Write`/`Edit` on the host path is visible inside
   the container **instantly**, with no sync step and no stale-cache risk.
-  There is essentially never a reason to `docker exec ... cat`, `sed`,
-  `echo >`, or open an editor inside the container just to touch a file —
+  There is essentially never a reason to `devcontainer exec ... cat`,
+  `docker exec ... cat`, `sed`, `echo >`, or open an editor inside the container just to touch a file —
   that only adds a layer of shell-quoting/escaping risk for zero benefit,
   and it bypasses the host-side diff tooling the user actually reviews.
 - Conversely, anything that needs to *execute* code, resolve dependencies,
@@ -86,37 +126,48 @@ Why this split, specifically:
 
 ## The exec template
 
+Preferred (CLI available — handles user/env/workdir from `devcontainer.json` automatically):
+
+```bash
+devcontainer exec --workspace-folder <host-absolute-path-to-project-root> <command>
+```
+
+Keep reusing the same `--workspace-folder` for every command in the
+session — don't re-derive it each time.
+
+Fallback (CLI missing — fill in the three placeholders from Step 0):
+
 ```bash
 docker exec -u <remoteUser> --workdir <container-path-matching-cwd> <container-name> <command>
 ```
 
-Fill in the three placeholders from Step 0, then keep reusing the same
-template for every command in the session — don't re-derive it each time.
-
 Generic recipes (substitute the project's actual build tool — `mvn`,
-`npm`/`yarn`/`pnpm`, `pytest`/`tox`, `cargo`, `go test`, etc.):
+`npm`/`yarn`/`pnpm`, `pytest`/`tox`, `cargo`, `go test`, etc. — and use
+the `devcontainer exec` form whenever the CLI is present):
 
 ```bash
 # Fast signal after an edit — whatever the lightest "does this parse/compile" step is
-docker exec -u <user> --workdir <path> <container> <build-tool> <compile-or-build-check>
+devcontainer exec --workspace-folder <path> <build-tool> <compile-or-build-check>
+# fallback: docker exec -u <user> --workdir <path> <container> <build-tool> <compile-or-build-check>
 
 # Full test suite
-docker exec -u <user> --workdir <path> <container> <build-tool> test
+devcontainer exec --workspace-folder <path> <build-tool> test
+# fallback: docker exec -u <user> --workdir <path> <container> <build-tool> test
 
 # Inspect exactly what versions/deps actually resolved (the equivalent of
 # `mvn dependency:tree`, `npm ls <pkg>`, `pip show`, `cargo tree`, etc.) —
 # this is how classpath/version-conflict bugs get diagnosed, and it beats
 # guessing from the manifest file alone, since transitive resolution can
 # silently override what the top-level manifest says
-docker exec -u <user> --workdir <path> <container> <dependency-tree-equivalent>
+devcontainer exec --workspace-folder <path> <dependency-tree-equivalent>
 
 # Look inside a built artifact for what actually got embedded
-docker exec -u <user> --workdir <path> <container> <artifact-inspection-command>
+devcontainer exec --workspace-folder <path> <artifact-inspection-command>
 
 # Query the package registry directly from inside the container when you
 # need to know what versions exist, or what a dependency's own manifest
 # requires transitively
-docker exec -u <user> --workdir <path> <container> curl -s <registry-metadata-url>
+devcontainer exec --workspace-folder <path> curl -s <registry-metadata-url>
 ```
 
 Watch out for verbosity flags that suppress the exact output you need:
@@ -134,8 +185,9 @@ any failure.
 - **Long-lived or server processes** (dev servers, `run`/`serve` targets,
   anything that starts listening and doesn't exit on its own) — these
   need one of:
-  - `timeout <seconds> docker exec ...` if you only need to see the
-    startup log and then let it die naturally, or
+  - `timeout <seconds> devcontainer exec --workspace-folder <path> ...`
+    (or `timeout <seconds> docker exec ...` as fallback) if you only need
+    to see the startup log and then let it die naturally, or
   - `run_in_background: true`, then read the result via `TaskOutput`, or
   - `Monitor`, if you need to react to specific log lines (e.g. wait for
     a "started"/"listening" line, or catch a stack trace) without
@@ -158,8 +210,11 @@ anything you've done. Before starting one yourself, or before killing one
 to apply a fix, check what's actually running first:
 
 ```bash
-docker exec <container> bash -lc "ps aux | grep -i <process-pattern>"
-docker exec <container> bash -lc "ss -ltnp | grep <port>"
+devcontainer exec --workspace-folder <path> bash -lc "ps aux | grep -i <process-pattern>"
+devcontainer exec --workspace-folder <path> bash -lc "ss -ltnp | grep <port>"
+# fallback without CLI:
+# docker exec <container> bash -lc "ps aux | grep -i <process-pattern>"
+# docker exec <container> bash -lc "ss -ltnp | grep <port>"
 ```
 
 **Distinguish the user's own process from one you started or from a
@@ -190,7 +245,7 @@ reflects your change.
 ## Clean up every process you start for your own verification
 
 If you start a server/dev-process yourself (`nohup ... &`,
-`run_in_background`, or a bare `docker exec`) purely to verify a fix —
+`run_in_background`, or a bare `devcontainer exec` / `docker exec`) purely to verify a fix —
 not because the user asked you to leave something running — treat it as
 scoped to the task: stop it before considering the task done, the same
 way you'd clean up a scratch file.
@@ -215,14 +270,22 @@ way you'd clean up a scratch file.
 
 ## Guardrails
 
-- Never `docker stop`/`docker rm`/`docker volume rm`/`docker system
-  prune`/`docker network rm` on the project's container or its volumes
-  without explicit user confirmation — the container likely holds
-  dependency caches, in-progress state, or open connections, and
-  destroying it is expensive to rebuild and hard to reverse.
-- Don't edit files by shelling into the container (`docker exec ... vi`,
-  `sed -i`, `tee`, heredocs) — see the file-vs-environment split above. If
-  you catch yourself reaching for `docker exec` to change file content,
+- **Autonomous (CLI available, no prompt needed):** `devcontainer up`
+  (create-or-start), `devcontainer exec` (run commands), and
+  `devcontainer up --workspace-folder <path> --recreate` (rebuild after a
+  `devcontainer.json`/`features`/`image` change). Announce what you did
+  after the fact.
+- **Ask first:** `docker stop` / `devcontainer` stop-like teardown,
+  `up --remove-existing`, `docker rm` / `docker volume rm` /
+  `docker system prune` / `docker network rm` on the project's container
+  or its volumes — the container likely holds dependency caches,
+  in-progress state, or open connections, and destroying it is expensive
+  to rebuild and hard to reverse. Exception: stopping a verification
+  process you started yourself (tracked PID/port) is autonomous — clean
+  it up without asking.
+- Don't edit files by shelling into the container (`devcontainer exec ...
+  vi`, `docker exec ... vi`, `sed -i`, `tee`, heredocs) — see the file-vs-environment split above. If
+  you catch yourself reaching for exec to change file content,
   stop and use `Edit`/`Write` on the host path instead.
 - Secrets (connection strings, API keys, credentials) belong in whatever
   gitignored env file the project already uses (check for a `.env` +
@@ -274,24 +337,37 @@ alongside it is redundant (harmless if it happens to agree, but
 confusing to read and a landmine if the feature's internal path ever
 changes).
 
-### No way to trigger a rebuild from a plain host shell
+### Rebuilding after a `devcontainer.json` change
 
-Changing `features` in `devcontainer.json` doesn't take effect until the
-container is rebuilt. If the `devcontainer` CLI isn't installed on the
-host (`which devcontainer` comes back empty), there is no way to trigger
-that rebuild programmatically — don't fake it with `docker restart` or
-by hand-editing the running container's state, that doesn't re-run
-feature installation. Tell the user to rebuild via their editor
-("Reopen in Container" / "Rebuild Container" in VS Code) and wait for
-their confirmation before running any verification.
+Changing `features`/`image`/mounts in `devcontainer.json` doesn't take
+effect until the container is rebuilt.
+
+- **CLI available:** rebuild autonomously without disturbing the user —
+  do not ask them to rebuild via VS Code:
+  ```bash
+  devcontainer up --workspace-folder <host-absolute-path-to-project-root> --recreate
+  ```
+  Then run the verification checklist below. Never fake a rebuild with
+  `docker restart` or by hand-editing the running container's state —
+  that doesn't re-run feature installation.
+- **CLI missing or broken (`command -v devcontainer` empty, or
+  `devcontainer --version` fails):** there is no way to
+  trigger that rebuild programmatically — don't fake it with
+  `docker restart` or by hand-editing the running container's state.
+  Tell the user to rebuild via their editor ("Reopen in Container" /
+  "Rebuild Container" in VS Code) and wait for their confirmation
+  before running any verification. Suggest the bun-first install hint
+  from Step -1 so future rebuilds can be autonomous.
 
 ### Verification checklist after a rebuild that changes Docker access mode
 
-- `docker info` inside the container — confirm the daemon identity /
+- `devcontainer exec --workspace-folder <path> docker info` (fallback:
+  `docker exec ... docker info`) — confirm the daemon identity /
   server version matches the host's, not a freshly-provisioned nested
   one.
 - Confirm non-root access **explicitly**, not just as root: check
-  `id`/`groups` for the container's actual default user (not
+  `id`/`groups` for the container's actual default user (plain
+  `devcontainer exec` already runs as that user — don't use
   `docker exec -u root`, not with `sudo`), and run a plain `docker ps`
   as that user. Root can talk to the socket regardless of group
   permissions, so testing only as root can hide a permissions
