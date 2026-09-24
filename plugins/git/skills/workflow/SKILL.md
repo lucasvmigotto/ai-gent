@@ -98,6 +98,16 @@ syntax, and when closing actually happens. The rules that always hold:
 - never close, comment on, label or assign an issue through a CLI or API
   unless asked for that specific action.
 
+## Tags and releases
+
+- Tag only when asked, with an annotated tag on the commit being released:
+  `git tag -a 1.4.0 -m "1.4.0"`.
+- Follow the repo's existing tag convention; with none, plain SemVer
+  (`1.4.0`, no `v` prefix — a `v` belongs only in display text such as a
+  release title).
+- Pushing a tag publishes it: `git push <remote> <tag>` needs the same
+  explicit order as any push.
+
 ## History rewriting — only on explicit request
 
 `commit --amend`, `rebase` of already-shared commits, `filter-branch`/`filter-repo`, `reset --hard`, deleting unmerged branches — only when the user asks, and then:
