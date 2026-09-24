@@ -1,0 +1,9 @@
+{
+  "name": "project",
+  "version": "1.0.0",
+  "description": "Project chain: init (product brief), spec (Spec Kit phased specification), docs (documentation site)",
+  "author": {
+    "name": "lucasvmigotto",
+    "email": "lvmigotto1@gmail.com"
+  }
+}
