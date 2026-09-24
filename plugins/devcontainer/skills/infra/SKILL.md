@@ -32,7 +32,7 @@ versions. Build a short `(category, concrete engine, version if known)`
 list before picking a single image.
 
 For identity and mail specifically, also record **how** the app uses them
-(§4.1 and §5.1) — the flow or transport decides the tool more than the
+(§4.1 of `references/identity.md` and §5.1 of `references/mail.md`) — the flow or transport decides the tool more than the
 vendor name does.
 
 ## 2. Tier decision procedure, per resource
@@ -81,12 +81,12 @@ Different resources in the same project routinely land in different tiers
 | Cache | `redis` official image | `docker.dragonflydb.io/dragonflydb/dragonfly` — RESP-compatible, worth it when prod itself runs Dragonfly, or as a faster local swap once compatibility is confirmed against the app's actual command usage | rarely needs a persistent volume — a clean slate on restart is usually the point |
 | Object/blob storage | `mcr.microsoft.com/azure-storage/azurite` (Azure — Microsoft's own emulator, tier 1) | `localstack/localstack` (broad AWS emulation: S3/SQS/SNS/DynamoDB/Lambda) or the lighter S3-only `minio/minio`, for AWS; `fsouza/fake-gcs-server` for GCS | |
 | Queue / streaming | `rabbitmq` (the `-management` tag adds the web UI), `nats` | `apache/kafka` in KRaft mode (no ZooKeeper needed since Kafka 3.3+) for full Kafka; `redpandadata/redpanda` when only the Kafka wire protocol matters and a lighter single-binary footprint is worth it | confirm KRaft env vars (`KAFKA_PROCESS_ROLES=broker,controller`, a node/cluster ID) — older Kafka compose examples still show the legacy two-container ZooKeeper setup |
-| Outbound mail (SMTP) | — | `axllent/mailpit` | always a capture sink regardless of prod's real provider — dev must never send real mail. Details in §5 |
-| Inbound mailbox (IMAP/POP3) | — | `greenmail/standalone` | for apps that *read* mail; §5.4 |
-| Transactional mail HTTP API (SES, SendGrid, Postmark, Mailgun) | vendor sandbox (tier 0) | LocalStack SES; WireMock stub | §5.3 |
-| OAuth2 / OIDC identity provider | `quay.io/keycloak/keycloak` when prod runs Keycloak | `ghcr.io/navikt/mock-oauth2-server`, Keycloak, `ghcr.io/dexidp/dex` | details and the flow-based choice in §4 |
-| SAML IdP | Keycloak (as a SAML IdP) when prod is Keycloak | Keycloak | §4.6 |
-| LDAP / Active Directory | `osixia`/Bitnami OpenLDAP-style images (check current maintenance) | `lldap/lldap` for simple user/group lookups | §4.6 |
+| Outbound mail (SMTP) | — | `axllent/mailpit` | always a capture sink regardless of prod's real provider — dev must never send real mail. Details in §5 of `references/mail.md` |
+| Inbound mailbox (IMAP/POP3) | — | `greenmail/standalone` | for apps that *read* mail; §5.4 of `references/mail.md` |
+| Transactional mail HTTP API (SES, SendGrid, Postmark, Mailgun) | vendor sandbox (tier 0) | LocalStack SES; WireMock stub | §5.3 of `references/mail.md` |
+| OAuth2 / OIDC identity provider | `quay.io/keycloak/keycloak` when prod runs Keycloak | `ghcr.io/navikt/mock-oauth2-server`, Keycloak, `ghcr.io/dexidp/dex` | details and the flow-based choice in §4 of `references/identity.md` |
+| SAML IdP | Keycloak (as a SAML IdP) when prod is Keycloak | Keycloak | §4.6 of `references/identity.md` |
+| LDAP / Active Directory | `osixia`/Bitnami OpenLDAP-style images (check current maintenance) | `lldap/lldap` for simple user/group lookups | §4.6 of `references/identity.md` |
 | Search index | `elasticsearch`/`opensearchproject/opensearch` official images | — | needs `discovery.type=single-node` (or the OpenSearch equivalent) for a one-node dev cluster |
 | Vector database | `pgvector/pgvector` (Postgres with the extension preinstalled, when the project already runs Postgres and only needs vector search added) | `qdrant/qdrant`, Weaviate | pick the Postgres-extension route first if the project is already relational — one fewer moving part |
 | Observability backend (traces/metrics/logs) | `jaegertracing/all-in-one`, `openzipkin/zipkin` | a local Grafana + Prometheus + Loki stack when metrics/logs matter too | only worth it once the app actually emits OpenTelemetry/traces |
@@ -112,202 +112,23 @@ specific Azure service before assuming Azurite alone covers it. Some
 LocalStack services are paid-tier only (Cognito, for example) — check
 before planning around one.
 
-## 4. OAuth2 / OIDC identity
+## 4. OAuth2 / OIDC identity → `references/identity.md`
 
-### 4.1 Classify how the app uses identity first
+When the app authenticates users or services (OIDC login, API bearer
+tokens, client credentials, SAML, LDAP/AD), read `references/identity.md`
+in full before choosing a tool. It covers classifying the flow first
+(4.1), mock-oauth2-server, Keycloak and Dex (4.2), matching production's
+token and claim shape (4.3), the issuer-URL trap between the browser and
+the container network (4.4), redirect URIs and CORS (4.5), SAML and
+LDAP/AD (4.6), and dev-fixture credentials (4.7).
 
-| App's role | What the dev IdP must provide | Lightest fit |
-|---|---|---|
-| **Resource server only** — the API validates bearer JWTs, never logs anyone in | an issuer, a discovery document, a JWKS, and a way to mint tokens with chosen claims | mock-oauth2-server |
-| **Service-to-service** — `client_credentials` calls to another API | a token endpoint accepting any/known client id+secret | mock-oauth2-server |
-| **Browser login** — the client (SPA or server-side) runs authorization code + PKCE | a real login page, redirect URI handling, id_token, usually refresh tokens and logout | mock-oauth2-server's interactive login for "type any user + claims"; Keycloak when the flow needs real users, passwords, consent, logout/session behavior |
-| **Admin-side identity logic** — the app manages users/roles/groups via the IdP's admin API, or relies on realms, fine-grained roles, identity brokering | the IdP's actual admin API | Keycloak (tier 1 if prod is Keycloak, tier 2 otherwise — say which) |
-| **Enterprise SSO** — SAML, LDAP/AD bind or lookup | §4.6 | Keycloak / an LDAP image |
+## 5. Mail → `references/mail.md`
 
-A project with a split API + client (see `devcontainer:setup`) usually
-needs **both** the resource-server row (for `api`) and the browser-login
-row (for `web`) from the **same** IdP instance, so tokens the client gets
-are ones the API accepts.
-
-### 4.2 The tools
-
-- **`ghcr.io/navikt/mock-oauth2-server`** — a real OAuth2/OIDC server with
-  no users to manage. Each URL path segment is its own issuer
-  (`http://auth:8080/<issuerId>` with its own
-  `/.well-known/openid-configuration`, `/jwks`, `/token`, `/authorize`),
-  so several audiences/issuers come from one container. Supports
-  `authorization_code` (with PKCE), `client_credentials`, `refresh_token`,
-  JWT-bearer and token-exchange grants. `interactiveLogin: true` shows a
-  form where you type any subject plus a JSON claims blob. Deterministic
-  claims per request go in `tokenCallbacks` in its JSON config
-  (`JSON_CONFIG` env var or `JSON_CONFIG_PATH` mounted file). Fastest
-  option by far; the gap is that it has no user store, no admin API and no
-  realistic session/logout.
-- **Keycloak (`quay.io/keycloak/keycloak`)** — run `start-dev
-  --import-realm` with a realm export committed to the repo, mounted at
-  `/opt/keycloak/data/import/`. The realm file declares clients (with the
-  dev redirect URIs), roles, groups and test users, so a fresh container
-  is ready to log in with no clicking. Bootstrap admin via
-  `KC_BOOTSTRAP_ADMIN_USERNAME`/`KC_BOOTSTRAP_ADMIN_PASSWORD` (older
-  releases used `KEYCLOAK_ADMIN*` — check the pinned version). Heavier
-  (JVM, ~several hundred MB RAM, slower boot) — pick it for the rows in
-  §4.1 that need it, not by default.
-- **Dex (`ghcr.io/dexidp/dex`)** — small OIDC provider driven by one YAML
-  file (`staticClients`, `staticPasswords`, or a connector to LDAP/GitHub).
-  A middle ground when you want real login with fixed users but not
-  Keycloak's weight.
-- **Firebase Auth / Cognito** — Firebase Auth has its own emulator in the
-  Firebase suite (tier 1); Cognito's LocalStack emulation is paid-tier —
-  otherwise simulate with mock-oauth2-server (tier 2) and document it.
-
-### 4.3 Match production's token shape, not just "a valid JWT"
-
-The app's authorization code (role mapping, tenant checks, user lookup)
-must run **unchanged** against dev tokens, so the dev IdP must emit prod's
-claim names and structure. Read them from the app's security config and
-any decoded prod token in a runbook — don't guess:
-
-- **Entra ID (Azure AD) v2**: `iss` of the form
-  `https://login.microsoftonline.com/<tid>/v2.0`, `aud` = the API's app ID
-  URI or client id, `tid`, `oid`, `preferred_username`, `name`, app roles
-  in `roles`, delegated scopes in `scp` (space-separated string).
-- **Keycloak**: realm roles in `realm_access.roles`, client roles in
-  `resource_access.<client>.roles`, `preferred_username`, `email`.
-- **Okta/Auth0**: custom claims are often namespaced
-  (`https://<your-namespace>/roles`) — copy the exact key.
-
-Configure the dev IdP to produce exactly those (mock-oauth2-server
-`tokenCallbacks`, Keycloak protocol mappers/realm roles). Put 2–3 named
-test users/personas in the config (an admin, a regular user, a user with
-no roles) — they're what makes authorization paths testable, not just
-authentication.
-
-### 4.4 The issuer-URL trap (browser vs. container network)
-
-The browser runs on the host and reaches the IdP at
-`http://localhost:<port>`; the API container reaches it at
-`http://auth:<port>`. Tokens carry whichever URL the IdP saw as its own
-in `iss`, and most JWT validators reject a token whose `iss` doesn't
-match the configured issuer **exactly**. Pick one of:
-
-- **Split issuer from JWKS in the API config** (usually simplest): validate
-  `iss` = the browser-facing URL, but fetch keys from the internal alias.
-  Spring: set `jwk-set-uri: http://auth:8080/<...>/jwks` and validate the
-  issuer claim separately, instead of `issuer-uri` (which also fetches
-  discovery from that URL at startup). Other stacks have the same two knobs.
-- **Pin the IdP's public URL**: Keycloak `KC_HOSTNAME=http://localhost:8080`
-  (plus `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` so backchannel calls from
-  `api` work over the alias); mock-oauth2-server derives the issuer from
-  the request `Host`, so have both sides send the same host.
-- **Make one name resolve everywhere**: route the browser through the
-  `devcontainer:proxy` simulation so both sides use the same public URL.
-
-Whatever you pick, write it down in the compose file comments — this is
-the single most common "works in Postman, 401 in the app" cause.
-
-### 4.5 Redirect URIs, CORS, and the client config
-
-- Register the **exact** dev redirect URIs (the forwarded dev-server URL,
-  and the proxy URL if `devcontainer:proxy` is in play) in the realm
-  export / mock config; wildcard redirect URIs hide the path bugs the
-  proxy simulation exists to catch.
-- The SPA calls the IdP's token endpoint from the browser, so the IdP
-  must allow the dev origin (Keycloak client "Web origins"; mock-oauth2-server
-  allows CORS by default).
-- Keep the client ids/scopes/audiences **the same names as prod** in dev
-  config wherever possible; only the authority URL should differ between
-  environments.
-
-### 4.6 SAML and LDAP/AD
-
-- **SAML SP** (the app consumes SAML assertions): Keycloak can act as a
-  SAML IdP from the same realm import — one container for OIDC and SAML
-  if both are needed.
-- **LDAP bind/lookup** (the app authenticates against or reads from a
-  directory, common with on-prem Active Directory): run an LDAP server
-  seeded from a committed LDIF with the same base DN, OU layout and
-  attribute names (`sAMAccountName`, `memberOf`, `userPrincipalName`) the
-  app queries. `lldap/lldap` is light and fine for plain user/group
-  lookups; a full OpenLDAP image is needed for custom schema. AD-only
-  behavior (nested-group `LDAP_MATCHING_RULE_IN_CHAIN`, `objectGUID`
-  binary handling) is a documented tier-2 gap — note it.
-- If the app talks to Keycloak which federates LDAP in prod, mirror that
-  topology rather than pointing the app at LDAP directly.
-
-### 4.7 Identity credentials are dev fixtures
-
-Test-user passwords, mock client secrets and the dev admin login are
-fixtures, not secrets (§8) — commit them in the realm export /
-`.env.example` and list them in the README so anyone can log in.
-
-## 5. Mail — SMTP, mail APIs, inboxes
-
-### 5.1 Classify how the app sends/receives mail
-
-- **SMTP** (Spring Mail, Nodemailer, Django `EmailBackend`, PHPMailer,
-  `smtplib`, …) → Mailpit, §5.2.
-- **Provider HTTP API** (SES SDK, SendGrid/Postmark/Mailgun SDKs) → §5.3.
-- **Reads a mailbox** (IMAP/POP3 polling, bounce processing, ticket
-  ingestion) → §5.4.
-
-### 5.2 SMTP capture with Mailpit
-
-`axllent/mailpit`: SMTP on `1025`, web UI + REST API on `8025`. It never
-delivers anywhere unless relay is explicitly configured — keep it that way.
-
-- Point the app at `mailpit:1025` by the network alias. Match what the
-  app's SMTP client insists on rather than weakening the app's config:
-  - app always sends `AUTH` → `MP_SMTP_AUTH_ACCEPT_ANY=true` plus
-    `MP_SMTP_AUTH_ALLOW_INSECURE=true` (any username/password accepted);
-  - app requires STARTTLS/TLS (common on port 587/465 configs) → give
-    Mailpit a self-signed cert via `MP_SMTP_TLS_CERT`/`MP_SMTP_TLS_KEY`
-    (optionally `MP_SMTP_REQUIRE_STARTTLS=true`) and trust it / disable
-    verification only in the dev profile.
-- Keep the SMTP host/port/auth/TLS settings as **env vars the app already
-  reads**, so dev and prod exercise the same code path with different
-  values.
-- Use the REST API for assertions in integration/e2e tests
-  (`GET /api/v1/messages`, `GET /api/v1/search?query=to:<addr>`,
-  `DELETE /api/v1/messages` to reset between tests) — don't scrape the UI.
-- Healthcheck: Mailpit exposes `/livez` and `/readyz` on the HTTP port.
-- Useful extras when the team will use them: `MP_MAX_MESSAGES` to cap
-  retention, the built-in HTML/link checks for template work, and recent
-  versions' chaos option to make SMTP return errors on demand for testing
-  retry/bounce handling.
-- No persistent volume by default — an empty inbox on restart is the more
-  useful state.
-- MailHog is the older, unmaintained equivalent; migrate to Mailpit if a
-  reference project still uses it.
-
-### 5.3 Transactional-mail HTTP APIs
-
-Mailpit only speaks SMTP, so an app calling a provider's HTTP API needs
-something else, in this order:
-
-1. **Vendor sandbox (tier 0)** when online dev is acceptable: SendGrid
-   `mail_settings.sandbox_mode.enable=true` (validates, never sends),
-   Postmark's `POSTMARK_API_TEST` server token, Mailgun `o:testmode=yes`.
-   Beware "sandbox domains" that *do* deliver to allow-listed addresses —
-   that's real sending, not a sandbox.
-2. **Emulator**: AWS SES via LocalStack (sent messages are retrievable
-   from LocalStack's `/_aws/ses` endpoint) — set the SDK endpoint
-   override (see Pitfalls).
-3. **Stub (tier 3)**: WireMock with the provider's request/response shape
-   when the vendor has no sandbox and must be offline.
-
-Don't switch the app to an SMTP transport "just for dev" unless the
-transport is already a config choice prod also uses — otherwise dev tests
-a code path prod never runs.
-
-### 5.4 Inbound mailboxes
-
-For apps that read mail, `greenmail/standalone` provides SMTP + IMAP +
-POP3 (ports `3025`/`3143`/`3110`, SSL variants `3465`/`3993`/`3995`) with
-users declared via `GREENMAIL_OPTS` (e.g.
-`-Dgreenmail.setup.test.all -Dgreenmail.users=inbox:secret@example.test
--Dgreenmail.hostname=0.0.0.0`). Seed test mail by sending to its SMTP
-port. If the app both sends and reads, run Mailpit for outbound and
-GreenMail for the mailbox — don't make one do both jobs.
+When the app sends or reads mail, read `references/mail.md` in full. It
+covers classifying SMTP vs. provider API vs. inbound mailbox (5.1),
+Mailpit as the SMTP capture sink, so dev never sends real mail (5.2),
+transactional-mail HTTP APIs such as SES, SendGrid and Postmark (5.3), and
+GreenMail for inbound mailboxes (5.4).
 
 ## 6. Bootstrapping each resource — pick the right pattern
 
@@ -384,7 +205,7 @@ GreenMail for the mailbox — don't make one do both jobs.
   DB client, RabbitMQ's/Mailpit's/Keycloak's web UI) — the app itself
   still talks over the network alias; say so in a comment. An IdP's port
   is the exception that *must* be reachable from the host, since the
-  browser logs in through it (§4.4).
+  browser logs in through it (§4.4 of `references/identity.md`).
 - **Optional companion UI containers** for resources that don't bundle one
   (Kafka/Redpanda has none built in — add `redpandadata/console` or
   `kafka-ui` only if the team will actually use it).
@@ -414,7 +235,7 @@ it. From the app's own container, over the network alias:
 - Mail API: one send reaches the sandbox/emulator/stub, and nothing
   reached a real inbox.
 - Inbound mail: send to GreenMail, confirm the app ingests it.
-- Identity: log in through the **browser** as each persona (§4.3), call a
+- Identity: log in through the **browser** as each persona (§4.3 of `references/identity.md`), call a
   protected API endpoint with the resulting token and see it accepted;
   call it with the no-roles persona and see it **rejected**; call it with
   no token and see a 401. A dev IdP that makes everything pass is a
@@ -438,9 +259,9 @@ credentials.
 | Compose resources named `<invoking-dir>_<resource>` instead of the intended project name | Compose prefixes resource names with the invoking directory when no explicit name is set | add a top-level `name: <project>` to the compose file; clean up anything already created under the stale prefix |
 | A seed/init step intermittently fails right after `docker compose up` | `depends_on` without a `condition` only waits for the target container to **start** | add a `healthcheck` to the target service and gate the seed step on `condition: service_healthy` |
 | The app still reaches the real cloud endpoint even with the emulator container running | Cloud SDKs default to the real service; the emulator needs an explicit endpoint override (`AWS_ENDPOINT_URL`/path-style flag, an Azure emulator connection string) | set the override explicitly in the dev `.env`/`.env.example`, and confirm it with §9's round trip |
-| Login works in the browser, but the API rejects the token with 401 "invalid issuer" | `iss` holds the browser-facing URL (`localhost`), the API is configured with the internal alias URL (or vice versa) | §4.4 — split issuer and JWKS URLs, or pin the IdP's public hostname |
+| Login works in the browser, but the API rejects the token with 401 "invalid issuer" | `iss` holds the browser-facing URL (`localhost`), the API is configured with the internal alias URL (or vice versa) | §4.4 of `references/identity.md` — split issuer and JWKS URLs, or pin the IdP's public hostname |
 | API fails to start: can't fetch OIDC discovery | `issuer-uri`-style config fetches discovery at boot from a URL only the browser can reach, or before the IdP is healthy | use the alias for JWKS/discovery from the container; gate the API on the IdP's healthcheck |
-| Authenticated, but every endpoint is 403 | Dev tokens carry roles under a different claim than prod (`realm_access.roles` vs. `roles`) | emit prod's exact claim shape (§4.3) instead of changing the app's mapping |
+| Authenticated, but every endpoint is 403 | Dev tokens carry roles under a different claim than prod (`realm_access.roles` vs. `roles`) | emit prod's exact claim shape (§4.3 of `references/identity.md`) instead of changing the app's mapping |
 | IdP login page says "invalid redirect_uri" | dev redirect URI not registered exactly (port, path, trailing slash, proxy prefix) | add the exact URI to the realm export / mock config |
-| App errors on SMTP connect: "AUTH not supported" or TLS handshake failure | Mailpit's defaults (no auth, no TLS) don't match what the client insists on | enable accept-any auth / give Mailpit a cert (§5.2) rather than editing the app's mail config |
+| App errors on SMTP connect: "AUTH not supported" or TLS handshake failure | Mailpit's defaults (no auth, no TLS) don't match what the client insists on | enable accept-any auth / give Mailpit a cert (§5.2 of `references/mail.md`) rather than editing the app's mail config |
 | Emails "sent" but nothing in Mailpit | app points at `localhost:1025` from inside its container (that's its own loopback) | use the alias `mailpit:1025` |

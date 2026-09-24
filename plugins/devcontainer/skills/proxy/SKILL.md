@@ -12,7 +12,7 @@ prod is a new thing to debug with no payoff.
 Assumes the shared Docker network and module aliases (`api`, `web`) from
 `devcontainer:setup`. If the project uses a dev IdP from
 `devcontainer:infra`, the proxy often is also the fix for its issuer-URL
-trap — see that skill's §4.4.
+trap — see §4.4 of `../infra/references/identity.md`.
 
 ## Rules
 
