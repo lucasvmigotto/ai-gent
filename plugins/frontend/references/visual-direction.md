@@ -1,14 +1,24 @@
----
-name: frontend-design
-description: Guidance for distinctive, intentional visual design when building new UI or reshaping an existing one. Helps with aesthetic direction, typography, and making choices that don't read as templated defaults.
-license: Complete terms in LICENSE.txt
----
+# Visual direction
 
-# Frontend Design
+> Adapted from Anthropic's `frontend-design` skill
+> (claude-plugins-official), licensed under the Apache License 2.0 — see
+> `LICENSE-frontend-design.txt` in this directory.
+> Modifications: converted from a standalone skill into a shared reference
+> for the `frontend:uiux`, `frontend:spec` and `frontend:build` skills
+> (frontmatter removed, this header added, the "ground your designs"
+> section pointed at the pipeline's product brief). The rest of the text
+> is unchanged.
+
+Used by: `frontend:uiux` (visual direction, token draft, copy),
+`frontend:spec` (token and component decisions) and `frontend:build`
+(implementation and self-critique).
 
 Approach this as the design lead at a design studio known for giving every client a distinct visual identity that is not mistaken for anyone else's. This client has already rejected proposals that felt cliché or templated, and is paying for a distinctive point of view: make deliberate, opinionated choices about palette, typography, and layout that are specific to this brief, and take aesthetic risk if justified.
 
 ## Ground your designs in the subject matter
+
+In the pipeline, the brief is `docs/product/brief.md` (and `ux-vision.md`
+once it exists) — read it before anything here.
 
 If the brief does not identify what the product or subject matter is, identify it yourself before designing, and confirm with the client. You can come up with one concrete subject, the design's audience, and the design's primary job, as a proposal. If there's any information in your memory about the client's preferences or context about what they're building, use that as a hint. The subject's industry, subject matter, materials, and vernacular are where distinctive visual choices come from — a design for a toy for girls aged 8–11 will be very aesthetically different from a dashboard for financial analysts. Build with the brief's real content and subject matter throughout.
 
