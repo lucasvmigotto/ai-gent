@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Design, simulate infra for, and operate devcontainers: setup, infra, proxy, workflow",
   "author": {
-    "name": "Lucas",
+    "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
   }
 }
