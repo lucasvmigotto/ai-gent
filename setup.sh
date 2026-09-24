@@ -120,7 +120,7 @@ link() {
 prune_links() {
   local dir="$1" dest
   for dest in "$dir"/*; do
-    [[ -L "$dest" ]] && points_into_repo "$dest" || continue
+    if [[ ! -L "$dest" ]] || ! points_into_repo "$dest"; then continue; fi
     if ((UNINSTALL)) || [[ ! -e "$dest" ]]; then
       echo "unlink   $(basename "$dest")"
       run rm "$dest"
