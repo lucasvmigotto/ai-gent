@@ -21,7 +21,9 @@ curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.
 | --: | :-- |
 | `AI_GENT_DIR` | `${XDG_DATA_HOME:-~/.local/share}/ai-gent` |
 | `AI_GENT_REPO` | `https://github.com/lucasvmigotto/ai-gent.git` |
-| `AI_GENT_BRANCH` | the repository's default branch |
+| `AI_GENT_BRANCH` | the repository's default branch; a release tag (`1.1.0`) pins that release |
+
+A pinned clone stays on its tag until you pass another one (`AI_GENT_BRANCH=1.2.0`, or the default branch's name to follow it again). Releases are listed in `CHANGELOG.md`.
 
 Prefer to read it first? Download, inspect, then run:
 
@@ -50,7 +52,16 @@ Re-run `setup.sh` after adding, renaming or removing a skill or plugin, or after
 
 ### Claude Code
 
-Each `skills/<name>/` and `plugins/<name>/` is symlinked into `~/.claude/skills/`. A plugin directory there loads as `<name>@skills-dir` — no marketplace or install step, and no plugin cache to refresh. Check one with `claude plugin details <name>@skills-dir`.
+Each `skills/<name>/` and `plugins/<name>/` is symlinked into `~/.claude/skills/`. A plugin directory there loads as `<name>@skills-dir` — no marketplace or install step, and no plugin cache to refresh. Check one, including its token cost, with `claude plugin details <name>@skills-dir`.
+
+Every enabled plugin's skill descriptions are loaded into every session. Turn off the ones a project doesn't need, for that project only:
+
+```bash
+claude plugin disable devsecops@skills-dir --scope project   # writes .claude/settings.json
+claude plugin disable qa@skills-dir --scope local            # .claude/settings.local.json, not committed
+```
+
+The `git` plugin also installs a `PreToolUse` hook (`plugins/git/hooks/guard.sh`) that enforces `git:workflow`: it blocks `--no-verify`, `Co-Authored-By` trailers and `push --force` without a lease, and asks you to confirm pushes, commits or merges on `main`/`master`, `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites and `gh pr create`.
 
 ### opencode
 
@@ -67,20 +78,39 @@ export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1   # in your shell profile
 
 Check with `opencode debug skill`.
 
+opencode doesn't run Claude Code hooks, so the `git` guard isn't active there. Its own permission rules get close — for example, in `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "permission": {
+    "bash": {
+      "git push*": "ask",
+      "git commit*--no-verify*": "deny",
+      "git branch -D*": "ask",
+      "git reset --hard*": "ask",
+      "gh pr create*": "ask"
+    }
+  }
+}
+```
+
 ## Layout
 
 ```txt
-skills/<name>/SKILL.md                  personal skills        → /<name>
+skills/<name>/SKILL.md                          personal skills (none yet)  → /<name>
 plugins/<name>/.claude-plugin/plugin.json
-plugins/<name>/skills/<skill>/SKILL.md  namespaced plugins     → /<name>:<skill>
-plugins/<name>/references/            files a plugin's skills read on demand
-shared/                                  files several plugins share (symlinked into their references/)
+plugins/<name>/skills/<skill>/SKILL.md          namespaced plugins          → /<name>:<skill>
+plugins/<name>/skills/<skill>/references/       files one skill reads on demand
+plugins/<name>/references/                      files a plugin's skills share
+plugins/<name>/hooks/hooks.json                 plugin hooks (git)
+shared/                                         files several plugins share (symlinked into their references/)
+scripts/check.sh                                repository checks, also run by CI
 ```
 
 ## Contents
 
-- `skills/`
-  - `git-workflow` — Conventional Commits, branch-per-context, merge rules
+- `plugins/git/`
+  - `workflow` — Conventional Commits, branch-per-context, merge and cleanup rules, issue linking; enforced by a guard hook
 - `plugins/devcontainer/`
   - `setup` — design devcontainer(s); separate API and client containers by default
   - `infra` — simulate databases, queues, storage, SMTP/mail, OAuth2/OIDC/LDAP and more
@@ -91,6 +121,7 @@ shared/                                  files several plugins share (symlinked 
   - `architecture` — drivers and usage volumes → capacity model, topology, hosting, API style, data stores, ADRs
   - `spec` — brief + architecture → Spec Kit constitution, features, plans, tasks and contract skeleton
   - `docs` — static documentation site in `docs/site/`
+  - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run
 - `plugins/frontend/`
   - `uiux` — layout and language vision
   - `spec` — design system and per-feature UI specs in Spec Kit format
@@ -107,6 +138,7 @@ shared/                                  files several plugins share (symlinked 
 - `plugins/devsecops/` — GitHub Actions by default; GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins, Forgejo/Gitea
   - `pipeline` — design and create CI/CD pipelines, gates, environments and promotion
   - `supply-chain` — pinning, updates, SCA/SAST/secret scanning, SBOM, signing, provenance
+  - `iac` — infrastructure as code (OpenTofu/Terraform by default) for the environments the architecture chose
   - `audit` — security and reliability review of existing pipelines
   - `migrate` — move pipelines between platforms
 
@@ -118,12 +150,17 @@ The `project`, `frontend`, `backend`, `qa` and `devsecops` plugins form one chai
 project:init ─► project:architecture ─► project:spec ─┬─► frontend:uiux ─► frontend:spec ─► frontend:build ─┐
                                                       ├─► backend:domain ─► backend:spec ─► backend:build ──┼─► qa:e2e / qa:load ─► project:docs
                                                       └─► qa:strategy ──────────────────────────────────────┘
-                       devsecops:pipeline / supply-chain from project:spec on; audit and migrate whenever needed
+                       devsecops:pipeline / supply-chain from project:spec on; iac once hosting is decided; audit and migrate whenever needed
+                       project:status at any point: where things stand, what to run next
 ```
 
 Every feature moves Planned → In progress → Implemented (build checkpoints passed) → Verified (QA passed), tracked in `specs/README.md`.
 
 Frontend and backend meet only at `contracts/openapi.yaml` and the brief's glossary. Specs use GitHub Spec Kit (`specify` CLI 1.x), bootstrapped by `project:spec`.
+
+## Development
+
+Run `scripts/check.sh` before committing (CI runs it on every pull request and push to `main`). It checks skill names and description budgets (400 characters — every session loads them), plugin manifests, `plugin:skill` references and relative paths, symlinks and shell scripts, then tests the git guard and the installers in a throwaway `HOME`. `--quick` skips the installer tests; set `SHELLCHECK='uvx --from shellcheck-py shellcheck'` if shellcheck isn't installed. Conventions for editing skills are in `AGENTS.md`.
 
 ## License
 
