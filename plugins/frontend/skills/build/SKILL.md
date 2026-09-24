@@ -43,7 +43,7 @@ Order: `000-design-system` phases, then features in priority order
 
 For each phase:
 
-1. Branch per `git-workflow` (`feat/<feature>-<phase>` off the working
+1. Branch per `git:workflow` (`feat/<feature>-<phase>` off the working
    branch).
 2. Implement the phase's tasks. Tick each `- [ ]` → `- [x]` in
    `tasks.md` as it's actually done, not in advance.

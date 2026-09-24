@@ -139,4 +139,4 @@ updated features; fix your layer, report the rest.
 
 List the features updated, contract changes the frontend must know
 about, infra to simulate (for `devcontainer:infra`), upstream gaps, and
-the next stage: `backend:build`. Commits follow `git-workflow`.
+the next stage: `backend:build`. Commits follow `git:workflow`.

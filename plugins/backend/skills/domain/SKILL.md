@@ -110,4 +110,4 @@ first (pipeline rule). Mark the file `Planned`.
 
 Summarize contexts, the riskiest invariants and contention points, open
 questions, and the next stage: `backend:spec` (after `project:spec` has
-created features). Commits follow `git-workflow`.
+created features). Commits follow `git:workflow`.

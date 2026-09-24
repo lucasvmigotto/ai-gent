@@ -137,4 +137,4 @@ Mark the file's status `Planned`. Use real product content everywhere.
 
 Summarize what was decided, the open questions, and the next stage:
 `frontend:spec` (after `project:spec` has created features — if it
-hasn't, say `project:spec` comes first). Commits follow `git-workflow`.
+hasn't, say `project:spec` comes first). Commits follow `git:workflow`.

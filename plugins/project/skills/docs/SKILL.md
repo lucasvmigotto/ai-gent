@@ -7,7 +7,7 @@ description: Build a comprehensive, production-quality static documentation webs
 
 Builds an official, static, accessible, internationalized documentation
 website for a software project — a product that evolves with the project,
-not a one-off page. Works through `git-workflow` for all versioning
+not a one-off page. Works through `git:workflow` for all versioning
 (branch-per-phase, small Conventional Commits, ask-before-commit,
 `--no-ff` at 4+ commits, never push without an explicit order).
 

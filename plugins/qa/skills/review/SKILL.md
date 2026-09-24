@@ -69,4 +69,4 @@ and the flakiness loop afterwards to show the improvement.
 ## Handoff
 
 Top gaps, metrics before/after, defects found, and the plan. Commits
-follow `git-workflow`.
+follow `git:workflow`.

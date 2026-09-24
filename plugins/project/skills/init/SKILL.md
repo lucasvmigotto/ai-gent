@@ -110,4 +110,4 @@ Mark the brief `Planned`.
 
 Summarize scope (MVP in one line), the biggest risks, the open
 questions, and the next stage: `project:architecture`. Commits follow
-`git-workflow`.
+`git:workflow`.

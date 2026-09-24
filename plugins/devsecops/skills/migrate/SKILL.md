@@ -68,4 +68,4 @@ description: Migrate CI/CD pipelines from one platform to another — between Gi
 ## Handoff
 
 Gaps that need a decision, the settings checklist for the user, parity
-status, and the cutover plan. Commits follow `git-workflow`.
+status, and the cutover plan. Commits follow `git:workflow`.

@@ -94,4 +94,4 @@ description: Secure a project's software supply chain and add security scanning 
 
 Controls added, gates, the SLSA level reached, anything that needs
 platform settings or licenses the user must enable, and follow-ups.
-Commits follow `git-workflow`.
+Commits follow `git:workflow`.

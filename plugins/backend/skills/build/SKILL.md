@@ -37,7 +37,7 @@ Order: shared Setup/Foundational phases, then features in priority order
 
 For each phase:
 
-1. Branch per `git-workflow` (`feat/<feature>-<phase>` off the working
+1. Branch per `git:workflow` (`feat/<feature>-<phase>` off the working
    branch).
 2. **Tests first** for the phase's stories: contract tests for its
    operations, invariant and state-machine tests for its aggregates,

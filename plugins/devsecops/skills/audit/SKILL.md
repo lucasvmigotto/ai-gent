@@ -77,4 +77,4 @@ afterwards.
 ## Handoff
 
 Top risks in one line each, what needs settings access or a decision
-from the user, and the remediation plan. Commits follow `git-workflow`.
+from the user, and the remediation plan. Commits follow `git:workflow`.

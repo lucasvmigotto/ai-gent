@@ -18,7 +18,7 @@ subskills own the rest:
 - `devcontainer:workflow` — day-to-day lifecycle/exec work once a
   devcontainer exists.
 
-Commit/branch mechanics throughout all phases follow `git-workflow` — this
+Commit/branch mechanics throughout all phases follow `git:workflow` — this
 skill doesn't repeat those rules.
 
 ## Phase 0 — Discovery

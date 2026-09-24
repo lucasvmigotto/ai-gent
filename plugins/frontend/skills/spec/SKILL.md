@@ -137,4 +137,4 @@ features and fix what it finds in *your* layer; report the rest.
 
 List the features updated, the gaps reported upstream, and the next
 stage: `frontend:build`, starting with `000-design-system`. Commits
-follow `git-workflow`.
+follow `git:workflow`.

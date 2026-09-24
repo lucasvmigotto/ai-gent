@@ -176,4 +176,4 @@ questions, and the consumers: `project:spec` (stack and structure for
 `plan.md`), `backend:domain` (modules per context), `devcontainer:setup`
 and `devcontainer:infra` (local topology and simulated resources),
 `devsecops:pipeline` (environments, deploy targets), `qa:load` (targets
-from the capacity model). Commits follow `git-workflow`.
+from the capacity model). Commits follow `git:workflow`.

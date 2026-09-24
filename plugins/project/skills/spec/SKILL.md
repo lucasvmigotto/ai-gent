@@ -34,7 +34,7 @@ stage builds on — so make them explicit, justified and consistent.
 
 If `.specify/` doesn't exist:
 `specify init --here --integration claude --non-interactive` (no
-`--extension git`; branches follow `git-workflow`). Confirm with
+`--extension git`; branches follow `git:workflow`). Confirm with
 `specify version` that the CLI is 1.x, and read the installed templates
 in `.specify/templates/`. If `specify` isn't installed, stop and tell the
 user (`uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`).
@@ -46,7 +46,7 @@ Run `/speckit-constitution` (or follow its skill file) to write
 
 - the brief's NFRs (performance, security, accessibility, privacy
   regime, supported platforms) turned into testable principles;
-- the user's standing practices: `git-workflow` (Conventional Commits,
+- the user's standing practices: `git:workflow` (Conventional Commits,
   branch per context), tests required for every user story, WCAG 2.2 AA,
   no secrets in the repo, contract-first API (`contracts/openapi.yaml` is
   the source of truth), separate frontend/backend modules and
@@ -133,4 +133,4 @@ the next stages — in parallel: `frontend:uiux` → `frontend:spec` →
 `frontend:build`, `backend:domain` → `backend:spec` → `backend:build`, and
 `qa:strategy`; plus `devcontainer:setup` for the environment and
 `devsecops:pipeline` for CI/CD. Commits
-follow `git-workflow`.
+follow `git:workflow`.

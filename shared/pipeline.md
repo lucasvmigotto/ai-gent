@@ -133,7 +133,7 @@ definition and the words **not** to use for it
      suites.
    Only the named stage moves a status forward; any stage moves it back
    when it finds the claim no longer holds. `project:docs` depends on this.
-7. **Versioning** follows `git-workflow` (branch per stage/phase, small
+7. **Versioning** follows `git:workflow` (branch per stage/phase, small
    Conventional Commits, ask before committing and merging).
 8. **Finish with a handoff line**: what was written, what's still open,
    and the next stage to run.
@@ -145,7 +145,7 @@ The chain uses GitHub Spec Kit (`specify` CLI, 1.x) for everything under
 
 - Bootstrap (once per project, by `project:spec`):
   `specify init --here --integration claude --non-interactive`.
-  Do **not** add `--extension git`: branches follow `git-workflow`, not
+  Do **not** add `--extension git`: branches follow `git:workflow`, not
   Spec Kit's numbered-branch hook.
 - This installs `/speckit-*` skills into the project's `.claude/skills/`
   (`constitution`, `specify`, `clarify`, `plan`, `tasks`, `analyze`,

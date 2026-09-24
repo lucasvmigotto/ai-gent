@@ -87,4 +87,4 @@ file a defect with the report and keep it Implemented.
 
 Results vs. SLOs, bottlenecks and evidence, environment caveats,
 recommendations, CI jobs, and statuses changed. Stop generators and any
-stack started only for the run. Commits follow `git-workflow`.
+stack started only for the run. Commits follow `git:workflow`.

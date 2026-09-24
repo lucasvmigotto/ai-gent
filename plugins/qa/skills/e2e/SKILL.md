@@ -75,4 +75,4 @@ the trace, keep the status Implemented, and tell the owning build stage.
 
 Journeys covered per feature, pass/flake results, defects filed with
 evidence, statuses changed, and the CI job. Stop any stack you started
-only for the run. Commits follow `git-workflow`.
+only for the run. Commits follow `git:workflow`.

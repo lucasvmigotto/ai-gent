@@ -76,7 +76,7 @@ rendering any YAML:
    the declarative linter for Jenkins) and fix all findings.
 2. Run `devsecops:audit`'s checklist over what you wrote.
 3. Exercise it: a run on a branch (pushing needs the user's go-ahead per
-   `git-workflow`), confirm each gate fails when it should (e.g. a
+   `git:workflow`), confirm each gate fails when it should (e.g. a
    deliberately failing test on a throwaway branch) and passes otherwise.
 4. Record measured durations of the PR pipeline in `delivery.md`.
 
@@ -97,4 +97,4 @@ rendering any YAML:
 
 The files written, gates, what the user must configure outside the repo
 (secrets, environments, cloud trust, branch protection), measured
-durations, and follow-ups. Commits follow `git-workflow`.
+durations, and follow-ups. Commits follow `git:workflow`.

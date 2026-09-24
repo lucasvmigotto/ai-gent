@@ -82,4 +82,4 @@ description: Define a risk-based test strategy for a project and per feature —
 
 Risk summary, the layer map, gates for `devsecops:pipeline`, what build
 stages must include, and next stages (`qa:e2e`, `qa:load` after builds).
-Commits follow `git-workflow`.
+Commits follow `git:workflow`.

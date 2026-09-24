@@ -112,4 +112,4 @@ jobs:
 - `actionlint` (syntax, expressions, shellcheck of `run:`), `zizmor`
   (security audit), `poutine` / OpenSSF Scorecard for repo-level posture.
 - `gh workflow run` / `gh run watch` to exercise a workflow on a branch
-  (pushing a branch needs the user's go-ahead per `git-workflow`).
+  (pushing a branch needs the user's go-ahead per `git:workflow`).
