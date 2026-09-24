@@ -1,6 +1,6 @@
 ---
-name: devcontainer-workflow
-description: Autonomously manage devcontainer projects via devcontainer CLI when available (up/exec/rebuild without prompting), fallback to docker exec plus manual rebuild hints when not. Split host file edits from container toolchain runs.
+name: workflow
+description: Autonomously manage devcontainer projects via devcontainer CLI when available (up/exec/rebuild without prompting), fallback to docker exec plus manual rebuild hints when not. Split host file edits from container toolchain runs. Covers day-to-day operation of a devcontainer that already exists — designing one from scratch is devcontainer:setup, adding simulated external resources is devcontainer:infra.
 ---
 
 # Working with a devcontainer
