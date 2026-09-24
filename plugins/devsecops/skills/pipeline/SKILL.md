@@ -65,6 +65,8 @@ rendering any YAML:
   image as the job container) so CI and local dev agree.
 - Supply-chain steps (SBOM, scanning, signing, provenance) come from
   `devsecops:supply-chain` — call it or apply its defaults.
+- Infrastructure plan/apply jobs follow `devsecops:iac`'s delivery wiring
+  when the project has an `infra/` directory.
 - Keep frontend and backend pipelines independent when they're separate
   modules (path filters, separate workflows/jobs), matching the separate
   devcontainers.
