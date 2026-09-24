@@ -295,49 +295,16 @@ way you'd clean up a scratch file.
   silently "fixing" it — it may be an intentional, not-yet-committed local
   edit.
 
-## When the devcontainer itself needs Docker (Testcontainers, Docker-based builds/tests)
+## When the devcontainer itself needs Docker → `references/docker.md`
 
-Trigger: the project's test suite or build needs a Docker daemon
-*inside* the devcontainer itself — not just a language toolchain — most
-commonly Testcontainers-based integration tests, or any build step that
-shells out to `docker`.
+When tests or builds need a Docker daemon inside the devcontainer
+(Testcontainers, builds that shell out to `docker`), read
+`references/docker.md`: `docker-outside-of-docker` (the default) vs.
+`docker-in-docker`, the both-configured trap, the verification checklist
+after changing the access mode, and why Testcontainers cleanup lag isn't
+an orphan leak.
 
-Two devcontainer features give a container access to Docker:
-
-- **`docker-outside-of-docker`** — reuses the **host's** daemon. It
-  auto-mounts the host socket to `/var/run/docker-host.sock`, creates a
-  `/var/run/docker.sock` symlink to it, and wires the container's
-  default user into a `docker` group for non-root access. Prefer this
-  by default: it's simpler, avoids duplicating image/layer storage
-  inside the container, and containers started by tests are visible
-  as normal siblings on the host (easier to debug, and Testcontainers'
-  Ryuk reaper cleans them up the same way it would outside a container).
-- **`docker-in-docker`** — starts a separate, nested `dockerd` inside
-  the container, fully isolated from the host's Docker state. Only
-  reach for this when isolation from the host daemon is an actual
-  requirement (e.g. the tests build/tear down Docker itself, or must
-  not see host-side images/containers/networks) — it costs extra disk
-  for a redundant image cache and an extra daemon process for no
-  benefit in the common case.
-
-**If a project's `devcontainer.json` has both** — a `docker-in-docker`
-feature *and* a manual `mounts` bind of `/var/run/docker.sock` — the
-bind mount wins in practice: whatever talks to `/var/run/docker.sock`
-reaches the host daemon, and the nested `dockerd` the feature provisions
-sits unused. Confirm which daemon is actually in play with
-`docker ps -a` inside the container: if it shows the devcontainer's own
-container as a sibling, you're on the host daemon, and the
-`docker-in-docker` feature is dead weight that should either be dropped
-in favor of `docker-outside-of-docker`, or the redundant manual mount
-should go and the setup made intentional one way or the other.
-
-When switching to `docker-outside-of-docker`, remove any manual socket
-`mounts` entry — the feature handles that mount itself, and a manual one
-alongside it is redundant (harmless if it happens to agree, but
-confusing to read and a landmine if the feature's internal path ever
-changes).
-
-### Rebuilding after a `devcontainer.json` change
+## Rebuilding after a `devcontainer.json` change
 
 Changing `features`/`image`/mounts in `devcontainer.json` doesn't take
 effect until the container is rebuilt.
@@ -347,7 +314,8 @@ effect until the container is rebuilt.
   ```bash
   devcontainer up --workspace-folder <host-absolute-path-to-project-root> --recreate
   ```
-  Then run the verification checklist below. Never fake a rebuild with
+  Then verify the change took effect (for a Docker access-mode change, the
+  checklist in `references/docker.md`). Never fake a rebuild with
   `docker restart` or by hand-editing the running container's state —
   that doesn't re-run feature installation.
 - **CLI missing or broken (`command -v devcontainer` empty, or
@@ -359,56 +327,8 @@ effect until the container is rebuilt.
   before running any verification. Suggest the bun-first install hint
   from Step -1 so future rebuilds can be autonomous.
 
-### Verification checklist after a rebuild that changes Docker access mode
+## Worked example → `references/worked-example.md`
 
-- `devcontainer exec --workspace-folder <path> docker info` (fallback:
-  `docker exec ... docker info`) — confirm the daemon identity /
-  server version matches the host's, not a freshly-provisioned nested
-  one.
-- Confirm non-root access **explicitly**, not just as root: check
-  `id`/`groups` for the container's actual default user (plain
-  `devcontainer exec` already runs as that user — don't use
-  `docker exec -u root`, not with `sudo`), and run a plain `docker ps`
-  as that user. Root can talk to the socket regardless of group
-  permissions, so testing only as root can hide a permissions
-  regression that would bite a normal dev session.
-- Run the full test suite end-to-end (unit tests *and* the
-  Testcontainers/Docker-backed integration tests), not just a Docker
-  smoke command — the goal is confirming the actual test workload
-  still works, not just that `docker ps` succeeds.
-
-### Testcontainers cleanup latency isn't an orphan leak
-
-Right after a test run finishes, `docker ps -a` can still show the
-spun-up test container(s) and the Ryuk reaper container as `Up` for a
-short while (observed ~15s). This is normal reaper latency, not a
-leaked/orphaned container. Wait and re-check before concluding cleanup
-is broken.
-## Worked example: diagnosing a runtime/classpath failure
-
-This is the general shape of a real fix done this way — useful as a
-template for the next dependency/runtime bug in any language:
-
-1. A build/run command fails with a runtime error (missing class, module
-   not found, symbol mismatch, etc.). Read the **full** error/stack
-   trace — the first "caused by" line is rarely the interesting one; the
-   deepest cause usually is.
-2. Use the project's dependency-tree-equivalent (in the container) to see
-   what versions **actually** resolved, not just what the top-level
-   manifest declares — transitive dependency management can silently
-   override it.
-3. If two dependencies need incompatible versions of something they share
-   transitively, check what version each one's own manifest expects
-   (read it from the container's local package cache, or fetch it from
-   the registry) rather than guessing at a fix.
-4. Make the fix with `Edit` on the host manifest file — never inside the
-   container.
-5. Re-run the dependency-tree-equivalent (container) to confirm the
-   resolved versions now match expectations, then run the test suite and
-   actually start the app (backgrounded, read via `TaskOutput`) to confirm
-   it boots — a successful compile only proves the code compiles, not that
-   the dependency graph is runtime-consistent.
-6. Diff the host manifest (`git diff`) to show the user exactly what
-   changed, and leave a short comment in the manifest explaining any
-   non-obvious version constraint — future readers won't know why a
-   version looks "downgraded" otherwise.
+For a runtime or classpath failure (works in one place, fails in the
+container; version conflicts), `references/worked-example.md` walks
+through the diagnosis end to end using the exec template above.
