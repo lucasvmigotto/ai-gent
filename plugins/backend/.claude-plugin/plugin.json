@@ -1,0 +1,9 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend chain: domain (domain model), spec (contract-first Spec Kit backend specs), build (implementation)",
+  "author": {
+    "name": "lucasvmigotto",
+    "email": "lvmigotto1@gmail.com"
+  }
+}
