@@ -7,9 +7,8 @@ description: Build a static, accessible, internationalized documentation site in
 
 Builds an official, static, accessible, internationalized documentation
 website for a software project — a product that evolves with the project,
-not a one-off page. Works through `git:workflow` for all versioning
-(branch-per-phase, small Conventional Commits, ask-before-commit,
-`--no-ff` at 4+ commits, never push without an explicit order).
+not a one-off page. All versioning follows `git:workflow`, one branch per
+phase.
 
 Part of the product pipeline — read `../../references/pipeline.md` first.
 Its artifacts are content sources, not substitutes for reading the code:
@@ -68,8 +67,8 @@ Use the brief's glossary for every term on the site.
 
 ## Phase 2 — Scaffold
 
-Bun · React · TypeScript 7 (pinned, resolved tree verified with
-`bunx tsc --version` + `bun pm ls typescript`) · Vite · Tailwind CSS ·
+Bun · React · TypeScript (the current stable major, pinned; verify the
+resolved version with `bunx tsc --version` + `bun pm ls typescript`) · Vite · Tailwind CSS ·
 React Router **`HashRouter`** (static hosts provide no SPA fallback, so
 hash routing keeps deep links working) · Biome (not ESLint). No runtime
 backend, no heavy doc framework.
