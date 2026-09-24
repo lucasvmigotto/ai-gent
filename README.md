@@ -1,11 +1,39 @@
 # ai-gent
 
-Personal skills and plugins for Claude Code and opencode, kept in one repo and linked into place so there's a single place to edit.
+Personal skills and plugins for Claude Code and [opencode](https://opencode.ai/v2/docs), kept in one repo and linked into place so there's a single place to edit.
 
 ## Install / update
 
-```sh
-git clone git@github.com:lucasvmigotto/ai-gent.git ~/codes/ai-gent
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh
+```
+
+That clones the repo into `~/.local/share/ai-gent` and runs `setup.sh` for Claude Code and [opencode](https://opencode.ai/v2/docs). Run the same command again to update: it fast-forwards the clone (leaving it alone if it has local changes) and re-links.
+
+Pass `setup.sh` flags after `-s --`, and choose where the clone lives with `AI_GENT_DIR`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude
+curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | AI_GENT_DIR=~/codes/ai-gent sh
+```
+
+| Variable | Default |
+| --: | :-- |
+| `AI_GENT_DIR` | `${XDG_DATA_HOME:-~/.local/share}/ai-gent` |
+| `AI_GENT_REPO` | `https://github.com/lucasvmigotto/ai-gent.git` |
+| `AI_GENT_BRANCH` | the repository's default branch |
+
+Prefer to read it first? Download, inspect, then run:
+
+```bash
+curl -fsSLo install.sh https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh
+less install.sh && sh install.sh
+```
+
+Or clone it yourself:
+
+```bash
+git clone https://github.com/lucasvmigotto/ai-gent.git ~/codes/ai-gent
 ~/codes/ai-gent/setup.sh
 ```
 
@@ -13,12 +41,12 @@ Re-run `setup.sh` after adding, renaming or removing a skill or plugin, or after
 
 | Flag | Effect |
 | --: | :-- |
-| `--target claude\|opencode\|all` | which tool to install for (default `all`; opencode is skipped when not installed) |
+| `--target claude\|opencode\|all` | which tool to install for (default `all`; [opencode](https://opencode.ai/v2/docs) is skipped when not installed) |
 | `--dry-run` | show what would change |
 | `--force` | back up (`<name>.bak-<timestamp>`) and replace a real directory or foreign symlink in the way |
 | `--uninstall` | remove everything the script installed for the target(s) |
 
-`CLAUDE_SKILLS_DIR`, `OPENCODE_SKILLS_DIR` and `OPENCODE_COMMANDS_DIR` override the target directories. `~/.claude/skills/synced/` is managed by claude.ai skill sync and is never modified.
+`CLAUDE_SKILLS_DIR`, `OPENCODE_SKILLS_DIR` and `OPENCODE_COMMANDS_DIR` override the target directories. `~/.claude/skills/synced/` is managed by [claude.ai](https://support.claude.com/en/collections/14445694-claude-code) skill sync and is never modified.
 
 ### Claude Code
 
@@ -26,14 +54,14 @@ Each `skills/<name>/` and `plugins/<name>/` is symlinked into `~/.claude/skills/
 
 ### opencode
 
-opencode has no plugin namespaces and requires a skill's name to match its directory, so `setup.sh`:
+[opencode](https://opencode.ai/v2/docs) has no plugin namespaces and requires a skill's name to match its directory, so `setup.sh`:
 
 - links `skills/<name>/` and `~/.claude/skills/synced` into `~/.config/opencode/skills/` (which must be a real directory — a symlink to `~/.claude/skills` is replaced);
 - generates `~/.config/opencode/skills/<plugin>-<skill>/SKILL.md` for each plugin skill — the real description plus an instruction to read and follow the source file in this repo — and a `/<plugin>-<skill>` command in `~/.config/opencode/commands/`.
 
-opencode also scans `~/.claude/skills` recursively, where plugin skills appear under short, colliding names (`spec`, `build`, …). Turn that off:
+[opencode](https://opencode.ai/v2/docs) also scans `~/.claude/skills` recursively, where plugin skills appear under short, colliding names (`spec`, `build`, …). Turn that off:
 
-```sh
+```bash
 export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1   # in your shell profile
 ```
 
