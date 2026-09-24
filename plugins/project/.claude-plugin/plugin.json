@@ -1,6 +1,6 @@
 {
   "name": "project",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "GPL-3.0-or-later",
   "description": "Project chain: init (product brief), architecture (drivers, capacity, ADRs), spec (Spec Kit phased specification), docs (documentation site), status (where the pipeline stands, what to run next)",
   "author": {

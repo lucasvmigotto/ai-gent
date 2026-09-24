@@ -1,6 +1,6 @@
 {
   "name": "devsecops",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "GPL-3.0-or-later",
   "description": "CI/CD, infrastructure as code and software supply-chain security across GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins and Forgejo/Gitea: pipeline, supply-chain, iac, audit, migrate",
   "author": {
