@@ -62,6 +62,7 @@ only at the contract and the glossary. `devsecops:audit` and
 | `specs/NNN-<feature>/qa.md` | `qa:strategy` | build stages, qa:e2e, qa:load | story → test map, e2e journeys, load profiles, exit criteria |
 | `tests/e2e/`, `tests/load/` (or the paths the plan sets) | `qa:e2e`, `qa:load` | devsecops:pipeline | cross-stack suites; unit/component/integration tests stay with the build stages |
 | CI/CD config (`.github/workflows/` by default, or the platform's file) | `devsecops:pipeline` | everyone | pipelines, gates, environments; security tooling from `devsecops:supply-chain` |
+| `docs/product/delivery.md` | `devsecops:pipeline` (supply-chain section by `devsecops:supply-chain`) | everyone, project:docs | pipelines, gates, environments, promotion, required secrets by name, rollback runbook |
 | `docs/site/` | `project:docs` | — | static documentation site |
 
 **Ownership rules**
