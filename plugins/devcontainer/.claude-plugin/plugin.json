@@ -1,0 +1,10 @@
+{
+  "name": "devcontainer",
+  "version": "1.0.0",
+  "license": "GPL-3.0-or-later",
+  "description": "Design, simulate infra for, and operate devcontainers: setup, infra, proxy, workflow",
+  "author": {
+    "name": "lucasvmigotto",
+    "email": "lvmigotto1@gmail.com"
+  }
+}
