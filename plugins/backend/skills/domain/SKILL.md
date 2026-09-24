@@ -41,9 +41,11 @@ how long data is kept, which numbers are money/time/quantities.
    below.
 2. **Bounded contexts.** Group by language and consistency needs; draw a
    context map (ASCII/mermaid) with relationships (customer/supplier,
-   conformist, anti-corruption layer for external systems). Recommend
-   the deployment shape — **modular monolith by default**, one module per
-   context; name any reason for a separate service explicitly.
+   conformist, anti-corruption layer for external systems). Map contexts
+   onto the deployment shape `docs/product/architecture.md` decided (one
+   module or service per context); if the model argues for a different
+   shape, record it as an `[UPSTREAM GAP]` for `project:architecture`
+   rather than deciding it here.
 3. **Aggregates.** For each: root, members, identity strategy (UUIDv7/
    ULID vs. natural key, and whether IDs are exposed), **invariants**
    stated as "must always / must never", which commands it handles,
