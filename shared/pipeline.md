@@ -35,12 +35,14 @@ idea text / references dir
  devsecops:pipeline, devsecops:supply-chain ─► CI/CD config     from project:spec on
  devsecops:iac ────────► infra/                            cloud environments, once hosting is decided
  project:docs ─────────► docs/site/                        reads all of the above
+ project:status ───────► (report only)                     where things stand, what to run next
 ```
 
 The frontend, backend and QA branches run in parallel once `project:spec`
 has produced features and a contract skeleton. Frontend and backend meet
 only at the contract and the glossary. `devsecops:audit` and
-`devsecops:migrate` run whenever needed.
+`devsecops:migrate` run whenever needed; `project:status` reads everything
+and writes nothing.
 
 ## Artifacts and owners
 
