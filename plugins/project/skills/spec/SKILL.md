@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Turn a product brief (docs/product/brief.md) into a complete, phased, implementation-ready specification in GitHub Spec Kit format — bootstraps Spec Kit, writes the constitution, splits the product into independently shippable features (specs/NNN-*), and drives each through specify, clarify, plan and tasks, plus a feature index (specs/README.md) and the API contract skeleton (contracts/openapi.yaml) that the frontend and backend chains build on. Use when the user asks to "create the speckit specs", "plan the implementation", "break the project into features", "write the technical specification", or runs /project:spec. Second stage of the product pipeline, after project:init; followed in parallel by frontend:uiux and backend:domain.
+description: Turn docs/product/brief.md into a phased GitHub Spec Kit specification — bootstraps Spec Kit, writes the constitution, splits the product into specs/NNN-* features taken through specify, clarify, plan and tasks, and adds specs/README.md and the contracts/openapi.yaml skeleton. Use for "create the speckit specs", "break the project into features".
 ---
 
 # Phased specification (Spec Kit)

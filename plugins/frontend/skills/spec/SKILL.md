@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Turn the UX vision (docs/product/ux-vision.md) into a phased, implementation-ready frontend specification in GitHub Spec Kit format — a 000-design-system feature (final tokens, typography, component inventory with states and variants, motion, breakpoints, accessibility rules) plus a ui.md layer on every existing feature that has UI (routes, screens, wireframes per breakpoint, components, data needs mapped to contract operations, state matrix, validation and microcopy keys, accessibility and test plan), and Frontend tasks appended to each tasks.md. Updates existing specs rather than duplicating them. Use when the user asks to "spec the frontend", "plan the UI implementation", "write the frontend speckit specs", or runs /frontend:spec. Second stage of the frontend chain, after frontend:uiux and project:spec.
+description: Turn docs/product/ux-vision.md into a Spec Kit frontend spec — a 000-design-system feature (tokens, components and states, motion, breakpoints, accessibility) plus a ui.md per feature with UI (routes, wireframes, data mapped to contract operations, states, copy keys, tests) and Frontend tasks. Use for "spec the frontend", "plan the UI implementation".
 ---
 
 # Frontend specification (Spec Kit)

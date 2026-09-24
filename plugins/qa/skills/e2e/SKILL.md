@@ -1,6 +1,6 @@
 ---
 name: e2e
-description: Write and run cross-stack end-to-end tests for user journeys — Playwright by default — against the full running stack (frontend and API devcontainers plus simulated infra: dev identity provider personas, Mailpit for emails, seeded data), covering happy and negative paths, authorization personas, accessibility checks on key flows and cross-browser/mobile projects, with role-based selectors, no sleeps, isolated test data, traces on failure, CI wiring and flake quarantine; marks features Verified when their journeys pass. Use for "write e2e tests", "test the whole flow", "Playwright tests for login/checkout", or /qa:e2e. Runs after frontend:build and backend:build.
+description: Write and run cross-stack end-to-end journeys, Playwright by default, against the full devcontainer stack — dev identity personas, Mailpit, seeded data — covering negative paths, authorization, accessibility and mobile, with no sleeps, isolated data and flake quarantine; marks features Verified when they pass. Use for "write e2e tests", "test the whole flow".
 ---
 
 # End-to-end tests

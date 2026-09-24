@@ -1,6 +1,6 @@
 ---
 name: pipeline
-description: Design and create CI/CD pipelines for a project — pull-request, main, release and scheduled pipelines with fast feedback, quality and security gates, monorepo path filters (separate frontend and backend pipelines), caching, build-once-promote-by-digest, environments with approvals, OIDC cloud credentials and deployment strategies — rendered for GitHub Actions (default), GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins or Forgejo/Gitea Actions. Reads the architecture, test strategy, specs and devcontainers, and writes the pipeline files plus docs/product/delivery.md. Use for "set up CI/CD", "create the GitHub Actions workflows", "add a deploy pipeline", "pipeline for GitLab/Azure DevOps/Bitbucket/Jenkins", or /devsecops:pipeline.
+description: Design and write CI/CD pipelines — pull request, main, release, scheduled — with gates, monorepo path filters, caching, build-once-promote, environments, OIDC and deploy strategies, plus docs/product/delivery.md. GitHub Actions by default, other platforms on request. Use for "set up CI/CD", "add a deploy pipeline", "create the workflows".
 ---
 
 # CI/CD pipeline design

@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Build a comprehensive, production-quality static documentation website for a software project in docs/site/ — truth-first from the code, enriched by the product pipeline's brief, UX vision, domain model and Spec Kit specs (always labelled Planned until built), branded from the UX vision or via frontend:uiux. Use when the user asks to document a project, create a docs site, add a documentation website, or runs /project:docs. Covers phased delivery (discovery, scaffold, components, i18n, tests, deploy), the Bun/React/TS7/Vite/Tailwind/HashRouter/Biome stack, and R2 + Docker shipping.
+description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the pipeline's brief, domain model and specs (labelled Planned until built), branded from the UX vision — with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
 ---
 
 # Project documentation websites

@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: Versioning workflow for this user's repos — strict Conventional Commits, branch-per-context strategy, merge rules with context-branch cleanup, safe history handling, and on-request issue/work-item linking (Closes #N) for GitHub, GitLab, Azure DevOps, Bitbucket, Forgejo/Gitea and Jira. Use whenever committing, branching, merging or linking issues, or when the user asks to "commit this", "make a branch", "merge this in", "this closes #12", "link the issue", or similar. Covers commit message format, branch naming, --no-ff vs --ff-only, deleting merged branches, and the confirm-before-acting rules around commit/merge/push.
+description: This user's git rules — Conventional Commits, branch-per-context naming, --no-ff vs --ff-only merges with branch cleanup, safe history handling, and ask before committing, merging or pushing. Use whenever committing, branching, merging, tagging or linking issues ("commit this", "make a branch", "merge it in", "link it to issue 12").
 ---
 
 # Git versioning workflow

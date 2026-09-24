@@ -1,6 +1,6 @@
 ---
 name: uiux
-description: Turn a short application idea, or a directory of references (screenshots, sketches, competitor notes, existing docs), into a complete UX and language vision — audiences, information architecture, user flows, screen inventory with wireframes, visual direction and draft design tokens, interaction states, responsive and accessibility targets, plus voice and tone, glossary-aligned terminology, microcopy patterns and real copy for key screens. Writes docs/product/ux-vision.md for frontend:spec. Use when the user asks to "design the UX", "define the layout and language", "create a UI/UX vision", "how should this app look and read", or runs /frontend:uiux. First stage of the frontend chain; reads project:init's brief when it exists.
+description: Turn an idea, the product brief or a references folder into a UX and language vision — information architecture, flows, wireframes, visual direction and draft tokens, states, accessibility targets, voice, terminology and real copy — in docs/product/ux-vision.md. Use for "design the UX", "define the layout and language", "how should this app look and read".
 ---
 
 # UX and language vision

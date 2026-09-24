@@ -1,6 +1,6 @@
 ---
 name: supply-chain
-description: Secure a project's software supply chain and add security scanning to CI — dependency pinning and lockfiles, automated updates (Renovate/Dependabot), SCA and dependency review, SAST, secret scanning, IaC and container scanning, hardened images, SBOM (CycloneDX/SPDX), keyless signing (cosign/Sigstore, Notation), SLSA build provenance and verification at deploy, license policy, DAST baseline, OpenSSF Scorecard — with severity-based gates and an exception process, rendered for GitHub Actions (default), GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins or Forgejo/Gitea. Use for "add security scanning", "generate an SBOM", "sign our images", "SLSA provenance", "harden the supply chain", or /devsecops:supply-chain.
+description: Harden the software supply chain and add security scanning to CI — pinning, Renovate or Dependabot, SCA, SAST, secret, IaC and container scanning, SBOM, signing, SLSA provenance, license policy — with severity gates, GitHub Actions by default. Use for "add security scanning", "generate an SBOM", "sign our images".
 ---
 
 # Software supply-chain security

@@ -1,6 +1,6 @@
 ---
 name: domain
-description: Turn a product brief (or a short idea / references directory) into a complete domain model for the backend — bounded contexts and their relationships, aggregates with invariants ("must always / must never"), entities and value objects, commands and domain events, lifecycle state machines, business policies with their sources, read models and access patterns, consistency and transaction boundaries, data ownership, retention and personal-data classification (LGPD/GDPR), integration boundaries, and expected volumes — aligned with the shared glossary. Writes docs/product/domain-model.md for backend:spec. Use when the user asks to "model the domain", "design the backend", "define entities and business rules", or runs /backend:domain. First stage of the backend chain, after project:init (and ideally project:spec).
+description: Model the backend domain from the product brief — bounded contexts, aggregates and invariants, events, lifecycles, policies, consistency boundaries, data ownership and personal-data classification — in docs/product/domain-model.md. Use for "model the domain", "design the backend", "define entities and business rules". Runs after project:init.
 ---
 
 # Domain model

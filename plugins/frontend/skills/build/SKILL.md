@@ -1,6 +1,6 @@
 ---
 name: build
-description: Implement the frontend from its Spec Kit specification — 000-design-system first (tokens, typography, components with every state), then each feature's ui.md phase by phase from the Frontend section of tasks.md — against a mock of contracts/openapi.yaml so it never waits on the backend, with i18n copy keys, WCAG 2.2 AA, responsive layouts, tests (component, axe, e2e) and screenshot-based self-critique before anything is marked Implemented. Use when the user asks to "build the frontend", "implement the UI", "develop the frontend from the specs", or runs /frontend:build. Final stage of the frontend chain, after frontend:spec.
+description: Implement the frontend from its Spec Kit specs — design system first, then each feature's ui.md phase by phase — against a mock of contracts/openapi.yaml, with i18n, WCAG 2.2 AA, responsive layouts, tests and screenshot self-critique before marking anything Implemented. Use for "build the frontend", "implement the UI". Runs after frontend:spec.
 ---
 
 # Frontend implementation

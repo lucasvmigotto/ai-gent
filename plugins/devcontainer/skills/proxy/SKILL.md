@@ -1,6 +1,6 @@
 ---
 name: proxy
-description: Simulate a production path-based reverse proxy (nginx, Traefik, an ingress, an API gateway) in front of a project's local/devcontainer backend and frontend — using the project's real path prefixes, websocket upgrade headers so frontend HMR survives the hop, and cookie-path rewrites — shipped as an opt-in compose stack. Use when the user asks to "simulate the reverse proxy", "reproduce the prod path prefix locally", "test basename/CORS/cookie path issues", or when devcontainer:setup reaches its reverse-proxy phase. Skip when production has no path-based proxy.
+description: Simulate the production path-based reverse proxy (nginx, Traefik, ingress, API gateway) in front of the local backend and frontend, with the real path prefixes, websocket upgrades for HMR and cookie paths, as an opt-in compose stack. Use for "simulate the reverse proxy", "reproduce the prod path prefix", basename, CORS or cookie-path bugs.
 ---
 
 # Simulating the production reverse proxy

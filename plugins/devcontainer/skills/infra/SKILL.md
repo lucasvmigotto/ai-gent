@@ -1,6 +1,6 @@
 ---
 name: infra
-description: Simulate the external resources an app depends on with docker-compose for local/devcontainer development — SQL/NoSQL databases, caches, object storage, queues and streaming, SMTP capture (Mailpit), mailboxes (GreenMail), mail APIs, OAuth2/OIDC providers (mock-oauth2-server, Keycloak, Dex, stand-ins for Entra ID/Okta/Auth0/Cognito), SAML and LDAP, search, vector DBs, observability, feature flags, secrets managers and API stubs — each chosen by a vendor-sandbox / identical / substitute / stub tier procedure with the version gap documented. Use for "simulate <a database/queue/cache/storage/mail/OAuth/SSO> locally", "mock the identity provider", "catch outgoing emails", "get a real JWT for local dev", or from devcontainer:setup. Works for existing devcontainers too.
+description: Simulate the external services an app needs with docker-compose — databases, caches, object storage, queues, SMTP capture, OAuth2/OIDC/SAML/LDAP providers, search, observability, API stubs — picking the closest local stand-in and documenting the gap. Use for "simulate <service> locally", "mock the identity provider", "catch outgoing emails".
 ---
 
 # Simulating external resources for local development
