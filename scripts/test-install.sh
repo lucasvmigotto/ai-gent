@@ -114,4 +114,19 @@ check "local changes are left alone" grep -q "local changes" "$SANDBOX/out"
 mkdir -p "$SANDBOX/not-a-clone"
 check "refuses a non-clone directory" bash -c '! AI_GENT_DIR="$1" AI_GENT_REPO="$2" sh "$2/install.sh" >/dev/null 2>&1' _ "$SANDBOX/not-a-clone" "$REPO_DIR"
 
+echo "      -- install.sh (pin a tag, then move the pin)"
+src="$SANDBOX/src"
+pinned="$SANDBOX/pinned"
+g() { git -C "$src" -c user.name=test -c user.email=test@example.test "$@"; }
+git clone -q "$REPO_DIR" "$src"
+g tag 9.9.0
+g commit -q --allow-empty -m "chore: next"
+g tag 9.9.1
+AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" AI_GENT_BRANCH=9.9.0 sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
+check "clones at the tag" test "$(git -C "$pinned" rev-parse HEAD)" == "$(g rev-parse '9.9.0^{commit}')"
+AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
+check "stays pinned without AI_GENT_BRANCH" grep -q "pinned to 9.9.0" "$SANDBOX/out"
+AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" AI_GENT_BRANCH=9.9.1 sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
+check "moves the pin to a newer tag" test "$(git -C "$pinned" rev-parse HEAD)" == "$(g rev-parse '9.9.1^{commit}')"
+
 exit $((failures > 0))
