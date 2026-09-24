@@ -1,6 +1,6 @@
 ---
-name: git-workflow
-description: Versioning workflow for this user's repos — strict Conventional Commits, branch-per-context strategy, merge rules with context-branch cleanup, safe history handling, and on-request issue/work-item linking (Closes #N) for GitHub, GitLab, Azure DevOps, Bitbucket, Forgejo/Gitea and Jira. Use whenever committing, branching, merging or linking issues, or when the user asks to "commit this", "make a branch", "merge this in", "this closes #12", "link the issue", or similar. Covers commit message format, branch naming, --no-ff vs --ff-only, deleting merged branches, and the confirm-before-acting rules around commit/merge/push.
+name: workflow
+description: This user's git rules — Conventional Commits, branch-per-context naming, --no-ff vs --ff-only merges with branch cleanup, safe history handling, and ask before committing, merging or pushing. Use whenever committing, branching, merging, tagging or linking issues ("commit this", "make a branch", "merge it in", "link it to issue 12").
 ---
 
 # Git versioning workflow
@@ -85,39 +85,28 @@ Format: `type(scope): subject`
 
 ## Linking issues and work items — only when asked
 
-Do this only when the user asks ("this closes #12", "link the issue", "find the related issue"). Never add issue references on your own initiative.
+Only when the user asks ("this closes #12", "link the issue", "find the
+related issue") — never on your own initiative. Then read
+`references/issue-linking.md` in full: where candidate ids come from
+(the request, then the branch name — always confirmed with the user —
+then earlier commits, then a remote lookup), each platform's closing
+syntax, and when closing actually happens. The rules that always hold:
 
-### 1. Find the candidate ids, cheapest first
+- ids go in **footers** (`Closes #N`, `Refs #N`), never in the subject;
+- never invent an id, and never use one from a branch name unconfirmed;
+- never ask the user to paste a token into the chat;
+- never close, comment on, label or assign an issue through a CLI or API
+  unless asked for that specific action.
 
-1. **Ids the user gave** in the request.
-2. **The branch name — check it, then ask.** Extract likely ids from the current branch (and the context branch being merged):
-   - forms that are usually ids: a leading number segment (`feat/123-login` → `123`), `#123`, `gh-123`/`issue-123`, Jira-style keys (`PROJ-123`), Azure Boards `AB#123`;
-   - forms that usually aren't: numbers inside words or versions (`oauth2`, `v2`, `http2`, `k8s`, `s3`), dates (`2026-09`), port-like or long numbers.
-   Then **ask**: *"The branch `feat/123-login` has `123` — is that the issue/work item this closes?"* Use it only after the user confirms.
-3. **Earlier commits on the branch** that already reference an id (`git log <parent>..HEAD --grep='#[0-9]'`).
-4. **Look it up on the remote**, if the user wants a search:
-   - detect the platform from `git remote get-url origin` — `github.com` → GitHub, `gitlab` → GitLab, `dev.azure.com`/`visualstudio.com` → Azure DevOps, `bitbucket.org` → Bitbucket, another host → possibly Forgejo/Gitea (confirm);
-   - use its CLI if installed and authenticated (`gh issue list --search`, `glab issue list --search`, `tea issues`, `az boards query`), otherwise its REST API with `curl` **only** with a token already present in the environment (`GH_TOKEN`/`GITHUB_TOKEN`, `GITLAB_TOKEN`, …) — public repositories may not need one;
-   - **never ask the user to paste a token into the chat**; with no access, ask the user for the id instead.
-5. Show the candidates (id, title, state) and ask which ones this change **closes** and which it only **relates to**.
+## Tags and releases
 
-### 2. Write the reference
-
-- As a **footer** of the commit that completes the work — not in the subject:
-  ```
-  fix(auth): refresh token before expiry
-
-  Closes #123
-  Refs #98
-  ```
-- Closing keywords by platform:
-  - **GitHub, GitLab, Forgejo/Gitea, Bitbucket Cloud:** `Closes #N` / `Fixes #N` / `Resolves #N`; cross-repo `owner/repo#N` (GitHub/Gitea), `group/project#N` (GitLab).
-  - **Azure DevOps:** `AB#N` links a work item from GitHub-hosted code; in Azure Repos, `#N` mentions link work items, and closing on completion is a PR setting — check how the organization has it configured.
-  - **Jira:** the issue key (`PROJ-123`) links; transitions (`PROJ-123 #done`) work only if smart commits are enabled.
-  - `Refs #N` (or just `#N`) links without closing.
-- **When it closes:** closing keywords act only when the commit or PR reaches the repository's **default branch**. Merging into `dev` or a feature branch links the issue but won't close it — say so whenever the target isn't the default branch.
-- If the user asks for a PR, put the same `Closes #N` lines in the PR description (the most reliable place for closing on merge).
-- Never close, comment on, label, assign or otherwise change an issue through a CLI or API unless the user asks for that specific action.
+- Tag only when asked, with an annotated tag on the commit being released:
+  `git tag -a 1.4.0 -m "1.4.0"`.
+- Follow the repo's existing tag convention; with none, plain SemVer
+  (`1.4.0`, no `v` prefix — a `v` belongs only in display text such as a
+  release title).
+- Pushing a tag publishes it: `git push <remote> <tag>` needs the same
+  explicit order as any push.
 
 ## History rewriting — only on explicit request
 
@@ -127,6 +116,18 @@ Do this only when the user asks ("this closes #12", "link the issue", "find the 
 2. Say which remotes and branches will diverge and need a force push, and whether anyone else may have the old history.
 3. Force-push only when told to, and then with `--force-with-lease`, never `--force`.
 4. The one routine exception: rebasing a **never-pushed** context branch onto its parent to allow `--ff-only` (see *Merging back*).
+
+## The guard hook
+
+The `git` plugin ships a PreToolUse hook (`../../hooks/guard.sh`) that
+enforces the rules above mechanically: it **blocks** `--no-verify`,
+co-author trailers and `git push --force` without a lease, and it makes
+the user **confirm** pushes, commits or merges on `main`/`master`,
+`git branch -D`, `reset --hard`, `clean -f`, `commit --amend`,
+`filter-branch`/`filter-repo` and `gh pr create`. A confirmation prompt
+is the hook working, not an error — never try to get around it (other
+commands, aliases, scripts); if it blocks something the user asked for,
+say so and let them decide.
 
 ## Pull requests — only when asked
 

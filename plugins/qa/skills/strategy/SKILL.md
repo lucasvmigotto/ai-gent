@@ -1,6 +1,6 @@
 ---
 name: strategy
-description: Define a risk-based test strategy for a project and per feature — which layer tests what (unit, component, integration, contract, e2e, accessibility, visual, performance, security, exploratory, UAT), risk scoring per feature, test data and environments (devcontainer stack, CI, staging), quality gates per pipeline stage, a story-to-test traceability map, flaky-test policy and exit criteria for the Verified status. Writes docs/product/test-strategy.md, specs/NNN-*/qa.md and QA tasks. Use for "define the test strategy", "what should we test and where", "plan QA for this feature", or /qa:strategy. Runs after project:spec, in parallel with the frontend and backend chains.
+description: Define a risk-based test strategy for the project and each feature — which layer tests what, risk scores, test data and environments, gates per pipeline stage, story-to-test traceability, flaky-test policy and the exit criteria for Verified — in docs/product/test-strategy.md and specs/NNN-*/qa.md. Use for "define the test strategy", "what should we test".
 ---
 
 # Test strategy
@@ -82,4 +82,4 @@ description: Define a risk-based test strategy for a project and per feature —
 
 Risk summary, the layer map, gates for `devsecops:pipeline`, what build
 stages must include, and next stages (`qa:e2e`, `qa:load` after builds).
-Commits follow `git-workflow`.
+Commits follow `git:workflow`.

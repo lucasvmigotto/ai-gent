@@ -1,6 +1,6 @@
 {
   "name": "qa",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "GPL-3.0-or-later",
   "description": "Quality assurance across the product pipeline: strategy, e2e (cross-stack journeys), load (load/stress/soak/spike), review (test-suite audit)",
   "author": {

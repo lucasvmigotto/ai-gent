@@ -1,0 +1,2 @@
+# bash -c '...' snippets and literal patterns are single-quoted on purpose.
+disable=SC2016

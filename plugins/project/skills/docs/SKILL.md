@@ -1,15 +1,14 @@
 ---
 name: docs
-description: Build a comprehensive, production-quality static documentation website for a software project in docs/site/ — truth-first from the code, enriched by the product pipeline's brief, UX vision, domain model and Spec Kit specs (always labelled Planned until built), branded from the UX vision or via frontend:uiux. Use when the user asks to document a project, create a docs site, add a documentation website, or runs /project:docs. Covers phased delivery (discovery, scaffold, components, i18n, tests, deploy), the Bun/React/TS7/Vite/Tailwind/HashRouter/Biome stack, and R2 + Docker shipping.
+description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the pipeline's brief, domain model and specs (labelled Planned until built), branded from the UX vision — with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
 ---
 
 # Project documentation websites
 
 Builds an official, static, accessible, internationalized documentation
 website for a software project — a product that evolves with the project,
-not a one-off page. Works through `git-workflow` for all versioning
-(branch-per-phase, small Conventional Commits, ask-before-commit,
-`--no-ff` at 4+ commits, never push without an explicit order).
+not a one-off page. All versioning follows `git:workflow`, one branch per
+phase.
 
 Part of the product pipeline — read `../../references/pipeline.md` first.
 Its artifacts are content sources, not substitutes for reading the code:
@@ -68,8 +67,8 @@ Use the brief's glossary for every term on the site.
 
 ## Phase 2 — Scaffold
 
-Bun · React · TypeScript 7 (pinned, resolved tree verified with
-`bunx tsc --version` + `bun pm ls typescript`) · Vite · Tailwind CSS ·
+Bun · React · TypeScript (the current stable major, pinned; verify the
+resolved version with `bunx tsc --version` + `bun pm ls typescript`) · Vite · Tailwind CSS ·
 React Router **`HashRouter`** (static hosts provide no SPA fallback, so
 hash routing keeps deep links working) · Biome (not ESLint). No runtime
 backend, no heavy doc framework.

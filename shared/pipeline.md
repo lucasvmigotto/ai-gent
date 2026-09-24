@@ -33,13 +33,16 @@ idea text / references dir
             qa:e2e, qa:load ► cross-stack journeys, load tests   (after the builds)
 
  devsecops:pipeline, devsecops:supply-chain ─► CI/CD config     from project:spec on
+ devsecops:iac ────────► infra/                            cloud environments, once hosting is decided
  project:docs ─────────► docs/site/                        reads all of the above
+ project:status ───────► (report only)                     where things stand, what to run next
 ```
 
 The frontend, backend and QA branches run in parallel once `project:spec`
 has produced features and a contract skeleton. Frontend and backend meet
 only at the contract and the glossary. `devsecops:audit` and
-`devsecops:migrate` run whenever needed.
+`devsecops:migrate` run whenever needed; `project:status` reads everything
+and writes nothing.
 
 ## Artifacts and owners
 
@@ -62,7 +65,8 @@ only at the contract and the glossary. `devsecops:audit` and
 | `specs/NNN-<feature>/qa.md` | `qa:strategy` | build stages, qa:e2e, qa:load | story → test map, e2e journeys, load profiles, exit criteria |
 | `tests/e2e/`, `tests/load/` (or the paths the plan sets) | `qa:e2e`, `qa:load` | devsecops:pipeline | cross-stack suites; unit/component/integration tests stay with the build stages |
 | CI/CD config (`.github/workflows/` by default, or the platform's file) | `devsecops:pipeline` | everyone | pipelines, gates, environments; security tooling from `devsecops:supply-chain` |
-| `docs/product/delivery.md` | `devsecops:pipeline` (supply-chain section by `devsecops:supply-chain`) | everyone, project:docs | pipelines, gates, environments, promotion, required secrets by name, rollback runbook |
+| `infra/` | `devsecops:iac` | devsecops:pipeline | infrastructure as code: modules, one root per environment, state bootstrap |
+| `docs/product/delivery.md` | `devsecops:pipeline` (supply-chain section by `devsecops:supply-chain`, infrastructure section by `devsecops:iac`) | everyone, project:docs | pipelines, gates, environments, promotion, required secrets by name, rollback runbook |
 | `docs/site/` | `project:docs` | — | static documentation site |
 
 **Ownership rules**
@@ -133,7 +137,7 @@ definition and the words **not** to use for it
      suites.
    Only the named stage moves a status forward; any stage moves it back
    when it finds the claim no longer holds. `project:docs` depends on this.
-7. **Versioning** follows `git-workflow` (branch per stage/phase, small
+7. **Versioning** follows `git:workflow` (branch per stage/phase, small
    Conventional Commits, ask before committing and merging).
 8. **Finish with a handoff line**: what was written, what's still open,
    and the next stage to run.
@@ -145,7 +149,7 @@ The chain uses GitHub Spec Kit (`specify` CLI, 1.x) for everything under
 
 - Bootstrap (once per project, by `project:spec`):
   `specify init --here --integration claude --non-interactive`.
-  Do **not** add `--extension git`: branches follow `git-workflow`, not
+  Do **not** add `--extension git`: branches follow `git:workflow`, not
   Spec Kit's numbered-branch hook.
 - This installs `/speckit-*` skills into the project's `.claude/skills/`
   (`constitution`, `specify`, `clarify`, `plan`, `tasks`, `analyze`,

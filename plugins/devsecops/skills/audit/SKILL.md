@@ -1,6 +1,6 @@
 ---
 name: audit
-description: Audit existing CI/CD pipelines and repository delivery settings for security and reliability problems — script injection, untrusted-code triggers (pull_request_target, fork MRs/PRs), over-broad tokens and permissions, unpinned actions/components/pipes/images/libraries, long-lived cloud secrets instead of OIDC, unprotected deploy credentials and environments, self-hosted runner exposure, cache/artifact poisoning, secrets in logs, missing gates, slow or flaky pipelines — on GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins or Forgejo/Gitea. Produces findings ranked by severity with evidence (file:line), an attack or failure scenario and the fix. Use for "review our pipelines", "is our CI secure", "audit GitHub Actions workflows", or /devsecops:audit.
+description: Audit existing CI/CD pipelines and delivery settings for security and reliability problems — script injection, untrusted triggers, broad tokens, unpinned dependencies, long-lived secrets, unprotected environments, cache poisoning, flakiness — with ranked, evidenced findings and fixes, on any major CI platform. Use for "review our pipelines", "is our CI secure".
 ---
 
 # CI/CD audit
@@ -77,4 +77,4 @@ afterwards.
 ## Handoff
 
 Top risks in one line each, what needs settings access or a decision
-from the user, and the remediation plan. Commits follow `git-workflow`.
+from the user, and the remediation plan. Commits follow `git:workflow`.

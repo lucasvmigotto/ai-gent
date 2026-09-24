@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: Propose the most capable and efficient software architecture for a new system, or review an existing one and propose improvements — interviewing only for missing drivers (quality attributes, user volumes, SLOs, team, budget, data residency, existing resources), building a capacity model from real or estimated usage, and deciding with ADRs: deployment shape (monolith, modular monolith, BFF, microservices, functions), hosting (on-prem, PaaS, AWS/Azure/GCP, multicloud), API style (REST, gRPC, GraphQL, events), data stores (single SQL or NoSQL vs. SQL + cache + search + object storage), messaging, identity, tenancy, regions/DR, observability and cost, with an evolution path and measurable triggers. Writes docs/product/architecture.md and docs/product/adr/. Use for "design the architecture", "which cloud / database / API style", "review our architecture", "will this scale", or /project:architecture. Runs between project:init and project:spec.
+description: Propose an architecture for a new system or review an existing one — interviewing only for missing drivers, sizing from usage volumes, and deciding deployment shape, hosting, API style, data stores, messaging, identity, DR and cost as ADRs with an evolution path, in docs/product/architecture.md. Use for "design the architecture", "which cloud or database", "will this scale".
 ---
 
 # Software architecture
@@ -176,4 +176,4 @@ questions, and the consumers: `project:spec` (stack and structure for
 `plan.md`), `backend:domain` (modules per context), `devcontainer:setup`
 and `devcontainer:infra` (local topology and simulated resources),
 `devsecops:pipeline` (environments, deploy targets), `qa:load` (targets
-from the capacity model). Commits follow `git-workflow`.
+from the capacity model). Commits follow `git:workflow`.

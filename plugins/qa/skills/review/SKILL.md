@@ -1,6 +1,6 @@
 ---
 name: review
-description: Audit an existing test suite — unit, component, integration, contract and e2e — for gaps against user stories and risky code, weak or implementation-coupled assertions, over-mocking, flakiness (repeated runs and CI history), slow tests, test-data problems and pyramid shape, using mutation testing (Stryker, PIT, mutmut, cargo-mutants) on critical modules and branch coverage as a signal rather than a target; produces ranked findings with evidence and fixes, and improves tests (never production code) when asked. Use for "review our tests", "are our unit tests any good", "why is CI flaky", "mutation testing", or /qa:review.
+description: Audit an existing test suite for gaps against stories and risky code, weak assertions, over-mocking, flakiness, slowness and pyramid shape, using mutation testing with coverage as a signal only; ranked findings with fixes, and improved tests (never production code) on request. Use for "review our tests", "why is CI flaky", "mutation testing".
 ---
 
 # Test-suite review
@@ -69,4 +69,4 @@ and the flakiness loop afterwards to show the improvement.
 ## Handoff
 
 Top gaps, metrics before/after, defects found, and the plan. Commits
-follow `git-workflow`.
+follow `git:workflow`.

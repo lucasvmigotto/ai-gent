@@ -1,6 +1,6 @@
 ---
 name: migrate
-description: Migrate CI/CD pipelines from one platform to another — between GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins and Forgejo/Gitea Actions (and from classic Azure release pipelines to YAML) — by inventorying every job, trigger, template, secret, environment and runner, mapping each through a shared concept model, flagging features with no equivalent, re-establishing OIDC trust and protections on the target, running both in parallel until parity, and cutting over with a checklist. Use for "move our pipelines from Jenkins to GitHub Actions", "convert .gitlab-ci.yml to Azure Pipelines", "migrate Bitbucket Pipelines to GitLab", or /devsecops:migrate.
+description: Migrate CI/CD pipelines between GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins and Forgejo/Gitea — inventory, concept mapping, gaps, OIDC and protections on the target, parallel runs until parity, a cutover checklist. Use for "move our pipelines from Jenkins to GitHub Actions", "convert .gitlab-ci.yml".
 ---
 
 # CI/CD migration
@@ -68,4 +68,4 @@ description: Migrate CI/CD pipelines from one platform to another — between Gi
 ## Handoff
 
 Gaps that need a decision, the settings checklist for the user, parity
-status, and the cutover plan. Commits follow `git-workflow`.
+status, and the cutover plan. Commits follow `git:workflow`.

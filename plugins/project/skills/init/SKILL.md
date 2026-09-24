@@ -1,6 +1,6 @@
 ---
 name: init
-description: Turn a short application idea, or a directory of references (notes, screenshots, existing docs, competitor material), into a complete product brief — problem and context, goals and non-goals, audiences and jobs, scoped capabilities (MVP / next / later), key journeys, domain overview with the shared glossary, business rules, non-functional requirements, integrations, constraints, compliance (e.g. LGPD/GDPR), success metrics, risks, architecture drivers, and a candidate feature map. Writes docs/product/brief.md for project:spec. Use when the user asks to "start a new project", "write the project specification", "turn this idea into a spec", "define the product", or runs /project:init. First stage of the product pipeline; frontend and backend chains read its glossary.
+description: Turn an idea or a references folder into a complete product brief — problem, goals, audiences, scoped capabilities, journeys, domain overview with the shared glossary, rules, non-functional needs, compliance, metrics, risks, architecture drivers and a candidate feature map — in docs/product/brief.md. Use for "start a new project", "define the product". First pipeline stage.
 ---
 
 # Product brief
@@ -110,4 +110,4 @@ Mark the brief `Planned`.
 
 Summarize scope (MVP in one line), the biggest risks, the open
 questions, and the next stage: `project:architecture`. Commits follow
-`git-workflow`.
+`git:workflow`.

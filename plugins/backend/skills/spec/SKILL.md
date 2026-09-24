@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Turn the domain model and the Spec Kit features into an implementation-ready, contract-first backend specification — the canonical contracts/openapi.yaml (and asyncapi.yaml when events leave the service), a backend.md layer on every feature (endpoints with authz, validation, errors as RFC 9457 problem+json, pagination, idempotency, concurrency; persistence with tables, constraints, indexes and migrations; transactions, jobs and outbox events; integrations with timeouts and retries; observability; security; performance budgets; test plan) and Backend tasks appended to each tasks.md. Use when the user asks to "spec the backend", "design the API", "write the OpenAPI contract", "plan the backend implementation", or runs /backend:spec. Second stage of the backend chain, after backend:domain and project:spec.
+description: Write the contract-first backend spec — the canonical contracts/openapi.yaml (asyncapi.yaml for events), a backend.md per feature (endpoints, authz, errors, persistence, jobs, integrations, tests) and Backend tasks. Use for "spec the backend", "design the API", "write the OpenAPI contract". Runs after backend:domain and project:spec.
 ---
 
 # Backend specification (contract-first, Spec Kit)
@@ -139,4 +139,4 @@ updated features; fix your layer, report the rest.
 
 List the features updated, contract changes the frontend must know
 about, infra to simulate (for `devcontainer:infra`), upstream gaps, and
-the next stage: `backend:build`. Commits follow `git-workflow`.
+the next stage: `backend:build`. Commits follow `git:workflow`.

@@ -1,6 +1,6 @@
 ---
 name: build
-description: Implement the backend from its contract-first Spec Kit specification — phase by phase from the Backend section of each tasks.md, tests first (invariants, state machines, authorization matrix, contract tests against contracts/openapi.yaml), with versioned zero-downtime migrations, RFC 9457 errors, idempotency and concurrency control, resilient integrations, structured observability and a security baseline, running real dependencies via devcontainer:infra and Testcontainers — nothing marked Implemented until verified. Use when the user asks to "build the backend", "implement the API", "develop the backend from the specs", or runs /backend:build. Final stage of the backend chain, after backend:spec.
+description: Implement the backend from its Spec Kit specs, phase by phase and tests first — contract tests against contracts/openapi.yaml, zero-downtime migrations, RFC 9457 errors, observability and a security baseline — marking features Implemented only once verified. Use for "build the backend", "implement the API". Runs after backend:spec.
 ---
 
 # Backend implementation
@@ -37,7 +37,7 @@ Order: shared Setup/Foundational phases, then features in priority order
 
 For each phase:
 
-1. Branch per `git-workflow` (`feat/<feature>-<phase>` off the working
+1. Branch per `git:workflow` (`feat/<feature>-<phase>` off the working
    branch).
 2. **Tests first** for the phase's stories: contract tests for its
    operations, invariant and state-machine tests for its aggregates,

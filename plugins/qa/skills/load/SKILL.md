@@ -1,6 +1,6 @@
 ---
 name: load
-description: Design and run performance tests — smoke, load, stress, spike, soak and breakpoint — with k6 by default, from a workload model built on the architecture's capacity model and real or estimated usage (arrival rates, operation mix, think time, data variety), thresholds from SLOs (p95/p99 latency, error rate, throughput), open-model executors to avoid coordinated omission, server-side monitoring during runs, honest environment caveats (local results are relative), result reports with bottleneck analysis, and CI wiring (smoke per PR or main, full runs scheduled). Use for "load test the API", "stress test", "will it handle N users", "soak test", or /qa:load. Runs after backend:build.
+description: Design and run performance tests — smoke, load, stress, spike, soak, breakpoint — with k6 by default, from a workload model based on the capacity model, with SLO thresholds, open-model executors, server-side monitoring, honest environment caveats and CI wiring. Use for "load test the API", "stress test", "will it handle N users", "soak test".
 ---
 
 # Load and performance tests
@@ -87,4 +87,4 @@ file a defect with the report and keep it Implemented.
 
 Results vs. SLOs, bottlenecks and evidence, environment caveats,
 recommendations, CI jobs, and statuses changed. Stop generators and any
-stack started only for the run. Commits follow `git-workflow`.
+stack started only for the run. Commits follow `git:workflow`.

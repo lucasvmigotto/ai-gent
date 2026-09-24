@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Design and scaffold devcontainer(s) for a project that has none. Gives a backend API and a frontend client their own devcontainer by default, even when they share a language; one shared container only for full-stack frameworks or single-app projects. Reads each module's exact stack (version, package manager, formatter/linter config) to pick base images and features and matching IDE settings, plus shared network, caches, env wiring, hot-reload, verification and decision docs. Use for "set up a devcontainer", "containerize the dev environment", "split the devcontainer into api and web". Hands off to devcontainer:infra (simulated resources) and devcontainer:proxy (reverse proxy); day-to-day use is devcontainer:workflow.
+description: Design and scaffold devcontainers for a project that has none — separate API and client containers by default, stack-matched images, features and IDE settings, shared network, caches, env and hot reload. Use for "set up a devcontainer", "containerize the dev environment", "split the devcontainer into api and web".
 ---
 
 # Designing devcontainer(s) for a project
@@ -18,7 +18,7 @@ subskills own the rest:
 - `devcontainer:workflow` — day-to-day lifecycle/exec work once a
   devcontainer exists.
 
-Commit/branch mechanics throughout all phases follow `git-workflow` — this
+Commit/branch mechanics throughout all phases follow `git:workflow` — this
 skill doesn't repeat those rules.
 
 ## Phase 0 — Discovery
