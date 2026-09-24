@@ -1,0 +1,9 @@
+{
+  "name": "devcontainer",
+  "version": "1.0.0",
+  "description": "Design, simulate infra for, and operate devcontainers: setup, infra, proxy, workflow",
+  "author": {
+    "name": "Lucas",
+    "email": "lvmigotto1@gmail.com"
+  }
+}
