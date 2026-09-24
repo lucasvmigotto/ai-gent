@@ -128,6 +128,18 @@ Do this only when the user asks ("this closes #12", "link the issue", "find the 
 3. Force-push only when told to, and then with `--force-with-lease`, never `--force`.
 4. The one routine exception: rebasing a **never-pushed** context branch onto its parent to allow `--ff-only` (see *Merging back*).
 
+## The guard hook
+
+The `git` plugin ships a PreToolUse hook (`../../hooks/guard.sh`) that
+enforces the rules above mechanically: it **blocks** `--no-verify`,
+co-author trailers and `git push --force` without a lease, and it makes
+the user **confirm** pushes, commits or merges on `main`/`master`,
+`git branch -D`, `reset --hard`, `clean -f`, `commit --amend`,
+`filter-branch`/`filter-repo` and `gh pr create`. A confirmation prompt
+is the hook working, not an error — never try to get around it (other
+commands, aliases, scripts); if it blocks something the user asked for,
+say so and let them decide.
+
 ## Pull requests — only when asked
 
 Opening a PR publishes the branch; do it only on an explicit request (it implies pushing, which needs the same explicit order). The PR description carries what commits don't: the why, design rationale, alternatives, testing notes, screenshots, and any `Closes #N` lines.

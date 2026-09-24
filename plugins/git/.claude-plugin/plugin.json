@@ -2,7 +2,7 @@
   "name": "git",
   "version": "1.0.0",
   "license": "GPL-3.0-or-later",
-  "description": "This user's git rules: workflow (Conventional Commits, branch-per-context, merge and cleanup rules)",
+  "description": "This user's git rules: workflow (Conventional Commits, branch-per-context, merge and cleanup rules), enforced by a PreToolUse guard hook",
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
