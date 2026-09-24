@@ -20,7 +20,11 @@ stage builds on — so make them explicit, justified and consistent.
 2. Required input: `docs/product/brief.md`. If missing, propose
    `project:init`; if the user wants to skip it, run its clarifying
    questions yourself and record the answers as the feature inputs.
-3. Also read, when present: `docs/product/domain-model.md`,
+3. Read `docs/product/architecture.md` and `docs/product/adr/` — the
+   stack, topology, API style and data stores are decided there; plans
+   follow them and never silently diverge. If missing, propose
+   `project:architecture` first.
+4. Also read, when present: `docs/product/domain-model.md`,
    `docs/product/ux-vision.md`, existing `specs/`, existing code.
    Existing features are **updated**, never duplicated.
 
@@ -47,7 +51,7 @@ Run `/speckit-constitution` (or follow its skill file) to write
   no secrets in the repo, contract-first API (`contracts/openapi.yaml` is
   the source of truth), separate frontend/backend modules and
   devcontainers when both exist;
-- the architecture direction from the brief.
+- the decisions in `docs/product/architecture.md` and its ADRs.
 
 Keep principles few and enforceable — each one should be checkable in a
 plan's Constitution Check.
@@ -79,7 +83,8 @@ For each feature, using the Spec Kit skills (or their skill files):
 3. `/speckit-plan` — technical context, constitution check, project
    structure, `research.md`, `data-model.md`, `contracts/`,
    `quickstart.md`. Decisions:
-   - **Stack**: from the brief's constraints; when open and the user
+   - **Stack**: from `architecture.md`; only where it leaves a choice open
+     and the user
      agrees, default to the user's usual stack for web clients (Bun ·
      React · TypeScript · Vite · Tailwind CSS · Biome) and ask about the
      backend language rather than assuming one.
@@ -88,6 +93,8 @@ For each feature, using the Spec Kit skills (or their skill files):
      `devcontainer:setup`'s split.
    - **Dev environment**: note that `devcontainer:setup` (and
      `devcontainer:infra` for each external resource) provides it.
+   - **Delivery**: CI/CD comes from `devsecops:pipeline`; the test layers
+     from `qa:strategy`.
 4. `/speckit-tasks` — phased tasks (Setup → Foundational → per user story
    → Polish) with checkpoints. Keep these tasks **shared/cross-cutting**
    (repo setup, CI, environment); `frontend:spec` and `backend:spec`
@@ -123,6 +130,7 @@ for requirement quality on the MVP features.
 
 Summarize features (MVP first), key technical decisions, open risks, and
 the next stages — in parallel: `frontend:uiux` → `frontend:spec` →
-`frontend:build`, and `backend:domain` → `backend:spec` →
-`backend:build`; plus `devcontainer:setup` for the environment. Commits
+`frontend:build`, `backend:domain` → `backend:spec` → `backend:build`, and
+`qa:strategy`; plus `devcontainer:setup` for the environment and
+`devsecops:pipeline` for CI/CD. Commits
 follow `git-workflow`.

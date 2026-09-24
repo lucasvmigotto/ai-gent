@@ -1,6 +1,6 @@
 ---
 name: init
-description: Turn a short application idea, or a directory of references (notes, screenshots, existing docs, competitor material), into a complete product brief — problem and context, goals and non-goals, audiences and jobs, scoped capabilities (MVP / next / later), key journeys, domain overview with the shared glossary, business rules, non-functional requirements, integrations, constraints, compliance (e.g. LGPD/GDPR), success metrics, risks, an architecture direction, and a candidate feature map. Writes docs/product/brief.md for project:spec. Use when the user asks to "start a new project", "write the project specification", "turn this idea into a spec", "define the product", or runs /project:init. First stage of the product pipeline; frontend and backend chains read its glossary.
+description: Turn a short application idea, or a directory of references (notes, screenshots, existing docs, competitor material), into a complete product brief — problem and context, goals and non-goals, audiences and jobs, scoped capabilities (MVP / next / later), key journeys, domain overview with the shared glossary, business rules, non-functional requirements, integrations, constraints, compliance (e.g. LGPD/GDPR), success metrics, risks, architecture drivers, and a candidate feature map. Writes docs/product/brief.md for project:spec. Use when the user asks to "start a new project", "write the project specification", "turn this idea into a spec", "define the product", or runs /project:init. First stage of the product pipeline; frontend and backend chains read its glossary.
 ---
 
 # Product brief
@@ -78,12 +78,12 @@ read the same for any app gets rewritten or marked N/A with a reason.
     technologies or vendors, existing systems to reuse.
 14. **Success metrics** — how we know the goals are met (leading and
     lagging), with a target.
-15. **Architecture direction** — the recommended high-level shape and
-    why (e.g. "modular monolith API + SPA client, one relational DB";
-    separate client and API modules when there's a separate frontend —
-    see `devcontainer:setup`), the main alternatives rejected, and the
-    decisions deliberately left to `project:spec`. Prefer the simplest
-    architecture that meets the NFRs; justify anything distributed.
+15. **Architecture drivers** — the inputs `project:architecture` decides
+    from, stated as facts, not choices: ranked quality attributes, usage
+    volumes (users, DAU, peaks, growth), SLOs (availability, latency,
+    RPO/RTO), data residency, existing resources and mandates the
+    organization already runs, team size and skills, budget. Leave the
+    architecture itself to `project:architecture`.
 16. **Candidate feature map** — the capabilities re-cut into
     independently shippable features, in dependency order, each with a
     one-line scope, priority and dependencies. `project:spec` turns
@@ -103,11 +103,11 @@ Mark the brief `Planned`.
 - [ ] NFRs have numbers (latency, volumes, uptime, WCAG level)
 - [ ] compliance regime named, or N/A with reason
 - [ ] every integration has a failure behavior
-- [ ] architecture direction states the alternatives rejected
+- [ ] architecture drivers are numbers or explicit unknowns, not adjectives
 - [ ] all assumptions and open questions collected in their sections
 
 ## Handoff
 
 Summarize scope (MVP in one line), the biggest risks, the open
-questions, and the next stage: `project:spec`. Commits follow
+questions, and the next stage: `project:architecture`. Commits follow
 `git-workflow`.

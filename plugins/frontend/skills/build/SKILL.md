@@ -103,7 +103,9 @@ devcontainer) and check, for the screens this phase touched:
 
 Only after a feature's last checkpoint passes does it become
 **Implemented** — update its status in `specs/README.md` (if present) and
-tell `project:docs` it can document it as such.
+tell `project:docs` it can document it as such. **Verified** is set by
+`qa:e2e` once the cross-stack journeys pass. CI for the frontend comes
+from `devsecops:pipeline`; never weaken a gate there to go green.
 
 ## Quality floor (never below this, never announced)
 

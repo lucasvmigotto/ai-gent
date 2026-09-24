@@ -20,7 +20,8 @@ Its artifacts are content sources, not substitutes for reading the code:
 | `docs/product/brief.md` | overview, audiences, concepts, **glossary** (the site's terminology) | Planned unless the code implements it |
 | `docs/product/domain-model.md` | concept and lifecycle pages | Planned unless implemented |
 | `docs/product/ux-vision.md` | the site's voice, and the product's visual identity | — |
-| `specs/README.md`, `specs/NNN-*/` | roadmap and "what's coming" pages | **Planned**, always, until a build stage marks it Implemented *and* the code confirms it |
+| `docs/product/architecture.md`, `docs/product/adr/` | architecture overview and decision pages | Planned until the deployed system matches it |
+| `specs/README.md`, `specs/NNN-*/` | roadmap and "what's coming" pages | **Planned**, always, until a build stage marks it Implemented *and* the code confirms it; show **Verified** when QA has passed |
 | `contracts/openapi.yaml` | API reference | Implemented only for operations the backend actually serves (check routes/contract tests) |
 
 ## Non-negotiable rules
@@ -129,6 +130,9 @@ error states) before calling anything done.
   `docs/site/` (`working-directory: docs/site`, `paths: [docs/site/**]`
   triggers). Content read from `docs/product/` or `specs/` must also
   trigger a rebuild.
+- **Pipeline:** the site's workflow is designed by `devsecops:pipeline`
+  (GitHub Actions unless the project uses another platform) with its
+  supply-chain baseline; the steps below are what it must contain.
 - **R2 workflow:** checkout → setup Bun (pinned) → install → lint →
   typecheck → test → build → artifact → S3-sync to Cloudflare R2.
   Immutable long-lived caching for hashed assets, `no-cache` for entry

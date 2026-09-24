@@ -1,67 +1,82 @@
 # Product pipeline contract
 
-Shared by the `project`, `frontend` and `backend` plugins. Every skill in
-the chain reads this file first. It defines where each artifact lives, who
-owns it, and the rules every stage follows — so any stage can run alone,
-in a later session, or out of order, and still find what the others wrote.
+Shared by the `project`, `frontend`, `backend`, `qa` and `devsecops`
+plugins. Every skill in the chain reads this file first. It defines where
+each artifact lives, who owns it, and the rules every stage follows — so
+any stage can run alone, in a later session, or out of order, and still
+find what the others wrote.
 
 ## The chain
 
 ```
 idea text / references dir
         │
- project:init ───────► docs/product/brief.md            what, for whom, why; the glossary
+ project:init ─────────► docs/product/brief.md           what, for whom, why; the glossary
         │
- project:spec ───────► .specify/memory/constitution.md
-        │               specs/NNN-<feature>/…            every feature, Spec Kit format
-        │               contracts/openapi.yaml           API contract skeleton
+ project:architecture ─► docs/product/architecture.md    topology, hosting, API style, data, capacity
+        │                 docs/product/adr/NNNN-*.md       one decision record per choice
+        │
+ project:spec ─────────► .specify/memory/constitution.md
+        │                 specs/NNN-<feature>/…            every feature, Spec Kit format
+        │                 contracts/openapi.yaml           API contract skeleton
         │
         ├── frontend:uiux ──► docs/product/ux-vision.md  layout + language
         │   frontend:spec ──► specs/NNN-*/ui.md          UI layer on existing features
         │   frontend:build ─► the frontend code
         │
-        └── backend:domain ─► docs/product/domain-model.md
-            backend:spec ───► specs/NNN-*/backend.md     backend layer on existing features
-                              contracts/openapi.yaml     the canonical contract
-            backend:build ──► the backend code
+        ├── backend:domain ─► docs/product/domain-model.md
+        │   backend:spec ───► specs/NNN-*/backend.md     backend layer on existing features
+        │                     contracts/openapi.yaml     the canonical contract
+        │   backend:build ──► the backend code
+        │
+        └── qa:strategy ────► docs/product/test-strategy.md, specs/NNN-*/qa.md
+            qa:e2e, qa:load ► cross-stack journeys, load tests   (after the builds)
 
- project:docs ──────► docs/site/                         reads all of the above
+ devsecops:pipeline, devsecops:supply-chain ─► CI/CD config     from project:spec on
+ project:docs ─────────► docs/site/                        reads all of the above
 ```
 
-The frontend and backend branches run in parallel once `project:spec` has
-produced features and a contract skeleton. They meet only at the contract
-and the glossary.
+The frontend, backend and QA branches run in parallel once `project:spec`
+has produced features and a contract skeleton. Frontend and backend meet
+only at the contract and the glossary. `devsecops:audit` and
+`devsecops:migrate` run whenever needed.
 
 ## Artifacts and owners
 
 | Path | Owner (writes) | Readers | Notes |
 |---|---|---|---|
 | `docs/product/brief.md` | `project:init` | everyone | vision, audiences, scope, capabilities, constraints, **glossary** |
+| `docs/product/architecture.md`, `docs/product/adr/` | `project:architecture` | project:spec, backend:domain, devcontainer:setup, devsecops:*, qa:load, project:docs | drivers, capacity model, topology, hosting, API style, data stores, decisions with alternatives |
 | `docs/product/ux-vision.md` | `frontend:uiux` | frontend:*, project:docs | layout, visual direction, voice, microcopy |
 | `docs/product/domain-model.md` | `backend:domain` | backend:*, project:spec, project:docs | contexts, aggregates, invariants, events, lifecycles |
 | `docs/product/references/` | the user | init, uiux, domain | screenshots, competitor notes, sketches, existing docs |
 | `.specify/` | Spec Kit (`specify init`) | project:spec | templates, scripts, constitution |
 | `.specify/memory/constitution.md` | `project:spec` | every spec/build stage | non-negotiable engineering principles |
-| `specs/README.md` | `project:spec` (build stages update only the Status column) | everyone | feature index: number, name, priority, dependencies, frontend/backend status (Planned / In progress / Implemented) |
+| `specs/README.md` | `project:spec` (build stages update only the Status column) | everyone | feature index: number, name, priority, dependencies, frontend/backend status (Planned / In progress / Implemented / Verified) |
 | `specs/NNN-<feature>/spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `tasks.md`, `contracts/` | `project:spec` (via Spec Kit) | everyone downstream | feature split, stories, requirements, stack |
 | `specs/NNN-<feature>/ui.md` | `frontend:spec` | frontend:build | screens, components, states, tokens used |
 | `specs/NNN-<feature>/backend.md` | `backend:spec` | backend:build | endpoints, authz, errors, persistence, jobs |
 | `specs/000-design-system/` | `frontend:spec` | frontend:build | the one feature `frontend:spec` may create itself |
 | `contracts/openapi.yaml` (+ `asyncapi.yaml` if events leave the service) | skeleton by `project:spec`, canonical by `backend:spec` | frontend:*, backend:* | the frontend/backend seam |
+| `docs/product/test-strategy.md` | `qa:strategy` | build stages, qa:*, devsecops:pipeline | test layers, risks, environments, test data, gates |
+| `specs/NNN-<feature>/qa.md` | `qa:strategy` | build stages, qa:e2e, qa:load | story → test map, e2e journeys, load profiles, exit criteria |
+| `tests/e2e/`, `tests/load/` (or the paths the plan sets) | `qa:e2e`, `qa:load` | devsecops:pipeline | cross-stack suites; unit/component/integration tests stay with the build stages |
+| CI/CD config (`.github/workflows/` by default, or the platform's file) | `devsecops:pipeline` | everyone | pipelines, gates, environments; security tooling from `devsecops:supply-chain` |
+| `docs/product/delivery.md` | `devsecops:pipeline` (supply-chain section by `devsecops:supply-chain`) | everyone, project:docs | pipelines, gates, environments, promotion, required secrets by name, rollback runbook |
 | `docs/site/` | `project:docs` | — | static documentation site |
 
 **Ownership rules**
 
 - Only the owner creates or restructures an artifact. Downstream stages
   *add their layer* (a `ui.md`, a `backend.md`, frontend/backend tasks
-  appended to `tasks.md`) and never rewrite another stage's sections.
+  appended to `tasks.md`, a `qa.md`) and never rewrite another stage's sections.
 - If a downstream stage finds the upstream artifact wrong or missing
   something, it records the gap as an `[UPSTREAM GAP: …]` note in its own
   artifact, tells the user, and proposes the upstream fix — it doesn't
   silently patch it.
 - `tasks.md` stays one file per feature. Frontend tasks go under
-  `## Frontend` and backend tasks under `## Backend` headings appended by
-  their spec stages, using Spec Kit's task format
+  `## Frontend`, backend tasks under `## Backend` and QA tasks under
+  `## QA` headings appended by their stages, using Spec Kit's task format
   (`- [ ] T0NN [P] [USn] Description with file path`), numbering after the
   last existing ID.
 
@@ -109,9 +124,15 @@ definition and the words **not** to use for it
    section that says nothing specific to *this* product gets deleted.
 5. **Real content.** Use the product's actual names, entities and
    scenarios throughout — no "Lorem ipsum", no "User A does Action B".
-6. **Status is explicit.** Everything produced before code exists is
-   *Planned*. Only `*:build` stages turn something *Implemented*, and only
-   once it's verified. `project:docs` depends on this.
+6. **Status is explicit**, per feature and side, in `specs/README.md`:
+   - *Planned* — specified, no code yet (everything before a build stage);
+   - *In progress* — a build stage is working through its phases;
+   - *Implemented* — a `*:build` stage passed its last checkpoint;
+   - *Verified* — `qa:e2e` (and `qa:load` where the feature has load
+     targets) passed against the implemented feature, and CI runs those
+     suites.
+   Only the named stage moves a status forward; any stage moves it back
+   when it finds the claim no longer holds. `project:docs` depends on this.
 7. **Versioning** follows `git-workflow` (branch per stage/phase, small
    Conventional Commits, ask before committing and merging).
 8. **Finish with a handoff line**: what was written, what's still open,
