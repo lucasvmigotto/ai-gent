@@ -104,7 +104,9 @@ For each phase:
 
 Only after a feature's last checkpoint passes does its backend become
 **Implemented** — update `specs/README.md` and tell `project:docs` it
-can document it as such.
+can document it as such. **Verified** is set by `qa:e2e`/`qa:load` once
+their suites pass. CI for the backend comes from `devsecops:pipeline`;
+never weaken a gate there to go green.
 
 ## Handoff
 
