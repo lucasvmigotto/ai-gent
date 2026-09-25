@@ -36,6 +36,7 @@ idea text / references dir
  devsecops:iac ────────► infra/                            cloud environments, once hosting is decided
  project:docs ─────────► docs/site/                        reads all of the above
  project:status ───────► (report only)                     where things stand, what to run next
+ db:inspect, db:review, db:investigate ─► docs/product/db/  any time a database is involved (the `db` plugin)
 ```
 
 For an existing codebase, the chain starts one step earlier:
@@ -87,6 +88,9 @@ and writes nothing.
 | `docs/site/` | `project:docs` | — | static documentation site |
 | `docs/product/introspec.md`, `docs/product/sbom.cdx.json` | `project:introspec` | project:retrofit, project:refactor, project:status | evidence report (inventory, runs, drift, contradictions, open Inferred/Assumed items); SBOM |
 | `docs/product/retrofit.md` | `project:retrofit` | project:refactor, devsecops:*, project:docs | level, baseline, CVE and EOL tables, ordered steps, before/after |
+| `docs/product/db/<database>/inspection.md`, `schema.sql`, `diff-*.md` | `db:inspect` | project:introspec, db:review, backend:*, devcontainer:infra | schema discovery, labelled like introspec; a production schema export stays outside the repository unless the user approves |
+| `docs/product/db/review-<date>.md` | `db:review` | backend:build, project:architecture, qa:review | findings on the application's database usage; fixes only as migrations or code |
+| `docs/product/db/investigations/<date>-<slug>.md` | `db:investigate` | backend:build, qa:review, the person running the repair script | data problems: hypotheses, evidence, timeline, blast radius, root cause, repair script |
 | `docs/product/refactor.md`, `docs/product/bcr/NNNN-*.md` | `project:refactor` | project:spec, backend:*, frontend:*, qa:* | rule classification (core / policy / accidental), findings, target, slices; business change records (proposed / accepted / rejected) |
 
 **Ownership rules**

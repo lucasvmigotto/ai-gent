@@ -33,8 +33,10 @@ should do. Behavior the code contradicts is a finding, not a typo to fix.
    - which database is the **dev** one. Local containers
      (`devcontainer:infra`) and shared dev databases are fine for
      read-only catalog queries; **never production**, and never a
-     database whose environment you can't confirm. When the `db` plugin is
-     installed, delegate to `db:inspect` instead of querying yourself;
+     database whose environment you can't confirm. Read
+     `docs/product/db/<database>/inspection.md` when it exists; otherwise,
+     when the `db` plugin is installed, run `db:inspect` instead of
+     querying yourself;
    - which parts are in scope (a monorepo may be several products).
 
 ## Evidence labels
