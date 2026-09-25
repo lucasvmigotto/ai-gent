@@ -1,6 +1,6 @@
 {
   "name": "devcontainer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "GPL-3.0-or-later",
   "description": "Container-first development: setup (multi-stage Containerfiles with a thin tools layer for agents and CI, human devcontainers, Podman or Docker, resource limits), infra (simulated external services), proxy (reverse-proxy simulation), workflow (day-to-day operation)",
   "author": {
