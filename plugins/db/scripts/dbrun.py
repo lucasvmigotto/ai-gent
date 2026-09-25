@@ -264,6 +264,7 @@ def get_profile(name: str) -> dict:
         known = ", ".join(sorted(profiles)) or "none"
         raise Failed(f"no profile {name!r} (known: {known}); see `dbrun profiles`")
     p = dict(profiles[name])
+    remember_secrets(p)
     if p.get("engine") not in ENGINES:
         raise Failed(f"profile {name}: engine {p.get('engine')!r} isn't one of {', '.join(ENGINES)}")
     return p
@@ -636,6 +637,26 @@ def mask_result(columns: list[str], rows: list[list], reveal: bool = False) -> t
     return masked, {columns[i]: k for i, k in kinds.items()}
 
 
+# ------------------------------------------------------------ redaction
+
+REDACT: list[tuple[re.Pattern, str]] = []
+
+
+def remember_secrets(p: dict) -> None:
+    """Host, user and password of the profile in use are redacted from every
+    message and log entry; driver errors often quote the host or the user."""
+    for key, label in (("password", "<password>"), ("host", "<host>"), ("user", "<user>")):
+        value = (p.get(key) or "").strip()
+        if len(value) >= 2 and value not in ("127.0.0.1", "localhost"):
+            REDACT.append((re.compile(r"(?<![\w.-])" + re.escape(value) + r"(?![\w-])"), label))
+
+
+def redact(text: str) -> str:
+    for pattern, label in REDACT:
+        text = pattern.sub(label, text)
+    return text
+
+
 # ------------------------------------------------------------------ logging
 
 
@@ -649,7 +670,7 @@ def log(entry: str) -> None:
     path = log_path()
     fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
     with os.fdopen(fd, "a") as f:
-        f.write(entry.rstrip("\n") + "\n\n")
+        f.write(redact(entry).rstrip("\n") + "\n\n")
 
 
 def log_start(action: str, p: dict, cls: dict, reason: str, statements: list[str], extra: str = "") -> str:
@@ -955,7 +976,7 @@ def cmd_test(args) -> int:
     res = driver_process(p, cls, base_request(p, "test", [], args))
     if not res.get("ok"):
         log_result(entry, f"FAILED at {res.get('stage')}: {res.get('error')}")
-        print(f"FAILED ({res.get('stage')}): {res.get('error')}")
+        print(redact(f"FAILED ({res.get('stage')}): {res.get('error')}"))
         return EXIT_CONNECT
     check_links(cls, res)
     log_result(entry, f"SUCCESS · server {res['server'][0][:60]} · links {res['links']} · {res['seconds']} s")
@@ -986,7 +1007,7 @@ def cmd_query(args) -> int:
     res = driver_process(p, cls, base_request(p, "read", statements, args))
     if not res.get("ok"):
         log_result(entry, f"FAILED at {res.get('stage')}: {res.get('error')}")
-        print(f"FAILED ({res.get('stage')}): {res.get('error')}", file=sys.stderr)
+        print(redact(f"FAILED ({res.get('stage')}): {res.get('error')}"), file=sys.stderr)
         return EXIT_CONNECT if res.get("stage") == "connect" else EXIT_ERROR
     summary = []
     for i, r in enumerate(res["results"], 1):
@@ -1184,7 +1205,7 @@ def cmd_apply(args) -> int:
     res = driver_process(p, cls, req)
     if not res.get("ok"):
         log_result(entry, f"ROLLED BACK at {res.get('stage')}: {res.get('error')}")
-        print(f"ROLLED BACK ({res.get('stage')}): {res.get('error')}")
+        print(redact(f"ROLLED BACK ({res.get('stage')}): {res.get('error')}"))
         if plan["ddl"] and p["engine"] in ("mysql", "mariadb"):
             print(f"MySQL commits DDL immediately: check the state, and restore with `dbrun restore {p['name']} {plan['id']} --confirmed` if needed")
         return EXIT_ERROR
@@ -1408,10 +1429,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except Refused as e:
-        print(f"REFUSED: {e}", file=sys.stderr)
+        print(redact(f"REFUSED: {e}"), file=sys.stderr)
         return EXIT_REFUSED
     except Failed as e:
-        print(f"error: {e}", file=sys.stderr)
+        print(redact(f"error: {e}"), file=sys.stderr)
         return e.code
     except KeyboardInterrupt:
         return EXIT_ERROR

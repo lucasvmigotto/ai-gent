@@ -41,6 +41,9 @@ conversation — never pass it on your own.
 - Output is masked (`safety.md` § Masking). `--reveal` shows values
   unmasked and is logged; pass it only when the user asked to see them.
 - `--explain` runs the engine's plain plan (never `EXPLAIN ANALYZE`).
+- Error messages and log entries have the profile's host, user and
+  password replaced with `<host>`, `<user>` and `<password>` — driver
+  errors often quote them.
 
 ## Exit codes
 

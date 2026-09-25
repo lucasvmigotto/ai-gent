@@ -163,6 +163,29 @@ class MaskTest(unittest.TestCase):
         self.assertEqual(untouched[0][0], "order 1234567890123 shipped")  # not a valid card number
 
 
+class RedactTest(unittest.TestCase):
+    def setUp(self):
+        dbrun.REDACT.clear()
+
+    def tearDown(self):
+        dbrun.REDACT.clear()
+
+    def test_host_user_password_redacted(self):
+        dbrun.remember_secrets({"host": "db.secret-host.internal", "user": "app_ro", "password": "s3cr3t!"})
+        msg = ('connection to server at "db.secret-host.internal" (10.0.0.5), port 5432 failed: '
+               'FATAL:  password authentication failed for user "app_ro" (tried s3cr3t!)')
+        out = dbrun.redact(msg)
+        self.assertNotIn("secret-host", out)
+        self.assertNotIn("app_ro", out)
+        self.assertNotIn("s3cr3t!", out)
+        self.assertIn("<host>", out)
+        self.assertIn("<user>", out)
+
+    def test_whole_words_only_and_loopback_kept(self):
+        dbrun.remember_secrets({"host": "127.0.0.1", "user": "app"})
+        self.assertEqual(dbrun.redact("user app on 127.0.0.1 in application"), "user <user> on 127.0.0.1 in application")
+
+
 class Sandbox(unittest.TestCase):
     """A throwaway git repository with its own config and state directories."""
 
@@ -232,6 +255,13 @@ class ProfilesTest(Sandbox):
         self.assertTrue(dbrun.classify(profiles["LOCALDB"])["writable"])
         self.assertEqual(dbrun.classify(profiles["PRODDB"])["class"], "production")
         self.assertFalse(dbrun.classify(profiles["PRODDB"])["writable"])
+
+    def test_errors_are_redacted(self):
+        self.write_profiles("GONE_ENGINE=sqlite\nGONE_CLASS=development\nGONE_PATH=/nowhere/private-host.db\n"
+                            "GONE_HOST=private-host.internal\nGONE_USER=svc_reader\n")
+        code, out, err = self.dbrun("test", "GONE")
+        self.assertNotEqual(code, 0)
+        self.assertNotIn("svc_reader", out + err)
 
     def test_listing_never_shows_secrets(self):
         self.write_profiles("R_ENGINE=postgresql\nR_CLASS=development\nR_HOST=db.internal\nR_USER=app\nR_PASSWORD=s3cr3t-value\n")
