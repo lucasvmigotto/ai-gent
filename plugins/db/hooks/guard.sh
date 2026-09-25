@@ -9,6 +9,8 @@
 #         tool (pg_restore, impdp, ...)
 #   ask   any other direct client use — the user decides (other plugins,
 #         such as a private one, may still rely on a client)
+#   deny  any tool touching the credentials file (connections.env or the
+#         ai-gent config directory): only dbrun reads it
 #
 # Pattern matching on the raw command: it catches the commands an agent
 # writes, not every possible obfuscation; dbrun's own checks are the
@@ -17,11 +19,20 @@
 set -u
 
 input="$(tr '\n' ' ')"
+
+decide() { # decide deny|ask <reason>
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"db guard: %s"}}\n' "$1" "$2"
+  exit 0
+}
+
+# The credentials file: nothing but dbrun reads it, with any tool.
+creds='connections\.env|\.config/ai-gent|XDG_CONFIG_HOME\}?/ai-gent|AI_GENT_DB_CONFIG'
+if printf '%s' "$input" | grep -Eq "$creds"; then
+  decide deny "that's the db credentials file; only dbrun reads it — use dbrun profiles / classify / test"
+fi
+
 cmd="$(printf '%s' "$input" | sed -nE 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
 [ -n "$cmd" ] || exit 0
-
-# dbrun itself is the sanctioned path.
-case "$cmd" in *dbrun.py*) exit 0 ;; esac
 
 clients='psql|pg_dump|pg_dumpall|pg_restore|pgcli|mysql|mariadb|mysqldump|mariadb-dump|mysqladmin|mycli|sqlcmd|mssql-cli|bcp|osql|isql|sqlplus|sql|sqlcl|rman|impdp|expdp|imp|exp|mongosh|mongo|mongodump|mongorestore|mongoimport|sqlite3|litecli|usql|cqlsh|clickhouse-client'
 restore_tools='pg_restore|impdp|imp|mongorestore|mongoimport'
@@ -38,13 +49,10 @@ prefix='^[[:space:]]*((sudo([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]]
 direct="$prefix([^[:space:]]*/)?($clients)([[:space:]]|\$)"
 wrapped="(docker|podman|nerdctl|kubectl|oc)[[:space:]].*(exec|run)[[:space:]].*[[:space:]/]($clients)([[:space:]]|\$)"
 
+# Every segment is checked on its own: a dbrun call elsewhere in the
+# command line exempts nothing.
 hit="$(printf '%s\n' "$segments" | grep -E -e "$direct" -e "$wrapped" | head -n1)"
 [ -n "$hit" ] || exit 0
-
-decide() { # decide deny|ask <reason>
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"db guard: %s"}}\n' "$1" "$2"
-  exit 0
-}
 
 tool="$(printf '%s\n' "$hit" | grep -oE "(^|[[:space:]/])($clients)([[:space:]]|\$)" | head -n1 | tr -d ' /')"
 if printf '%s\n' "$tool" | grep -Eqx "$restore_tools"; then

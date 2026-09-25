@@ -68,6 +68,11 @@ product.
 
 ### Fixed
 
+- `db` guard hook denies every tool (Bash, Read, Grep, Glob, Edit, Write)
+  that touches the credentials file, and checks each command on a line on
+  its own — a `dbrun` call no longer exempts the rest of the line.
+  `dbrun` redacts the profile's host, user and password from messages and
+  log entries.
 - `project:spec` bootstraps Spec Kit with `--force`; without it `specify
   init` always stopped with "Current directory is not empty".
 - The domain model no longer has a circular dependency:

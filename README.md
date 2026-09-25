@@ -265,7 +265,7 @@ Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules 
 | Hook | Blocks | Asks first |
 | --: | :-- | :-- |
 | `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master`; `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
-| `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools | any other direct client use |
+| `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool reading or editing the credentials file | any other direct client use |
 
 > [!WARNING]
 > opencode doesn't run Claude Code hooks, so neither guard is active there. Its permission rules only get part of the way. For example, in `~/.config/opencode/opencode.json`:
