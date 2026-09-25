@@ -38,6 +38,22 @@ idea text / references dir
  project:status ───────► (report only)                     where things stand, what to run next
 ```
 
+For an existing codebase, the chain starts one step earlier:
+
+```
+existing code, schema, config, tests
+        │
+ project:introspec ────► the artifacts above, reconstructed    evidence-labelled; only those missing
+        │                 docs/product/introspec.md           evidence report, drift, open items
+        │                 docs/product/sbom.cdx.json          dependency inventory
+        ├── project:retrofit ─► docs/product/retrofit.md    upgrades and CVE fixes, behavior frozen
+        └── project:refactor ─► docs/product/refactor.md    target design, incremental slices
+                                docs/product/bcr/NNNN-*.md  business changes, each approved by the user
+```
+
+After that, the normal chain applies: `project:architecture` (review
+mode), `project:spec` for changed features, and the build and QA stages.
+
 The frontend, backend and QA branches run in parallel once `project:spec`
 has produced features and a contract skeleton. Frontend and backend meet
 only at the contract and the glossary. `devsecops:audit` and
@@ -69,6 +85,9 @@ and writes nothing.
 | `infra/` | `devsecops:iac` | devsecops:pipeline | infrastructure as code: modules, one root per environment, state bootstrap |
 | `docs/product/delivery.md` | `devsecops:pipeline` (supply-chain section by `devsecops:supply-chain`, infrastructure section by `devsecops:iac`) | everyone, project:docs | pipelines, gates, environments, promotion, required secrets by name, rollback runbook |
 | `docs/site/` | `project:docs` | — | static documentation site |
+| `docs/product/introspec.md`, `docs/product/sbom.cdx.json` | `project:introspec` | project:retrofit, project:refactor, project:status | evidence report (inventory, runs, drift, contradictions, open Inferred/Assumed items); SBOM |
+| `docs/product/retrofit.md` | `project:retrofit` | project:refactor, devsecops:*, project:docs | level, baseline, CVE and EOL tables, ordered steps, before/after |
+| `docs/product/refactor.md`, `docs/product/bcr/NNNN-*.md` | `project:refactor` | project:spec, backend:*, frontend:*, qa:* | rule classification (core / policy / accidental), findings, target, slices; business change records (proposed / accepted / rejected) |
 
 **Ownership rules**
 
@@ -79,6 +98,12 @@ and writes nothing.
   something, it records the gap as an `[UPSTREAM GAP: …]` note in its own
   artifact, tells the user, and proposes the upstream fix — it doesn't
   silently patch it.
+- **Reconstructed artifacts.** On an existing codebase, `project:introspec`
+  may create any artifact above that is missing — brief, architecture
+  (as-is only), domain model, specs, contract (`info.x-status:
+  reconstructed`) — marked `Reconstructed by project:introspec` and
+  evidence-labelled. The owner takes it over on its next run. When an
+  artifact already exists, introspec reports drift instead of rewriting it.
 - `tasks.md` stays one file per feature. Frontend tasks go under
   `## Frontend`, backend tasks under `## Backend` and QA tasks under
   `## QA` headings appended by their stages, using Spec Kit's task format
@@ -125,6 +150,8 @@ definition and the words **not** to use for it
 3. **Never invent silently.** Mark every assumption `[ASSUMPTION: …]` and
    every open question `[NEEDS CLARIFICATION: …]` (Spec Kit's marker)
    inline. A reader must be able to tell a decision from a guess.
+   Reconstructed claims also carry `[OBSERVED: path:line]` or
+   `[INFERRED: signal → conclusion]` (see `project:introspec`).
 4. **Comprehensive means complete coverage, not length.** Each skill ends
    with a coverage checklist; the artifact is done when every item is
    addressed or explicitly marked N/A with a reason. Cut filler — a
@@ -139,7 +166,9 @@ definition and the words **not** to use for it
      targets) passed against the implemented feature, and CI runs those
      suites.
    Only the named stage moves a status forward; any stage moves it back
-   when it finds the claim no longer holds. `project:docs` depends on this.
+   when it finds the claim no longer holds. The one exception is
+   `project:introspec` on existing code, which sets Implemented or
+   Verified from evidence (code that runs; passing e2e tests). `project:docs` depends on this.
    These statuses are for features only. Documents (`brief.md`,
    `architecture.md`, `ux-vision.md`, `domain-model.md`) carry `Status:
    Draft` until the user accepts them, then `Accepted`; ADRs use MADR's
