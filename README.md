@@ -111,17 +111,20 @@ scripts/check.sh                                repository checks, also run by C
 
 - `plugins/git/`
   - `workflow` — Conventional Commits, branch-per-context, merge and cleanup rules, issue linking; enforced by a guard hook
-- `plugins/devcontainer/`
-  - `setup` — design devcontainer(s); separate API and client containers by default
+- `plugins/devcontainer/` — container-first development (rules in `shared/containers.md`)
+  - `setup` — per-module multi-stage Containerfiles with a thin `tools` layer that agents and CI run, task recipes, resource limits, Podman or Docker; plus human devcontainers, API and client apart by default
   - `infra` — simulate databases, queues, storage, SMTP/mail, OAuth2/OIDC/LDAP and more
   - `proxy` — simulate the production reverse proxy
-  - `workflow` — operate an existing devcontainer day to day
+  - `workflow` — run tasks through the tools recipes, or operate the devcontainer day to day
 - `plugins/project/`
   - `init` — idea or references → product brief with the shared glossary
   - `architecture` — drivers and usage volumes → capacity model, topology, hosting, API style, data stores, ADRs
   - `spec` — brief + architecture → Spec Kit constitution, features, plans, tasks and contract skeleton
   - `docs` — static documentation site in `docs/site/`
   - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run
+  - `introspec` — reverse-engineer an existing codebase into the full pipeline spec, every claim Observed, Inferred or Assumed
+  - `retrofit` — upgrade in place with behavior frozen: `patch` (CVEs), `minor` (adapt code), `major` (breaking upgrades)
+  - `refactor` — redesign keeping the core invariants; business changes recorded for approval; incremental migration
 - `plugins/frontend/`
   - `uiux` — layout and language vision
   - `spec` — design system and per-feature UI specs in Spec Kit format
@@ -152,6 +155,9 @@ project:init ─► project:architecture ─► project:spec ─┬─► fronte
                                                       └─► qa:strategy ──────────────────────────────────────┘
                        devsecops:pipeline / supply-chain from project:spec on; iac once hosting is decided; audit and migrate whenever needed
                        project:status at any point: where things stand, what to run next
+
+existing codebase: project:introspec ─► project:retrofit (same behavior, upgraded)
+                                     └► project:refactor (redesign) ─► the chain above, in review mode
 ```
 
 Every feature moves Planned → In progress → Implemented (build checkpoints passed) → Verified (QA passed), tracked in `specs/README.md`.
@@ -160,7 +166,9 @@ Frontend and backend meet only at `contracts/openapi.yaml` and the brief's gloss
 
 ## Development
 
-Run `scripts/check.sh` before committing (CI runs it on every pull request and push to `main`). It checks skill names and description budgets (400 characters — every session loads them), plugin manifests, `plugin:skill` references and relative paths, symlinks and shell scripts, then tests the git guard and the installers in a throwaway `HOME`. `--quick` skips the installer tests; set `SHELLCHECK='uvx --from shellcheck-py shellcheck'` if shellcheck isn't installed. Conventions for editing skills are in `AGENTS.md`.
+Run `scripts/check.sh` before committing (CI runs it on every pull request and push to `main`). It checks skill names and description budgets (400 characters — every session loads them), plugin manifests, `plugin:skill` references and relative paths, symlinks and shell scripts, then tests the git guard, the release script and the installers in a throwaway `HOME`.
+
+Releases are automatic: every push to `main` runs the checks, then `scripts/release.py` decides from the Conventional Commits since the last tag — `feat` → minor, `fix`/`perf`/`refactor` → patch, `!` or `BREAKING CHANGE` → major, anything else → no release. A release bumps the changed plugins' versions, turns `CHANGELOG.md`'s `## Unreleased` into the release entry (or generates one), commits `chore(release): X.Y.Z`, tags `X.Y.Z` and publishes a GitHub Release. Preview it with `python3 scripts/release.py --dry-run`, and `git pull --ff-only` after a release. `--quick` skips the installer tests; set `SHELLCHECK='uvx --from shellcheck-py shellcheck'` if shellcheck isn't installed. Conventions for editing skills are in `AGENTS.md`.
 
 ## License
 
