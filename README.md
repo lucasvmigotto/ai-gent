@@ -315,7 +315,7 @@ Conventions for editing skills and plugins are in `AGENTS.md` (also available as
 - **References:** `plugin:skill` references, relative paths and symlinks.
 - **Scripts:** shell scripts through shellcheck.
 - **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the release script, and the installers in a throwaway `HOME`.
-- **Options:** `--quick` skips the installer tests. Set `SHELLCHECK='uvx --from shellcheck-py shellcheck'` if shellcheck isn't installed.
+- **Options:** `--quick` skips the installer tests. Shellcheck runs at a pinned version (`SHELLCHECK_VERSION`) through `uvx` or `pipx`, so a local run and CI agree.
 
 **Evals.** `claude plugin eval plugins/<name> --runs 1 --ablation none` runs a plugin's trigger cases. They check that a request loads the right skill and not its neighbor.
 
