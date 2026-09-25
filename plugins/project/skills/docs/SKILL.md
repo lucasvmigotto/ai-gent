@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the pipeline's brief, domain model and specs (labelled Planned until built), branded from the UX vision — with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
+description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the pipeline's brief, domain model and specs (labelled Planned until built), branded from the UX vision — plus llms.txt and Markdown pages for LLMs, with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
 ---
 
 # Project documentation websites
@@ -105,6 +105,35 @@ detection → locale persistence → English fallback; `<html lang>` synced.
 Technical identifiers (commands, flags, env vars, code, URLs) stay
 untranslated. New locales must not require component rewrites.
 
+## Phase 4b — LLM-readable output
+
+A single-page app is close to invisible to LLMs: crawlers and agent fetch
+tools don't run JavaScript, and hash routes never reach the server. So the
+build also emits plain Markdown from the **same typed content** the pages
+render (never a second, hand-maintained copy):
+
+- `llms.txt` at the site root, following llmstxt.org: an `# <project>`
+  title, a one-paragraph `>` summary, then `##` sections listing every
+  page as `- [Title](url.md): one-line description`, with an `## Optional`
+  section for material an agent can skip.
+- `llms-full.txt`: every page concatenated in navigation order, for
+  one-shot ingestion.
+- One `.md` per page and locale (`/docs/<locale>/<page>.md`), linked from
+  `llms.txt` and advertised on the HTML page with
+  `<link rel="alternate" type="text/markdown" href="…">`.
+- **Maturity labels in the text itself.** Every Planned, Partially
+  Implemented or Unavailable item carries the label inline
+  (`**Planned — not implemented yet.**`), since an LLM reading the
+  Markdown never sees a badge. Roadmap pages stay separate from how-to and
+  reference pages, exactly as on the site.
+- Code blocks keep their language tag; tables stay Markdown tables; no
+  HTML-only components (tabs, accordions) — render their content in
+  full.
+- Offer to create or update the repository's `AGENTS.md` (commands,
+  layout, conventions for agents working *on* the code) from the same
+  discovery — a different audience from `llms.txt`, which serves agents
+  *using* the product. Only with the user's agreement.
+
 ## Phase 5 — Tests
 
 - **Unit + a11y (vitest):** Testing Library suites for components,
@@ -114,6 +143,10 @@ untranslated. New locales must not require component rewrites.
 - **e2e (Playwright):** serve the production static build, smoke every
   route including deep links, keyboard-only flows, language switching,
   and a mobile project. Chromium-first in CI, full matrix locally.
+- **LLM output:** every page has its `.md` in every locale, every
+  `llms.txt` link resolves in `dist/`, `llms-full.txt` contains every
+  page, and every non-Implemented item carries its maturity label in the
+  Markdown (a test fails on a Planned feature without one).
 
 ## Phase 6 — Validation
 
@@ -135,10 +168,15 @@ error states) before calling anything done.
 - **R2 workflow:** checkout → setup Bun (pinned) → install → lint →
   typecheck → test → build → artifact → S3-sync to Cloudflare R2.
   Immutable long-lived caching for hashed assets, `no-cache` for entry
-  HTML. Concurrency cancel-in-progress, least-privilege permissions,
+  HTML, `llms.txt`, `llms-full.txt` and the `.md` pages, which are served
+  as `text/markdown; charset=utf-8` (`.txt` as `text/plain;
+  charset=utf-8`). Concurrency cancel-in-progress, least-privilege permissions,
   endpoint validation. Credentials via Variables/Secrets placeholders.
-- **Docker (optional):** Bun builder → nginx runtime, non-root user,
-  security headers, gzip. Repeat security headers inside every
+- **Docker (optional):** per `../../references/containers.md` — a Bun
+  build stage with the sources bind-mounted and Bun's cache mounted, a
+  hardened (or unprivileged) nginx runtime pinned by digest that copies
+  only `dist/`, a deny-by-default `.dockerignore`, non-root user,
+  security headers, gzip, and `types` for `.md` as `text/markdown`. Repeat security headers inside every
   `location` block — location-level `add_header` disables server-level
   inheritance. Hash routing needs no SPA fallback (`try_files
   $uri $uri/ =404`).
