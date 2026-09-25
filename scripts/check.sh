@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git guard hook, and installer tests in a throwaway HOME. Run before every commit; CI runs the same script.
+# shell scripts, the git guard hook, the release script, and installer tests
+# in a throwaway HOME. Run before every commit; CI runs the same script.
 #
 #   scripts/check.sh                 everything
 #   scripts/check.sh --quick         skip the installer tests
@@ -172,6 +173,16 @@ else
   fail "git guard hook"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-guard.out"
+
+# ----------------------------------------------------------------- release
+
+if scripts/test-release.sh >"${TMPDIR:-/tmp}/ai-gent-release.out" 2>&1; then
+  pass "release script ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-release.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-release.out"
+  fail "release script"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-release.out"
 
 # ---------------------------------------------------------- installer tests
 

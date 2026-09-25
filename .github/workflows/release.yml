@@ -1,0 +1,75 @@
+name: release
+
+# Every push to main runs the checks, then releases if the commits since the
+# last tag warrant it. scripts/release.py decides: feat → minor; fix, perf,
+# refactor → patch; "type!:" or BREAKING CHANGE → major; anything else → no
+# release. A release bumps the changed plugins' versions, promotes
+# CHANGELOG.md's "## Unreleased" (or generates a section), commits
+# "chore(release): X.Y.Z", tags X.Y.Z and publishes a GitHub Release.
+#
+# The bot pushes that commit and tag straight to main with GITHUB_TOKEN:
+# branch protection or a ruleset that requires pull requests (or doesn't let
+# github-actions[bot] bypass it) rejects the push. Pushes made with
+# GITHUB_TOKEN don't trigger workflows, so the release commit can't loop; the
+# chore(release) condition below is a second guard.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    uses: ./.github/workflows/check.yml
+
+  release:
+    needs: check
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the release commit and tag, create the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the commits since the last tag
+          fetch-tags: true
+          persist-credentials: true # the push below uses the checkout's GITHUB_TOKEN
+
+      - name: Plan
+        id: plan
+        run: |
+          set +e
+          python3 scripts/release.py --dry-run
+          code=$?
+          set -e
+          case "$code" in
+            0) echo "release=true" >>"$GITHUB_OUTPUT" ;;
+            3) echo "release=false" >>"$GITHUB_OUTPUT"; echo "No release needed." ;;
+            *) exit "$code" ;;
+          esac
+
+      - name: Release
+        if: ${{ steps.plan.outputs.release == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898496+github-actions[bot]@users.noreply.github.com"
+          version="$(python3 scripts/release.py)"
+          python3 scripts/release.py --notes "$version" >"$RUNNER_TEMP/notes.md"
+          git add CHANGELOG.md plugins/*/.claude-plugin/plugin.json
+          git commit -m "chore(release): $version"
+          git tag -a "$version" -m "$version"
+          # Rejected (and nothing published) if main moved since this run started;
+          # the next run releases those commits too.
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/$version"
+          gh release create "$version" --title "$version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag

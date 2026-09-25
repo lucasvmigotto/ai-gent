@@ -15,7 +15,7 @@ project locally.
 Relation to the sibling subskills: `devcontainer:setup` decides the
 project's shared Docker network and each module's alias — reuse those. If
 the project has a devcontainer but no shared network yet, create one the
-same way (`docker network inspect <net> || docker network create <net>`)
+same way (`$CONTAINER_ENGINE network inspect <net> || $CONTAINER_ENGINE network create <net>`)
 rather than inventing a second convention. `devcontainer:workflow` covers
 running things inside the devcontainer afterwards.
 
@@ -189,6 +189,18 @@ GreenMail for inbound mailboxes (5.4).
   image's own CLI, a bash `/dev/tcp` probe, or the engine's health
   endpoint via a tool the image *does* include; check before writing
   `curl` into the test.
+- **Limits and profiles on every service** (`../../references/containers.md`
+  §7): `cpus`, `mem_limit`, `pids_limit`, sized so the whole stack stays
+  within about half the host; each optional resource behind a compose
+  profile (`db`, `mail`, `auth`, `search`) so a task starts only what it
+  needs. Heavy engines (Elasticsearch/OpenSearch, Kafka, Keycloak, SQL
+  Server) get their memory settings capped explicitly (`ES_JAVA_OPTS`,
+  `KAFKA_HEAP_OPTS`, `JAVA_OPTS_KC_HEAP`, `MSSQL_MEMORY_LIMIT_MB`) —
+  the JVM or engine default sizes itself from the host, not the limit.
+- Pin images by digest with the tag as a comment, preferring hardened
+  images where the catalog has the service (`containers.md` §3). Run the
+  stack with `$CONTAINER_ENGINE compose`; the Podman notes in
+  `containers.md` §1 (host gateway, `:Z`, UID mapping) apply here too.
 - Persist state in a named volume only where dev actually benefits from
   surviving a restart (a DB's data, a broker's queues if durability itself
   is under test) — deliberately skip a volume where a clean slate on every
@@ -257,7 +269,7 @@ credentials.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Compose resources named `<invoking-dir>_<resource>` instead of the intended project name | Compose prefixes resource names with the invoking directory when no explicit name is set | add a top-level `name: <project>` to the compose file; clean up anything already created under the stale prefix |
-| A seed/init step intermittently fails right after `docker compose up` | `depends_on` without a `condition` only waits for the target container to **start** | add a `healthcheck` to the target service and gate the seed step on `condition: service_healthy` |
+| A seed/init step intermittently fails right after `$CONTAINER_ENGINE compose up` | `depends_on` without a `condition` only waits for the target container to **start** | add a `healthcheck` to the target service and gate the seed step on `condition: service_healthy` |
 | The app still reaches the real cloud endpoint even with the emulator container running | Cloud SDKs default to the real service; the emulator needs an explicit endpoint override (`AWS_ENDPOINT_URL`/path-style flag, an Azure emulator connection string) | set the override explicitly in the dev `.env`/`.env.example`, and confirm it with §9's round trip |
 | Login works in the browser, but the API rejects the token with 401 "invalid issuer" | `iss` holds the browser-facing URL (`localhost`), the API is configured with the internal alias URL (or vice versa) | §4.4 of `references/identity.md` — split issuer and JWKS URLs, or pin the IdP's public hostname |
 | API fails to start: can't fetch OIDC discovery | `issuer-uri`-style config fetches discovery at boot from a URL only the browser can reach, or before the IdP is healthy | use the alias for JWKS/discovery from the container; gate the API on the IdP's healthcheck |
