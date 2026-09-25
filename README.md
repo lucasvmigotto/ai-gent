@@ -1,6 +1,14 @@
 # ai-gent
 
-Personal skills and plugins for Claude Code and [opencode](https://opencode.ai/v2/docs), kept in one repo and linked into place so there's a single place to edit.
+Skills and plugins for [Claude Code](https://code.claude.com/docs/en/overview) and [opencode](https://opencode.ai/v2/docs), kept in one repository and linked into place, so there's one place to edit.
+
+They cover the whole path of a software project, from idea to docs site, plus the tooling around it:
+
+- **A product pipeline:** brief → architecture → specs → frontend, backend and QA → docs. There are also stages for existing codebases.
+- **Container-first development environments.**
+- **CI/CD and supply-chain security.**
+- **Safe database access.**
+- **git rules**, enforced by a hook.
 
 ## Install / update
 
@@ -8,7 +16,7 @@ Personal skills and plugins for Claude Code and [opencode](https://opencode.ai/v
 curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh
 ```
 
-That clones the repo into `~/.local/share/ai-gent` and runs `setup.sh` for Claude Code and [opencode](https://opencode.ai/v2/docs). Run the same command again to update: it fast-forwards the clone (leaving it alone if it has local changes) and re-links.
+That clones the repository into `~/.local/share/ai-gent` and runs `setup.sh` for Claude Code and opencode. Run the same command again to update. It fast-forwards the clone, or leaves it alone if you have local changes, and re-links.
 
 Pass `setup.sh` flags after `-s --`, and choose where the clone lives with `AI_GENT_DIR`:
 
@@ -21,9 +29,9 @@ curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.
 | --: | :-- |
 | `AI_GENT_DIR` | `${XDG_DATA_HOME:-~/.local/share}/ai-gent` |
 | `AI_GENT_REPO` | `https://github.com/lucasvmigotto/ai-gent.git` |
-| `AI_GENT_BRANCH` | the repository's default branch; a release tag (`1.1.0`) pins that release |
+| `AI_GENT_BRANCH` | the repository's default branch; a release tag (`1.2.0`) pins that release |
 
-A pinned clone stays on its tag until you pass another one (`AI_GENT_BRANCH=1.2.0`, or the default branch's name to follow it again). Releases are listed in `CHANGELOG.md`.
+A pinned clone stays on its tag until you pass another one, or the default branch's name to follow it again. Releases are listed in `CHANGELOG.md`.
 
 Prefer to read it first? Download, inspect, then run:
 
@@ -39,46 +47,155 @@ git clone https://github.com/lucasvmigotto/ai-gent.git ~/codes/ai-gent
 ~/codes/ai-gent/setup.sh
 ```
 
-Re-run `setup.sh` after adding, renaming or removing a skill or plugin, or after changing a plugin skill's description — it's idempotent and prunes whatever it installed whose source is gone. Edits to skill bodies need no re-run: everything points straight at this repo. Start a new session to pick up a changed set of skills.
+### `setup.sh`
+
+Re-run it after adding, renaming or removing a skill or plugin, or after changing a plugin skill's description. It's idempotent, and it prunes whatever it installed whose source is gone. Edits to skill bodies need no re-run, since everything points straight at this repository. Start a new session to pick up a changed set of skills or hooks.
 
 | Flag | Effect |
 | --: | :-- |
-| `--target claude\|opencode\|all` | which tool to install for (default `all`; [opencode](https://opencode.ai/v2/docs) is skipped when not installed) |
+| `--target claude\|opencode\|all` | which tool to install for (default `all`; opencode is skipped when not installed) |
 | `--dry-run` | show what would change |
 | `--force` | back up (`<name>.bak-<timestamp>`) and replace a real directory or foreign symlink in the way |
 | `--uninstall` | remove everything the script installed for the target(s) |
 
 `CLAUDE_SKILLS_DIR`, `OPENCODE_SKILLS_DIR` and `OPENCODE_COMMANDS_DIR` override the target directories. `~/.claude/skills/synced/` is managed by [claude.ai](https://support.claude.com/en/collections/14445694-claude-code) skill sync and is never modified.
 
-### Claude Code
+**Claude Code.** Each `plugins/<name>/` (and any `skills/<name>/`) is symlinked into `~/.claude/skills/`. A plugin directory there loads as `<name>@skills-dir`, with no marketplace, install step or plugin cache involved. Check a plugin, including its token cost, with `claude plugin details <name>@skills-dir`.
 
-Each `skills/<name>/` and `plugins/<name>/` is symlinked into `~/.claude/skills/`. A plugin directory there loads as `<name>@skills-dir` — no marketplace or install step, and no plugin cache to refresh. Check one, including its token cost, with `claude plugin details <name>@skills-dir`.
+**opencode.** opencode has no plugin namespaces and requires a skill's name to match its directory. So for each plugin skill, `setup.sh` generates:
+- a `~/.config/opencode/skills/<plugin>-<skill>/SKILL.md` stub, with the real description and an instruction to read and follow the source file in this repository;
+- a `/<plugin>-<skill>` command in `~/.config/opencode/commands/`.
 
-Every enabled plugin's skill descriptions are loaded into every session. Turn off the ones a project doesn't need, for that project only:
+opencode also scans `~/.claude/skills` recursively, where plugin skills appear under short, colliding names (`spec`, `build`, …). Turn that off in your shell profile, then check with `opencode debug skill`:
+
+```bash
+export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1
+```
+
+## Usage
+
+Ask for what you want and the matching skill loads: "set up CI for this repo", "model the domain", "why is this record wrong in the database". Or invoke one directly:
+
+| | Claude Code | opencode |
+| --: | :-- | :-- |
+| a plugin skill | `/project:init` | `/project-init` |
+| with arguments | `/qa:load 2000 concurrent users` | `/qa-load 2000 concurrent users` |
+
+Every enabled plugin's skill descriptions cost context in every session, about 3.1k tokens for all eight plugins together. Turn off the plugins a project doesn't need, for that project only:
 
 ```bash
 claude plugin disable devsecops@skills-dir --scope project   # writes .claude/settings.json
 claude plugin disable qa@skills-dir --scope local            # .claude/settings.local.json, not committed
 ```
 
-The `git` plugin also installs a `PreToolUse` hook (`plugins/git/hooks/guard.sh`) that enforces `git:workflow`: it blocks `--no-verify`, `Co-Authored-By` trailers and `push --force` without a lease, and asks you to confirm pushes, commits or merges on `main`/`master`, `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites and `gh pr create`.
+## Contents
 
-### opencode
+**Product pipeline**
 
-[opencode](https://opencode.ai/v2/docs) has no plugin namespaces and requires a skill's name to match its directory, so `setup.sh`:
+- `plugins/project/`
+  - `init` — idea or references → product brief with the shared glossary
+  - `architecture` — drivers and usage volumes → capacity model, topology, hosting, API style, data stores, stack, ADRs
+  - `spec` — brief + architecture → Spec Kit constitution, features, plans, tasks and the contract skeleton
+  - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run
+  - `docs` — static documentation site in `docs/site/`, plus `llms.txt` and Markdown pages for LLMs
+  - `introspec` — reverse-engineer an existing codebase into the full pipeline spec, every claim Observed, Inferred or Assumed
+  - `retrofit` — upgrade in place with behavior frozen: `patch` (CVEs), `minor` (adapt code), `major` (breaking upgrades)
+  - `refactor` — redesign keeping the core invariants; business changes recorded for approval; incremental migration
+- `plugins/frontend/`
+  - `uiux` — layout and language vision
+  - `spec` — design system and per-feature UI specs in Spec Kit format
+  - `build` — implement the web frontend phase by phase
+  - `tui` — terminal interfaces, only when you ask for one: a TUI and the CLI under it, or a CLI alone. Stacks: Go/Bubble Tea, Rust/Ratatui, Python/Textual, Java/Lanterna, TypeScript/Ink, or .NET/Spectre.Console or Terminal.Gui
+- `plugins/backend/`
+  - `domain` — domain model: contexts, aggregates, invariants, lifecycles
+  - `spec` — canonical OpenAPI contract and per-feature backend specs
+  - `build` — implement the backend, tests and contract first
+- `plugins/qa/`
+  - `strategy` — risk-based test strategy, per-feature traceability and gates
+  - `e2e` — cross-stack journeys (Playwright; terminal journeys for a TUI or CLI); sets features Verified
+  - `load` — k6 load, stress, spike, soak and breakpoint tests from the capacity model
+  - `review` — audit an existing test suite (mutation testing, flakiness, gaps)
 
-- links `skills/<name>/` and `~/.claude/skills/synced` into `~/.config/opencode/skills/` (which must be a real directory — a symlink to `~/.claude/skills` is replaced);
-- generates `~/.config/opencode/skills/<plugin>-<skill>/SKILL.md` for each plugin skill — the real description plus an instruction to read and follow the source file in this repo — and a `/<plugin>-<skill>` command in `~/.config/opencode/commands/`.
+**Environment and delivery**
 
-[opencode](https://opencode.ai/v2/docs) also scans `~/.claude/skills` recursively, where plugin skills appear under short, colliding names (`spec`, `build`, …). Turn that off:
+- `plugins/devcontainer/` — container-first development (see [Containers](#containers))
+  - `setup` — per-module multi-stage Containerfiles with a thin `tools` layer that agents and CI run, task recipes and resource limits, plus devcontainers for people (API and client apart by default)
+  - `infra` — simulate databases, queues, storage, SMTP/mail, OAuth2/OIDC/LDAP and more
+  - `proxy` — simulate the production reverse proxy
+  - `workflow` — run tasks through the tools recipes, or operate the devcontainer day to day
+- `plugins/devsecops/` — GitHub Actions by default; GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins, Forgejo/Gitea
+  - `pipeline` — design and create CI/CD pipelines, gates, environments and promotion
+  - `supply-chain` — pinning, updates, SCA/SAST/secret scanning, hardened images, SBOM, signing, provenance
+  - `iac` — infrastructure as code (OpenTofu/Terraform by default) for the environments the architecture chose
+  - `audit` — security and reliability review of existing pipelines
+  - `migrate` — move pipelines between platforms
+- `plugins/db/` — safe database access for PostgreSQL, MySQL/MariaDB, SQL Server, Oracle and SQLite (see [Databases](#databases))
+  - `connect` — list, test and classify connection profiles, never showing credentials
+  - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
+  - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
+  - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
+- `plugins/git/`
+  - `workflow` — Conventional Commits, branch-per-context naming, merge and cleanup rules, tags, issue linking (see [Guard hooks](#guard-hooks))
 
-```bash
-export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1   # in your shell profile
+## Product pipeline
+
+Each stage writes a file the next one reads, so stages can run in separate sessions or on their own. `shared/pipeline.md` is the contract for paths, ownership, statuses and shared rules.
+
+```txt
+project:init ─► project:architecture ─► project:spec ─┬─► frontend:uiux ─► frontend:spec ─► frontend:build ─┐
+                                                      │                                    (frontend:tui)  │
+                                                      ├─► backend:domain ─► backend:spec ─► backend:build ──┼─► qa:e2e / qa:load ─► project:docs
+                                                      └─► qa:strategy ──────────────────────────────────────┘
+                       devsecops:pipeline / supply-chain from project:spec on; iac once hosting is decided; audit and migrate whenever needed
+                       devcontainer:setup / infra for the environment; db:* whenever a database is involved
+                       project:status at any point: where things stand, what to run next
+
+existing codebase: project:introspec (db:inspect for its database) ─► project:retrofit (same behavior, upgraded)
+                                                                   └► project:refactor (redesign) ─► the chain above, in review mode
 ```
 
-Check with `opencode debug skill`.
+- Every feature moves Planned → In progress → Implemented (build checkpoints passed) → Verified (QA passed), tracked in `specs/README.md`. Documents are `Draft` until you accept them.
+- Frontend and backend meet only at `contracts/openapi.yaml` and the brief's glossary.
+- Specs use GitHub Spec Kit (`specify` CLI 1.x), set up by `project:spec`.
+- `frontend:tui` and terminal sections appear only when you ask for a terminal interface.
 
-opencode doesn't run Claude Code hooks, so the `git` guard isn't active there. Its own permission rules get close — for example, in `~/.config/opencode/opencode.json`:
+## Containers
+
+The rules are in `shared/containers.md` and are shared by the devcontainer, devsecops and project plugins.
+
+- **Engines:** Podman first, Docker as fallback, never hardcoded.
+- **The `tools` stage** of each module's Containerfile is where agents and CI run every task, through the same recipes (`just test`). The devcontainer for people can be heavier, but it reads its toolchain versions from the same single source.
+- **Images:**
+  - Docker Hardened Images (`dhi.io`), pinned by digest;
+  - multi-stage builds that mount sources and caches instead of copying them;
+  - a deny-by-default `.dockerignore`;
+  - resource limits on every container.
+- **CI needs** a `DOCKER_HUB_PAT` secret to pull hardened images. Its username comes from `DOCKER_HUB_USERNAME`, which defaults to the repository owner. Pushes to `ghcr.io` use the workflow's own token as the owner.
+
+## Databases
+
+Every `db:*` skill reaches a database only through `plugins/db/scripts/dbrun.py`, which enforces `plugins/db/references/safety.md`.
+
+- **Remote databases** are production, staging/homologação, shared development, or anything not proven local.
+  - `SELECT` only, with timeouts, row caps and cost guards.
+  - Changes are written as scripts for a person to run; `dbrun` never executes a write on a remote database.
+- **Local databases** are only this repository's own database containers, running on this machine and reached through the container's own network.
+  - A write needs a recorded plan, your confirmation and a backup, and can be restored.
+- **Results are masked by default** (names, emails, CPF/CNPJ, phones, cards, secrets) and revealed only when you ask.
+- **Every statement is logged before it runs**, outside the repository.
+
+Connection profiles live in `~/.config/ai-gent/db/connections.env`: mode 600, format in `plugins/db/references/connections.md`. A running database container of the current project is discovered automatically as `local:<service>`.
+
+## Guard hooks
+
+Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules mechanically, not just as instructions. They load in a new session after `setup.sh`.
+
+| Hook | Blocks | Asks first |
+| --: | :-- | :-- |
+| `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master`; `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
+| `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools | any other direct client use |
+
+opencode doesn't run Claude Code hooks, and its permission rules only get part of the way. For example, in `~/.config/opencode/opencode.json`:
 
 ```json
 {
@@ -88,7 +205,13 @@ opencode doesn't run Claude Code hooks, so the `git` guard isn't active there. I
       "git commit*--no-verify*": "deny",
       "git branch -D*": "ask",
       "git reset --hard*": "ask",
-      "gh pr create*": "ask"
+      "gh pr create*": "ask",
+      "psql*": "ask",
+      "mysql*": "ask",
+      "sqlcmd*": "ask",
+      "sqlplus*": "ask",
+      "sqlite3*": "ask",
+      "pg_restore*": "deny"
     }
   }
 }
@@ -97,94 +220,45 @@ opencode doesn't run Claude Code hooks, so the `git` guard isn't active there. I
 ## Layout
 
 ```txt
-skills/<name>/SKILL.md                          personal skills (none yet)  → /<name>
 plugins/<name>/.claude-plugin/plugin.json
-plugins/<name>/skills/<skill>/SKILL.md          namespaced plugins          → /<name>:<skill>
+plugins/<name>/skills/<skill>/SKILL.md          a plugin skill                    → /<name>:<skill>
 plugins/<name>/skills/<skill>/references/       files one skill reads on demand
 plugins/<name>/references/                      files a plugin's skills share
-plugins/<name>/hooks/hooks.json                 plugin hooks (git)
-shared/                                         files several plugins share (symlinked into their references/)
-scripts/check.sh                                repository checks, also run by CI
+plugins/<name>/hooks/                           guard hooks (git, db)
+plugins/<name>/scripts/                         tools a plugin runs (db: dbrun)
+plugins/<name>/evals/                           trigger and behavior evals
+skills/<name>/SKILL.md                          personal skills (none yet)        → /<name>
+shared/                                         pipeline and container rules, symlinked into plugins' references/
+scripts/                                        check.sh, release.py and their tests
+.github/workflows/                              check (pull requests), release (pushes to main)
 ```
-
-## Contents
-
-- `plugins/git/`
-  - `workflow` — Conventional Commits, branch-per-context, merge and cleanup rules, issue linking; enforced by a guard hook
-- `plugins/devcontainer/` — container-first development (rules in `shared/containers.md`)
-  - `setup` — per-module multi-stage Containerfiles with a thin `tools` layer that agents and CI run, task recipes, resource limits, Podman or Docker; plus human devcontainers, API and client apart by default
-  - `infra` — simulate databases, queues, storage, SMTP/mail, OAuth2/OIDC/LDAP and more
-  - `proxy` — simulate the production reverse proxy
-  - `workflow` — run tasks through the tools recipes, or operate the devcontainer day to day
-- `plugins/project/`
-  - `init` — idea or references → product brief with the shared glossary
-  - `architecture` — drivers and usage volumes → capacity model, topology, hosting, API style, data stores, ADRs
-  - `spec` — brief + architecture → Spec Kit constitution, features, plans, tasks and contract skeleton
-  - `docs` — static documentation site in `docs/site/`
-  - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run
-  - `introspec` — reverse-engineer an existing codebase into the full pipeline spec, every claim Observed, Inferred or Assumed
-  - `retrofit` — upgrade in place with behavior frozen: `patch` (CVEs), `minor` (adapt code), `major` (breaking upgrades)
-  - `refactor` — redesign keeping the core invariants; business changes recorded for approval; incremental migration
-- `plugins/frontend/`
-  - `uiux` — layout and language vision
-  - `spec` — design system and per-feature UI specs in Spec Kit format
-  - `build` — implement the frontend phase by phase
-  - `tui` — terminal interfaces, only when you ask for one: a TUI and the CLI under it (or a CLI alone) with Go/Bubble Tea, Rust/Ratatui, Python/Textual, Java/Lanterna, TypeScript/Ink or .NET/Spectre.Console / Terminal.Gui
-- `plugins/backend/`
-  - `domain` — domain model: contexts, aggregates, invariants, lifecycles
-  - `spec` — canonical OpenAPI contract and per-feature backend specs
-  - `build` — implement the backend, tests and contract first
-- `plugins/qa/`
-  - `strategy` — risk-based test strategy, per-feature traceability and gates
-  - `e2e` — cross-stack Playwright journeys; sets features Verified
-  - `load` — k6 load, stress, spike, soak and breakpoint tests from the capacity model
-  - `review` — audit an existing test suite (mutation testing, flakiness, gaps)
-- `plugins/db/` — safe database access for any engine (PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, SQLite), all through the `dbrun` runner
-  - `connect` — list, test and classify connection profiles, never showing credentials
-  - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
-  - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
-  - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
-- `plugins/devsecops/` — GitHub Actions by default; GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins, Forgejo/Gitea
-  - `pipeline` — design and create CI/CD pipelines, gates, environments and promotion
-  - `supply-chain` — pinning, updates, SCA/SAST/secret scanning, SBOM, signing, provenance
-  - `iac` — infrastructure as code (OpenTofu/Terraform by default) for the environments the architecture chose
-  - `audit` — security and reliability review of existing pipelines
-  - `migrate` — move pipelines between platforms
-
-## Databases
-
-Every `db:*` skill reaches a database only through `plugins/db/scripts/dbrun.py`, which enforces `plugins/db/references/safety.md`:
-
-- **Remote** (production, staging/homologação, shared development — anything not proven local): `SELECT` only, with timeouts, row caps and cost guards. Changes are written as scripts for a person to run; `dbrun` never executes a remote write.
-- **Local**: only a database container of this repository's compose project on this machine, reached through its own network namespace. Writes need a recorded plan, your confirmation and a backup, and can be restored.
-- Results are masked by default (names, emails, CPF/CNPJ, phones, cards, secrets), revealed only when you ask; every statement is logged before it runs, outside the repository.
-
-Connection profiles live in `~/.config/ai-gent/db/connections.env` (mode 600; format in `plugins/db/references/connections.md`); a running database container of the current project is discovered automatically as `local:<service>`. The `db` plugin's guard hook denies direct client calls (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) that carry SQL that writes, and asks before any other direct use. In opencode, add the equivalent `permission.bash` rules (for example `"psql*": "ask"`, `"sqlcmd*": "ask"`).
-
-## Product pipeline
-
-The `project`, `frontend`, `backend`, `qa` and `devsecops` plugins form one chain. Each stage writes a file the next one reads, so stages can run in separate sessions or on their own. The contract for paths, ownership and shared rules is `shared/pipeline.md`.
-
-```txt
-project:init ─► project:architecture ─► project:spec ─┬─► frontend:uiux ─► frontend:spec ─► frontend:build ─┐
-                                                      ├─► backend:domain ─► backend:spec ─► backend:build ──┼─► qa:e2e / qa:load ─► project:docs
-                                                      └─► qa:strategy ──────────────────────────────────────┘
-                       devsecops:pipeline / supply-chain from project:spec on; iac once hosting is decided; audit and migrate whenever needed
-                       project:status at any point: where things stand, what to run next
-
-existing codebase: project:introspec ─► project:retrofit (same behavior, upgraded)
-                                     └► project:refactor (redesign) ─► the chain above, in review mode
-```
-
-Every feature moves Planned → In progress → Implemented (build checkpoints passed) → Verified (QA passed), tracked in `specs/README.md`.
-
-Frontend and backend meet only at `contracts/openapi.yaml` and the brief's glossary. Specs use GitHub Spec Kit (`specify` CLI 1.x), bootstrapped by `project:spec`.
 
 ## Development
 
-Run `scripts/check.sh` before committing (CI runs it on every pull request and push to `main`). It checks skill names and description budgets (400 characters — every session loads them), plugin manifests, `plugin:skill` references and relative paths, symlinks and shell scripts, then tests the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the release script and the installers in a throwaway `HOME`.
+Conventions for editing skills and plugins are in `AGENTS.md` (also available as `CLAUDE.md`).
 
-Releases are automatic: every push to `main` runs the checks, then `scripts/release.py` decides from the Conventional Commits since the last tag — `feat` → minor, `fix`/`perf`/`refactor` → patch, `!` or `BREAKING CHANGE` → major, anything else → no release. A release bumps the changed plugins' versions, turns `CHANGELOG.md`'s `## Unreleased` into the release entry (or generates one), commits `chore(release): X.Y.Z`, tags `X.Y.Z` and publishes a GitHub Release. Preview it with `python3 scripts/release.py --dry-run`, and `git pull --ff-only` after a release. `--quick` skips the installer tests; set `SHELLCHECK='uvx --from shellcheck-py shellcheck'` if shellcheck isn't installed. Conventions for editing skills are in `AGENTS.md`.
+**Checks.** Run `scripts/check.sh` before committing; CI runs the same script.
+- **Metadata:** skill names and description budgets (400 characters, since every session loads them), and plugin manifests.
+- **References:** `plugin:skill` references, relative paths and symlinks.
+- **Scripts:** shell scripts through shellcheck.
+- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the release script, and the installers in a throwaway `HOME`.
+- **Options:** `--quick` skips the installer tests. Set `SHELLCHECK='uvx --from shellcheck-py shellcheck'` if shellcheck isn't installed.
+
+**Evals.** `claude plugin eval plugins/<name> --runs 1 --ablation none` runs a plugin's trigger cases. They check that a request loads the right skill and not its neighbor. They cost real tokens, so they aren't part of CI. Behavior cases that need a shell also need `--scaffold --allow-tools Bash` and the eval sandbox's dependencies (`bubblewrap`, `socat`).
+
+**Releases are automatic.** Every push to `main` runs the checks. Then `scripts/release.py` decides from the Conventional Commits since the last tag:
+- `feat` → minor;
+- `fix`, `perf` or `refactor` → patch;
+- `!` or `BREAKING CHANGE` → major;
+- anything else → no release.
+
+A release:
+1. bumps the versions of the plugins that changed;
+2. turns `CHANGELOG.md`'s `## Unreleased` into the release entry, or generates one;
+3. commits `chore(release): X.Y.Z` and tags `X.Y.Z`;
+4. publishes a GitHub Release.
+
+Preview it with `python3 scripts/release.py --dry-run`, and run `git pull --ff-only` after a release. The bot pushes straight to `main`, so branch protection must allow `github-actions[bot]` to push.
 
 ## License
 
