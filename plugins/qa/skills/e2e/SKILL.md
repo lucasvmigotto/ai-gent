@@ -13,8 +13,8 @@ description: Write and run cross-stack end-to-end journeys, Playwright by defaul
    `ui.md` flows, and record them in `qa.md` as an `[UPSTREAM GAP]` fix.
 3. Read `ui.md` (routes, states, copy keys), `backend.md` (errors, authz
    matrix), `contracts/openapi.yaml` (for API-based setup), and the
-   devcontainer/infra setup (how to bring the stack up, the IdP personas,
-   Mailpit, seed data).
+   devcontainer/infra setup (how to bring the stack up, how each persona
+   logs in, Mailpit, seed data).
 4. The feature must be **Implemented** on both sides; e2e against a mock
    API is a frontend test, not an e2e test.
 
@@ -29,9 +29,12 @@ description: Write and run cross-stack end-to-end journeys, Playwright by defaul
   locally and at most 1 in CI **with flake reporting**.
 - Stack: bring up the devcontainers and `devcontainer:infra` compose (or
   the CI equivalent); wait on health endpoints, not sleeps.
-- **Auth**: log in once per persona through the real IdP login page (the
-  dev mock-oauth2-server/Keycloak), save `storageState` per persona, reuse
-  it across tests. At least one test exercises the login flow itself.
+- **Auth**: log in once per persona (from `qa.md`) through the real login
+  flow — the dev IdP's login page (mock-oauth2-server/Keycloak) for OIDC,
+  the link or code read from Mailpit for magic-link or one-time-code
+  login, the app's own form otherwise — save `storageState` per persona,
+  reuse it across tests. At least one test exercises the login flow
+  itself.
 - **Data**: create what each test needs through the API (fixtures using
   the contract), unique per test (suffix with the test id), clean up
   after; never depend on another test's data or on order.
@@ -47,8 +50,8 @@ description: Write and run cross-stack end-to-end journeys, Playwright by defaul
   only when no accessible handle exists.
 - Web-first assertions (`await expect(locator).toBeVisible()`), never
   `waitForTimeout`.
-- Cover per journey: the happy path; validation errors; the no-roles
-  persona being denied (UI and direct URL); an empty state; a server
+- Cover per journey: the happy path; validation errors; a persona
+  without the permission being denied (UI and direct URL); an empty state; a server
   error state (stop or stub one dependency where the stack allows) when
   the feature's risk is High.
 - Accessibility: run axe (`@axe-core/playwright`) on each key screen of

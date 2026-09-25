@@ -15,9 +15,10 @@ description: Define a risk-based test strategy for the project and each feature 
    when present — `ui.md`, `backend.md`, `contracts/openapi.yaml`,
    `ux-vision.md` (key flows), `domain-model.md` (invariants, lifecycles),
    `delivery.md`, and any existing tests.
-3. Ask only what changes the strategy: supported browsers/devices,
-   environments available for testing (is there a staging?), who does
-   UAT, release cadence, tolerance for pipeline duration.
+3. Clarify (pipeline rule 2) only what the inputs leave open — often
+   supported browsers/devices, environments available for testing (is
+   there a staging?), who does UAT, release cadence, tolerance for
+   pipeline duration.
 
 ## Process
 
@@ -36,9 +37,14 @@ description: Define a risk-based test strategy for the project and each feature 
    performance (`qa:load`) · security (from `devsecops:supply-chain`) ·
    exploratory (charters for High-risk features) · UAT.
 3. **Test data** — factories/builders per aggregate, seed data for e2e
-   (via API or migrations, not UI), personas matching the dev identity
-   provider (admin, regular, no-roles — `devcontainer:infra` §4),
-   synthetic data only (no real personal data), reset strategy.
+   (via API or migrations, not UI), synthetic data only (no real personal
+   data), reset strategy. **Personas** come from the product's roles and
+   authorization rules (the brief, `backend.md`'s authz matrix, the domain
+   model): one per role, plus one lacking each permission that matters
+   (a pending account, a user of another tenant). How each logs in follows
+   the architecture's identity decision — dev IdP users for OIDC
+   (`devcontainer:infra`'s identity reference), a Mailpit-captured link
+   for magic-link or one-time-code login, seeded credentials otherwise.
 4. **Environments** — local (the devcontainer stack), CI (ephemeral
    services), preview/staging; what runs where; the limits of each
    (e.g. load numbers from a laptop are relative only).
@@ -74,7 +80,7 @@ description: Define a risk-based test strategy for the project and each feature 
 - [ ] every authorization rule has a negative test planned
 - [ ] every High-risk feature has failure-mode and concurrency tests and a charter
 - [ ] NFRs with numbers (latency, throughput, availability) map to load or monitoring checks
-- [ ] test data is synthetic and personas match the dev IdP
+- [ ] test data is synthetic; personas cover every role and a missing-permission case, with a login method per the identity decision
 - [ ] gates defined per pipeline stage with thresholds
 - [ ] exit criteria for Verified stated per feature
 
