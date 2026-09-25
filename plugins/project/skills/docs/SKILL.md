@@ -65,6 +65,10 @@ with its real status. Planned material goes on clearly marked roadmap
 pages, never mixed into how-to or reference pages as if it worked today.
 Use the brief's glossary for every term on the site.
 
+If the project ships a CLI or TUI, the site gets a command reference
+generated from the real `--help` output (never hand-written) and demos
+recorded from `vhs` tapes, re-rendered in CI so they can't go stale.
+
 ## Phase 2 — Scaffold
 
 Bun · React · TypeScript (the current stable major, pinned; verify the
