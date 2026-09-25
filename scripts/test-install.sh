@@ -119,9 +119,12 @@ src="$SANDBOX/src"
 pinned="$SANDBOX/pinned"
 g() { git -C "$src" -c user.name=test -c user.email=test@example.test "$@"; }
 git clone -q "$REPO_DIR" "$src"
-g tag 9.9.0
-g commit -q --allow-empty -m "chore: next"
-g tag 9.9.1
+# Annotated tags on their own commits, like real releases (describe prefers
+# annotated tags, so sharing a commit with the repo's own tags would be ambiguous).
+g commit -q --allow-empty -m "chore: release 9.9.0"
+g tag -a 9.9.0 -m 9.9.0
+g commit -q --allow-empty -m "chore: release 9.9.1"
+g tag -a 9.9.1 -m 9.9.1
 AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" AI_GENT_BRANCH=9.9.0 sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
 check "clones at the tag" test "$(git -C "$pinned" rev-parse HEAD)" == "$(g rev-parse '9.9.0^{commit}')"
 AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
