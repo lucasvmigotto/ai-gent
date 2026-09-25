@@ -6,8 +6,49 @@ changes.
 
 ## Unreleased
 
-Fixes from a dogfood run of `project:init` → `project:architecture` →
-`project:spec` on a sample product.
+Container-first development, three skills for existing codebases, LLM-
+readable docs, automated releases — and fixes from a dogfood run of
+`project:init` → `project:architecture` → `project:spec` on a sample
+product.
+
+### Added
+
+- `project:introspec` — reverse-engineers an existing codebase into the
+  pipeline's artifacts (brief, as-is architecture, domain model, Spec Kit
+  features with evidence-based statuses, rebuilt OpenAPI contract, SBOM),
+  labelling every claim Observed, Inferred or Assumed; may read a dev
+  database, never production.
+- `project:retrofit` — in-place upgrades with behavior frozen behind
+  characterization tests, at level `patch`, `minor` or `major`, with
+  reachability-based CVE triage and an end-of-life table.
+- `project:refactor` — redesign that keeps the core invariants, records
+  each business change for approval (`docs/product/bcr/`), and migrates
+  in strangler-style slices.
+- `shared/containers.md` — container-first rules shared by `devcontainer`,
+  `devsecops` and `project`: Podman first with Docker as fallback, a thin
+  `tools` stage as the reference environment for agents and CI, Docker
+  Hardened Images pinned by digest, multi-stage builds with bind and cache
+  mounts, `.dockerignore`, determinism, resource limits, registry logins.
+- `project:docs` emits `llms.txt`, `llms-full.txt` and a Markdown page per
+  page and locale, with maturity labels in the text.
+- Automated releases: `release.yml` runs the checks on every push to
+  `main` and releases when the commits warrant it (`scripts/release.py`,
+  tested by `scripts/test-release.sh`).
+
+### Changed
+
+- `devcontainer:setup` builds two layers per module — the tools layer
+  (Containerfile, `compose.tools.yml`, task recipes, limits) and the human
+  devcontainer, fed by one version source and a `doctor` drift check.
+- `devcontainer:workflow` runs tasks through the tools recipes first, and
+  every command uses the detected engine instead of `docker`.
+- `devcontainer:infra` sets limits, profiles and digest-pinned images on
+  every service.
+- `devsecops:pipeline` runs CI through the same recipes and documents
+  registry logins; `devsecops:supply-chain` hardens images per the shared
+  rules.
+- `check.yml` is reusable and runs on pull requests; pushes to `main` run
+  it through `release.yml`.
 
 ### Fixed
 
