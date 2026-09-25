@@ -13,6 +13,14 @@ product.
 
 ### Added
 
+- `db` plugin — `db:connect`, `db:inspect`, `db:review`, `db:investigate`
+  for PostgreSQL, MySQL/MariaDB, SQL Server, Oracle and SQLite, all through
+  the `dbrun` runner: remote databases are `SELECT`-only in every
+  environment and changes to them are scripts for a person to run; only a
+  proven local container of the project can be written to, after a plan,
+  the user's confirmation and a backup; results are masked by default;
+  every statement is logged before it runs. A guard hook denies direct
+  client calls with writing SQL and asks before any other.
 - `project:introspec` — reverse-engineers an existing codebase into the
   pipeline's artifacts (brief, as-is architecture, domain model, Spec Kit
   features with evidence-based statuses, rebuilt OpenAPI contract, SBOM),

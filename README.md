@@ -138,12 +138,27 @@ scripts/check.sh                                repository checks, also run by C
   - `e2e` — cross-stack Playwright journeys; sets features Verified
   - `load` — k6 load, stress, spike, soak and breakpoint tests from the capacity model
   - `review` — audit an existing test suite (mutation testing, flakiness, gaps)
+- `plugins/db/` — safe database access for any engine (PostgreSQL, MySQL/MariaDB, SQL Server, Oracle, SQLite), all through the `dbrun` runner
+  - `connect` — list, test and classify connection profiles, never showing credentials
+  - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
+  - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
+  - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
 - `plugins/devsecops/` — GitHub Actions by default; GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins, Forgejo/Gitea
   - `pipeline` — design and create CI/CD pipelines, gates, environments and promotion
   - `supply-chain` — pinning, updates, SCA/SAST/secret scanning, SBOM, signing, provenance
   - `iac` — infrastructure as code (OpenTofu/Terraform by default) for the environments the architecture chose
   - `audit` — security and reliability review of existing pipelines
   - `migrate` — move pipelines between platforms
+
+## Databases
+
+Every `db:*` skill reaches a database only through `plugins/db/scripts/dbrun.py`, which enforces `plugins/db/references/safety.md`:
+
+- **Remote** (production, staging/homologação, shared development — anything not proven local): `SELECT` only, with timeouts, row caps and cost guards. Changes are written as scripts for a person to run; `dbrun` never executes a remote write.
+- **Local**: only a database container of this repository's compose project on this machine, reached through its own network namespace. Writes need a recorded plan, your confirmation and a backup, and can be restored.
+- Results are masked by default (names, emails, CPF/CNPJ, phones, cards, secrets), revealed only when you ask; every statement is logged before it runs, outside the repository.
+
+Connection profiles live in `~/.config/ai-gent/db/connections.env` (mode 600; format in `plugins/db/references/connections.md`); a running database container of the current project is discovered automatically as `local:<service>`. The `db` plugin's guard hook denies direct client calls (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) that carry SQL that writes, and asks before any other direct use. In opencode, add the equivalent `permission.bash` rules (for example `"psql*": "ask"`, `"sqlcmd*": "ask"`).
 
 ## Product pipeline
 
@@ -166,7 +181,7 @@ Frontend and backend meet only at `contracts/openapi.yaml` and the brief's gloss
 
 ## Development
 
-Run `scripts/check.sh` before committing (CI runs it on every pull request and push to `main`). It checks skill names and description budgets (400 characters — every session loads them), plugin manifests, `plugin:skill` references and relative paths, symlinks and shell scripts, then tests the git guard, the release script and the installers in a throwaway `HOME`.
+Run `scripts/check.sh` before committing (CI runs it on every pull request and push to `main`). It checks skill names and description budgets (400 characters — every session loads them), plugin manifests, `plugin:skill` references and relative paths, symlinks and shell scripts, then tests the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the release script and the installers in a throwaway `HOME`.
 
 Releases are automatic: every push to `main` runs the checks, then `scripts/release.py` decides from the Conventional Commits since the last tag — `feat` → minor, `fix`/`perf`/`refactor` → patch, `!` or `BREAKING CHANGE` → major, anything else → no release. A release bumps the changed plugins' versions, turns `CHANGELOG.md`'s `## Unreleased` into the release entry (or generates one), commits `chore(release): X.Y.Z`, tags `X.Y.Z` and publishes a GitHub Release. Preview it with `python3 scripts/release.py --dry-run`, and `git pull --ff-only` after a release. `--quick` skips the installer tests; set `SHELLCHECK='uvx --from shellcheck-py shellcheck'` if shellcheck isn't installed. Conventions for editing skills are in `AGENTS.md`.
 

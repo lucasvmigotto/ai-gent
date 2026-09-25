@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git guard hook, the release script, and installer tests
+# shell scripts, the git and db guard hooks, dbrun, the release script, and installer tests
 # in a throwaway HOME. Run before every commit; CI runs the same script.
 #
 #   scripts/check.sh                 everything
@@ -173,6 +173,24 @@ else
   fail "git guard hook"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-guard.out"
+
+# ------------------------------------------------------------------- db
+
+if scripts/test-db-guard.sh >"${TMPDIR:-/tmp}/ai-gent-dbguard.out" 2>&1; then
+  pass "db guard hook ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-dbguard.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-dbguard.out"
+  fail "db guard hook"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-dbguard.out"
+
+if python3 -m unittest plugins/db/scripts/test_dbrun.py >"${TMPDIR:-/tmp}/ai-gent-dbrun.out" 2>&1; then
+  pass "dbrun ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-dbrun.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-dbrun.out"
+  fail "dbrun unit tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-dbrun.out"
 
 # ----------------------------------------------------------------- release
 
