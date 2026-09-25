@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: Operate a project's existing devcontainer autonomously — toolchain commands inside it via the devcontainer CLI (up, exec, rebuild) or docker exec, file edits on the host, rebuilds after config changes. Use when running, testing or building in a repo that has .devcontainer/. Creating one is devcontainer:setup.
+description: Operate a project's containers autonomously — tasks through its tools recipes (thin, CI-identical containers), otherwise the devcontainer via its CLI or Podman/Docker exec; file edits on the host; rebuilds after config changes. Use when running, testing or building in a repo with .devcontainer/, a compose.tools.yml or a Containerfile. Creating them is devcontainer:setup.
 ---
 
 # Working with a devcontainer
@@ -14,6 +14,30 @@ installed locally."
 
 The container and the host almost always share the project files via a
 bind mount. That single fact is what drives every rule below.
+
+## Step -2: engine and tools layer — the preferred path
+
+Do this once per session and cache the result (rules in
+`../../references/containers.md`):
+
+```bash
+CONTAINER_ENGINE="${CONTAINER_ENGINE:-$(command -v podman >/dev/null 2>&1 && echo podman || echo docker)}"
+ls justfile Makefile compose.tools.yml 2>/dev/null; just --list 2>/dev/null
+```
+
+- **If the project has a tools layer** (`compose.tools.yml` and task
+  recipes such as `just test`), run every environment action through the
+  recipes: they use the thin, pinned container CI uses, so their result is
+  the one that counts. Use the recipe's name (`just lint`, `just test
+  module=api`) rather than re-typing the container command. Tasks with no
+  recipe run as `$CONTAINER_ENGINE compose -f compose.tools.yml run --rm
+  <module>-tools <command>`; suggest adding a recipe when one repeats.
+- **The human devcontainer** (below) is for what the tools layer doesn't
+  cover: a running dev server with hot reload, a debugger session, or a
+  project that has no tools layer yet.
+- Every command below uses `$CONTAINER_ENGINE`, never a hardcoded
+  `docker`: Podman when installed, Docker otherwise. With Podman, pass
+  `--docker-path podman` to the devcontainer CLI.
 
 ## Step -1: probe for the `devcontainer` CLI — manage autonomously if present
 
@@ -33,7 +57,7 @@ command -v devcontainer && devcontainer --version
 - **If missing or broken (`command -v devcontainer` empty, or
   `devcontainer --version` fails — e.g. a `bun`-installed shim with no
   `node` runtime):** fall back to the manual flow
-  below (`docker ps` discovery + `docker exec`, ask the user to
+  below (`$CONTAINER_ENGINE ps` discovery + `$CONTAINER_ENGINE exec`, ask the user to
   start/rebuild in their editor). Mention the install hint exactly once
   per session — prefer `bun`, fall back to `npm`/`yarn` — and never
   auto-install without asking:
@@ -43,7 +67,7 @@ command -v devcontainer && devcontainer --version
   npm install -g @devcontainers/cli
   # or: yarn global add @devcontainers/cli
   ```
-- Never hand-roll a `docker run` to replicate `devcontainer.json` —
+- Never hand-roll a `$CONTAINER_ENGINE run` to replicate `devcontainer.json` —
   with or without the CLI, that won't reproduce the
   volumes/features/env-file/network wiring.
 
@@ -54,11 +78,11 @@ anything, read `.devcontainer/devcontainer.json` (or
 `.devcontainer/<folder>/devcontainer.json` if there are multiple) and note:
 
 - **Container name.** If `runArgs` includes `["--name", "<x>"]`, that name
-  is stable and `docker exec -it <x> ...` always works once it's up. If
+  is stable and `$CONTAINER_ENGINE exec -it <x> ...` always works once it's up. If
   there's no explicit name, the tool that started it (VS Code, `devcontainer
   up`) picks a generated one — find it with:
   ```bash
-  docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'
+  $CONTAINER_ENGINE ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'
   ```
   and match it by image name or by grepping for the project name.
 - **User to exec as** — the `remoteUser` / `containerUser` field (falls
@@ -91,9 +115,9 @@ Confirm it's actually running before doing anything else:
   name, `remoteUser`, and `workspaceFolder` from the config itself, so
   you don't need to derive them by hand for lifecycle/exec purposes.
 - **CLI missing:** check manually, then ask the user to start it rather
-  than hand-rolling `docker run`:
+  than hand-rolling `$CONTAINER_ENGINE run`:
   ```bash
-  docker ps --format '{{.Names}}' | grep -i <project-or-container-name>
+  $CONTAINER_ENGINE ps --format '{{.Names}}' | grep -i <project-or-container-name>
   ```
   Tell the user to start the devcontainer (VS Code "Reopen in
   Container") and wait for confirmation.
@@ -107,15 +131,15 @@ container silently produces confusing failures.
 
 | Kind | Examples | How |
 |---|---|---|
-| **File actions** — reading or changing anything under version control | edit a config/manifest file, read source, check a diff | **Local tools**: `Read`, `Edit`, `Write`, `git` via `Bash` on the **host** path. Never go through `devcontainer exec` / `docker exec`. |
-| **Environment actions** — anything that needs the container's toolchain, runtime, or OS | compiling, running the test suite, starting the app/server, resolving package versions, inspecting a build artifact | **In the container.** Prefer `devcontainer exec` when the CLI is available; use `docker exec` only as fallback. Never on the host if the host lacks the toolchain. |
+| **File actions** — reading or changing anything under version control | edit a config/manifest file, read source, check a diff | **Local tools**: `Read`, `Edit`, `Write`, `git` via `Bash` on the **host** path. Never go through `devcontainer exec` / `$CONTAINER_ENGINE exec`. |
+| **Environment actions** — anything that needs the container's toolchain, runtime, or OS | compiling, running the test suite, starting the app/server, resolving package versions, inspecting a build artifact | **In the container.** Prefer `devcontainer exec` when the CLI is available; use `$CONTAINER_ENGINE exec` only as fallback. Never on the host if the host lacks the toolchain. |
 
 Why this split, specifically:
 
 - The bind mount means a `Write`/`Edit` on the host path is visible inside
   the container **instantly**, with no sync step and no stale-cache risk.
   There is essentially never a reason to `devcontainer exec ... cat`,
-  `docker exec ... cat`, `sed`, `echo >`, or open an editor inside the container just to touch a file —
+  `$CONTAINER_ENGINE exec ... cat`, `sed`, `echo >`, or open an editor inside the container just to touch a file —
   that only adds a layer of shell-quoting/escaping risk for zero benefit,
   and it bypasses the host-side diff tooling the user actually reviews.
 - Conversely, anything that needs to *execute* code, resolve dependencies,
@@ -138,7 +162,7 @@ session — don't re-derive it each time.
 Fallback (CLI missing — fill in the three placeholders from Step 0):
 
 ```bash
-docker exec -u <remoteUser> --workdir <container-path-matching-cwd> <container-name> <command>
+$CONTAINER_ENGINE exec -u <remoteUser> --workdir <container-path-matching-cwd> <container-name> <command>
 ```
 
 Generic recipes (substitute the project's actual build tool — `mvn`,
@@ -148,11 +172,11 @@ the `devcontainer exec` form whenever the CLI is present):
 ```bash
 # Fast signal after an edit — whatever the lightest "does this parse/compile" step is
 devcontainer exec --workspace-folder <path> <build-tool> <compile-or-build-check>
-# fallback: docker exec -u <user> --workdir <path> <container> <build-tool> <compile-or-build-check>
+# fallback: $CONTAINER_ENGINE exec -u <user> --workdir <path> <container> <build-tool> <compile-or-build-check>
 
 # Full test suite
 devcontainer exec --workspace-folder <path> <build-tool> test
-# fallback: docker exec -u <user> --workdir <path> <container> <build-tool> test
+# fallback: $CONTAINER_ENGINE exec -u <user> --workdir <path> <container> <build-tool> test
 
 # Inspect exactly what versions/deps actually resolved (the equivalent of
 # `mvn dependency:tree`, `npm ls <pkg>`, `pip show`, `cargo tree`, etc.) —
@@ -186,7 +210,7 @@ any failure.
   anything that starts listening and doesn't exit on its own) — these
   need one of:
   - `timeout <seconds> devcontainer exec --workspace-folder <path> ...`
-    (or `timeout <seconds> docker exec ...` as fallback) if you only need
+    (or `timeout <seconds> $CONTAINER_ENGINE exec ...` as fallback) if you only need
     to see the startup log and then let it die naturally, or
   - `run_in_background: true`, then read the result via `TaskOutput`, or
   - `Monitor`, if you need to react to specific log lines (e.g. wait for
@@ -213,8 +237,8 @@ to apply a fix, check what's actually running first:
 devcontainer exec --workspace-folder <path> bash -lc "ps aux | grep -i <process-pattern>"
 devcontainer exec --workspace-folder <path> bash -lc "ss -ltnp | grep <port>"
 # fallback without CLI:
-# docker exec <container> bash -lc "ps aux | grep -i <process-pattern>"
-# docker exec <container> bash -lc "ss -ltnp | grep <port>"
+# $CONTAINER_ENGINE exec <container> bash -lc "ps aux | grep -i <process-pattern>"
+# $CONTAINER_ENGINE exec <container> bash -lc "ss -ltnp | grep <port>"
 ```
 
 **Distinguish the user's own process from one you started or from a
@@ -245,7 +269,7 @@ reflects your change.
 ## Clean up every process you start for your own verification
 
 If you start a server/dev-process yourself (`nohup ... &`,
-`run_in_background`, or a bare `devcontainer exec` / `docker exec`) purely to verify a fix —
+`run_in_background`, or a bare `devcontainer exec` / `$CONTAINER_ENGINE exec`) purely to verify a fix —
 not because the user asked you to leave something running — treat it as
 scoped to the task: stop it before considering the task done, the same
 way you'd clean up a scratch file.
@@ -275,16 +299,16 @@ way you'd clean up a scratch file.
   `devcontainer up --workspace-folder <path> --recreate` (rebuild after a
   `devcontainer.json`/`features`/`image` change). Announce what you did
   after the fact.
-- **Ask first:** `docker stop` / `devcontainer` stop-like teardown,
-  `up --remove-existing`, `docker rm` / `docker volume rm` /
-  `docker system prune` / `docker network rm` on the project's container
+- **Ask first:** `$CONTAINER_ENGINE stop` / `devcontainer` stop-like teardown,
+  `up --remove-existing`, `$CONTAINER_ENGINE rm` / `$CONTAINER_ENGINE volume rm` /
+  `$CONTAINER_ENGINE system prune` / `$CONTAINER_ENGINE network rm` on the project's container
   or its volumes — the container likely holds dependency caches,
   in-progress state, or open connections, and destroying it is expensive
   to rebuild and hard to reverse. Exception: stopping a verification
   process you started yourself (tracked PID/port) is autonomous — clean
   it up without asking.
 - Don't edit files by shelling into the container (`devcontainer exec ...
-  vi`, `docker exec ... vi`, `sed -i`, `tee`, heredocs) — see the file-vs-environment split above. If
+  vi`, `$CONTAINER_ENGINE exec ... vi`, `sed -i`, `tee`, heredocs) — see the file-vs-environment split above. If
   you catch yourself reaching for exec to change file content,
   stop and use `Edit`/`Write` on the host path instead.
 - Secrets (connection strings, API keys, credentials) belong in whatever
@@ -316,12 +340,12 @@ effect until the container is rebuilt.
   ```
   Then verify the change took effect (for a Docker access-mode change, the
   checklist in `references/docker.md`). Never fake a rebuild with
-  `docker restart` or by hand-editing the running container's state —
+  `$CONTAINER_ENGINE restart` or by hand-editing the running container's state —
   that doesn't re-run feature installation.
 - **CLI missing or broken (`command -v devcontainer` empty, or
   `devcontainer --version` fails):** there is no way to
   trigger that rebuild programmatically — don't fake it with
-  `docker restart` or by hand-editing the running container's state.
+  `$CONTAINER_ENGINE restart` or by hand-editing the running container's state.
   Tell the user to rebuild via their editor ("Reopen in Container" /
   "Rebuild Container" in VS Code) and wait for their confirmation
   before running any verification. Suggest the bun-first install hint
