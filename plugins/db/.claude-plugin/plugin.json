@@ -1,0 +1,10 @@
+{
+  "name": "db",
+  "version": "1.0.0",
+  "license": "GPL-3.0-or-later",
+  "description": "Safe database work through one audited runner: connect (profiles, classification), inspect (schema discovery), review (the application's database usage), investigate (bad data, hand edits, app bugs). Remote is SELECT-only; only proven local containers can be written",
+  "author": {
+    "name": "lucasvmigotto",
+    "email": "lvmigotto1@gmail.com"
+  }
+}

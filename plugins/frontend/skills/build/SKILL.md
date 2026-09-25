@@ -15,6 +15,9 @@ accessible, responsive, performant and technically sound — with a clear
 component architecture, design tokens, complete interaction states,
 consistent typography, spacing and hierarchy across the whole product.
 
+Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
+`frontend:tui`, not here.
+
 ## Before starting
 
 1. Read `../../references/pipeline.md` and

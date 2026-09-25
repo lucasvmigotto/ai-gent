@@ -31,7 +31,7 @@ feature *and* a manual `mounts` bind of `/var/run/docker.sock` — the
 bind mount wins in practice: whatever talks to `/var/run/docker.sock`
 reaches the host daemon, and the nested `dockerd` the feature provisions
 sits unused. Confirm which daemon is actually in play with
-`docker ps -a` inside the container: if it shows the devcontainer's own
+`$CONTAINER_ENGINE ps -a` inside the container: if it shows the devcontainer's own
 container as a sibling, you're on the host daemon, and the
 `docker-in-docker` feature is dead weight that should either be dropped
 in favor of `docker-outside-of-docker`, or the redundant manual mount
@@ -47,24 +47,24 @@ changes).
 ## Verification checklist after a rebuild that changes Docker access mode
 
 - `devcontainer exec --workspace-folder <path> docker info` (fallback:
-  `docker exec ... docker info`) — confirm the daemon identity /
+  `$CONTAINER_ENGINE exec ... docker info`) — confirm the daemon identity /
   server version matches the host's, not a freshly-provisioned nested
   one.
 - Confirm non-root access **explicitly**, not just as root: check
   `id`/`groups` for the container's actual default user (plain
   `devcontainer exec` already runs as that user — don't use
-  `docker exec -u root`, not with `sudo`), and run a plain `docker ps`
+  `$CONTAINER_ENGINE exec -u root`, not with `sudo`), and run a plain `$CONTAINER_ENGINE ps`
   as that user. Root can talk to the socket regardless of group
   permissions, so testing only as root can hide a permissions
   regression that would bite a normal dev session.
 - Run the full test suite end-to-end (unit tests *and* the
   Testcontainers/Docker-backed integration tests), not just a Docker
   smoke command — the goal is confirming the actual test workload
-  still works, not just that `docker ps` succeeds.
+  still works, not just that `$CONTAINER_ENGINE ps` succeeds.
 
 ## Testcontainers cleanup latency isn't an orphan leak
 
-Right after a test run finishes, `docker ps -a` can still show the
+Right after a test run finishes, `$CONTAINER_ENGINE ps -a` can still show the
 spun-up test container(s) and the Ryuk reaper container as `Up` for a
 short while (observed ~15s). This is normal reaper latency, not a
 leaked/orphaned container. Wait and re-check before concluding cleanup

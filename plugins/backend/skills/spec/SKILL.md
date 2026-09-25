@@ -41,7 +41,7 @@ every `ui.md` data need maps to one. Missing on either side →
 
 ### 2. The canonical contract — `contracts/openapi.yaml`
 
-Promote the skeleton to canonical (`x-status: canonical`), OpenAPI 3.1:
+Promote the skeleton to canonical (`info.x-status: canonical`), OpenAPI 3.1:
 
 - **Resources and verbs from the domain**: collection/item resources for
   reads; explicit command endpoints for state transitions that carry

@@ -25,9 +25,11 @@ opinionated, but every opinion is traceable to a driver or a number.
    `../../references/architecture-quality.md` (the AI-default
    architecture choices to avoid, and the decision checklists).
 2. Read every input that exists: `docs/product/brief.md` (NFRs, volumes,
-   constraints, integrations, compliance, "Architecture drivers"),
-   `docs/product/domain-model.md` (bounded contexts), `docs/product/references/`,
-   existing `docs/product/architecture.md` and ADRs.
+   constraints, integrations, compliance, "Architecture drivers",
+   domain overview and candidate feature map), `docs/product/references/`,
+   existing `docs/product/architecture.md` and ADRs, and
+   `docs/product/domain-model.md` only if it already exists — it normally
+   comes later, from `backend:domain`.
 3. **Pick the mode:**
    - **design** — no system yet (or a rewrite).
    - **review** — a system exists: inventory the code (modules, runtimes,
@@ -85,13 +87,19 @@ the provider's pricing calculator for confirmation.
 ## Decisions
 
 For each dimension: list the realistic options, evaluate them against the
-ranked drivers and the capacity model, choose, and write an ADR. Use
+ranked drivers and the capacity model, and choose. Write an ADR when a
+reasonable team could have chosen differently; a choice that is the
+obvious default at this size gets a one-line reason in
+`architecture.md`'s decisions table instead. Use
 `architecture-quality.md`'s checklists. Dimensions:
 
 1. **Deployment shape** — monolith · modular monolith · frontend +
    API (+ BFF when clients' needs genuinely diverge) · microservices ·
-   functions/serverless · hybrid. Default to a modular monolith with the
-   domain model's bounded contexts as modules; justify anything more
+   functions/serverless · hybrid. Default to a modular monolith whose
+   modules are the bounded contexts — from `domain-model.md` if it
+   exists, otherwise derived from the brief's domain overview and feature
+   map (`backend:domain` refines them later and raises an
+   `[UPSTREAM GAP]` if they don't fit); justify anything more
    distributed with a driver (independent scaling of a measured hot spot,
    independent team ownership, different availability or compliance
    boundary).
@@ -129,6 +137,17 @@ ranked drivers and the capacity model, choose, and write an ADR. Use
     `devsecops:pipeline`.
 11. **Cost** — the monthly range per environment, the main cost drivers,
     and the cheapest acceptable alternative.
+12. **Stack** — per module: language, runtime and version, framework,
+    persistence library, and the frontend stack. Weigh the team's skills,
+    the hosting choice's supported runtimes, and the ecosystem the
+    integrations need; for web clients, suggest the user's usual stack
+    (Bun · React · TypeScript · Vite · Tailwind CSS · Biome) unless a
+    driver argues otherwise. `project:spec`'s plans take the stack from
+    here. A terminal client (TUI or CLI) is a surface only when the user
+    asked for one; its stack follows
+    `../../../frontend/references/terminal-stacks.md` (a client of the API
+    may use any language; one embedding the project's code uses its
+    language).
 
 ## Evolution path
 
@@ -155,13 +174,14 @@ requirement.
 - In review mode, a prioritized **improvement list**: issue → evidence
   (metric, file, config) → recommendation → effort → expected gain.
 
-Mark everything `Planned`.
+Mark `architecture.md` `Status: Draft` (`Accepted` once the user agrees)
+and each ADR `proposed` (MADR).
 
 ## Coverage checklist
 
 - [ ] drivers ranked; every assumption marked and collected
 - [ ] capacity model shows formulas, peak numbers and the 10× breaking point
-- [ ] every dimension has a decision or an explicit N/A, and an ADR with rejected options
+- [ ] every dimension has a decision or an explicit N/A; contested ones have an ADR with rejected options, obvious defaults a one-line reason
 - [ ] every non-default choice (distributed, multicloud, polyglot data, GraphQL, Kubernetes) cites the driver or number that requires it
 - [ ] data residency and compliance satisfied by the hosting/region choice
 - [ ] RPO/RTO mapped to a backup/replication strategy

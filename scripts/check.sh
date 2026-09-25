@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git guard hook, and installer tests in a throwaway HOME. Run before every commit; CI runs the same script.
+# shell scripts, the git and db guard hooks, dbrun, the release script, and installer tests
+# in a throwaway HOME. Run before every commit; CI runs the same script.
 #
 #   scripts/check.sh                 everything
 #   scripts/check.sh --quick         skip the installer tests
@@ -8,7 +9,10 @@
 # Environment:
 #   DESC_BUDGET  soft limit for skill descriptions, in characters (default 400);
 #                opencode's hard limit is 1024
-#   SHELLCHECK   shellcheck command (default: shellcheck on PATH, else skipped)
+#   SHELLCHECK   the linter command (default: the pinned SHELLCHECK_VERSION run
+#                through uvx or pipx, so local runs and CI use the same release;
+#                then the one on PATH; else the lint is skipped)
+#   SHELLCHECK_VERSION  shellcheck-py release to pin (default below)
 
 set -euo pipefail
 
@@ -150,16 +154,24 @@ for script in "${hooks[@]}"; do
   sh -n "$script" || fail "sh -n $script"
 done
 
+shellcheck_version="${SHELLCHECK_VERSION:-0.11.0.1}"
 shellcheck_cmd="${SHELLCHECK:-}"
-if [[ -z "$shellcheck_cmd" ]] && command -v shellcheck >/dev/null 2>&1; then
-  shellcheck_cmd=shellcheck
+if [[ -z "$shellcheck_cmd" ]]; then
+  if command -v uvx >/dev/null 2>&1; then
+    shellcheck_cmd="uvx --quiet --from shellcheck-py==$shellcheck_version shellcheck"
+  elif command -v pipx >/dev/null 2>&1; then
+    shellcheck_cmd="pipx run --quiet --spec shellcheck-py==$shellcheck_version shellcheck"
+  elif command -v shellcheck >/dev/null 2>&1; then
+    shellcheck_cmd=shellcheck
+    warn "using shellcheck $(shellcheck --version | sed -n 's/^version: //p') from PATH; CI pins $shellcheck_version (install uv or pipx to match)"
+  fi
 fi
 if [[ -n "$shellcheck_cmd" ]]; then
   # shellcheck disable=SC2086 # SHELLCHECK may be a command with arguments
   $shellcheck_cmd "${scripts[@]}" install.sh "${hooks[@]}" ||
     fail "shellcheck"
 else
-  warn "shellcheck not found; skipped (SHELLCHECK='uvx --from shellcheck-py shellcheck' works too)"
+  warn "shellcheck not found (nor uvx or pipx to fetch it); skipped"
 fi
 ((failures == before)) && pass "shell syntax$([[ -n "$shellcheck_cmd" ]] && echo ' and shellcheck')"
 
@@ -172,6 +184,34 @@ else
   fail "git guard hook"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-guard.out"
+
+# ------------------------------------------------------------------- db
+
+if scripts/test-db-guard.sh >"${TMPDIR:-/tmp}/ai-gent-dbguard.out" 2>&1; then
+  pass "db guard hook ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-dbguard.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-dbguard.out"
+  fail "db guard hook"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-dbguard.out"
+
+if python3 -m unittest plugins/db/scripts/test_dbrun.py >"${TMPDIR:-/tmp}/ai-gent-dbrun.out" 2>&1; then
+  pass "dbrun ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-dbrun.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-dbrun.out"
+  fail "dbrun unit tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-dbrun.out"
+
+# ----------------------------------------------------------------- release
+
+if scripts/test-release.sh >"${TMPDIR:-/tmp}/ai-gent-release.out" 2>&1; then
+  pass "release script ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-release.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-release.out"
+  fail "release script"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-release.out"
 
 # ---------------------------------------------------------- installer tests
 

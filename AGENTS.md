@@ -41,14 +41,31 @@ product pipeline; this file covers changing things.
 
 ## Releases
 
-Plain SemVer tags without a `v` (`1.1.0`); a `v` only in display text. Bump
-the `version` of each plugin that changed, and add the release to
-`CHANGELOG.md`.
+Automated: every push to `main` runs `.github/workflows/release.yml`, which
+runs the checks and then `scripts/release.py`. The commits since the last
+tag decide: `feat` → minor; `fix`, `perf`, `refactor` → patch; `type!:` or
+a `BREAKING CHANGE:` footer → major; anything else (docs, chore, ci, test,
+style) → no release. A release bumps the `version` of each plugin whose
+files (or the shared files it links) changed, promotes `CHANGELOG.md`'s
+`## Unreleased` section (or generates one from the commits), commits
+`chore(release): X.Y.Z`, tags `X.Y.Z` and publishes a GitHub Release.
+
+- Tags are plain SemVer without a `v` (`1.1.0`); a `v` only in display text.
+- Write release notes by hand under `## Unreleased` when the commit
+  subjects aren't enough; they're used as they are.
+- Don't bump plugin versions or tag by hand; a version already changed by
+  hand since the last tag is left alone.
+- Preview with `scripts/release.py --dry-run`.
+- After pushing, the bot's release commit lands on `main`: run
+  `git pull --ff-only` before the next local commit.
 
 ## Evals
 
 `plugins/<name>/evals/` holds `claude plugin eval` suites: trigger cases
 (does a request reach the right skill, and not a neighbor) and behavior
 cases. Run one plugin's suite with
-`claude plugin eval plugins/<name> --runs 1`. Eval runs cost real tokens
-and aren't part of CI.
+`claude plugin eval plugins/<name> --runs 1 --ablation none` (trigger
+graders count only with the plugin loaded). Behavior cases that need a
+shell (tag `behavior`, with a `scaffold.sh`) also need `--scaffold
+--allow-tools Bash`, and the eval sandbox's dependencies (`bubblewrap`,
+`socat`) installed. Eval runs cost real tokens and aren't part of CI.

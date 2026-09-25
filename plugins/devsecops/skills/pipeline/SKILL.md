@@ -61,8 +61,18 @@ rendering any YAML:
   pinned third-party steps (SHA/digest + version comment), untrusted
   input only via environment variables, OIDC for cloud access, deploy
   secrets only in environment-protected deploy jobs.
-- Reuse the devcontainer's toolchain (same versions, or the same base
-  image as the job container) so CI and local dev agree.
+- **Run the project's task recipes in its tools images**
+  (`../../references/containers.md` §2, §6): CI jobs call `just lint`,
+  `just test`… exactly as developers and agents do, so a local green run
+  and a CI green run mean the same thing. Without a tools layer, reuse the
+  devcontainer's toolchain versions and propose `devcontainer:setup`'s
+  tools layer.
+- **Registry logins** follow `containers.md` §3 and §8: `dhi.io` with the
+  `DOCKER_HUB_PAT` secret; pushes to `ghcr.io` as the repository owner
+  with the job's `GITHUB_TOKEN` (`packages: write` on that job only); to
+  `docker.io` with `DOCKER_HUB_USERNAME` (default: the owner) and
+  `DOCKER_HUB_PAT`. Image names lowercase; build with BuildKit (or
+  buildah) cache mounts and a registry cache.
 - Supply-chain steps (SBOM, scanning, signing, provenance) come from
   `devsecops:supply-chain` — call it or apply its defaults.
 - Infrastructure plan/apply jobs follow `devsecops:iac`'s delivery wiring

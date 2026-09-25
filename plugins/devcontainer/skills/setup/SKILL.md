@@ -1,14 +1,23 @@
 ---
 name: setup
-description: Design and scaffold devcontainers for a project that has none — separate API and client containers by default, stack-matched images, features and IDE settings, shared network, caches, env and hot reload. Use for "set up a devcontainer", "containerize the dev environment", "split the devcontainer into api and web".
+description: Design and scaffold container-first development — per-module multi-stage Containerfiles with a thin tools stage that agents and CI run, task recipes, resource limits, Podman or Docker — plus human devcontainers, API and client apart by default. Use for "set up a devcontainer", "containerize the dev environment", "split the devcontainer into api and web".
 ---
 
 # Designing devcontainer(s) for a project
 
 Scope: the one-time (or per-major-change) design work of deciding how many
 devcontainers a project needs, what each one contains, how they reach each
-other and any infra they depend on, and how hot-reload fits in. Sibling
-subskills own the rest:
+other and any infra they depend on, and how hot-reload fits in.
+
+**Container-first.** Read `../../references/containers.md` before
+anything else. Each module gets two environments built from the same
+pinned toolchain: a thin `tools` image that agents and CI run every task
+in (the reference environment), and a comfortable devcontainer for the
+person at the keyboard. Everything below applies to both unless a phase
+says otherwise; the engine is Podman when installed, Docker otherwise
+(`$CONTAINER_ENGINE`), never hardcoded.
+
+Sibling subskills own the rest:
 
 - `devcontainer:infra` — simulating external resources (databases, caches,
   queues, storage, SMTP/mail, OAuth2/OIDC identity, and beyond). Phase 5
@@ -24,9 +33,14 @@ skill doesn't repeat those rules.
 ## Phase 0 — Discovery
 
 - Inventory the target project: module boundaries, the language/toolchain
-  each module actually uses, existing Dockerfiles/compose files/CI configs,
-  and whether partial devcontainer config already exists (don't discard it
-  before understanding why it looks the way it does).
+  each module actually uses, existing Dockerfiles/Containerfiles/compose
+  files/CI configs, task runners (`justfile`, Makefile, `package.json`
+  scripts), and whether partial devcontainer config already exists (don't
+  discard it before understanding why it looks the way it does).
+- Detect the container engine (`containers.md` §1) and, for Podman,
+  whether cgroup v2 limits and the user socket are available. Check the
+  hardened image catalog for each module's runtime and version
+  (`containers.md` §3) and note where a fallback image is needed.
 - **Classify the project's shape before anything else** — Phase 1 keys
   off this answer:
   - **API + client**: a backend module serving an HTTP/gRPC API and a
@@ -188,10 +202,17 @@ skip the split.
 - The frontend dev server must bind `0.0.0.0` (not `localhost`) or the
   forwarded port and the Phase 7 proxy can't reach it.
 
+### 1.4 Two layers per module
+
+Whatever Phase 1 decided for devcontainers applies to the tools layer too:
+an API and a client get separate `api-tools` and `web-tools` services
+built from their own Containerfiles. The layers differ only in comfort —
+same toolchain versions, same lockfiles, same network aliases.
+
 ## Phase 2 — Shared network topology
 
-- Create one external Docker network named after the project, shared by
-  every devcontainer and every infra compose stack — this is what lets a
+- Create one external network named after the project, shared by
+  every devcontainer, every tools service and every infra compose stack — this is what lets a
   container started by one devcontainer resolve a container started by
   another (or by an infra compose) by name.
 - Each devcontainer joins it and registers a stable alias other services
@@ -203,16 +224,44 @@ skip the split.
   generated container name — the alias is the contract other config files
   (datasource URLs, dev-server proxy targets, proxy `proxy_pass` targets)
   will hardcode.
-- Create the network idempotently so first-time setup needs no manual step:
+- Create the network idempotently so first-time setup needs no manual step,
+  with whichever engine the host has:
   ```json
   "initializeCommand": {
-    "docker-network": "docker network inspect <project-network> >/dev/null 2>&1 || docker network create <project-network>"
+    "network": "sh -c 'e=${CONTAINER_ENGINE:-$(command -v podman >/dev/null 2>&1 && echo podman || echo docker)}; $e network inspect <project-network> >/dev/null 2>&1 || $e network create <project-network>'"
   }
   ```
   Put this in **every** devcontainer of a split — whichever one is opened
   first must be able to create it.
 
-## Phase 3 — Per-module devcontainer.json
+## Phase 3 — The tools layer: Containerfile, compose.tools.yml, recipes
+
+Per module, following `containers.md` §2–§7:
+
+- **One multi-stage Containerfile** (`base` → `deps` → `tools` → `build`
+  → `runtime`), hardened images pinned by digest, sources and caches
+  mounted instead of copied, a deny-by-default `.dockerignore`. If the
+  module already has a production Dockerfile, extend it with the missing
+  stages rather than writing a second one.
+- **`compose.tools.yml`** with one `<module>-tools` service per module:
+  `build.target: tools`, the repo bind-mounted, named cache volumes,
+  `cpus`/`mem_limit`/`pids_limit`, the shared network, profiles for
+  optional parts.
+- **Task recipes** (`justfile`, or the runner the project already uses)
+  with the standard names — `fmt`, `lint`, `typecheck`, `test`, `build`,
+  `doctor`, `shell` — each running in the tools service; `--network=none`
+  for unit tests and builds once dependencies are resolved.
+- **One source for versions** (build args, `.tool-versions`, `.nvmrc`,
+  the manifest's engines field) that the Containerfile and the
+  devcontainer both read; `doctor` prints the versions from both layers
+  and fails on drift.
+
+## Phase 3b — The human layer: per-module devcontainer.json
+
+The devcontainer is for people: a comfortable shell, completion and IDE
+support are its job, so a heavier image is fine here. It must still use
+the toolchain versions from the single source above, join the same
+network, and run the same recipes when someone wants CI's answer.
 
 - **Pick the base image deliberately, in this order of preference:**
   1. A matching image from the user's own curated catalog (Phase 0), if
@@ -226,9 +275,11 @@ skip the split.
      mandated by the org) — the most to maintain, so the last resort, not
      the default.
   Never hand-roll what a feature or catalog image already solves.
-- **Docker access inside the container**, only if this module's own
-  build/tests need to talk to Docker (Testcontainers, a Docker-based build
-  step): default to `docker-outside-of-docker` over `docker-in-docker` —
+- **Container engine access inside the container**, only if this
+  module's own build/tests need it (Testcontainers, a container-based
+  build step): with Podman, forward the user socket and set `DOCKER_HOST`
+  (`containers.md` §1); with Docker, default to `docker-outside-of-docker`
+  over `docker-in-docker` —
   it reuses the host daemon, spun-up containers are visible as ordinary
   siblings on the host for debugging, and it avoids a duplicated image
   cache. Reach for `docker-in-docker` only when isolation from the host
@@ -340,28 +391,35 @@ containers boot:
 
 1. Every infra container starts, reports healthy, and passes
    `devcontainer:infra`'s per-category round trip.
-2. Each module's devcontainer starts and its app connects to infra **by
+2. Every recipe (`fmt`, `lint`, `typecheck`, `test`, `build`) passes in
+   each module's tools service, with `--network=none` where declared, and
+   CI runs the same recipes. `doctor` reports no version drift between
+   the tools image and the devcontainer.
+3. Limits hold: `$CONTAINER_ENGINE stats --no-stream` shows every service
+   capped, and the whole stack stays within the budget agreed with the
+   user. On a Podman host, the same recipes pass with Podman.
+4. Each module's devcontainer starts and its app connects to infra **by
    network alias**, not just by an exposed host port — that's what
    actually proves the shared-network wiring.
-3. In a split: the client, loaded in the host browser, reaches the API
+5. In a split: the client, loaded in the host browser, reaches the API
    through the dev-server proxy (Phase 1.3), not a direct alias URL.
-4. In a split: **rebuild one side and confirm the other keeps running** —
+6. In a split: **rebuild one side and confirm the other keeps running** —
    the API's dev server survives a `web` container rebuild and vice versa.
    If it doesn't, something is still coupled (a shared container, a shared
    `--name`, a shared volume that one side's `postCreateCommand` rewrites).
-5. If three or more containers are in play, confirm resolution from a
+7. If three or more containers are in play, confirm resolution from a
    *third* one (neither infra nor the module itself) using the alias.
-6. Whatever the app enforces (auth, validation) still behaves correctly
+8. Whatever the app enforces (auth, validation) still behaves correctly
    through the full chain — a dev shortcut that only "works" because a
    check got accidentally bypassed is worse than no dev environment.
-7. Hot-reload both directions: edit backend source, confirm a restart in
+9. Hot-reload both directions: edit backend source, confirm a restart in
    the logs without you restarting the process; edit frontend source,
    confirm an HMR log line, not a full page reload.
-8. If a reverse-proxy simulation exists, run `devcontainer:proxy`'s smoke
+10. If a reverse-proxy simulation exists, run `devcontainer:proxy`'s smoke
    test with the **real** backend behind it.
-9. Clean up every container/volume created purely for this verification
-   (`docker ps -a`, `docker volume ls`) — an orphaned volume from a
-   naming-prefix mistake is easy to leave behind.
+11. Clean up every container/volume created purely for this verification
+   (`$CONTAINER_ENGINE ps -a`, `$CONTAINER_ENGINE volume ls`) — an
+   orphaned volume from a naming-prefix mistake is easy to leave behind.
 
 ## Phase 9 — Document the decisions, not just the commands
 
@@ -380,6 +438,10 @@ config. In the project's README or a docs file, record:
     answer for *this* project (separate debuggers/extensions/env, one
     side's rebuild not taking down the other, matching how they ship), or
     — if you did merge — which Phase 1.1 exception applied.
+  - "Why a separate tools layer when the devcontainer already has the
+    toolchain?" — because the tools image is thin, pinned and identical in
+    CI, so its result is the reproducible one; the devcontainer is
+    optimized for comfort and is allowed to be heavier.
   - "Why not one single docker-compose.dev.yml for everything, app code
     included?" — typically: it breaks IDE debugging since the app then
     runs in a container the IDE never attached to, it duplicates toolchain
@@ -398,4 +460,5 @@ config. In the project's README or a docs file, record:
 | Client works from inside the `web` container (`curl http://api:8080`) but the browser gets DNS/CORS errors | The browser runs on the host and can't resolve Docker aliases; client code is calling `http://api:<port>` directly | call a relative path and let the frontend dev server proxy it to the alias (Phase 1.3) |
 | Second devcontainer of a split fails with "network not found" | Only the first devcontainer's `initializeCommand` creates the shared network | put the idempotent network-create command in every devcontainer (Phase 2) |
 | Workspace dependency (`@repo/shared`, a `packages/*` link) missing inside a module's container | Per-module `.devcontainer/` mounts only the module folder, not the repo root | mount the parent via `workspaceMount` + `workspaceFolder` (Phase 1.3) |
+| Passes in the devcontainer, fails in CI (or the other way round) | The layers drifted: a different toolchain version, a globally installed tool, a cache only one side has | run the recipe in the tools service; `doctor` shows the version drift; fix the single version source, never the CI job |
 | A background process started only to verify something is still holding a port later | Long-lived dev/server processes outlive the tool call that started them | track what you started as you go and stop it before calling the task done (see `devcontainer:workflow`) |

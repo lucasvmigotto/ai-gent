@@ -2,7 +2,7 @@
   "name": "frontend",
   "version": "1.0.1",
   "license": "GPL-3.0-or-later AND Apache-2.0",
-  "description": "Frontend chain: uiux (layout and language vision), spec (Spec Kit UI specs), build (implementation)",
+  "description": "Frontend chain: uiux (layout and language vision), spec (Spec Kit UI specs), build (web implementation), tui (terminal interfaces and CLIs, only when requested)",
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"

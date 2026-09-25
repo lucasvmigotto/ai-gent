@@ -39,9 +39,15 @@ description: Harden the software supply chain and add security scanning to CI �
      gitleaks on PRs and history once.
    - IaC scanning: Trivy config / Checkov on Terraform, Bicep, Kubernetes
      manifests, Dockerfiles.
-4. **Harden images** — minimal/distroless or slim bases, non-root user,
-   no build tools or secrets in the final stage (multi-stage builds),
-   read-only filesystem where possible; scan the built image (Trivy/Grype).
+4. **Harden images** per `../../references/containers.md`: Docker
+   Hardened Images first (runtime image in the final stage, `-dev` variants
+   for build stages), then distroless or slim; pinned by digest;
+   multi-stage with sources and caches mounted, only the artifact copied
+   into the final stage; a deny-by-default `.dockerignore`; non-root user,
+   no build tools or secrets in the final stage, read-only filesystem
+   where possible; scan the built image (Trivy/Grype). CI logs in to
+   `dhi.io` with the `DOCKER_HUB_PAT` secret and `DOCKER_HUB_USERNAME`
+   (default: the repository owner).
 5. **SBOM** — Syft (or the build tool's plugin) producing CycloneDX or
    SPDX for every release artifact; attach it to the release and the
    registry (as an attestation).

@@ -34,8 +34,8 @@ vague prose.
   each in one line: what it tells us about users, scope, constraints or
   expectations.
 
-Then ask **3–5 clarifying questions** in one round — the ones whose
-answer changes scope or architecture: who is the primary user, what is
+Then clarify (pipeline rule 2), choosing the questions whose answer
+changes scope or architecture: who is the primary user, what is
 the one job that must work in v1, hard constraints (deadline, hosting,
 mandated tech, budget, team size), regulated data (personal, payment,
 health), and required integrations. Don't ask what the input answers.
@@ -93,7 +93,7 @@ read the same for any app gets rewritten or marked N/A with a reason.
 18. **Open questions** — with who can answer each.
 19. **Decision log** — date, decision, alternatives, reason.
 
-Mark the brief `Planned`.
+Mark the brief `Status: Draft` (`Accepted` once the user agrees).
 
 ## Coverage checklist
 

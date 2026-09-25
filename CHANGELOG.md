@@ -4,6 +4,116 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+Container-first development, three skills for existing codebases, LLM-
+readable docs, automated releases — and fixes from a dogfood run of
+`project:init` → `project:architecture` → `project:spec` on a sample
+product.
+
+### Added
+
+- `setup.sh` offers, asking `[Y/n]`, to merge permission rules that mirror
+  the git and db guards into `~/.config/opencode/opencode.json` (with `jq`,
+  else `python3`; only missing keys, appended after the user's, with a
+  backup; a file with comments is left alone), and to add
+  `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to the shell's rc file.
+  `--yes` applies both, `--no-config-edits` skips both, `--uninstall`
+  removes only what was added.
+- `frontend:tui` — terminal interfaces, built only when the user asks for
+  one: a TUI and the CLI it sits on (subcommands, `--json`, exit codes),
+  or a CLI alone. Stack guide for Go/Bubble Tea (default), Rust/Ratatui,
+  Python/Textual, Java/Lanterna, TypeScript/Ink and .NET/Spectre.Console or
+  Terminal.Gui; snapshot, keystroke and `vhs` checks; terminal hygiene;
+  packaging. `frontend:uiux`, `frontend:spec` (`tui.md`),
+  `project:architecture`, `qa:e2e` and `project:docs` cover the terminal
+  surface when one was requested.
+- `db` plugin — `db:connect`, `db:inspect`, `db:review`, `db:investigate`
+  for PostgreSQL, MySQL/MariaDB, SQL Server, Oracle and SQLite, all through
+  the `dbrun` runner: remote databases are `SELECT`-only in every
+  environment and changes to them are scripts for a person to run; only a
+  proven local container of the project can be written to, after a plan,
+  the user's confirmation and a backup; results are masked by default;
+  every statement is logged before it runs. A guard hook denies direct
+  client calls with writing SQL and asks before any other.
+- `project:introspec` — reverse-engineers an existing codebase into the
+  pipeline's artifacts (brief, as-is architecture, domain model, Spec Kit
+  features with evidence-based statuses, rebuilt OpenAPI contract, SBOM),
+  labelling every claim Observed, Inferred or Assumed; may read a dev
+  database, never production.
+- `project:retrofit` — in-place upgrades with behavior frozen behind
+  characterization tests, at level `patch`, `minor` or `major`, with
+  reachability-based CVE triage and an end-of-life table.
+- `project:refactor` — redesign that keeps the core invariants, records
+  each business change for approval (`docs/product/bcr/`), and migrates
+  in strangler-style slices.
+- `shared/containers.md` — container-first rules shared by `devcontainer`,
+  `devsecops` and `project`: Podman first with Docker as fallback, a thin
+  `tools` stage as the reference environment for agents and CI, Docker
+  Hardened Images pinned by digest, multi-stage builds with bind and cache
+  mounts, `.dockerignore`, determinism, resource limits, registry logins.
+- `project:docs` emits `llms.txt`, `llms-full.txt` and a Markdown page per
+  page and locale, with maturity labels in the text.
+- Automated releases: `release.yml` runs the checks on every push to
+  `main` and releases when the commits warrant it (`scripts/release.py`,
+  tested by `scripts/test-release.sh`).
+
+### Changed
+
+- `devcontainer:setup` builds two layers per module — the tools layer
+  (Containerfile, `compose.tools.yml`, task recipes, limits) and the human
+  devcontainer, fed by one version source and a `doctor` drift check.
+- `devcontainer:workflow` runs tasks through the tools recipes first, and
+  every command uses the detected engine instead of `docker`.
+- `devcontainer:infra` sets limits, profiles and digest-pinned images on
+  every service.
+- `devsecops:pipeline` runs CI through the same recipes and documents
+  registry logins; `devsecops:supply-chain` hardens images per the shared
+  rules.
+- `check.yml` is reusable and runs on pull requests; pushes to `main` run
+  it through `release.yml`.
+
+### Fixed
+
+- `db` guard hook denies every tool (Bash, Read, Grep, Glob, Edit, Write)
+  that touches the credentials file, and checks each command on a line on
+  its own — a `dbrun` call no longer exempts the rest of the line.
+  `dbrun` redacts the profile's host, user and password from messages and
+  log entries.
+- `project:spec` bootstraps Spec Kit with `--force`; without it `specify
+  init` always stopped with "Current directory is not empty".
+- The domain model no longer has a circular dependency:
+  `project:architecture` and `project:spec` use it only if it exists and
+  derive modules from the brief otherwise.
+- `project:spec` keeps Spec Kit's per-story task phases (with tests) and
+  points each story at its `## Frontend` / `## Backend` sections, runs
+  `/speckit-analyze` per feature, follows `/speckit-clarify`'s
+  one-question flow, and fills `Feature Branch` with the `git:workflow`
+  branch.
+- The pipeline contract covers `.specify/feature.json` and
+  `SPECIFY_FEATURE` (so parallel stages don't act on the wrong feature),
+  `checklists/`, and `speckit-taskstoissues` (remote issues only on
+  request).
+- Status words: feature statuses stay in `specs/README.md`; documents are
+  `Draft` / `Accepted`; ADRs use MADR's statuses.
+- QA personas come from the product's roles and authorization rules, and
+  log in however the architecture's identity decision says (dev IdP,
+  Mailpit-captured magic link, or seeded credentials).
+- `x-status` lives in the contract's `info` object.
+- Installer tests tag unique commits, so they pass in a repo that has
+  release tags.
+
+### Changed
+
+- `project:architecture` decides the stack (new dimension 12) and writes
+  ADRs only for contested decisions; obvious defaults get a one-line
+  reason in the decisions table.
+- Stages point to the pipeline's clarify rule instead of restating it.
+
+### Added
+
+- `project:spec` behavior eval: bootstrap in a non-empty repository.
+
 ## 1.1.0 — 2026-09-24
 
 ### Added

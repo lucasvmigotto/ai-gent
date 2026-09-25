@@ -1,2 +1,5 @@
 # bash -c '...' snippets and literal patterns are single-quoted on purpose.
 disable=SC2016
+# Test helpers run indirectly (`check "<what>" helper ...`), which older
+# shellcheck releases misreport as unreachable.
+disable=SC2317
