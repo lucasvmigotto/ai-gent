@@ -13,6 +13,14 @@ product.
 
 ### Added
 
+- `frontend:tui` — terminal interfaces, built only when the user asks for
+  one: a TUI and the CLI it sits on (subcommands, `--json`, exit codes),
+  or a CLI alone. Stack guide for Go/Bubble Tea (default), Rust/Ratatui,
+  Python/Textual, Java/Lanterna, TypeScript/Ink and .NET/Spectre.Console or
+  Terminal.Gui; snapshot, keystroke and `vhs` checks; terminal hygiene;
+  packaging. `frontend:uiux`, `frontend:spec` (`tui.md`),
+  `project:architecture`, `qa:e2e` and `project:docs` cover the terminal
+  surface when one was requested.
 - `db` plugin — `db:connect`, `db:inspect`, `db:review`, `db:investigate`
   for PostgreSQL, MySQL/MariaDB, SQL Server, Oracle and SQLite, all through
   the `dbrun` runner: remote databases are `SELECT`-only in every
