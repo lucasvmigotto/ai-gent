@@ -40,6 +40,11 @@ description: Write and run cross-stack end-to-end journeys, Playwright by defaul
   after; never depend on another test's data or on order.
 - **Email flows**: read the message from Mailpit's API
   (`GET /api/v1/search?query=to:<addr>`), follow the link, assert on it.
+- **Terminal interfaces** (when the project has one): drive the real
+  binary against the running stack — the TUI through the stack's
+  keystroke harness or a pseudo-terminal (`pexpect`, `teatest`), the CLI
+  by asserting `--json` output and exit codes; keep a `vhs` tape per
+  journey as the reviewable record.
 
 ## Writing journeys
 

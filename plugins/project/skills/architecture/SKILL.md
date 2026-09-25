@@ -143,7 +143,11 @@ obvious default at this size gets a one-line reason in
     integrations need; for web clients, suggest the user's usual stack
     (Bun · React · TypeScript · Vite · Tailwind CSS · Biome) unless a
     driver argues otherwise. `project:spec`'s plans take the stack from
-    here.
+    here. A terminal client (TUI or CLI) is a surface only when the user
+    asked for one; its stack follows
+    `../../../frontend/references/terminal-stacks.md` (a client of the API
+    may use any language; one embedding the project's code uses its
+    language).
 
 ## Evolution path
 

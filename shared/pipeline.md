@@ -23,6 +23,7 @@ idea text / references dir
         ├── frontend:uiux ──► docs/product/ux-vision.md  layout + language
         │   frontend:spec ──► specs/NNN-*/ui.md          UI layer on existing features
         │   frontend:build ─► the frontend code
+        │   frontend:tui ───► a requested TUI / CLI (from tui.md)
         │
         ├── backend:domain ─► docs/product/domain-model.md
         │   backend:spec ───► specs/NNN-*/backend.md     backend layer on existing features
@@ -76,6 +77,7 @@ and writes nothing.
 | `specs/NNN-<feature>/spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `tasks.md`, `contracts/`, `checklists/` | `project:spec` (via Spec Kit) | everyone downstream | feature split, stories, requirements, stack |
 | `.specify/feature.json` | Spec Kit's scripts | Spec Kit's scripts | the "current feature" pointer, rewritten by every `/speckit-specify`; never rely on it — see *Spec Kit* |
 | `specs/NNN-<feature>/ui.md` | `frontend:spec` | frontend:build | screens, components, states, tokens used |
+| `specs/NNN-<feature>/tui.md` | `frontend:spec`, only when the user asked for a terminal interface | frontend:tui, qa:e2e | screens in cells, keymap, focus, states, CLI equivalents |
 | `specs/NNN-<feature>/backend.md` | `backend:spec` | backend:build | endpoints, authz, errors, persistence, jobs |
 | `specs/000-design-system/` | `frontend:spec` | frontend:build | the one feature `frontend:spec` may create itself |
 | `contracts/openapi.yaml` (+ `asyncapi.yaml` if events leave the service) | skeleton by `project:spec`, canonical by `backend:spec` | frontend:*, backend:* | the frontend/backend seam |

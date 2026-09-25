@@ -108,6 +108,12 @@ audiences that must not be alienated).
 10. **Principles.** 3–5 product-specific design principles that settle
     future disputes ("Show the schedule before the settings"), not
     generic virtues ("Be simple").
+11. **Terminal interface — only if the user asked for one.** Never add a
+    TUI (or a CLI the product doesn't need) on your own. When requested,
+    follow `../../references/terminal-design.md`: layout in cells and
+    minimum size, the keymap, focus, color tiers and themes, ASCII
+    fallback, feedback, and the CLI's command tree with its `--json`
+    output — with the same principles, glossary and voice as above.
 
 ## Output — `docs/product/ux-vision.md`
 
@@ -116,8 +122,9 @@ analysis · Personas & jobs · Principles · Information architecture ·
 Key flows · Screen inventory & wireframes · Visual direction & draft
 tokens · Interaction patterns & states · Responsive behavior ·
 Accessibility targets · Voice & tone · Terminology · Microcopy patterns ·
-Key-screen copy · Localization · Open questions · Decision log (choices
-made, alternatives rejected, why).
+Key-screen copy · Localization · Terminal interface (only when requested)
+· Open questions · Decision log (choices made, alternatives rejected,
+why).
 
 Mark the file `Status: Draft` (`Accepted` once the user agrees). Use real product content everywhere.
 
@@ -131,6 +138,7 @@ Mark the file `Status: Draft` (`Accepted` once the user agrees). Use real produc
 - [ ] every term used in UI matches the brief's glossary
 - [ ] real copy with keys for every key screen, including errors and empty states
 - [ ] keyboard path described for each key flow
+- [ ] a terminal section only if the user asked for a TUI or CLI; then keymap, minimum size, color tiers and the CLI command tree are covered
 - [ ] open questions listed, not buried in prose
 
 ## Handoff

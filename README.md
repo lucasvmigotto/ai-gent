@@ -129,6 +129,7 @@ scripts/check.sh                                repository checks, also run by C
   - `uiux` — layout and language vision
   - `spec` — design system and per-feature UI specs in Spec Kit format
   - `build` — implement the frontend phase by phase
+  - `tui` — terminal interfaces, only when you ask for one: a TUI and the CLI under it (or a CLI alone) with Go/Bubble Tea, Rust/Ratatui, Python/Textual, Java/Lanterna, TypeScript/Ink or .NET/Spectre.Console / Terminal.Gui
 - `plugins/backend/`
   - `domain` — domain model: contexts, aggregates, invariants, lifecycles
   - `spec` — canonical OpenAPI contract and per-feature backend specs

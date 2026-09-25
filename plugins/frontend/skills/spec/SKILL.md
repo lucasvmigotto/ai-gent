@@ -101,6 +101,15 @@ In `specs/NNN-<feature>/ui.md`, per the feature's user stories:
 - **Test plan** — component tests, a11y (axe) checks, e2e journeys,
   visual checks per breakpoint and theme.
 
+### 3b. `tui.md` — only for a requested terminal interface
+
+If the vision has a terminal section (it exists only when the user asked
+for a TUI or CLI), write `tui.md` for every feature it covers, per
+`../../references/terminal-design.md` § `tui.md`: screens at 80×24 and
+120×40, keymap, focus order, states, contract operations, the CLI
+equivalent of every action, and the test plan. Never create `tui.md`
+otherwise.
+
 ### 4. Frontend tasks
 
 Append a `## Frontend` section to each feature's `tasks.md` (and fill
@@ -110,7 +119,8 @@ order → Polish. Each task names its file path, marks `[P]` only when it
 truly touches different files with no dependency, and ends each phase
 with a **Checkpoint** line stating how to verify it. Include a task to
 run the contract mock (`prism mock contracts/openapi.yaml`) in Setup so
-UI work never waits on the backend.
+UI work never waits on the backend. Terminal work goes in the same
+section, each task tagged `[TUI]` or `[CLI]`, built by `frontend:tui`.
 
 Technical frontend decisions not covered by the feature `plan.md`
 (state management, data-fetching library, form library, testing tools)
@@ -131,6 +141,7 @@ features and fix what it finds in *your* layer; report the rest.
 - [ ] every string is a copy key present in the vision
 - [ ] tokens have light/dark values and listed contrast ratios
 - [ ] every phase in `## Frontend` has a checkpoint
+- [ ] `tui.md` exists only where a terminal interface was requested, with keymap, sizes, states and CLI equivalents
 - [ ] `/speckit-analyze` run; findings resolved or reported
 
 ## Handoff
