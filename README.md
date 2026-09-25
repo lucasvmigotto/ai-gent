@@ -60,7 +60,9 @@ Re-run it after adding, renaming or removing a skill or plugin, or after changin
 | `--target claude\|opencode\|all` | which tool to install for (default `all`; opencode is skipped when not installed) |
 | `--dry-run` | show what would change |
 | `--force` | back up (`<name>.bak-<timestamp>`) and replace a real directory or foreign symlink in the way |
-| `--uninstall` | remove everything the script installed for the target(s) |
+| `--uninstall` | remove everything the script installed for the target(s), including the opencode config edits below |
+| `--yes` | apply the opencode config edits without asking |
+| `--no-config-edits` | never edit `opencode.json` or a shell profile; print what to add instead |
 
 `CLAUDE_SKILLS_DIR`, `OPENCODE_SKILLS_DIR` and `OPENCODE_COMMANDS_DIR` override the target directories. `~/.claude/skills/synced/` is managed by [claude.ai](https://support.claude.com/en/collections/14445694-claude-code) skill sync and is never modified.
 
@@ -70,12 +72,17 @@ Re-run it after adding, renaming or removing a skill or plugin, or after changin
 - a `~/.config/opencode/skills/<plugin>-<skill>/SKILL.md` stub, with the real description and an instruction to read and follow the source file in this repository;
 - a `/<plugin>-<skill>` command in `~/.config/opencode/commands/`.
 
-> [!IMPORTANT]
-> opencode also scans `~/.claude/skills` recursively, where plugin skills appear under short, colliding names (`spec`, `build`, …). Turn that off in your shell profile, then check with `opencode debug skill`:
->
-> ```bash
-> export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1
-> ```
+opencode also scans `~/.claude/skills` recursively, where plugin skills appear under short, colliding names (`spec`, `build`, …), and it doesn't run Claude Code's guard hooks. So `setup.sh` offers two edits, each asked `[Y/n]`:
+
+| Edit | What it does |
+| --: | :-- |
+| permission rules in `~/.config/opencode/opencode.json` | merges the rules from [Guard hooks](#guard-hooks) with `jq` (or `python3`): only keys you don't already have, appended after yours, with a backup kept; creates the file if there is none |
+| `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` in your shell's rc file | a marked block in `~/.zshrc`, `~/.bashrc` (`~/.bash_profile` on macOS), `~/.config/fish/conf.d/ai-gent.fish` or `~/.profile`, picked from `$SHELL`; skipped when it's already there |
+
+Check the result with `opencode debug skill`.
+
+> [!NOTE]
+> A config with comments (JSONC) is never rewritten, since that would strip them: `setup.sh` prints the rules to add instead. With no terminal to ask on (a pipe, CI), it edits nothing unless you pass `--yes`, and prints what to add. `--uninstall` removes only what it added. Your own rules always stay; when one of yours has the same pattern, yours is kept and reported.
 
 ## Usage
 
@@ -268,7 +275,7 @@ Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules 
 | `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool reading or editing the credentials file | any other direct client use |
 
 > [!WARNING]
-> opencode doesn't run Claude Code hooks, so neither guard is active there. Its permission rules only get part of the way. For example, in `~/.config/opencode/opencode.json`:
+> opencode doesn't run Claude Code hooks, so neither guard is active there. Its permission rules, which `setup.sh` offers to merge into `~/.config/opencode/opencode.json`, only get part of the way. opencode applies the last matching rule, so these come after your own:
 
 > ```json
 > {
@@ -284,7 +291,14 @@ Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules 
 >       "sqlcmd*": "ask",
 >       "sqlplus*": "ask",
 >       "sqlite3*": "ask",
->       "pg_restore*": "deny"
+>       "pg_restore*": "deny",
+>       "*connections.env*": "deny"
+>     },
+>     "read": {
+>       "~/.config/ai-gent/**": "deny"
+>     },
+>     "edit": {
+>       "~/.config/ai-gent/**": "deny"
 >     }
 >   }
 > }

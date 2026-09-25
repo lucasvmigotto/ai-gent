@@ -13,6 +13,13 @@ product.
 
 ### Added
 
+- `setup.sh` offers, asking `[Y/n]`, to merge permission rules that mirror
+  the git and db guards into `~/.config/opencode/opencode.json` (with `jq`,
+  else `python3`; only missing keys, appended after the user's, with a
+  backup; a file with comments is left alone), and to add
+  `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` to the shell's rc file.
+  `--yes` applies both, `--no-config-edits` skips both, `--uninstall`
+  removes only what was added.
 - `frontend:tui` — terminal interfaces, built only when the user asks for
   one: a TUI and the CLI it sits on (subcommands, `--json`, exit codes),
   or a CLI alone. Stack guide for Go/Bubble Tea (default), Rust/Ratatui,
