@@ -61,7 +61,8 @@ cheap to fix.
 
 - Every user story has at least one automated acceptance check at the
   right layer, traceable from `qa.md`.
-- Every authorization rule has a negative test (the no-roles persona).
+- Every authorization rule has a negative test (a persona without the
+  required role or permission).
 - Every flaky test is quarantined with an owner and a deadline, never
   silently retried.
 - Failures produce artifacts: traces, screenshots, logs, request ids.

@@ -51,12 +51,13 @@ and writes nothing.
 | `docs/product/brief.md` | `project:init` | everyone | vision, audiences, scope, capabilities, constraints, **glossary** |
 | `docs/product/architecture.md`, `docs/product/adr/` | `project:architecture` | project:spec, backend:domain, devcontainer:setup, devsecops:*, qa:load, project:docs | drivers, capacity model, topology, hosting, API style, data stores, decisions with alternatives |
 | `docs/product/ux-vision.md` | `frontend:uiux` | frontend:*, project:docs | layout, visual direction, voice, microcopy |
-| `docs/product/domain-model.md` | `backend:domain` | backend:*, project:spec, project:docs | contexts, aggregates, invariants, events, lifecycles |
+| `docs/product/domain-model.md` | `backend:domain` | backend:*, project:docs; project:architecture and project:spec only if it already exists | contexts, aggregates, invariants, events, lifecycles; runs after `project:spec`, so earlier stages never wait for it |
 | `docs/product/references/` | the user | init, uiux, domain | screenshots, competitor notes, sketches, existing docs |
 | `.specify/` | Spec Kit (`specify init`) | project:spec | templates, scripts, constitution |
 | `.specify/memory/constitution.md` | `project:spec` | every spec/build stage | non-negotiable engineering principles |
-| `specs/README.md` | `project:spec` (build stages update only the Status column) | everyone | feature index: number, name, priority, dependencies, frontend/backend status (Planned / In progress / Implemented / Verified) |
-| `specs/NNN-<feature>/spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `tasks.md`, `contracts/` | `project:spec` (via Spec Kit) | everyone downstream | feature split, stories, requirements, stack |
+| `specs/README.md` | `project:spec` (build and QA stages update only the status columns) | everyone | feature index: number, name, priority, dependencies, frontend/backend status (Planned / In progress / Implemented / Verified) |
+| `specs/NNN-<feature>/spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `tasks.md`, `contracts/`, `checklists/` | `project:spec` (via Spec Kit) | everyone downstream | feature split, stories, requirements, stack |
+| `.specify/feature.json` | Spec Kit's scripts | Spec Kit's scripts | the "current feature" pointer, rewritten by every `/speckit-specify`; never rely on it — see *Spec Kit* |
 | `specs/NNN-<feature>/ui.md` | `frontend:spec` | frontend:build | screens, components, states, tokens used |
 | `specs/NNN-<feature>/backend.md` | `backend:spec` | backend:build | endpoints, authz, errors, persistence, jobs |
 | `specs/000-design-system/` | `frontend:spec` | frontend:build | the one feature `frontend:spec` may create itself |
@@ -118,7 +119,9 @@ definition and the words **not** to use for it
    inputs were missing and what you assumed instead.
 2. **Clarify first, briefly.** Ask 3–5 questions that would change the
    output (audience, scope boundary, a hard constraint), in one round.
-   Don't ask what the inputs already answer.
+   Don't ask what the inputs already answer. Inside a Spec Kit step,
+   `/speckit-clarify`'s own flow applies instead (one question at a time,
+   at most five per feature).
 3. **Never invent silently.** Mark every assumption `[ASSUMPTION: …]` and
    every open question `[NEEDS CLARIFICATION: …]` (Spec Kit's marker)
    inline. A reader must be able to tell a decision from a guess.
@@ -137,6 +140,11 @@ definition and the words **not** to use for it
      suites.
    Only the named stage moves a status forward; any stage moves it back
    when it finds the claim no longer holds. `project:docs` depends on this.
+   These statuses are for features only. Documents (`brief.md`,
+   `architecture.md`, `ux-vision.md`, `domain-model.md`) carry `Status:
+   Draft` until the user accepts them, then `Accepted`; ADRs use MADR's
+   `proposed` / `accepted` / `superseded`; Spec Kit's own `Status: Draft`
+   in `spec.md` stays as Spec Kit writes it.
 7. **Versioning** follows `git:workflow` (branch per stage/phase, small
    Conventional Commits, ask before committing and merging).
 8. **Finish with a handoff line**: what was written, what's still open,
@@ -148,14 +156,27 @@ The chain uses GitHub Spec Kit (`specify` CLI, 1.x) for everything under
 `specs/`. Don't reimplement its templates — they change between versions:
 
 - Bootstrap (once per project, by `project:spec`):
-  `specify init --here --integration claude --non-interactive`.
-  Do **not** add `--extension git`: branches follow `git:workflow`, not
-  Spec Kit's numbered-branch hook.
+  `specify init --here --force --integration claude --non-interactive`.
+  `--force` is required: the directory is never empty by then (`.git`,
+  `docs/product/`), and without it the CLI stops with "Current directory
+  is not empty". It merges, adding only `.specify/` and
+  `.claude/skills/speckit-*`. Do **not** add `--extension git`: branches
+  follow `git:workflow`, not Spec Kit's numbered-branch hook.
 - This installs `/speckit-*` skills into the project's `.claude/skills/`
   (`constitution`, `specify`, `clarify`, `plan`, `tasks`, `analyze`,
-  `checklist`, `implement`, `converge`). Use them for the steps they
-  cover. If they aren't loaded in the current session, read the
+  `checklist`, `implement`, `converge`, `taskstoissues`). Use them for the
+  steps they cover. `taskstoissues` creates issues on the remote: run it
+  only when the user asks for that, like any other remote change
+  (`git:workflow`). If they aren't loaded in the current session, read the
   corresponding `.claude/skills/speckit-<step>/SKILL.md` and follow it
   directly.
 - Templates live in `.specify/templates/`; read the installed ones rather
   than assuming a structure from memory.
+- **Pick the feature explicitly.** Spec Kit's scripts act on
+  `SPECIFY_FEATURE` if set, otherwise on `.specify/feature.json` — the
+  feature specified last. Before any speckit step on an existing feature,
+  export `SPECIFY_FEATURE=NNN-<feature>`, so stages running in parallel
+  never work on each other's feature.
+- The spec template's `Feature Branch` field gets the `git:workflow`
+  branch the feature is worked on (`feat/resident-access`), not a
+  numbered Spec Kit branch.
