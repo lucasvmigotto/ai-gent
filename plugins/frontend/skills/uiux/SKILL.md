@@ -119,7 +119,7 @@ Accessibility targets · Voice & tone · Terminology · Microcopy patterns ·
 Key-screen copy · Localization · Open questions · Decision log (choices
 made, alternatives rejected, why).
 
-Mark the file's status `Planned`. Use real product content everywhere.
+Mark the file `Status: Draft` (`Accepted` once the user agrees). Use real product content everywhere.
 
 ## Coverage checklist (done when every item is addressed or N/A with a reason)
 

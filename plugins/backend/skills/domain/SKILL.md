@@ -27,8 +27,8 @@ rules and the non-functional requirements.
 4. If code exists, extract the current model (entities, tables, status
    fields, services) and mark each element keep / evolve / replace.
 
-Ask **3–5 clarifying questions** in one round, targeted at rules that
-change the model: what must never happen, who may do what, what happens
+Clarify (pipeline rule 2) with questions targeted at rules that change
+the model: what must never happen, who may do what, what happens
 on conflict (two people booking the last slot), what must be audited,
 how long data is kept, which numbers are money/time/quantities.
 
@@ -92,7 +92,7 @@ Consistency & concurrency · Data ownership, privacy & retention ·
 Integrations · Volumes · Open questions · Decision log.
 
 Use glossary names exactly; any new term goes into the brief's glossary
-first (pipeline rule). Mark the file `Planned`.
+first (pipeline rule). Mark the file `Status: Draft` (`Accepted` once the user agrees).
 
 ## Coverage checklist
 
