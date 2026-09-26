@@ -18,7 +18,11 @@ product pipeline; this file covers changing things.
   version, description, author, SPDX license) and `skills/<skill>/SKILL.md`.
   It is invoked as `/<name>:<skill>`, and in opencode as `<name>-<skill>`
   (a generated stub), so `<name>-<skill>` must be a valid opencode name:
-  lowercase letters, digits and single hyphens.
+  lowercase letters, digits and single hyphens. OpenCode V2 takes a skill's ID
+  from its directory, not from `name:`, so the stub keeps the two equal.
+- OpenCode-native code lives in `opencode/` — `opencode/guard/` is the V2 guard
+  plugin, its shared rules and the parity test — and `scripts/opencode-config.py`
+  edits the OpenCode V2 configuration. Neither is a `plugins/<name>/` plugin.
 - `name:` in a SKILL.md equals its directory name.
 - **Descriptions** are single-line, at most 400 characters (every session
   loads them), with no `: ` or ` #` (they break the unquoted YAML value).
@@ -34,6 +38,9 @@ product pipeline; this file covers changing things.
 - Refer to other skills as `plugin:skill` and to files with backticked
   relative paths (`../../references/pipeline.md`); `scripts/check.sh`
   verifies both resolve.
+- The OpenCode guard rules (`opencode/guard/rules.mjs`) and the shell guards
+  (`plugins/*/hooks/guard.sh`) must decide the same; `scripts/check.sh` runs
+  their parity test. Change one, change the other.
 - `shared/pipeline.md` is the product pipeline's contract (artifact paths,
   owners, statuses). Change it deliberately and update every stage that
   depends on what changed.

@@ -68,18 +68,19 @@ Re-run it after adding, renaming or removing a skill or plugin, or after changin
 
 **Claude Code.** Each `plugins/<name>/` (and any `skills/<name>/`) is symlinked into `~/.claude/skills/`. A plugin directory there loads as `<name>@skills-dir`, with no marketplace, install step or plugin cache involved. Check a plugin, including its token cost, with `claude plugin details <name>@skills-dir`.
 
-**opencode.** opencode has no plugin namespaces and requires a skill's name to match its directory. So for each plugin skill, `setup.sh` generates:
+**opencode.** opencode has no plugin namespaces, so for each plugin skill, `setup.sh` generates:
 - a `~/.config/opencode/skills/<plugin>-<skill>/SKILL.md` stub, with the real description and an instruction to read and follow the source file in this repository;
 - a `/<plugin>-<skill>` command in `~/.config/opencode/commands/`.
 
-opencode also scans `~/.claude/skills` recursively, where plugin skills appear under short, colliding names (`spec`, `build`, …), and it doesn't run Claude Code's guard hooks. So `setup.sh` offers two edits, each asked `[Y/n]`:
+opencode V2 also scans `~/.claude/skills`, where plugin skills appear under short, colliding names (`spec`, `build`, …), and it doesn't run Claude Code's guard hooks. So `setup.sh` offers one edit, asked `[Y/n]`, to `~/.config/opencode/opencode.json` (created if absent, a backup kept, a file with comments left alone):
 
 | Edit | What it does |
 | --: | :-- |
-| permission rules in `~/.config/opencode/opencode.json` | merges the rules from [Guard hooks](#guard-hooks) with `jq` (or `python3`): only keys you don't already have, appended after yours, with a backup kept; creates the file if there is none |
-| `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` in your shell's rc file | a marked block in `~/.zshrc`, `~/.bashrc` (`~/.bash_profile` on macOS), `~/.config/fish/conf.d/ai-gent.fish` or `~/.profile`, picked from `$SHELL`; skipped when it's already there |
+| the native V2 `permissions` rules | the rules from [Guard hooks](#guard-hooks), with `shell` in place of the legacy `bash`, only the ones you don't already have, appended after yours so they win |
+| a `plugins` entry for `opencode/guard` | registers the OpenCode V2 guard plugin, which enforces the same git and db guards mechanically (opencode runs no Claude hooks) |
+| one `skill` deny per plugin skill's short name | hides the colliding IDs opencode finds in `~/.claude/skills`, leaving only the namespaced `<plugin>-<skill>` skills |
 
-Check the result with `opencode debug skill`.
+The rules are built by `scripts/opencode-config.py`. Your own rules always stay; a rule of yours with the same action and resource is reported and kept. Check the result with `opencode debug config`, and list the active plugins with `opencode plugin list`.
 
 > [!NOTE]
 > A config with comments (JSONC) is never rewritten, since that would strip them: `setup.sh` prints the rules to add instead. With no terminal to ask on (a pipe, CI), it edits nothing unless you pass `--yes`, and prints what to add. `--uninstall` removes only what it added. Your own rules always stay; when one of yours has the same pattern, yours is kept and reported.
@@ -274,35 +275,28 @@ Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules 
 | `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master`; `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
 | `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool reading or editing the credentials file | any other direct client use |
 
-> [!WARNING]
-> opencode doesn't run Claude Code hooks, so neither guard is active there. Its permission rules, which `setup.sh` offers to merge into `~/.config/opencode/opencode.json`, only get part of the way. opencode applies the last matching rule, so these come after your own:
+> [!NOTE]
+> opencode doesn't run Claude Code hooks. `setup.sh` offers to add native V2 `permissions` rules **and** an OpenCode V2 guard plugin (`opencode/guard/`) that enforces the same git and db guards — including `ask` decisions and the current-branch check, which a shell pattern cannot express. A parity test keeps the plugin's rules identical to the shell guards'. The rules are appended after your own, so they win; the last matching rule counts:
 
-> ```json
-> {
->   "permission": {
->     "bash": {
->       "git push*": "ask",
->       "git commit*--no-verify*": "deny",
->       "git branch -D*": "ask",
->       "git reset --hard*": "ask",
->       "gh pr create*": "ask",
->       "psql*": "ask",
->       "mysql*": "ask",
->       "sqlcmd*": "ask",
->       "sqlplus*": "ask",
->       "sqlite3*": "ask",
->       "pg_restore*": "deny",
->       "*connections.env*": "deny"
->     },
->     "read": {
->       "~/.config/ai-gent/**": "deny"
->     },
->     "edit": {
->       "~/.config/ai-gent/**": "deny"
->     }
->   }
-> }
+> ```jsonc
+> "permissions": [
+>   { "action": "shell", "resource": "git push*", "effect": "ask" },
+>   { "action": "shell", "resource": "git commit*--no-verify*", "effect": "deny" },
+>   { "action": "shell", "resource": "git branch -D*", "effect": "ask" },
+>   { "action": "shell", "resource": "git reset --hard*", "effect": "ask" },
+>   { "action": "shell", "resource": "gh pr create*", "effect": "ask" },
+>   { "action": "shell", "resource": "psql*", "effect": "ask" },
+>   { "action": "shell", "resource": "mysql*", "effect": "ask" },
+>   { "action": "shell", "resource": "sqlcmd*", "effect": "ask" },
+>   { "action": "shell", "resource": "sqlplus*", "effect": "ask" },
+>   { "action": "shell", "resource": "sqlite3*", "effect": "ask" },
+>   { "action": "shell", "resource": "pg_restore*", "effect": "deny" },
+>   { "action": "shell", "resource": "*connections.env*", "effect": "deny" },
+>   { "action": "read", "resource": "~/.config/ai-gent/*", "effect": "deny" },
+>   { "action": "edit", "resource": "~/.config/ai-gent/*", "effect": "deny" }
+> ]
 > ```
+> Plus a `plugins` entry for the guard plugin and one `skill` deny per plugin skill's short name.
 
 ## Layout
 
@@ -316,7 +310,8 @@ plugins/<name>/scripts/                         tools a plugin runs (db: dbrun)
 plugins/<name>/evals/                           trigger and behavior evals
 skills/<name>/SKILL.md                          personal skills (none yet)        → /<name>
 shared/                                         pipeline and container rules, symlinked into plugins' references/
-scripts/                                        check.sh, release.py and their tests
+opencode/guard/                                 the OpenCode V2 guard plugin, its rules and parity test
+scripts/                                        check.sh, release.py, opencode-config.py and their tests
 .github/workflows/                              check (pull requests), release (pushes to main)
 ```
 
@@ -328,7 +323,7 @@ Conventions for editing skills and plugins are in `AGENTS.md` (also available as
 - **Metadata:** skill names and description budgets (400 characters, since every session loads them), and plugin manifests.
 - **References:** `plugin:skill` references, relative paths and symlinks.
 - **Scripts:** shell scripts through shellcheck.
-- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the release script, and the installers in a throwaway `HOME`.
+- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
 - **Options:** `--quick` skips the installer tests. Shellcheck runs at a pinned version (`SHELLCHECK_VERSION`) through `uvx` or `pipx`, so a local run and CI agree.
 
 **Evals.** `claude plugin eval plugins/<name> --runs 1 --ablation none` runs a plugin's trigger cases. They check that a request loads the right skill and not its neighbor.

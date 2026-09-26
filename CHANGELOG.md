@@ -4,6 +4,28 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- OpenCode V2 support: `setup.sh` writes the native `permissions` array
+  (`shell` instead of the legacy `bash`) and registers `opencode/guard/`, an
+  OpenCode V2 plugin that enforces the git and db guards mechanically — it can
+  raise `ask` or `deny` and checks the current branch, which a shell pattern
+  cannot. Its rules are a port of the shell guards, kept identical by a parity
+  test (`opencode/guard/test/rules.test.mjs`, run by `scripts/check.sh`).
+- `skill` denies for each plugin skill's short name, so OpenCode V2 shows only
+  the namespaced `<plugin>-<skill>` skills, not the colliding IDs it also finds
+  in `~/.claude/skills` — which V2 has no switch to disable.
+
+### Changed
+
+- `setup.sh` drops the `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` shell-profile edit
+  (the variable no longer exists in OpenCode V2) and the `jq` config path; the
+  OpenCode configuration is edited by `scripts/opencode-config.py`.
+- The README verifies OpenCode with `opencode debug config` and
+  `opencode plugin list` (`opencode debug skill` was removed in V2).
+
 ## 1.2.0 — 2026-09-25
 
 Container-first development, three skills for existing codebases, LLM-

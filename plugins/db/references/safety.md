@@ -184,7 +184,8 @@ strings.
 - Write to anything that isn't a proven local container — not even
   "just one row" on development.
 - Call a database client directly instead of `dbrun` (the guard hook
-  blocks it in Claude Code; in opencode it's on you).
+  blocks it in Claude Code, and the OpenCode guard plugin enforces the
+  same rules there).
 - Print, log, commit or paste a credential, a password, a token or a
   full connection string; read the profiles file's values; `source` it.
   The guard hook denies any tool that touches the file (Bash, Read, Grep,
