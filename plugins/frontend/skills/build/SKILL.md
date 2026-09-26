@@ -94,7 +94,9 @@ devcontainer) and check, for the screens this phase touched:
 1. **Tests**: lint, typecheck, unit/component, axe (zero violations),
    and the phase's e2e journeys all pass. Fix failures; never suppress.
 2. **Screenshots** at mobile (≈375px) and desktop (≈1440px), light and
-   dark, of each state in the matrix. Look at them.
+   dark, of each state in the matrix — rendered through a containerized
+   browser (`selenium/standalone-chrome` by default, per the qa plugin's
+   references/browsers.md rules), never a host browser install. Look at them.
 3. **Self-critique** against `ux-vision.md` principles and
    `visual-direction.md`'s AI-default list: does it read as generic? Is
    the hierarchy right? Is one thing memorable and everything else quiet?

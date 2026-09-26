@@ -26,8 +26,11 @@ cheap to fix.
 
 ## Defaults
 
-- E2E: **Playwright** (cross-browser, auto-waiting, tracing, API
-  requests for setup). Load: **k6** (thresholds, open-model executors).
+- E2E: **Selenium WebDriver against `selenium/standalone-*` browser
+  containers** (see `browsers.md`), greenfield; **Playwright**
+  where the project already uses it and it's adequate (cross-browser,
+  auto-waiting, tracing, API requests for setup). Never install browser
+  drivers on the host. Load: **k6** (thresholds, open-model executors).
 - Mutation testing: Stryker (JS/TS, C#), PIT (Java/JVM), mutmut (Python),
   cargo-mutants (Rust).
 - Use what the project already uses when it's adequate.
@@ -52,9 +55,12 @@ cheap to fix.
 10. **Load tests from a laptop claiming capacity**, closed-model
     generators hiding latency (coordinated omission), no think time, one
     user id reused for every virtual user.
-11. **Real personal data in fixtures** or copied production dumps
+11. **Installing browser drivers on the host** (`chromedriver`,
+    `geckodriver`, bare-metal `playwright install`) instead of driving
+    the `selenium/standalone-*` containers every other run uses.
+12. **Real personal data in fixtures** or copied production dumps
     (LGPD/GDPR) — use synthetic or properly anonymized data.
-12. **Selectors on CSS classes or DOM position** instead of role, label
+13. **Selectors on CSS classes or DOM position** instead of role, label
     or test id.
 
 ## Quality floor

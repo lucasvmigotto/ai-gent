@@ -8,7 +8,8 @@ description: Define a risk-based test strategy for the project and each feature 
 ## Before starting
 
 1. Read `../../references/qa-quality.md` (role, division of labor,
-   anti-patterns) and `../../references/pipeline.md`.
+   anti-patterns), `../../references/browsers.md` (containerized browser
+   execution) and `../../references/pipeline.md`.
 2. Read: the brief (NFRs, compliance, audiences), `architecture.md`
    (topology, capacity model, SLOs), the constitution, every feature's
    `spec.md` (stories, acceptance scenarios, success criteria), and —
@@ -45,8 +46,9 @@ description: Define a risk-based test strategy for the project and each feature 
    the architecture's identity decision — dev IdP users for OIDC
    (`devcontainer:infra`'s identity reference), a Mailpit-captured link
    for magic-link or one-time-code login, seeded credentials otherwise.
-4. **Environments** — local (the devcontainer stack), CI (ephemeral
-   services), preview/staging; what runs where; the limits of each
+4. **Environments** — local (the devcontainer stack, browsers from
+   `selenium/standalone-*` containers per `../../references/browsers.md`), CI (ephemeral
+   services, the same browser images), preview/staging; what runs where; the limits of each
    (e.g. load numbers from a laptop are relative only).
 5. **Gates per pipeline stage** — PR, main, pre-production, scheduled:
    which suites must pass, thresholds (e.g. zero axe violations, p95 from

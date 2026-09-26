@@ -84,6 +84,7 @@ Different resources in the same project routinely land in different tiers
 | Outbound mail (SMTP) | — | `axllent/mailpit` | always a capture sink regardless of prod's real provider — dev must never send real mail. Details in §5 of `references/mail.md` |
 | Inbound mailbox (IMAP/POP3) | — | `greenmail/standalone` | for apps that *read* mail; §5.4 of `references/mail.md` |
 | Transactional mail HTTP API (SES, SendGrid, Postmark, Mailgun) | vendor sandbox (tier 0) | LocalStack SES; WireMock stub | §5.3 of `references/mail.md` |
+| Browser automation (Chrome, Firefox, Edge, Chromium) | `selenium/standalone-chrome`, `selenium/standalone-firefox`, `selenium/standalone-edge`, `selenium/standalone-chromium` — the vendor's own browser+driver bundles, tier 1 | — | behind a `browser` profile, endpoint from env, `shm_size` for Chrome; WebKit has no standalone flavor (Playwright container only) — full rules in the qa plugin's references/browsers.md |
 | OAuth2 / OIDC identity provider | `quay.io/keycloak/keycloak` when prod runs Keycloak | `ghcr.io/navikt/mock-oauth2-server`, Keycloak, `ghcr.io/dexidp/dex` | details and the flow-based choice in §4 of `references/identity.md` |
 | SAML IdP | Keycloak (as a SAML IdP) when prod is Keycloak | Keycloak | §4.6 of `references/identity.md` |
 | LDAP / Active Directory | `osixia`/Bitnami OpenLDAP-style images (check current maintenance) | `lldap/lldap` for simple user/group lookups | §4.6 of `references/identity.md` |

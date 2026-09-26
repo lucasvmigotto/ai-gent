@@ -144,9 +144,12 @@ render (never a second, hand-maintained copy):
   navigation, and i18n detection/persistence/fallback in
   `tests/unit/`; automated axe checks (`toHaveNoViolations`) in
   `tests/a11y/`. Scripts: `test` (`vitest run`), `test:watch`.
-- **e2e (Playwright):** serve the production static build, smoke every
+- **e2e (Playwright or Selenium):** serve the production static build, smoke every
   route including deep links, keyboard-only flows, language switching,
-  and a mobile project. Chromium-first in CI, full matrix locally.
+  and a mobile project — through containerized browsers
+  (`selenium/standalone-*`; WebKit only via Playwright's container, per
+  the qa plugin's references/browsers.md rules, never a host driver install).
+  Chromium-first in CI, full matrix locally.
 - **LLM output:** every page has its `.md` in every locale, every
   `llms.txt` link resolves in `dist/`, `llms-full.txt` contains every
   page, and every non-Implemented item carries its maturity label in the

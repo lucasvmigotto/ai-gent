@@ -7,7 +7,8 @@ description: Write and run cross-stack end-to-end journeys, Playwright by defaul
 
 ## Before starting
 
-1. Read `../../references/qa-quality.md` and `../../references/pipeline.md`.
+1. Read `../../references/qa-quality.md`, `../../references/browsers.md`
+   and `../../references/pipeline.md`.
 2. Required: `specs/NNN-*/qa.md` journeys (from `qa:strategy`) — if
    missing, derive journeys from the feature's acceptance scenarios and
    `ui.md` flows, and record them in `qa.md` as an `[UPSTREAM GAP]` fix.
@@ -20,13 +21,22 @@ description: Write and run cross-stack end-to-end journeys, Playwright by defaul
 
 ## Setup
 
+- Browsers come from `../../references/browsers.md` — Selenium
+  standalone containers (Chrome by default, Firefox, Edge where it
+  matters) behind a `browser` compose profile, endpoint from env, never a
+  host driver install. Greenfield journeys drive them with a Selenium
+  WebDriver client; a project already on Playwright keeps it, with its
+  browsers containerized too (WebKit only ever via Playwright's
+  container — the documented gap).
 - Playwright project in `tests/e2e/` (or the path the plan sets), its
   own `package.json` if the frontend's tooling shouldn't carry it.
-- `playwright.config`: `baseURL` from env, projects for Chromium,
+- `playwright.config` (Playwright projects): `baseURL` from env, projects for Chromium,
   Firefox, WebKit and one mobile viewport (Chromium-only in PR CI if the
   full matrix is too slow — full matrix on main/nightly), `trace:
   'retain-on-failure'`, screenshots and video on failure, `retries: 0`
-  locally and at most 1 in CI **with flake reporting**.
+  locally and at most 1 in CI **with flake reporting**. Selenium projects
+  mirror this: base URL from env, one capability set per standalone
+  browser, artifacts on failure, same retry rule.
 - Stack: bring up the devcontainers and `devcontainer:infra` compose (or
   the CI equivalent); wait on health endpoints, not sleeps.
 - **Auth**: log in once per persona (from `qa.md`) through the real login

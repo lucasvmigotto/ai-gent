@@ -4,6 +4,23 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- Containerized browsers: `plugins/qa/references/browsers.md` makes the
+  `selenium/standalone-*` family (Chrome, Firefox, Edge, Chromium) the
+  execution environment for e2e journeys and screenshots — Selenium
+  WebDriver by default on greenfield, Playwright kept where the project
+  already uses it, host driver installs banned. WebKit has no standalone
+  flavor and stays a documented Playwright-container exception.
+
+### Changed
+
+- `qa:e2e`, `qa:strategy`, `frontend:build` screenshots, `project:docs`
+  e2e and the `devcontainer:infra` catalog point at the containerized
+  browsers; CI runs the same images as local.
+
 ## 1.3.0 — 2026-09-26
 
 ### Added
