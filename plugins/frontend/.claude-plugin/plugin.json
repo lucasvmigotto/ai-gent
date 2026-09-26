@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "GPL-3.0-or-later AND Apache-2.0",
   "description": "Frontend chain: uiux (layout and language vision), spec (Spec Kit UI specs), build (web implementation), tui (terminal interfaces and CLIs, only when requested)",
   "author": {
