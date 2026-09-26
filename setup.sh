@@ -11,15 +11,18 @@
 #   ~/.claude/skills/synced       -> skills/synced          (symlink, claude.ai-synced skills)
 #   plugins/<p>/skills/<s>/       -> skills/<p>-<s>/SKILL.md (generated entry file pointing at the source)
 #                                    commands/<p>-<s>.md     (generated /<p>-<s> command)
-#   Set OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1 so opencode reads only these,
-#   instead of also scanning ~/.claude/skills (whose nested plugin skills
-#   collide by short name: spec, build, ...).
+#   opencode V2 also scans ~/.claude/skills, with no switch to disable it, so
+#   the config edit below denies those short, colliding IDs (spec, build, ...)
+#   with `skill` permission rules, leaving only the namespaced ones.
 #
 # opencode configuration (asked, [Y/n]; --yes applies, --no-config-edits skips):
-#   ~/.config/opencode/opencode.json  permission rules mirroring the git and db
-#                                     guard hooks, merged in (jq, else python3);
-#                                     a file with comments is left alone
-#   your shell's rc file              export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1
+#   ~/.config/opencode/opencode.json  OpenCode V2 `permissions` rules mirroring
+#                                     the git and db guard hooks, the `plugins`
+#                                     entry that loads opencode/guard, and
+#                                     `skill` denies that hide the short,
+#                                     colliding IDs OpenCode finds in
+#                                     ~/.claude/skills. A file with comments is
+#                                     left alone (see scripts/opencode-config.py).
 #   Both are undone by --uninstall (only what this script added).
 #
 # Idempotent: re-run after adding, renaming or removing a skill, or after
@@ -56,7 +59,7 @@ Installs skills/* and plugins/* from $REPO_DIR for:
   --uninstall  remove everything this script installed for the chosen target(s)
   --yes        apply the opencode config edits without asking
   --no-config-edits
-               never edit opencode.json or a shell profile; print what to add
+               never edit opencode.json; print what to add instead
 EOF
 }
 
@@ -267,30 +270,16 @@ prune_opencode_generated() {
 
 OPENCODE_CONFIG_FILE="${OPENCODE_CONFIG:-$HOME/.config/opencode/opencode.json}"
 AI_GENT_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ai-gent"
-PERMISSIONS_STATE="$AI_GENT_STATE/opencode-permissions.json"
+CONFIG_STATE="$AI_GENT_STATE/opencode-config.json"
 CREATED_STATE="$AI_GENT_STATE/opencode-config-created"
+OC_PY="$REPO_DIR/scripts/opencode-config.py"
+GUARD_PLUGIN="$REPO_DIR/opencode/guard"
+SKILL_NAMES=""
 
-# The rules mirroring the git and db guard hooks (README § Guard hooks).
-# opencode evaluates them in order and the last match wins, so they are
-# appended after the user's own rules.
-GUARD_RULES='{
-  "bash": {
-    "git push*": "ask",
-    "git commit*--no-verify*": "deny",
-    "git branch -D*": "ask",
-    "git reset --hard*": "ask",
-    "gh pr create*": "ask",
-    "psql*": "ask",
-    "mysql*": "ask",
-    "sqlcmd*": "ask",
-    "sqlplus*": "ask",
-    "sqlite3*": "ask",
-    "pg_restore*": "deny",
-    "*connections.env*": "deny"
-  },
-  "read": { "~/.config/ai-gent/**": "deny" },
-  "edit": { "~/.config/ai-gent/**": "deny" }
-}'
+# The OpenCode V2 `permissions` array and the `plugins` entry are built by
+# scripts/opencode-config.py from the guard rules plus the plugin skill names
+# (so the short, colliding IDs OpenCode finds in ~/.claude/skills are denied).
+oc() { python3 "$OC_PY" "$@"; }
 
 # confirm <question> — [Y/n]. --yes answers yes; --no-config-edits, --dry-run
 # and "no terminal to ask on" (a pipe, CI) answer no.
@@ -304,249 +293,105 @@ confirm() {
   [[ -z "$answer" || "$answer" == [Yy]* ]]
 }
 
-# jq when installed (AI_GENT_JSON_TOOL=python forces the python3 fallback).
-use_jq() { [[ "${AI_GENT_JSON_TOOL:-}" != python ]] && command -v jq >/dev/null 2>&1; }
-
-# json_tool check|conflicts|missing|merge|remove <file> [json] — jq, else python3.
-json_tool() {
-  local action="$1" file="$2"
-  shift 2
-  if use_jq; then
-    case "$action" in
-      check) jq -e 'type == "object" and ((.permission // {}) | type == "object")' "$file" >/dev/null 2>&1 ;;
-      empty) jq -e 'del(."$schema") | (.permission // {}) == {} and (del(.permission) == {})' "$file" >/dev/null 2>&1 ;;
-      conflicts) jq -r --argjson r "$GUARD_RULES" '
-          . as $doc | $r | to_entries[] | .key as $t | ($doc.permission[$t] // {}) as $cur
-          | if ($cur | type) != "object" then "\($t): is a single action (\($cur)), left as it is"
-            else .value | to_entries[] as $e | select(($cur | has($e.key)) and $cur[$e.key] != $e.value)
-              | "\($t) \($e.key): yours is \($cur[$e.key]), kept" end' "$file" | sort -u ;;
-      missing) jq -c --argjson r "$GUARD_RULES" '
-          . as $doc | $r | with_entries(.key as $t | ($doc.permission[$t] // {}) as $cur
-            | .value |= (if ($cur | type) == "object" then with_entries(. as $e | select($cur | has($e.key) | not)) else {} end))
-          | with_entries(select(.value != {}))' "$file" ;;
-      merge) jq --indent 2 --argjson add "$1" '
-          reduce ($add | to_entries[]) as $e (.; .permission[$e.key] = ((.permission[$e.key] // {}) + $e.value))' "$file" ;;
-      remove) jq --indent 2 --argjson rm "$1" '
-          reduce ($rm | to_entries[] | .key as $t | .value | to_entries[] | {t: $t, k: .key, v: .value}) as $e (.;
-            if (.permission[$e.t] | type) == "object" and .permission[$e.t][$e.k] == $e.v
-            then .permission[$e.t] |= del(.[$e.k]) else . end)
-          | .permission |= with_entries(select(.value != {}))' "$file" ;;
-    esac
-  else
-    python3 - "$action" "$file" "$GUARD_RULES" "$@" <<'PY'
-import json, sys
-action, path, rules = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
-try:
-    doc = json.load(open(path))
-except (OSError, ValueError):
-    sys.exit(1)
-perm = doc.get("permission", {}) if isinstance(doc, dict) else None
-if action == "check":
-    sys.exit(0 if isinstance(doc, dict) and isinstance(perm, dict) else 1)
-if action == "empty":
-    rest = {k: v for k, v in doc.items() if k not in ("$schema", "permission")}
-    sys.exit(0 if not rest and not perm else 1)
-if action == "conflicts":
-    out = set()
-    for t, rs in rules.items():
-        cur = perm.get(t, {})
-        for k, v in rs.items():
-            if not isinstance(cur, dict):
-                out.add(f"{t}: is a single action ({cur}), left as it is")
-            elif k in cur and cur[k] != v:
-                out.add(f"{t} {k}: yours is {cur[k]}, kept")
-    print("\n".join(sorted(out)))
-elif action == "missing":
-    miss = {t: {k: v for k, v in rs.items() if isinstance(perm.get(t, {}), dict) and k not in perm.get(t, {})}
-            for t, rs in rules.items()}
-    print(json.dumps({t: rs for t, rs in miss.items() if rs}))
-elif action == "merge":
-    doc.setdefault("permission", {})
-    for t, rs in json.loads(sys.argv[4]).items():
-        doc["permission"].setdefault(t, {}).update(rs)
-    print(json.dumps(doc, indent=2, ensure_ascii=False))
-elif action == "remove":
-    for t, rs in json.loads(sys.argv[4]).items():
-        cur = doc.get("permission", {}).get(t)
-        if isinstance(cur, dict):
-            for k, v in rs.items():
-                if cur.get(k) == v:
-                    del cur[k]
-            if not cur:
-                del doc["permission"][t]
-    print(json.dumps(doc, indent=2, ensure_ascii=False))
-PY
-  fi
-}
+# opencode V2 config: the guard permission rules, the guard plugin, and the
+# `skill` denies that hide the short, colliding IDs OpenCode finds in
+# ~/.claude/skills. scripts/opencode-config.py builds all three.
 
 print_rules_snippet() {
-  printf '         {\n           "permission": %s\n         }\n' "$(printf '%s' "$GUARD_RULES" | sed '2,$s/^/           /')" >&2
+  if command -v python3 >/dev/null 2>&1; then
+    printf '  "permissions": %s\n' "$(oc rules --skills "$SKILL_NAMES")" >&2
+  else
+    echo '  "permissions": [ ... ]  (run scripts/opencode-config.py rules)' >&2
+  fi
+  printf '  "plugins": ["%s"]\n' "$GUARD_PLUGIN" >&2
 }
 
 opencode_permissions() {
   local file="$OPENCODE_CONFIG_FILE"
   [[ ! -e "$file" && -e "${file%.json}.jsonc" ]] && file="${file%.json}.jsonc"
-  if ! use_jq && ! command -v python3 >/dev/null 2>&1; then
-    echo "note     neither jq nor python3 found: add these rules to $file yourself:" >&2
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "note     python3 not found: add the OpenCode guard rules and plugin yourself:" >&2
     print_rules_snippet
     return
   fi
   if [[ ! -e "$file" ]]; then
     if ((DRY_RUN)); then
-      echo "  [dry-run] would ask to create $file with the guard permission rules"
+      echo "  [dry-run] would ask to create $file with the guard rules and plugin"
       return
     fi
-    if confirm "Create $file with permission rules mirroring the git and db guards?"; then
+    if confirm "Create $file with the OpenCode guard rules and plugin?"; then
       run mkdir -p "$(dirname "$file")"
-      write "$file" "$(printf '{\n  "$schema": "https://opencode.ai/config.json",\n  "permission": %s\n}\n' "$GUARD_RULES")
-"
-      record_permissions "$GUARD_RULES"
+      oc new --skills "$SKILL_NAMES" --plugin "$GUARD_PLUGIN" >"$file.tmp.$$" && mv "$file.tmp.$$" "$file"
+      oc record "$CONFIG_STATE" "$(oc rules --skills "$SKILL_NAMES")" --plugin "$GUARD_PLUGIN"
       ((DRY_RUN)) || { mkdir -p "$AI_GENT_STATE"; printf '%s\n' "$file" >"$CREATED_STATE"; }
-      echo "create   $file (guard permission rules)"
+      echo "create   $file (guard rules and plugin)"
     else
-      echo "note     opencode has no permission rules for the guards; to add them, create $file with:" >&2
+      echo "note     opencode has no guard rules or plugin; add these to $file yourself:" >&2
       print_rules_snippet
     fi
     return
   fi
-  if ! json_tool check "$file"; then
-    echo "note     $file has comments or isn't plain JSON (or its permission is a single action); left as it is. Add these rules yourself:" >&2
+  if ! oc check "$file"; then
+    echo "note     $file has comments or isn't plain JSON; left as it is. Add these yourself:" >&2
     print_rules_snippet
     return
   fi
-  local missing conflicts
-  if ! missing="$(json_tool missing "$file")" || ! conflicts="$(json_tool conflicts "$file")"; then
-    echo "note     couldn't read the permission rules in $file; left as it is. Add these rules yourself:" >&2
-    print_rules_snippet
-    return
-  fi
+  local missing conflicts plugin_missing=0 plugin_arg=''
+  missing="$(oc missing "$file" --skills "$SKILL_NAMES")" || missing='[]'
+  conflicts="$(oc conflicts "$file" --skills "$SKILL_NAMES")" || conflicts=''
+  oc plugin-missing "$file" "$GUARD_PLUGIN" || plugin_missing=1
   [[ -n "$conflicts" ]] && printf 'keep     %s\n' "${conflicts//$'\n'/$'\n'keep     }"
-  if [[ -z "$missing" || "$missing" == "{}" ]]; then
-    echo "ok       opencode permission rules"
+  if [[ "$missing" == "[]" && $plugin_missing -eq 0 ]]; then
+    echo "ok       opencode guard rules and plugin"
     return
   fi
-  echo "missing  opencode permission rules: $missing"
+  echo "missing  opencode guard rules: $missing"
+  ((plugin_missing)) && echo "missing  opencode guard plugin: $GUARD_PLUGIN"
   if ((DRY_RUN)); then
     echo "  [dry-run] would ask to merge them into $file"
     return
   fi
-  if confirm "Merge the missing permission rules into $file (a backup is kept)?"; then
+  if confirm "Merge the guard rules and plugin into $file (a backup is kept)?"; then
     local merged backup
-    merged="$(json_tool merge "$file" "$missing")" || { echo "error    couldn't merge into $file" >&2; return; }
+    ((plugin_missing)) && plugin_arg="$GUARD_PLUGIN"
+    merged="$(oc apply "$file" --skills "$SKILL_NAMES" --plugin "$plugin_arg")" || {
+      echo "error    couldn't merge into $file" >&2
+      return
+    }
     backup="$file.bak-$(date +%Y%m%d%H%M%S)"
     cp -p "$file" "$backup"
     printf '%s\n' "$merged" >"$file.tmp.$$" && mv "$file.tmp.$$" "$file"
-    record_permissions "$missing"
+    oc record "$CONFIG_STATE" "$missing" --plugin "$plugin_arg"
     echo "merge    $file (backup: $(basename "$backup"))"
   else
-    echo "note     not merged; the rules to add are:" >&2
+    echo "note     not merged; add these to $file yourself:" >&2
     print_rules_snippet
-  fi
-}
-
-# record_permissions <json> — remember what was added, for --uninstall.
-record_permissions() {
-  ((DRY_RUN)) && return
-  mkdir -p "$AI_GENT_STATE"
-  local previous='{}'
-  [[ -f "$PERMISSIONS_STATE" ]] && previous="$(cat "$PERMISSIONS_STATE")"
-  if use_jq; then
-    jq -n --argjson a "$previous" --argjson b "$1" 'reduce ($b | to_entries[]) as $e ($a; .[$e.key] = ((.[$e.key] // {}) + $e.value))' >"$PERMISSIONS_STATE"
-  else
-    python3 -c 'import json,sys; a=json.loads(sys.argv[1]); b=json.loads(sys.argv[2]); [a.setdefault(t, {}).update(r) for t, r in b.items()]; print(json.dumps(a, indent=2))' "$previous" "$1" >"$PERMISSIONS_STATE"
   fi
 }
 
 uninstall_opencode_permissions() {
   local file="$OPENCODE_CONFIG_FILE"
   [[ ! -e "$file" && -e "${file%.json}.jsonc" ]] && file="${file%.json}.jsonc"
-  [[ -f "$PERMISSIONS_STATE" && -f "$file" ]] || return 0
-  if ! json_tool check "$file"; then
-    echo "note     $file isn't plain JSON anymore; remove the ai-gent permission rules by hand (listed in $PERMISSIONS_STATE)" >&2
+  [[ -f "$CONFIG_STATE" && -f "$file" ]] || return 0
+  if ! oc check "$file"; then
+    echo "note     $file isn't plain JSON anymore; remove the ai-gent rules by hand (listed in $CONFIG_STATE)" >&2
     return
   fi
-  echo "remove   the permission rules this script added to $(basename "$file")"
+  echo "remove   the guard rules and plugin this script added to $(basename "$file")"
   if ((!DRY_RUN)); then
     local cleaned
-    cleaned="$(json_tool remove "$file" "$(cat "$PERMISSIONS_STATE")")" || {
-      echo "note     couldn't edit $file; remove the ai-gent permission rules by hand (listed in $PERMISSIONS_STATE)" >&2
+    cleaned="$(oc remove "$file" "$CONFIG_STATE")" || {
+      echo "note     couldn't edit $file; remove the ai-gent rules by hand (listed in $CONFIG_STATE)" >&2
       return
     }
     printf '%s\n' "$cleaned" >"$file.tmp.$$" && mv "$file.tmp.$$" "$file"
-    rm -f "$PERMISSIONS_STATE"
+    rm -f "$CONFIG_STATE"
     # A file this script created goes too, if nothing else was ever added to it.
-    if [[ -f "$CREATED_STATE" && "$(cat "$CREATED_STATE")" == "$file" ]] && json_tool empty "$file"; then
+    if [[ -f "$CREATED_STATE" && "$(cat "$CREATED_STATE")" == "$file" ]] && oc empty "$file"; then
       echo "remove   $(basename "$file") (created by this script, now empty)"
       rm -f "$file"
     fi
     rm -f "$CREATED_STATE"
-  fi
-}
-
-# ------------------------------------------------------- shell profile
-
-PROFILE_BEGIN="# >>> ai-gent >>>"
-PROFILE_END="# <<< ai-gent <<<"
-
-shell_profile() { # prints the rc file for the user's shell
-  case "$(basename "${SHELL:-sh}")" in
-    zsh) echo "${ZDOTDIR:-$HOME}/.zshrc" ;;
-    bash) [[ "$(uname -s)" == Darwin ]] && echo "$HOME/.bash_profile" || echo "$HOME/.bashrc" ;;
-    fish) echo "${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/ai-gent.fish" ;;
-    *) echo "$HOME/.profile" ;;
-  esac
-}
-
-opencode_env() {
-  local rc line
-  rc="$(shell_profile)"
-  if [[ -f "$rc" ]] && grep -q 'OPENCODE_DISABLE_CLAUDE_CODE_SKILLS' "$rc"; then
-    echo "ok       OPENCODE_DISABLE_CLAUDE_CODE_SKILLS in $rc"
-    return
-  fi
-  [[ "$rc" == *.fish ]] && line="set -gx OPENCODE_DISABLE_CLAUDE_CODE_SKILLS 1" || line="export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1"
-  if [[ "${OPENCODE_DISABLE_CLAUDE_CODE_SKILLS:-}" == "1" ]]; then
-    echo "ok       OPENCODE_DISABLE_CLAUDE_CODE_SKILLS is set in this environment"
-    return
-  fi
-  if ((DRY_RUN)); then
-    echo "  [dry-run] would ask to add '$line' to $rc"
-    return
-  fi
-  if confirm "Add '$line' to $rc, so opencode doesn't also load ~/.claude/skills under colliding names?"; then
-    run mkdir -p "$(dirname "$rc")"
-    if ((!DRY_RUN)); then
-      printf '\n%s\n%s\n%s\n' "$PROFILE_BEGIN" "$line" "$PROFILE_END" >>"$rc"
-    fi
-    echo "profile  $rc (open a new terminal to pick it up)"
-  else
-    cat >&2 <<EOF
-note     OPENCODE_DISABLE_CLAUDE_CODE_SKILLS is not set: opencode also scans
-         ~/.claude/skills and loads plugin skills under short, colliding names
-         (spec, build, ...). Add to $rc:
-           $line
-EOF
-  fi
-}
-
-uninstall_opencode_env() {
-  local rc
-  rc="$(shell_profile)"
-  [[ -f "$rc" ]] && grep -qF "$PROFILE_BEGIN" "$rc" || return 0
-  echo "remove   the ai-gent block from $rc"
-  ((DRY_RUN)) && return
-  if [[ "$rc" == */conf.d/ai-gent.fish ]]; then
-    rm -f "$rc"
-  else
-    # Drop the block and the blank line this script put before it.
-    awk -v b="$PROFILE_BEGIN" -v e="$PROFILE_END" '
-      skip { if ($0 == e) skip = 0; next }
-      $0 == b { skip = 1; pending = 0; next }
-      pending { print ""; pending = 0 }
-      $0 == "" { pending = 1; next }
-      { print }
-      END { if (pending) print "" }' "$rc" >"$rc.tmp.$$" &&
-      cat "$rc.tmp.$$" >"$rc" && rm -f "$rc.tmp.$$"
   fi
 }
 
@@ -578,7 +423,6 @@ install_opencode() {
       run rm "$OPENCODE_SKILLS/synced"
     fi
     uninstall_opencode_permissions
-    uninstall_opencode_env
     return
   fi
 
@@ -594,12 +438,13 @@ install_opencode() {
     [[ -f "$dir/.claude-plugin/plugin.json" ]] || continue
     for skill in "$dir"/skills/*/; do
       skill="${skill%/}"
-      [[ -f "$skill/SKILL.md" ]] && opencode_entry "$(basename "$dir")" "$(basename "$skill")" "$skill/SKILL.md"
+      [[ -f "$skill/SKILL.md" ]] || continue
+      SKILL_NAMES="$SKILL_NAMES $(basename "$skill")"
+      opencode_entry "$(basename "$dir")" "$(basename "$skill")" "$skill/SKILL.md"
     done
   done
 
   opencode_permissions
-  opencode_env
 }
 
 case "$TARGET" in

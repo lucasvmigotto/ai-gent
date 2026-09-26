@@ -8,7 +8,8 @@
 #
 # Environment:
 #   DESC_BUDGET  soft limit for skill descriptions, in characters (default 400);
-#                opencode's hard limit is 1024
+#                a conservative ceiling of 1024 is also enforced (OpenCode V2
+#                no longer caps description length, but every session loads it)
 #   SHELLCHECK   the linter command (default: the pinned SHELLCHECK_VERSION run
 #                through uvx or pipx, so local runs and CI use the same release;
 #                then the one on PATH; else the lint is skipped)
@@ -55,7 +56,7 @@ check_skill() { # check_skill <SKILL.md> <expected name> <opencode name>
   if [[ -z "$desc" ]]; then
     fail "$file: description missing or not on a single line (setup.sh reads single-line values)"
   elif ((${#desc} > 1024)); then
-    fail "$file: description is ${#desc} chars; opencode's limit is 1024"
+    fail "$file: description is ${#desc} chars; ceiling is 1024"
   elif ((${#desc} > DESC_BUDGET)); then
     fail "$file: description is ${#desc} chars; budget is $DESC_BUDGET (every session loads it)"
   fi
@@ -153,6 +154,8 @@ sh -n install.sh || fail "sh -n install.sh"
 for script in "${hooks[@]}"; do
   sh -n "$script" || fail "sh -n $script"
 done
+python3 -c 'compile(open("scripts/opencode-config.py").read(), "opencode-config.py", "exec")' ||
+  fail "scripts/opencode-config.py: syntax"
 
 shellcheck_version="${SHELLCHECK_VERSION:-0.11.0.1}"
 shellcheck_cmd="${SHELLCHECK:-}"
@@ -212,6 +215,21 @@ else
   fail "release script"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-release.out"
+
+# ------------------------------------------------------- opencode guard
+
+runtime="$(command -v bun || command -v node || true)"
+if [[ -n "$runtime" ]]; then
+  if "$runtime" opencode/guard/test/rules.test.mjs >"${TMPDIR:-/tmp}/ai-gent-ocguard.out" 2>&1; then
+    pass "opencode guard rules ($(grep -oE '[0-9]+ checks' "${TMPDIR:-/tmp}/ai-gent-ocguard.out" | tail -1))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-ocguard.out"
+    fail "opencode guard rules (vs plugins/*/hooks/guard.sh)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-ocguard.out"
+else
+  warn "neither bun nor node on PATH; skipped the opencode guard rule test"
+fi
 
 # ---------------------------------------------------------- installer tests
 
