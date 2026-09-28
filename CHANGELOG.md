@@ -32,6 +32,10 @@ changes.
   it, recreated at the remote's point when it's purely behind it, and
   used as it is when it's only behind `main`; a `dev` diverged from its
   remote stops for a question, with a backup branch suggested.
+  When `dev` has fallen far behind the levels above, the skill flags it and
+  asks; if the user agrees, work branches off the highest current level and
+  merges back into it, leaving `dev` alone. Promotion into `main` needs its
+  own explicit request.
 
 ### Fixed
 
