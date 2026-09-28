@@ -24,9 +24,14 @@ changes.
 
 ### Changed
 
-- `git:workflow` integrates work that spans several branches on `dev`:
-  `dev` from `main`, each branch merged into it (conflicts settled there),
-  then `dev` into `main`; `dev` is kept and fast-forwarded next time.
+- `git:workflow` follows a branch chain — `main`/`master` >
+  `homolog`/`staging` > `dev`/`develop` > work branches: every branch
+  starts from and merges into `dev` (conflicts settled there), and `dev`
+  is promoted one level at a time up to `main`. `dev` is created from
+  `main` when it doesn't exist, from the remote when only the remote has
+  it, recreated at the remote's point when it's purely behind it, and
+  used as it is when it's only behind `main`; a `dev` diverged from its
+  remote stops for a question, with a backup branch suggested.
 
 ### Fixed
 
