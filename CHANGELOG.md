@@ -22,6 +22,11 @@ changes.
   secrets redacted, tool output left out) and `repo_state.py` (a
   read-only git snapshot), tested by `test_scripts.py` in `scripts/check.sh`.
 
+- `scripts/test-dbrun-engines.py` — `dbrun` end to end against real
+  PostgreSQL, MySQL, MariaDB, SQL Server and Oracle containers, one engine
+  at a time with memory caps (`--engine` for one); run before pushing a
+  `dbrun` change, not part of CI.
+
 ### Changed
 
 - `git:workflow` follows a branch chain — `main`/`master` >
