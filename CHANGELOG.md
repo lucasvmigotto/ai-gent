@@ -22,6 +22,12 @@ changes.
   secrets redacted, tool output left out) and `repo_state.py` (a
   read-only git snapshot), tested by `test_scripts.py` in `scripts/check.sh`.
 
+### Changed
+
+- `git:workflow` integrates work that spans several branches on `dev`:
+  `dev` from `main`, each branch merged into it (conflicts settled there),
+  then `dev` into `main`; `dev` is kept and fast-forwarded next time.
+
 ### Fixed
 
 - `dbrun`, tested end to end against MariaDB 11.4, SQL Server 2022 and
