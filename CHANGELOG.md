@@ -6,6 +6,22 @@ changes.
 
 ## Unreleased
 
+### Added
+
+- `project:survey` — first contact with a repository: stack and versions,
+  layout and build/test/run commands, CI and containers, history and
+  conventions, how far the main branches (`main`, `master`, `develop`,
+  `dev`, `homolog`, `staging`) drift from each other and their remotes,
+  work in flight, red flags; ends in the stage to run next.
+- `project:recap` — back to a project after a pause or a stalled
+  session: where the last session left off, read from **either** Claude
+  Code or OpenCode whichever you run in (requests, unfinished work,
+  unanswered questions, a stop mid-task); what changed since, by you, the
+  remote and others; the conflicts between the two; one next step.
+- `plugins/project/scripts/sessions.py` (session digests for both tools,
+  secrets redacted, tool output left out) and `repo_state.py` (a
+  read-only git snapshot), tested by `test_scripts.py` in `scripts/check.sh`.
+
 ### Fixed
 
 - `dbrun`, tested end to end against MariaDB 11.4, SQL Server 2022 and
