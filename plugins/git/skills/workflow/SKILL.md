@@ -28,7 +28,7 @@ Applies to committing, branching, and merging in any git repo this user works in
 
 ## Branch strategy
 
-- **Branch off `dev`/`develop`** — the bottom of the branch chain (below) — never off `main`/`master` or a staging branch, and never work directly on any of them. The one exception is `hotfix/`.
+- **Branch off `dev`/`develop`** — the bottom of the branch chain (below) — never off `main`/`master` or a staging branch, and never work directly on any of them. The exceptions: a `hotfix/`, and a `dev` left far behind (*When `dev` is left behind*, below).
 - Before branching, `git fetch` (read-only, always safe) and warn if the base is behind its upstream. Don't pull, rebase or merge the upstream in automatically — ask.
 - If the current branch already looks like the right working branch for the task (already a `feat/…`, `fix/…`, etc. matching the work), keep using it instead of creating a redundant new one.
 - If it's ambiguous which branch is the chain's `dev` (both `dev` and `develop` exist, say), ask the user rather than guessing.
@@ -56,12 +56,20 @@ Work always enters at `dev` and moves up one level at a time — a single branch
    - **Only on the remote:** create it at the remote's point, tracking it: `git checkout -b dev origin/dev`.
    - **Local, and behind its remote** (the remote has commits the local branch lacks, and the local branch has none of its own — `git rev-list --count origin/dev..dev` is 0): recreate the local branch at the remote's point — `git branch -f dev origin/dev`, or `git checkout -B dev origin/dev` when it's checked out. That's the same as deleting and recreating it, and loses nothing.
    - **Local and diverged from its remote** (commits on both sides): stop. Show the local-only commits (`git log origin/dev..dev --oneline`) and ask; suggest keeping them on a backup branch first (`git branch backup/dev-<date> dev`) before recreating `dev` at the remote's point.
-   - **Local and up to date with its remote, or never pushed:** use it as it is — **even when it is behind `main`/`master`**. Don't update it from the trunk.
+   - **Local and up to date with its remote, or never pushed:** use it as it is — **even when it is behind `main`/`master`**. Don't update it from the trunk. If it looks far behind, see *When `dev` is left behind*.
 2. **Branch off `dev`, merge back into `dev`**, one branch at a time, with the usual rules (*Merging back*: `--no-ff` at 4 or more commits, `--ff-only` below, delete the merged branch). Work that starts after a merge branches off the updated `dev`.
 3. **Settle conflicts on `dev`**, where they belong — never higher up. Several branches touching the same file (a changelog, a shared list) conflict here by design: keep both sides, in the file's own order.
 4. **Promote one level at a time** once the checks pass: `dev` into `homolog`/`staging` when the repo has one, then that into `main`; otherwise `dev` into `main`. Each promotion is a merge with the same count rule (`git checkout main && git merge --no-ff dev`, or `--ff-only` under 4 commits). Never skip a level, and never merge a feature branch straight into a higher one. Keep `dev` (and the staging branch); they're reused next time.
 
 Ask before each merge and each promotion as always — one question may name the whole sequence. A `hotfix/` is the exception: it branches off the production branch and merges back into it **and** down into every level below, so the fix isn't lost.
+
+**Promotion into `main`/`master` needs its own explicit request.** Describing the flow ("then `dev` goes to `main`") is not one: stop at the level below, report, and ask.
+
+**When `dev` is left behind.** When `dev`/`develop` lacks commits that `main`/`master` or `homolog`/`staging` have, flag it before branching: how many commits it lacks from each level above (`git rev-list --count dev..main`), its last commit date, and whether the flow still passes through it (recent merges into it, or the upper levels moving without it). Then ask whether to use the exception; there's no fixed threshold — the user decides. If they agree:
+
+- branch off the highest level that holds the current work — `homolog`/`staging` when it's ahead of `main`, otherwise `main`;
+- merge the work back into **that same level**, asking first as always;
+- leave `dev` alone: don't update it, merge into it or recreate it.
 
 ### Merge each context back as soon as it is done — the part most easily missed
 
@@ -162,6 +170,6 @@ Opening a PR publishes the branch; do it only on an explicit request (it implies
 5. About to run `git push`, open a PR, or touch a remote issue? → don't, unless explicitly told to in this message.
 6. Finished a context? → merge it back into the parent **now**, before opening the next sub-branch — and start that next one from the updated parent.
 7. About to merge a context back? → count its commits, ask once for merge + delete, then `--no-ff` (≥4) or `--ff-only` (<4), then `git branch -d` the context.
-   Landing work? → get `dev` (or `develop`) ready — new from `main`, from the remote, recreated at the remote when purely behind it, as it is when only behind `main` — merge into it, settle conflicts there, then promote one level at a time: `dev` → `homolog`/`staging` (if any) → `main`.
+   Landing work? → `dev` far behind the levels above? flag it and ask (exception: branch off and merge back into the highest current level). Otherwise get `dev` (or `develop`) ready — new from `main`, from the remote, recreated at the remote when purely behind it, as it is when only behind `main` — merge into it, settle conflicts there, then promote one level at a time: `dev` → `homolog`/`staging` (if any) → `main`.
 8. Asked to link an issue? → ids from the request, then the branch name (confirm with the user), then history, then a remote lookup; write `Closes #N`/`Refs #N` footers; remember closing happens on the default branch.
 9. Writing the message? → `type(scope): subject`, Conventional Commits, no body paragraph, footers allowed, no co-author trailer.
