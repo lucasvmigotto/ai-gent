@@ -39,6 +39,9 @@ changes.
 
 ### Fixed
 
+- `project:spec` bootstraps Spec Kit with `--ignore-agent-tools`: `specify
+  init --integration claude` stopped when no `claude` CLI was on PATH
+  (OpenCode, a sandbox), although the agent running it is the integration.
 - `dbrun`, tested end to end against MariaDB 11.4, SQL Server 2022 and
   Oracle Free 23 (and again on PostgreSQL 17 and MySQL 8.4):
   - SQL Server `apply` always rolled back: the session set `SET NOCOUNT
