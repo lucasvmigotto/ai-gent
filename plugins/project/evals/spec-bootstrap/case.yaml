@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: spec-bootstrap
-description: Behavior — project:spec bootstraps Spec Kit in a repository that already has docs/product/ (it used to fail with "Current directory is not empty")
+description: Behavior — project:spec runs specify init with --here and --force in a repository that already has docs/product/ (it used to fail with "Current directory is not empty")
 tags: [behavior]
 runs: 1
 execution:
@@ -13,12 +13,16 @@ execution:
 context:
   scaffold_script: scaffold.sh
 graders:
-  - name: templates-installed
-    type: file_exists
-    path: .specify/templates/spec-template.md
-  - name: speckit-skills-installed
-    type: file_exists
-    path: .claude/skills/speckit-specify/SKILL.md
+  # The eval sandbox replaces .claude/ entries with placeholders, so the Claude
+  # integration can't write its skills and init can't finish there. The bug this
+  # case guards was the command itself (no --here/--force in a non-empty repo):
+  # check that, flags in any order.
+  - name: init-command
+    type: tool_used
+    tool: Bash
+    input_match: 'specify init(?=[^"]*--here)(?=[^"]*--force)(?=[^"]*--integration claude)(?=[^"]*--non-interactive)'
+    min: 1
+    arm: both
   - name: no-git-extension
     type: tool_used
     tool: Bash
