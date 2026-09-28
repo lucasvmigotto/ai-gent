@@ -49,6 +49,14 @@ changes.
   merges back into it, leaving `dev` alone. Promotion into `main` needs its
   own explicit request.
 
+- `shared/reading-code.md` — how skills that read code in bulk keep its
+  token cost down: map first, `compact:code` for large or many
+  brace-language files, `sed -n`/`cat` instead of line-numbered Reads for
+  the rest, exact lines Read before an edit. Linked into `project`, `db`,
+  `qa`, `backend` and `frontend`; `survey`, `introspec`, `retrofit`,
+  `refactor`, `db:review`, `qa:review`, `backend:build` and
+  `frontend:build` point to it.
+
 ### Fixed
 
 - `project:spec` bootstraps Spec Kit with `--ignore-agent-tools`: `specify
