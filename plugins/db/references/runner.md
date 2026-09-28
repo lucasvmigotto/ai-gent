@@ -25,7 +25,7 @@ DBRUN="python3 <plugin>/scripts/dbrun.py"     # <plugin> = this plugin's directo
 | `query PROFILE --sql FILE\|- --reason TEXT [--max-rows N] [--timeout S] [--reveal] [--format table\|csv\|json] [--explain] [--allow-full-count]` | run read-only statements; on remote targets it also refuses `SELECT *` and unfiltered `COUNT` on user tables (`--allow-full-count` only when the user asked for an exact full count) | any |
 | `plan PROFILE --sql FILE --reason TEXT [--expect N,N,…]` | record a write plan (statements, expected row counts, backup and restore method) and print it with its id. Get each expected count first with a `query` using the statement's own `WHERE` (`SELECT COUNT(*) … WHERE <same condition>`); leave a position blank for DDL (`--expect 2,`) | proven local only |
 | `apply PROFILE PLAN_ID --confirmed` | re-prove local, back up, run the plan in a transaction, check the row counts, commit only on a match | proven local only |
-| `restore PROFILE PLAN_ID --confirmed` | restore the backup taken by `apply` | proven local only |
+| `restore PROFILE PLAN_ID --confirmed` | restore the backup taken by `apply` — the whole database is recreated, so objects the plan created go too; no restore where no backup was taken (Oracle) | proven local only |
 | `script PROFILE --sql FILE --reason TEXT --out PATH` | write a reviewed change script (header, statements, verification and rollback sections) for **a person** to run — never executes it; refuses an existing `--out` file | any (the way to change a remote database) |
 | `session start\|stop\|status PROFILE` | keep a warm client container for an investigation, so repeated queries start fast | any |
 | `log [--tail N]` | print the command log's path and its last entries | — |
@@ -41,6 +41,9 @@ conversation — never pass it on your own.
 - Output is masked (`safety.md` § Masking). `--reveal` shows values
   unmasked and is logged; pass it only when the user asked to see them.
 - `--explain` runs the engine's plain plan (never `EXPLAIN ANALYZE`).
+- `plan` and `apply` refuse system databases (SQL Server `master`,
+  `msdb`, …; MySQL `mysql`, `sys`, …): they can't be restored like a user
+  database.
 - Error messages and log entries have the profile's host, user and
   password replaced with `<host>`, `<user>` and `<password>` — driver
   errors often quote them.

@@ -4,6 +4,47 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- `project:survey` — first contact with a repository: stack and versions,
+  layout and build/test/run commands, CI and containers, history and
+  conventions, how far the main branches (`main`, `master`, `develop`,
+  `dev`, `homolog`, `staging`) drift from each other and their remotes,
+  work in flight, red flags; ends in the stage to run next.
+- `project:recap` — back to a project after a pause or a stalled
+  session: where the last session left off, read from **either** Claude
+  Code or OpenCode whichever you run in (requests, unfinished work,
+  unanswered questions, a stop mid-task); what changed since, by you, the
+  remote and others; the conflicts between the two; one next step.
+- `plugins/project/scripts/sessions.py` (session digests for both tools,
+  secrets redacted, tool output left out) and `repo_state.py` (a
+  read-only git snapshot), tested by `test_scripts.py` in `scripts/check.sh`.
+
+### Changed
+
+- `git:workflow` integrates work that spans several branches on `dev`:
+  `dev` from `main`, each branch merged into it (conflicts settled there),
+  then `dev` into `main`; `dev` is kept and fast-forwarded next time.
+
+### Fixed
+
+- `dbrun`, tested end to end against MariaDB 11.4, SQL Server 2022 and
+  Oracle Free 23 (and again on PostgreSQL 17 and MySQL 8.4):
+  - SQL Server `apply` always rolled back: the session set `SET NOCOUNT
+    ON`, which hides row counts from the driver.
+  - `--explain` returned the echoed statement on SQL Server and failed on
+    Oracle (`ORA-02000`); both now return the plan.
+  - `restore` left behind objects the plan created. PostgreSQL, MySQL and
+    MariaDB backups now recreate the whole database.
+  - Plans in system databases (SQL Server `master`, which can't be
+    restored; MySQL `mysql`; …) are refused.
+  - On remote targets, SQL Server locking table hints and `NEXT VALUE
+    FOR` / `seq.NEXTVAL` are refused as writes.
+  - Without a backup (Oracle), `apply` no longer offers a `restore` that
+    can't work.
+
 ## 1.4.0 — 2026-09-26
 
 ### Added

@@ -48,7 +48,10 @@ MySQL, MariaDB, SQL Server, Oracle). Their credentials come from the
 container's own environment (`POSTGRES_USER`, `MYSQL_ROOT_PASSWORD`,
 `MSSQL_SA_PASSWORD`, `ORACLE_PASSWORD`, …) — dev fixtures from
 `devcontainer:infra`, read by the runner, never printed. They still go
-through the full local proof before any write.
+through the full local proof before any write. SQL Server's image has no
+variable naming a user database, so `local:<service>` for it connects to
+`master`, where writes are refused: add a profile with `_CONTAINER` and
+`_DATABASE` for the project's database.
 
 ## Precedence
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git and db guard hooks, dbrun, the release script, and installer tests
-# in a throwaway HOME. Run before every commit; CI runs the same script.
+# shell scripts, the git and db guard hooks, dbrun, the project scripts, the
+# release script, and installer tests in a throwaway HOME. Run before every
+# commit; CI runs the same script.
 #
 #   scripts/check.sh                 everything
 #   scripts/check.sh --quick         skip the installer tests
@@ -205,6 +206,14 @@ else
   fail "dbrun unit tests"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-dbrun.out"
+
+if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
+  pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-project.out"
+  fail "project script unit tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-project.out"
 
 # ----------------------------------------------------------------- release
 

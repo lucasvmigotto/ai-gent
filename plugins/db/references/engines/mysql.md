@@ -51,8 +51,12 @@ Schema export: `mysqldump --no-data --skip-add-drop-table --routines
   read-only setting. A plan with DDL must have a backup; the runner
   refuses it otherwise.
 - **Backup:** `mysqldump --single-transaction --routines --triggers
-  --events` streamed out of the container. **Restore:** load the dump
-  with the client inside the container.
+  --events --add-drop-database --databases <db>` streamed out of the
+  container (the profile must name its database). **Restore:** load the
+  dump with the client inside the container; it drops and recreates the
+  whole database, so objects the plan created go too.
+- Never in the system schemas (`mysql`, `sys`, `information_schema`,
+  `performance_schema`): the runner refuses plans there.
 - DML on InnoDB runs in one transaction; MyISAM tables can't roll back —
   the plan lists them.
 
