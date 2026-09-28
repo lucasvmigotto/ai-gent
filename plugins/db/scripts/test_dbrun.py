@@ -92,6 +92,28 @@ class ClassifierTest(unittest.TestCase):
         self.assertEqual(kind("PRAGMA writable_schema", "sqlite"), "write")
         self.assertEqual(kind("PRAGMA table_info(t)", "postgresql"), "write")
         self.assertEqual(kind("SELECT load_extension('x')", "sqlite"), "write")
+        for sql in ["SELECT id FROM t WITH (UPDLOCK) WHERE id = 1", "SELECT id FROM t WITH (XLOCK, HOLDLOCK)",
+                    "SELECT id FROM t WITH (TABLOCKX)", "SELECT NEXT VALUE FOR dbo.s"]:
+            with self.subTest(sql=sql):
+                self.assertEqual(kind(sql, "sqlserver"), "write")
+        self.assertEqual(kind("SELECT id FROM t WITH (NOLOCK) WHERE id = 1", "sqlserver"), "read")
+        self.assertEqual(kind("SELECT s.NEXTVAL FROM DUAL", "oracle"), "write")
+        self.assertEqual(kind("SELECT s.CURRVAL FROM DUAL", "oracle"), "read")
+        self.assertEqual(kind("SELECT NEXT VALUE FOR s", "mariadb"), "write")
+
+    def test_system_databases_refused_for_writes(self):
+        for engine, db in [("sqlserver", "master"), ("sqlserver", None), ("sqlserver", "TempDB"),
+                           ("mysql", "mysql"), ("mariadb", "sys"), ("postgresql", "template1")]:
+            with self.subTest(engine=engine, db=db), self.assertRaises(dbrun.Refused):
+                dbrun.require_user_database({"engine": engine, "database": db}, "plan")
+        for engine, db in [("sqlserver", "shop"), ("mysql", "shop"), ("postgresql", "postgres"), ("oracle", None)]:
+            with self.subTest(engine=engine, db=db):
+                dbrun.require_user_database({"engine": engine, "database": db}, "plan")
+
+    def test_explain_forms(self):
+        self.assertEqual(dbrun.explain_sql("oracle", "SELECT 1 FROM DUAL"), "EXPLAIN PLAN FOR SELECT 1 FROM DUAL")
+        self.assertEqual(dbrun.explain_sql("sqlite", "SELECT 1"), "EXPLAIN QUERY PLAN SELECT 1")
+        self.assertEqual(dbrun.explain_sql("mysql", "SELECT 1"), "EXPLAIN SELECT 1")
 
     def test_split(self):
         self.assertEqual(dbrun.split_statements("SELECT 1; SELECT 2;", "postgresql"), ["SELECT 1", "SELECT 2"])

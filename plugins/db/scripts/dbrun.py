@@ -352,7 +352,9 @@ def classify(p: dict) -> dict:
 READ_START = {"SELECT", "WITH", "SHOW", "DESCRIBE", "DESC", "EXPLAIN", "VALUES", "TABLE", "PRAGMA"}
 DDL_START = {"CREATE", "ALTER", "DROP", "TRUNCATE", "RENAME", "GRANT", "REVOKE", "COMMENT"}
 WRITE_WORDS = {"INSERT", "UPDATE", "DELETE", "MERGE", "UPSERT", "TRUNCATE", "DROP", "ALTER", "CREATE", "GRANT", "REVOKE"}
-LOCKING = [r"\bFOR\s+(NO\s+KEY\s+)?UPDATE\b", r"\bFOR\s+(KEY\s+)?SHARE\b", r"\bLOCK\s+IN\s+SHARE\s+MODE\b", r"\bINTO\b"]
+LOCKING = [r"\bFOR\s+(NO\s+KEY\s+)?UPDATE\b", r"\bFOR\s+(KEY\s+)?SHARE\b", r"\bLOCK\s+IN\s+SHARE\s+MODE\b", r"\bINTO\b",
+           r"\b(UPDLOCK|XLOCK|HOLDLOCK|TABLOCKX?|PAGLOCK|SERIALIZABLE|REPEATABLEREAD)\b"]  # SQL Server table hints
+SEQUENCES = re.compile(r"\bNEXT\s+VALUE\s+FOR\b|\.\s*NEXTVAL\b", re.I)  # advancing a sequence never rolls back
 SIDE_EFFECT_FUNCS = re.compile(
     r"\b(NEXTVAL|SETVAL|TXID_CURRENT|PG_ADVISORY\w*|PG_TRY_ADVISORY\w*|PG_SLEEP\w*|PG_TERMINATE_BACKEND|PG_CANCEL_BACKEND|"
     r"PG_RELOAD_CONF|PG_ROTATE_LOGFILE|PG_READ_FILE|PG_READ_BINARY_FILE|PG_LS_DIR|PG_STAT_FILE|SET_CONFIG|LO_IMPORT|"
@@ -491,6 +493,8 @@ def classify_statement(stmt: str, engine: str) -> tuple[str, str]:
     for pattern in LOCKING:
         if re.search(pattern, text, re.I):
             return "write", f"takes locks or writes ({re.search(pattern, text, re.I).group(0).upper()})"
+    if SEQUENCES.search(text):
+        return "write", "advances a sequence, which a rollback doesn't undo"
     m = SIDE_EFFECT_FUNCS.search(text)
     if m:
         return "write", f"calls {m.group(1).upper()}, which has side effects"
@@ -746,7 +750,7 @@ def connect(req: dict):
                                password=c.get("password"), database=c.get("database") or "master",
                                login_timeout=10, timeout=req["timeout"], appname="ai-gent-dbrun", autocommit=False)
         cur = conn.cursor()
-        cur.execute(f"SET LOCK_TIMEOUT {LOCK_TIMEOUT_MS}; SET TRANSACTION ISOLATION LEVEL READ COMMITTED; SET NOCOUNT ON")
+        cur.execute(f"SET LOCK_TIMEOUT {LOCK_TIMEOUT_MS}; SET TRANSACTION ISOLATION LEVEL READ COMMITTED")  # no NOCOUNT: apply checks row counts
         return conn
     if eng == "oracle":
         import oracledb  # noqa: PLC0415
@@ -789,7 +793,7 @@ LINKS = {
 
 
 def explain_sql(engine: str, stmt: str) -> str:
-    return {"sqlite": "EXPLAIN QUERY PLAN "}.get(engine, "EXPLAIN ") + stmt
+    return {"sqlite": "EXPLAIN QUERY PLAN ", "oracle": "EXPLAIN PLAN FOR "}.get(engine, "EXPLAIN ") + stmt
 
 
 def execute(req: dict) -> dict:
@@ -813,8 +817,8 @@ def execute(req: dict) -> dict:
         if req["mode"] == "test":
             return result
         read = req["mode"] != "write"
-        if read and eng == "oracle":
-            cur.execute("SET TRANSACTION READ ONLY")
+        if read and eng == "oracle" and not req.get("explain"):
+            cur.execute("SET TRANSACTION READ ONLY")  # EXPLAIN PLAN writes PLAN_TABLE: local only, rolled back
         if read and eng in ("mysql", "mariadb"):
             cur.execute("START TRANSACTION READ ONLY")
         if not read and eng == "sqlite":
@@ -824,6 +828,10 @@ def execute(req: dict) -> dict:
         for stmt in req["statements"]:
             sql = explain_sql(eng, stmt) if req.get("explain") and eng != "sqlserver" else stmt
             cur.execute(sql)
+            if eng == "oracle" and req.get("explain"):
+                cur.execute("SELECT PLAN_TABLE_OUTPUT FROM TABLE(DBMS_XPLAN.DISPLAY())")
+            if eng == "sqlserver" and req.get("explain"):
+                cur.nextset()  # the first result set echoes the statement; the plan follows
             entry = {"rowcount": cur.rowcount}
             if cur.description:
                 entry["columns"] = [d[0] for d in cur.description]
@@ -1053,12 +1061,27 @@ def require_local(p: dict, cls: dict, action: str) -> None:
 
 
 BACKUP_SUPPORT = {"postgresql": True, "mysql": True, "mariadb": True, "sqlite": True, "sqlserver": True, "oracle": False}
+SYSTEM_DATABASES = {"sqlserver": {"master", "model", "msdb", "tempdb"},
+                    "mysql": {"mysql", "sys", "information_schema", "performance_schema"},
+                    "mariadb": {"mysql", "sys", "information_schema", "performance_schema"},
+                    "postgresql": {"template0", "template1"}}
+
+
+def require_user_database(p: dict, action: str) -> None:
+    """System databases can't be backed up and restored like a user database (SQL Server's master can't
+    even go single-user), so writes there are refused."""
+    db = (p.get("database") or ("master" if p["engine"] == "sqlserver" else "")).lower()
+    if db in SYSTEM_DATABASES.get(p["engine"], set()):
+        raise Refused(f"{action} targets the system database {db!r}; create a database for the project and add a "
+                      f"profile for it (<PROFILE>_CLASS=local, <PROFILE>_CONTAINER=<container>, "
+                      f"<PROFILE>_DATABASE=<name>; see connections.md)")
 
 
 def cmd_plan(args) -> int:
     p = get_profile(args.profile)
     cls = classify(p)
     require_local(p, cls, "plan")
+    require_user_database(p, "plan")
     statements = split_statements(read_sql(args.sql), p["engine"])
     if not statements:
         raise Failed("no statements")
@@ -1089,7 +1112,11 @@ def cmd_plan(args) -> int:
         print(f"\n{i}. expected rows: {exp}{'  [DDL]' if i in ddl else ''}\n{s}")
     print(f"\nBackup before applying: {plan['backup']}. Everything runs in one transaction; "
           f"it commits only if every expected row count matches.")
-    print(f"Restore afterwards: dbrun restore {p['name']} {plan_id} --confirmed")
+    if BACKUP_SUPPORT[p["engine"]]:
+        print(f"Restore afterwards: dbrun restore {p['name']} {plan_id} --confirmed")
+    else:
+        print("Restore afterwards: not available (no backup); undoing a committed plan means writing the reverse "
+              "statements as a new plan")
     print(f"\nShow this plan to the user. Only after they confirm: dbrun apply {p['name']} {plan_id} --confirmed")
     return EXIT_OK
 
@@ -1146,8 +1173,12 @@ def backup(p: dict, cls: dict, plan: dict) -> str:
     if eng in ("mysql", "mariadb"):
         dst = backups_dir() / f"{plan['id']}.sql"
         dump = "mariadb-dump" if eng == "mariadb" else "mysqldump"
+        if not p.get("database"):
+            raise Failed("a MySQL/MariaDB backup needs the profile's database; name it with <PROFILE>_DATABASE")
+        # --databases + --add-drop-database: restore recreates the whole database, so objects a plan created go too
         container_shell(p, f'read -r MYSQL_PWD; export MYSQL_PWD; d=$(command -v {dump} || command -v mysqldump); '
-                           f'exec "$d" --single-transaction --routines --triggers --events -h 127.0.0.1 -u "$1" "$2"',
+                           f'exec "$d" --single-transaction --routines --triggers --events --add-drop-database '
+                           f'-h 127.0.0.1 -u "$1" --databases "$2"',
                         stdin=pw, out_path=dst)
         return str(dst)
     if eng == "sqlserver":
@@ -1187,6 +1218,7 @@ def cmd_apply(args) -> int:
     p = get_profile(args.profile)
     cls = classify(p)  # re-proven now, not trusted from plan time
     require_local(p, cls, "apply")
+    require_user_database(p, "apply")
     plan = load_plan(p, args.plan_id)
     probe = driver_process(p, cls, base_request(p, "test", [], argparse.Namespace(timeout=30, max_rows=1)))
     if not probe.get("ok"):
@@ -1212,7 +1244,10 @@ def cmd_apply(args) -> int:
     counts = [r["rowcount"] for r in res["results"]]
     log_result(entry, f"COMMITTED · row counts {counts} · {res['seconds']} s")
     print(f"COMMITTED plan {plan['id']} · row counts {counts}")
-    print(f"Backup: {location}. To undo: dbrun restore {p['name']} {plan['id']} --confirmed")
+    if location == "none":
+        print("Backup: none. To undo, write the reverse statements as a new plan")
+    else:
+        print(f"Backup: {location}. To undo: dbrun restore {p['name']} {plan['id']} --confirmed")
     return EXIT_OK
 
 
@@ -1235,10 +1270,12 @@ def cmd_restore(args) -> int:
         with sqlite3.connect(location) as a, sqlite3.connect(Path(p["path"]).resolve()) as b:
             a.backup(b)
     elif eng == "postgresql":
-        container_shell(p, 'read -r PGPASSWORD; export PGPASSWORD; exec pg_restore --clean --if-exists --no-owner -h 127.0.0.1 -U "$1" -d "$2"',
+        # --clean --create drops and recreates the whole database, so objects a plan created go too; it connects
+        # to template1 for that, and fails while other sessions (the app) still use the database
+        container_shell(p, 'read -r PGPASSWORD; export PGPASSWORD; exec pg_restore --clean --create --if-exists --no-owner -h 127.0.0.1 -U "$1" -d template1',
                         stdin=pw + Path(location).read_bytes())
     elif eng in ("mysql", "mariadb"):
-        container_shell(p, 'read -r MYSQL_PWD; export MYSQL_PWD; c=$(command -v mariadb || command -v mysql); exec "$c" -h 127.0.0.1 -u "$1" "$2"',
+        container_shell(p, 'read -r MYSQL_PWD; export MYSQL_PWD; c=$(command -v mariadb || command -v mysql); exec "$c" -h 127.0.0.1 -u "$1"',
                         stdin=pw + Path(location).read_bytes())
     elif eng == "sqlserver":
         db = p.get("database") or "master"
@@ -1266,7 +1303,7 @@ def cmd_script(args) -> int:
     for i, stmt in enumerate(statements, 1):
         words = [w.upper() for w in re.findall(r"[A-Za-z_]+", blank_literals(stmt, p["engine"]))]
         if words and words[0] in ("UPDATE", "DELETE") and "WHERE" not in words:
-            raise Refused(f"statement {i} is an {words[0]} without WHERE; a change script names the rows it changes")
+            raise Refused(f"statement {i} is {'an' if words[0][0] in 'AEIOU' else 'a'} {words[0]} without WHERE; a change script names the rows it changes")
     now = dt.datetime.now().astimezone().isoformat(timespec="seconds")
     kinds = [classify_statement(s, p["engine"])[0] for s in statements]
     begin, commit = {

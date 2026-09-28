@@ -49,9 +49,18 @@ Needs `VIEW DATABASE STATE`; without it, fall back to `sys.partitions.rows`.
 
 - DDL and DML are transactional (most DDL); the runner wraps the plan in
   one transaction.
-- **Backup:** `BACKUP DATABASE [<db>] TO DISK = '/var/opt/mssql/backup/<plan-id>.bak' WITH COPY_ONLY, INIT`
-  inside the container, then copied out. **Restore:** `RESTORE DATABASE
-  … WITH REPLACE` (single-user mode first).
+- **Never in a system database** (`master`, `model`, `msdb`, `tempdb`):
+  `master` can't go single-user, so it can't be restored. The official
+  image has no variable for a user database, and the auto-discovered
+  `local:<service>` profile connects to `master` — so the runner refuses
+  plans there. Create the project's database (the app's migrations or an
+  init step) and add a profile naming it: `<P>_CLASS=local`,
+  `<P>_CONTAINER=<container>`, `<P>_DATABASE=<db>`.
+- **Backup:** `BACKUP DATABASE [<db>] TO DISK =
+  '/var/opt/mssql/data/ai-gent-<plan-id>.bak' WITH INIT, COPY_ONLY`,
+  kept inside the container. **Restore:** single-user mode, `RESTORE
+  DATABASE … WITH REPLACE`, multi-user — the whole database, so objects
+  the plan created go too.
 
 ## Gotchas
 
@@ -61,4 +70,11 @@ Needs `VIEW DATABASE STATE`; without it, fall back to `sys.partitions.rows`.
   inconsistent data — never use it for evidence in an investigation.
 - `SELECT … INTO` creates a table; `EXEC` / `sp_*` / `xp_*` are refused on
   remote targets.
+- Table hints that lock (`UPDLOCK`, `XLOCK`, `HOLDLOCK`, `TABLOCK(X)`,
+  `PAGLOCK`, `SERIALIZABLE`, `REPEATABLEREAD`) and `NEXT VALUE FOR` are
+  writes to the runner. SQL Server has no read-only session, so on
+  remote targets the classifier is the barrier (reads also run in a
+  transaction that is rolled back).
+- `SET NOCOUNT ON` hides row counts from the driver; the runner leaves it
+  off so `apply` can check them.
 - `is_not_trusted = 1` foreign keys aren't enforced for existing rows.
