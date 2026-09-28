@@ -4,6 +4,25 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Fixed
+
+- `dbrun`, tested end to end against MariaDB 11.4, SQL Server 2022 and
+  Oracle Free 23 (and again on PostgreSQL 17 and MySQL 8.4):
+  - SQL Server `apply` always rolled back: the session set `SET NOCOUNT
+    ON`, which hides row counts from the driver.
+  - `--explain` returned the echoed statement on SQL Server and failed on
+    Oracle (`ORA-02000`); both now return the plan.
+  - `restore` left behind objects the plan created. PostgreSQL, MySQL and
+    MariaDB backups now recreate the whole database.
+  - Plans in system databases (SQL Server `master`, which can't be
+    restored; MySQL `mysql`; …) are refused.
+  - On remote targets, SQL Server locking table hints and `NEXT VALUE
+    FOR` / `seq.NEXTVAL` are refused as writes.
+  - Without a backup (Oracle), `apply` no longer offers a `restore` that
+    can't work.
+
 ## 1.4.0 — 2026-09-26
 
 ### Added
