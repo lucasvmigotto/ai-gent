@@ -31,6 +31,9 @@ ships on its own and can be rolled back.
    the constraints (freeze windows, compliance, parallel feature work),
    appetite for downtime, and who may approve business changes.
 
+Read code the cheap way: `../../references/reading-code.md` — `compact:code`
+for large or many files in a brace language.
+
 ## Process
 
 1. **Baseline and safety net.** Same as `project:retrofit`'s steps 1–2:

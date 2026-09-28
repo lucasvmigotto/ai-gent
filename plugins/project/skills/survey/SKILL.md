@@ -16,6 +16,8 @@ Cheap first: read manifests and git metadata before source files, sample
 rather than read everything, and stop at what the report needs. Nothing
 is built, installed, run or fetched without asking — except `git fetch`,
 which only updates remote-tracking refs (skip it offline and say so).
+Read code per `../../references/reading-code.md` — `compact:code` for
+large or many files in a brace language.
 
 ## 1. Stack
 

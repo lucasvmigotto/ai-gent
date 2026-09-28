@@ -39,6 +39,9 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
    axe for unit/a11y, Playwright for e2e — record the decision back as an
    `[UPSTREAM GAP]` for `plan.md`.
 
+Read code the cheap way: `../../references/reading-code.md` — `compact:code`
+for large or many files in a brace language.
+
 ## Execution — phase by phase
 
 Order: `000-design-system` phases, then features in priority order

@@ -39,6 +39,9 @@ should do. Behavior the code contradicts is a finding, not a typo to fix.
      querying yourself;
    - which parts are in scope (a monorepo may be several products).
 
+Read code the cheap way: `../../references/reading-code.md` — `compact:code`
+for large or many files in a brace language.
+
 ## Evidence labels
 
 Every claim in every artifact carries one:

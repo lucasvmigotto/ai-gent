@@ -15,6 +15,9 @@ description: Audit an existing test suite for gaps against stories and risky cod
 3. Inventory the suites: layers, frameworks, counts, durations, how they
    run locally and in CI.
 
+Read code the cheap way: `../../references/reading-code.md` — `compact:code`
+for large or many files in a brace language.
+
 ## Analysis
 
 1. **Traceability gaps** — acceptance scenarios, invariants, authz rows

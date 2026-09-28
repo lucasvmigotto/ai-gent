@@ -30,6 +30,9 @@ another senior engineer would approve without a rewrite.
    provider…). Use `devcontainer:workflow` to run toolchains inside it.
    Integration tests use Testcontainers with the **same images**.
 
+Read code the cheap way: `../../references/reading-code.md` — `compact:code`
+for large or many files in a brace language.
+
 ## Execution — phase by phase
 
 Order: shared Setup/Foundational phases, then features in priority order
