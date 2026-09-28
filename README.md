@@ -112,6 +112,8 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `spec` — brief + architecture → Spec Kit constitution, features, plans, tasks and the contract skeleton
   - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run
   - `docs` — static documentation site in `docs/site/`, plus `llms.txt` and Markdown pages for LLMs
+  - `survey` — first contact with a repository: stack, layout, history, how the main branches drift, red flags, and what to run next
+  - `recap` — back to a project: where the last Claude Code or OpenCode session left off, what changed since (you, the remote, others), the next step
   - `introspec` — reverse-engineer an existing codebase into the full pipeline spec, every claim Observed, Inferred or Assumed
   - `retrofit` — upgrade in place with behavior frozen: `patch` (CVEs), `minor` (adapt code), `major` (breaking upgrades)
   - `refactor` — redesign keeping the core invariants; business changes recorded for approval; incremental migration
@@ -192,9 +194,11 @@ flowchart LR
 
     subgraph existing ["Existing codebase"]
         direction TB
+        survey["<b>project:survey</b><br/>first contact: stack, history, branches"]
         introspec["<b>project:introspec</b><br/>the spec, rebuilt from the code with evidence"]
         retrofit["<b>project:retrofit</b><br/>upgrades with behavior frozen:<br/>patch, minor, major"]
         refactor["<b>project:refactor</b><br/>redesign, business change records,<br/>incremental migration"]
+        survey --> introspec
         introspec --> retrofit
         introspec --> refactor
     end
@@ -203,6 +207,7 @@ flowchart LR
     subgraph anytime ["Alongside any stage"]
         direction TB
         status["<b>project:status</b><br/>where things stand, what's next"]
+        recap["<b>project:recap</b><br/>back after a pause: last session, what changed"]
         devcontainer["<b>devcontainer:*</b><br/>containers, simulated infra"]
         devsecops["<b>devsecops:*</b><br/>CI/CD, supply chain, IaC"]
         db["<b>db:*</b><br/>inspect, review, investigate"]
@@ -210,7 +215,7 @@ flowchart LR
     end
 ```
 
-In plain text: init → architecture → spec → frontend, backend and QA in parallel → e2e and load → docs. For an existing codebase: introspec → retrofit or refactor.
+In plain text: init → architecture → spec → frontend, backend and QA in parallel → e2e and load → docs. For an existing codebase: survey → introspec → retrofit or refactor. Returning to any project: recap.
 
 Every feature's status, per side, in `specs/README.md`:
 
