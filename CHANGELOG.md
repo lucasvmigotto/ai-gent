@@ -27,6 +27,13 @@ changes.
   at a time with memory caps (`--engine` for one); run before pushing a
   `dbrun` change, not part of CI.
 
+- `compact` plugin — `compact:code` reads source code token-lean: a
+  lexer-aware, self-verified compact view (strings, comments and
+  preprocessor lines kept) and an outline with original line numbers, for
+  Java, C#, C/C++, Go, Rust, JS/TS, Kotlin, PHP and more. Read-only: the
+  writing and formatting side of the original skill is left out. Pygments
+  comes through `uv`; tested by `test_compact.py` in `scripts/check.sh`.
+
 ### Changed
 
 - `git:workflow` follows a branch chain — `main`/`master` >

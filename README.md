@@ -150,6 +150,8 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
   - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
   - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
+- `plugins/compact/`
+  - `code` — read source code token-lean: a verified compact view (no indentation, newlines or optional spaces; strings and comments kept) and an outline with original line numbers. Read-only. On Java and TypeScript it costs 36–39% fewer tokens than a line-numbered Read
 - `plugins/git/`
   - `workflow` — Conventional Commits, branch-per-context naming, merge and cleanup rules, tags, issue linking (see [Guard hooks](#guard-hooks))
 
