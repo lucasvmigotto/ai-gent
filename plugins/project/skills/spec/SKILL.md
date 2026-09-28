@@ -35,8 +35,10 @@ stage builds on — so make them explicit, justified and consistent.
 
 If `.specify/` doesn't exist, check that no `.claude/skills/speckit-*`
 directories exist yet (if they do, ask before overwriting), then run
-`specify init --here --force --integration claude --non-interactive`.
-`--force` is required because the repository isn't empty; no
+`specify init --here --force --integration claude --non-interactive --ignore-agent-tools`.
+`--force` is required because the repository isn't empty;
+`--ignore-agent-tools` because the agent running this is the integration,
+whether or not a `claude` CLI is on PATH (in OpenCode it often isn't); no
 `--extension git`, since branches follow `git:workflow`. Confirm with
 `specify version` that the CLI is 1.x, and read the installed templates
 in `.specify/templates/`. If `specify` isn't installed, stop and tell the

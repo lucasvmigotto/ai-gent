@@ -191,7 +191,9 @@ The chain uses GitHub Spec Kit (`specify` CLI, 1.x) for everything under
 `specs/`. Don't reimplement its templates — they change between versions:
 
 - Bootstrap (once per project, by `project:spec`):
-  `specify init --here --force --integration claude --non-interactive`.
+  `specify init --here --force --integration claude --non-interactive
+  --ignore-agent-tools` (the agent running it is the integration, so
+  the CLI's check for a `claude` binary on PATH is skipped).
   `--force` is required: the directory is never empty by then (`.git`,
   `docs/product/`), and without it the CLI stops with "Current directory
   is not empty". It merges, adding only `.specify/` and
