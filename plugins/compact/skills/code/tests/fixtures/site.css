@@ -1,0 +1,23 @@
+/* Header styles */
+.nav .item,
+.nav   > .active {
+  margin: 0 auto;
+  padding: calc(1rem + 2px) 4px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.card
+.title {
+  color: #333;
+}
+
+a:hover,
+a :focus-visible {
+  transition: color 0.3s ease-in-out, background-color 0.3s;
+}
+
+@media (min-width: 640px) and (max-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

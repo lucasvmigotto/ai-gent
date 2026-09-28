@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: app
+          image: demo:1.0
+          args: |
+            --flag
+
+            --other

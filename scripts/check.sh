@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git and db guard hooks, dbrun, the project scripts, the
-# release script, and installer tests in a throwaway HOME. Run before every
-# commit; CI runs the same script.
+# shell scripts, the git and db guard hooks, dbrun, the project scripts,
+# compact:code, the release script, and installer tests in a throwaway HOME.
+# Run before every commit; CI runs the same script.
 #
 #   scripts/check.sh                 everything
 #   scripts/check.sh --quick         skip the installer tests
@@ -214,6 +214,27 @@ else
   fail "project script unit tests"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-project.out"
+
+# compact:code needs Pygments: through uv (or uv fetched by pipx), else a local install
+compact_test=plugins/compact/skills/code/tests/test_compact.py
+if command -v uv >/dev/null 2>&1; then
+  compact_py=(uv run --quiet --with pygments python3)
+elif command -v pipx >/dev/null 2>&1; then
+  compact_py=(pipx run --quiet uv run --quiet --with pygments python3)
+elif python3 -c 'import pygments' 2>/dev/null; then
+  compact_py=(python3)
+else
+  compact_py=()
+fi
+if ((${#compact_py[@]} == 0)); then
+  warn "compact:code tests skipped (needs uv, pipx or Pygments)"
+elif "${compact_py[@]}" -m unittest "$compact_test" >"${TMPDIR:-/tmp}/ai-gent-compact.out" 2>&1; then
+  pass "compact:code ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-compact.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-compact.out"
+  fail "compact:code tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-compact.out"
 
 # ----------------------------------------------------------------- release
 

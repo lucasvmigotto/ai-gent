@@ -1,0 +1,18 @@
+// SCSS line comment
+$gap: 8px;
+
+@mixin pad($n) {
+  padding: $n * $gap;
+}
+
+.panel {
+  @include pad(2);
+
+  .header {
+    font-weight: bold;
+  }
+
+  &:hover .icon {
+    opacity: 0.5;
+  }
+}
