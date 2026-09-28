@@ -1,0 +1,10 @@
+{
+  "name": "compact",
+  "version": "1.0.0",
+  "license": "GPL-3.0-or-later",
+  "description": "Token-lean code reading: code (a lexer-aware, self-verified compact view of source files, with indentation, newlines and optional spaces removed, and a navigation outline with original line numbers). Read-only",
+  "author": {
+    "name": "lucasvmigotto",
+    "email": "lvmigotto1@gmail.com"
+  }
+}
