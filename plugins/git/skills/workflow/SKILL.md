@@ -43,6 +43,17 @@ Applies to committing, branching, and merging in any git repo this user works in
   - Use a **flat suffix**, not a nested path: git keeps branches as files under `refs/heads/`, so `feat/user-auth/db-schema` cannot be created while `feat/user-auth` exists (`fatal: cannot lock ref ... exists`).
 - **When the trunk is off-limits** — the user works on a long-lived integration branch because `main`/`master`/`develop` are protected — that integration branch *is* the parent working branch here: branch the contexts off it, and merge them back into it.
 
+### Several branches at once — integrate on `dev`
+
+When a piece of work spans more than one branch (a fix and a feature, two features) and the repo has no `dev`/`develop` flow of its own, integrate them on `dev` instead of merging each into `main`/`master`:
+
+1. **`dev` from the trunk.** If there's no `dev`, `git checkout -b dev main`. If `dev` exists and `git branch --merged main` lists it, bring it up to date (`git checkout dev && git merge --ff-only main`). If it holds commits `main` doesn't have, show them and ask.
+2. **Each branch into `dev`**, one at a time, with the usual rules (*Merging back*: `--no-ff` at 4 or more commits, `--ff-only` below, delete the merged branch). Work that starts after a merge branches off the updated `dev`.
+3. **Settle conflicts on `dev`**, where they belong — never on `main`. Several branches touching the same file (a changelog, a shared list) conflict here by design: keep both sides, in the file's own order.
+4. **`dev` into the trunk** once everything is merged and the checks pass on `dev`: `git checkout main && git merge --no-ff dev` (fewer than 4 commits in total: `--ff-only`). Keep `dev`; it's reused next time.
+
+Ask before each merge as always — one question may name the whole sequence. A repo that already uses `develop` (gitflow) keeps its own flow.
+
 ### Merge each context back as soon as it is done — the part most easily missed
 
 The merge commits are what mark the stages in the parent's history. They only mark anything if each context is merged back **the moment that context is finished**, and the next context then starts from the **updated parent**.
@@ -142,5 +153,6 @@ Opening a PR publishes the branch; do it only on an explicit request (it implies
 5. About to run `git push`, open a PR, or touch a remote issue? → don't, unless explicitly told to in this message.
 6. Finished a context? → merge it back into the parent **now**, before opening the next sub-branch — and start that next one from the updated parent.
 7. About to merge a context back? → count its commits, ask once for merge + delete, then `--no-ff` (≥4) or `--ff-only` (<4), then `git branch -d` the context.
+   More than one branch to land? → merge them into `dev` (from `main`), settle conflicts there, then `dev` into `main`.
 8. Asked to link an issue? → ids from the request, then the branch name (confirm with the user), then history, then a remote lookup; write `Closes #N`/`Refs #N` footers; remember closing happens on the default branch.
 9. Writing the message? → `type(scope): subject`, Conventional Commits, no body paragraph, footers allowed, no co-author trailer.
