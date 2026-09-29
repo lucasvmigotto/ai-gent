@@ -49,8 +49,9 @@ For each phase:
 3. Implement until they pass. Tick `- [ ]` → `- [x]` in `tasks.md` as
    each task is actually done.
 4. Verify the phase's **Checkpoint** (below).
-5. Commit small and often; ask before committing and merging; merge back
-   before the next phase.
+5. Commit small and often, as each task finishes, without asking (the
+   stage is an approved development workflow, `git:workflow`); ask before
+   merging back, which happens before the next phase.
 
 ### Implementation rules
 

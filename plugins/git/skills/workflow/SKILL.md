@@ -10,7 +10,9 @@ Applies to committing, branching, and merging in any git repo this user works in
 ## Non-negotiable rules
 
 - **Never commit on your own initiative.** Ask before running `git commit`. Prior approval does not carry forward to new work.
+  - **How to ask:** present each proposed commit as its full message (subject, and body if any) with the files it will stage under it. When the work splits into several commits, list them in order, one block each; a file whose hunks go to different commits is listed under each, saying which part goes where. Then ask one question covering the set (and the merge that follows, if any).
   - **Batch approval:** when the user approves a plan that lists its commits (messages or clear one-per-item scope), that approval covers exactly those commits, in that turn. Any commit not on the list — an extra fix, a follow-up, anything in a later turn — needs its own ask.
+  - **The one exception — an approved development workflow.** When the user has approved a workflow or roadmap to carry out (a pipeline stage working through its phases, such as `backend:build` or `frontend:build`; Spec Kit tasks; a multi-step plan they said to execute), versioning is part of the process: commit each finished task or phase on its work branch as you go, without asking, since stopping for every commit would stall the work. Everything else still holds: a work branch, never a long-lived one; *Before staging* in full; Conventional Commits; no secrets and no changes you didn't make. Merges, pushes and promotions still need their own ask. When the workflow ends or stops, list the commits made, each message with its files, in the handoff. Asking first, with the message and files, is for one-off work: a fix, a tweak, a change outside such a workflow.
 - **Never merge without asking** — every merge, including the cleanup that follows it (see *Merging back*). Batch approval never covers merges.
 - **Never push, delete remote branches, open PRs, or change remote issues** unless the user explicitly says so in that message. All of these publish something.
 - **Never commit directly to a long-lived branch** — `main`/`master`, `homolog`/`staging`, `dev`/`develop`. If the current branch is one of them, stop and create a feature/fix branch off `dev` first (see *The branch chain*) before staging anything.
@@ -167,7 +169,7 @@ Opening a PR publishes the branch; do it only on an explicit request (it implies
 
 1. On `main`/`master` or a staging branch? → get `dev` ready and branch off it first (ask for the name/type if unclear).
 2. About to stage? → review the whole tree, ask about changes you didn't make, never stage secrets.
-3. About to run `git commit`? → ask first, unless it's one of the commits in a plan the user just approved.
+3. About to run `git commit`? → inside an approved development workflow, commit as each task or phase finishes and list the commits at the end; otherwise ask first, showing each commit's message and its files, unless it's one of the commits in a plan the user just approved.
 4. Hook failed? → fix the cause; never `--no-verify`.
 5. About to run `git push`, open a PR, or touch a remote issue? → don't, unless explicitly told to in this message.
 6. Finished a context? → merge it back into the parent **now**, before opening the next sub-branch — and start that next one from the updated parent.

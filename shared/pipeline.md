@@ -188,7 +188,9 @@ definition and the words **not** to use for it
    in `spec.md` stays as Spec Kit writes it.
 7. **Versioning** follows `git:workflow`: a branch per stage or phase,
    started from `dev`/`develop` and merged back into it; small
-   Conventional Commits; ask before committing and merging. Promoting
+   Conventional Commits, made as each task or phase finishes without
+   stopping to ask (a stage the user started is an approved development
+   workflow) and listed in the handoff; ask before merging. Promoting
    `dev` up the chain (`homolog`/`staging`, then `main`/`master`) needs
    its own explicit request.
 8. **Finish with a handoff line**: what was written, what's still open,

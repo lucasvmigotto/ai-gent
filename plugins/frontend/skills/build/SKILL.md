@@ -55,8 +55,9 @@ For each phase:
    `tasks.md` as it's actually done, not in advance.
 3. Verify the phase's **Checkpoint** (below) — a phase isn't done until
    its checkpoint passes.
-4. Commit small and often, ask before committing and merging, merge back
-   before the next phase.
+4. Commit small and often, as each task finishes, without asking (the
+   stage is an approved development workflow, `git:workflow`); ask before
+   merging back, which happens before the next phase.
 
 ### Implementation rules
 

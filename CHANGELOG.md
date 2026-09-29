@@ -48,6 +48,11 @@ changes.
   also asks before commits or merges on `homolog`/`staging` and before
   commits made directly on `dev`/`develop`; merges into `dev` pass, and a
   conflicted one is concluded with `git merge --continue`.
+- `git:workflow` asks for a commit by showing each commit's message with the
+  files it stages, one block per commit. Inside an approved development
+  workflow (a pipeline stage's phases, Spec Kit tasks, a plan the user said
+  to execute) it commits as each task or phase finishes without asking, and
+  lists the commits in the handoff; merges, pushes and promotions still ask.
 - `git:workflow` follows a branch chain — `main`/`master` >
   `homolog`/`staging` > `dev`/`develop` > work branches: every branch
   starts from and merges into `dev` (conflicts settled there), and `dev`
