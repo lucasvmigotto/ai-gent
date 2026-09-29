@@ -7,9 +7,10 @@ description: Read source code token-lean — a compact view with indentation, ne
 
 Layout is for humans; for a model most of it is token overhead. Removing
 indentation, newlines and optional spaces cut input tokens by about 25% with
-no measurable accuracy loss (arXiv:2508.13666). On this user's own Java and
-TypeScript, a compact read costs **36–39% fewer tokens** than the Read
-tool's line-numbered view (42–44% with comments dropped) —
+no measurable accuracy loss (arXiv:2508.13666). Testing against
+repositories, a compact read of Java and TypeScript cost **36–39% fewer
+tokens** than the Read tool's line-numbered view (42–44% with comments
+dropped); on 506 open-source files, about 29% (48%) —
 `references/research.md` has the numbers.
 
 This copy only **reads**: it never writes, formats or rewrites a file.

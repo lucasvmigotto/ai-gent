@@ -25,7 +25,7 @@ a verification failure steps down one flag at a time and says so on stderr
 | Go | go | the semicolons Go's lexer would insert are written out; checked by an independent re-derivation |
 | JavaScript, TypeScript, JSX, TSX | js | newline removed only where ASI cannot fire; a statement-ending newline becomes `;`; never after `return`/`throw`/`break`/`continue`/`yield`, never before `++`/`--`, never inside JSX text |
 | Kotlin | kotlin | joins only where the grammar allows a newline; statement ends become `;`; property accessors, annotations, infix calls (`a to b`) and `when`/`else` are respected |
-| CSS, SCSS, Less | css | spaces kept wherever they could be a descendant combinator (`.a .b`, `a :hover`) or an operator (`calc(1px + 2px)`) |
+| CSS, SCSS, Less | css | spaces kept wherever they could be a descendant combinator (`.a .b`, `a :hover`) or an operator (`calc(1px + 2px)`); SCSS/Less with a `//` comment keep their lines (L2), because Pygments misses some of those comments |
 
 ## Line-safe (L2) and blank-only (L1)
 

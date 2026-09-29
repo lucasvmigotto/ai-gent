@@ -10,8 +10,8 @@ which by itself adds 20–45% to a file's tokens.
    know you need it, and only the part you need.
 2. **Large or many files in a brace language** (Java, C#, C/C++, Go, Rust,
    JS/TS, Kotlin, PHP, Dart, Swift, CSS, JSON…): read them through
-   `compact:code` — a verified compact view, 36–39% cheaper than a
-   line-numbered Read on Java and TypeScript, ~44% with comments dropped
+   `compact:code` — a verified compact view, 29–39% cheaper than a
+   line-numbered Read in testing, 42–48% with comments dropped
    (`-c`) when only the logic matters. `--outline 1 -n` gives one member per
    line with the original line numbers, to pick what to read closely.
 3. **Other files** (Python, YAML, shell, Markdown, SQL, config): `sed -n
