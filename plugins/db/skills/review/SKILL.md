@@ -10,7 +10,9 @@ engine's file in `../../references/engines/` and
 `../../../backend/references/backend-quality.md` (items on persistence,
 migrations, queries and transactions — cite them instead of repeating
 them). Database reads go through `dbrun query`; nothing is written to any
-database during a review.
+database during a review. Read the application's code per
+`../../references/reading-code.md` (`compact:code` for large or many files
+in a brace language).
 
 ## Inputs
 

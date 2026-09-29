@@ -8,6 +8,7 @@ They cover the whole path of a software project, from idea to docs site, plus th
 - **Container-first development environments.**
 - **CI/CD and supply-chain security.**
 - **Safe database access.**
+- **Token-lean code reading**, verified against the original.
 - **git rules**, enforced by a hook.
 
 ## Install / update
@@ -63,6 +64,9 @@ Re-run it after adding, renaming or removing a skill or plugin, or after changin
 | `--uninstall` | remove everything the script installed for the target(s), including the opencode config edits below |
 | `--yes` | apply the opencode config edits without asking |
 | `--no-config-edits` | never edit `opencode.json` or a shell profile; print what to add instead |
+| `--verbose` | one line per skill and plugin instead of the summary |
+
+Each section ends with a line per status and how many items have it (`[ok] [8/9]`, then `[link] [1/9] compact`, and the reason for any skip); on a terminal the item being processed is shown on a single line as it goes, in color unless `NO_COLOR` is set.
 
 `CLAUDE_SKILLS_DIR`, `OPENCODE_SKILLS_DIR` and `OPENCODE_COMMANDS_DIR` override the target directories. `~/.claude/skills/synced/` is managed by [claude.ai](https://support.claude.com/en/collections/14445694-claude-code) skill sync and is never modified.
 
@@ -95,7 +99,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 | with arguments | `/qa:load 2000 concurrent users` | `/qa-load 2000 concurrent users` |
 
 > [!TIP]
-> Every enabled plugin's skill descriptions cost context in every session, about 3.1k tokens for all eight plugins together. Turn off the plugins a project doesn't need, for that project only:
+> Every enabled plugin's skill descriptions cost context in every session, about 4.8k tokens for all nine plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
 >
 > ```bash
 > claude plugin disable devsecops@skills-dir --scope project   # writes .claude/settings.json
@@ -112,6 +116,8 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `spec` — brief + architecture → Spec Kit constitution, features, plans, tasks and the contract skeleton
   - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run
   - `docs` — static documentation site in `docs/site/`, plus `llms.txt` and Markdown pages for LLMs
+  - `survey` — first contact with a repository: stack, layout, history, how the main branches drift, red flags, and what to run next
+  - `recap` — back to a project: where the last Claude Code or OpenCode session left off, what changed since (you, the remote, others), the next step
   - `introspec` — reverse-engineer an existing codebase into the full pipeline spec, every claim Observed, Inferred or Assumed
   - `retrofit` — upgrade in place with behavior frozen: `patch` (CVEs), `minor` (adapt code), `major` (breaking upgrades)
   - `refactor` — redesign keeping the core invariants; business changes recorded for approval; incremental migration
@@ -148,8 +154,10 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
   - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
   - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
+- `plugins/compact/`
+  - `code` — read source code token-lean: a verified compact view (no indentation, newlines or optional spaces; strings and comments kept) and an outline with original line numbers. Read-only. In testing, 29–39% fewer tokens than a line-numbered Read
 - `plugins/git/`
-  - `workflow` — Conventional Commits, branch-per-context naming, merge and cleanup rules, tags, issue linking (see [Guard hooks](#guard-hooks))
+  - `workflow` — Conventional Commits, branch-per-context naming, the branch chain (work branches → `dev`/`develop` → `homolog`/`staging` → `main`/`master`, promotion to `main` only when asked), merge and cleanup rules, tags, issue linking (see [Guard hooks](#guard-hooks))
 
 ## Product pipeline
 
@@ -192,9 +200,11 @@ flowchart LR
 
     subgraph existing ["Existing codebase"]
         direction TB
+        survey["<b>project:survey</b><br/>first contact: stack, history, branches"]
         introspec["<b>project:introspec</b><br/>the spec, rebuilt from the code with evidence"]
         retrofit["<b>project:retrofit</b><br/>upgrades with behavior frozen:<br/>patch, minor, major"]
         refactor["<b>project:refactor</b><br/>redesign, business change records,<br/>incremental migration"]
+        survey --> introspec
         introspec --> retrofit
         introspec --> refactor
     end
@@ -203,6 +213,7 @@ flowchart LR
     subgraph anytime ["Alongside any stage"]
         direction TB
         status["<b>project:status</b><br/>where things stand, what's next"]
+        recap["<b>project:recap</b><br/>back after a pause: last session, what changed"]
         devcontainer["<b>devcontainer:*</b><br/>containers, simulated infra"]
         devsecops["<b>devsecops:*</b><br/>CI/CD, supply chain, IaC"]
         db["<b>db:*</b><br/>inspect, review, investigate"]
@@ -210,7 +221,7 @@ flowchart LR
     end
 ```
 
-In plain text: init → architecture → spec → frontend, backend and QA in parallel → e2e and load → docs. For an existing codebase: introspec → retrofit or refactor.
+In plain text: init → architecture → spec → frontend, backend and QA in parallel → e2e and load → docs. For an existing codebase: survey → introspec → retrofit or refactor. Returning to any project: recap.
 
 Every feature's status, per side, in `specs/README.md`:
 
@@ -272,7 +283,7 @@ Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules 
 
 | Hook | Blocks | Asks first |
 | --: | :-- | :-- |
-| `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master`; `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
+| `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master` or `homolog`/`staging`; commits on `dev`/`develop` (merges into it pass); `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
 | `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool reading or editing the credentials file | any other direct client use |
 
 > [!NOTE]
@@ -306,12 +317,13 @@ plugins/<name>/skills/<skill>/SKILL.md          a plugin skill                  
 plugins/<name>/skills/<skill>/references/       files one skill reads on demand
 plugins/<name>/references/                      files a plugin's skills share
 plugins/<name>/hooks/                           guard hooks (git, db)
-plugins/<name>/scripts/                         tools a plugin runs (db: dbrun)
+plugins/<name>/skills/<skill>/scripts/          tools one skill runs (compact:code: compact.py)
+plugins/<name>/scripts/                         tools a plugin's skills run (db: dbrun; project: sessions, repo_state)
 plugins/<name>/evals/                           trigger and behavior evals
 skills/<name>/SKILL.md                          personal skills (none yet)        → /<name>
-shared/                                         pipeline and container rules, symlinked into plugins' references/
+shared/                                         pipeline, container and code-reading rules, symlinked into plugins' references/
 opencode/guard/                                 the OpenCode V2 guard plugin, its rules and parity test
-scripts/                                        check.sh, release.py, opencode-config.py and their tests
+scripts/                                        check.sh, release.py, opencode-config.py, test-dbrun-engines.py and the tests
 .github/workflows/                              check (pull requests), release (pushes to main)
 ```
 
@@ -323,8 +335,10 @@ Conventions for editing skills and plugins are in `AGENTS.md` (also available as
 - **Metadata:** skill names and description budgets (400 characters, since every session loads them), and plugin manifests.
 - **References:** `plugin:skill` references, relative paths and symlinks.
 - **Scripts:** shell scripts through shellcheck.
-- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
+- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the project scripts (`sessions.py`, `repo_state.py`), `compact:code` (with a pinned Pygments, `PYGMENTS_VERSION`, fetched through `uv`), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
 - **Options:** `--quick` skips the installer tests. Shellcheck runs at a pinned version (`SHELLCHECK_VERSION`) through `uvx` or `pipx`, so a local run and CI agree.
+
+**Database engines.** Before pushing a change to `dbrun`, run `scripts/test-dbrun-engines.py` (`--engine <name>` for one). It tests `dbrun` end to end against real PostgreSQL, MySQL, MariaDB, SQL Server and Oracle containers, one at a time, capped at 2 GB of RAM; the images (about 5.5 GB) are pulled once. It isn't part of CI.
 
 **Evals.** `claude plugin eval plugins/<name> --runs 1 --ablation none` runs a plugin's trigger cases. They check that a request loads the right skill and not its neighbor.
 

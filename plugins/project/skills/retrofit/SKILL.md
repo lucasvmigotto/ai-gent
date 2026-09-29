@@ -37,6 +37,9 @@ the higher level, or record it as accepted risk in `retrofit.md`.
    `git:workflow` branch — one per step, off the retrofit's working
    branch.
 
+Read code the cheap way: `../../references/reading-code.md` — `compact:code`
+for large or many files in a brace language.
+
 ## Process
 
 1. **Baseline.** Build and run every test suite in the project's

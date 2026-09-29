@@ -68,7 +68,19 @@ check "generated entries point at existing sources" bash -c '
 
 echo "      -- re-run"
 setup
-check "idempotent (nothing linked or generated)" bash -c '! grep -Eq "^(link|relink|generate|backup) " "$1"' _ "$SANDBOX/out"
+check "idempotent (nothing linked or generated)" bash -c '! grep -Eq "^\[(link|relink|generate|backup)\] " "$1"' _ "$SANDBOX/out"
+check "summary: every claude skill and plugin ok" grep -Eq "^\[ok\] +\[$((skills + plugins))/$((skills + plugins))\]\$" "$SANDBOX/out"
+check "summary: no per-item lines without a terminal" bash -c '! grep -Eq "^\[ok\] +[a-z]+\$" "$1"' _ "$SANDBOX/out"
+check "no colors without a terminal" bash -c '! grep -q $'"'"'\e'"'"' "$1"' _ "$SANDBOX/out"
+setup --verbose
+check "--verbose: one line per item" grep -Eq "^ok +qa\$" "$SANDBOX/out"
+if script --version 2>/dev/null | grep -q util-linux; then # a terminal, via util-linux script
+  TERM=xterm-256color script -qec "$REPO_DIR/setup.sh --no-config-edits" /dev/null >"$SANDBOX/out" 2>&1
+  check "terminal: progress rewritten in place" grep -q $'\r\e\[K' "$SANDBOX/out"
+  check "terminal: colored statuses" grep -q $'\e\[32m\[ok\]' "$SANDBOX/out"
+  NO_COLOR=1 TERM=xterm-256color script -qec "$REPO_DIR/setup.sh --no-config-edits" /dev/null >"$SANDBOX/out" 2>&1
+  check "terminal: NO_COLOR turns colors off" bash -c '! grep -q $'"'"'\e\[3[0-9]m'"'"' "$1"' _ "$SANDBOX/out"
+fi
 
 echo "      -- prune"
 ln -s "$REPO_DIR/plugins/gone" "$CLAUDE_SKILLS_DIR/gone"
@@ -86,6 +98,7 @@ rm "$CLAUDE_SKILLS_DIR/qa"
 mkdir "$CLAUDE_SKILLS_DIR/qa"
 setup
 check "real directory in the way is kept" test -d "$CLAUDE_SKILLS_DIR/qa" -a ! -L "$CLAUDE_SKILLS_DIR/qa"
+check "the skip and its reason are reported" bash -c 'grep -Eq "^\[skip\] +\[1/[0-9]+\] +qa\$" "$1" && grep -q "qa: real file or directory in the way" "$1"' _ "$SANDBOX/out"
 setup --force
 check "--force backs it up and links" bash -c 'test -L "$1/qa" && compgen -G "$1/qa.bak-*" >/dev/null' _ "$CLAUDE_SKILLS_DIR"
 rm -rf "$CLAUDE_SKILLS_DIR"/qa.bak-*
@@ -140,7 +153,7 @@ check "the guard plugin is registered" test "$(json_get "$cfg" 'd["plugins"]')" 
 cp "$cfg" "$SANDBOX/cfg.merged"
 oc_run "$h" --yes
 check "re-run: idempotent" cmp -s "$SANDBOX/cfg.merged" "$cfg"
-check "re-run: reports ok" grep -q -F 'ok       opencode guard rules and plugin' "$SANDBOX/out"
+check "re-run: reports ok" grep -Eq '^\[ok\] +opencode guard rules and plugin$' "$SANDBOX/out"
 
 oc_run "$h" --uninstall
 check "uninstall: only the added rules removed" test "$(json_get "$cfg" 'd')" == '{"model": "x", "permissions": [{"action": "shell", "resource": "git push*", "effect": "deny"}]}'

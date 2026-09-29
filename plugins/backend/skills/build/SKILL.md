@@ -30,6 +30,9 @@ another senior engineer would approve without a rewrite.
    provider…). Use `devcontainer:workflow` to run toolchains inside it.
    Integration tests use Testcontainers with the **same images**.
 
+Read code the cheap way: `../../references/reading-code.md` — `compact:code`
+for large or many files in a brace language.
+
 ## Execution — phase by phase
 
 Order: shared Setup/Foundational phases, then features in priority order
@@ -46,8 +49,9 @@ For each phase:
 3. Implement until they pass. Tick `- [ ]` → `- [x]` in `tasks.md` as
    each task is actually done.
 4. Verify the phase's **Checkpoint** (below).
-5. Commit small and often; ask before committing and merging; merge back
-   before the next phase.
+5. Commit small and often, as each task finishes, without asking (the
+   stage is an approved development workflow, `git:workflow`); ask before
+   merging back, which happens before the next phase.
 
 ### Implementation rules
 

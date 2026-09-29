@@ -84,6 +84,14 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "" } = {}) {
     if (branch === "main" || branch === "master") {
       return ask(`this commits or merges on ${branch}; the workflow works on a branch (allow only if the user asked for it)`);
     }
+    if (branch === "homolog" || branch === "staging") {
+      return ask(`this commits or merges on ${branch}; promotion up the branch chain needs the user's explicit request`);
+    }
+    if ((branch === "dev" || branch === "develop") && gitHas(segments, "commit")) {
+      return ask(
+        `this commits directly on ${branch}; work goes on a branch merged into it (conclude a merge with git merge --continue)`,
+      );
+    }
   }
 
   return { decision: "none" };

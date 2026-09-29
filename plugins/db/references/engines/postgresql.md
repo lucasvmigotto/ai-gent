@@ -51,8 +51,11 @@ account).
 - DDL and DML are transactional: the runner wraps the plan in one
   transaction.
 - **Backup:** `pg_dump -Fc` streamed out of the container to
-  `…/backups/<plan-id>.dump`. **Restore:** `pg_restore --clean
-  --if-exists --no-owner` into the same database.
+  `…/backups/<plan-id>.pgdump`. **Restore:** `pg_restore --clean
+  --create --if-exists --no-owner` from `template1`: the whole database
+  is dropped and recreated, so objects the plan created go too. It fails
+  while other sessions (the running app) use the database — stop them
+  first.
 
 ## Gotchas
 

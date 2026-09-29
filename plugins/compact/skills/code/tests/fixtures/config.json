@@ -1,0 +1,10 @@
+{
+  "name": "demo",
+  "version": "1.0.0",
+  "nested": {
+    "list": [1, 2, 3],
+    "text": "keep   inner   spaces",
+    "flag": true,
+    "none": null
+  }
+}

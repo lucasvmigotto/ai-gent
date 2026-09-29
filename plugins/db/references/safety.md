@@ -88,7 +88,8 @@ exactly as for the source.
   statement and lock timeouts; a query that times out is rewritten, not
   retried with a longer timeout.
 - Nothing that writes while looking like a read: `SELECT … INTO`,
-  sequence calls (`nextval`, `setval`), data-modifying CTEs, `CALL` /
+  sequence calls (`nextval`, `setval`, `NEXT VALUE FOR`, `seq.NEXTVAL`),
+  data-modifying CTEs, `CALL` /
   `EXEC`, functions with side effects, `SET TRANSACTION READ WRITE`.
 
 ## 4. Counting

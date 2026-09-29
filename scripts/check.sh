@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git and db guard hooks, dbrun, the release script, and installer tests
-# in a throwaway HOME. Run before every commit; CI runs the same script.
+# shell scripts, the git and db guard hooks, dbrun, the project scripts,
+# compact:code, the release script, and installer tests in a throwaway HOME.
+# Run before every commit; CI runs the same script.
 #
 #   scripts/check.sh                 everything
 #   scripts/check.sh --quick         skip the installer tests
@@ -14,6 +15,8 @@
 #                through uvx or pipx, so local runs and CI use the same release;
 #                then the one on PATH; else the lint is skipped)
 #   SHELLCHECK_VERSION  shellcheck-py release to pin (default below)
+#   PYGMENTS_VERSION    Pygments release compact:code's tests run with (default below)
+#   UV_VERSION          uv release fetched through pipx when uv isn't installed
 
 set -euo pipefail
 
@@ -205,6 +208,41 @@ else
   fail "dbrun unit tests"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-dbrun.out"
+
+if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
+  pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-project.out"
+  fail "project script unit tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-project.out"
+
+# compact:code needs Pygments, pinned like shellcheck: through uv (or a pinned
+# uv fetched by pipx), else a local install
+compact_test=plugins/compact/skills/code/tests/test_compact.py
+pygments_version="${PYGMENTS_VERSION:-2.21.0}"
+uv_version="${UV_VERSION:-0.12.20}"
+if command -v uv >/dev/null 2>&1; then
+  compact_py=(uv run --quiet --with "pygments==$pygments_version" python3)
+elif command -v pipx >/dev/null 2>&1; then
+  compact_py=(pipx run --quiet --spec "uv==$uv_version" uv run --quiet --with "pygments==$pygments_version" python3)
+elif python3 -c 'import pygments' 2>/dev/null; then
+  compact_py=(python3)
+  local_pygments="$(python3 -c 'import pygments; print(pygments.__version__)')"
+  [[ "$local_pygments" == "$pygments_version" ]] ||
+    warn "using Pygments $local_pygments from python3; CI pins $pygments_version (install uv or pipx to match)"
+else
+  compact_py=()
+fi
+if ((${#compact_py[@]} == 0)); then
+  warn "compact:code tests skipped (needs uv, pipx or Pygments)"
+elif "${compact_py[@]}" -m unittest "$compact_test" >"${TMPDIR:-/tmp}/ai-gent-compact.out" 2>&1; then
+  pass "compact:code ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-compact.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-compact.out"
+  fail "compact:code tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-compact.out"
 
 # ----------------------------------------------------------------- release
 

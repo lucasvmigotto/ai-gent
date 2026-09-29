@@ -11,6 +11,11 @@ product pipeline; this file covers changing things.
 - Versioning follows `git:workflow` (`plugins/git/skills/workflow/SKILL.md`),
   and its guard hook is active here too.
 - Run `scripts/check.sh` before every commit; CI runs the same script.
+- Before pushing a change to `plugins/db/scripts/dbrun.py`, also run
+  `scripts/test-dbrun-engines.py` (`--engine <name>` for one engine): it
+  tests dbrun end to end against real PostgreSQL, MySQL, MariaDB, SQL
+  Server and Oracle containers, one at a time (at most 2 GB of RAM; about
+  5.5 GB of images, pulled once). Not part of CI.
 
 ## Layout rules
 

@@ -4,6 +4,109 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- `project:survey` — first contact with a repository: stack and versions,
+  layout and build/test/run commands, CI and containers, history and
+  conventions, how far the main branches (`main`, `master`, `develop`,
+  `dev`, `homolog`, `staging`) drift from each other and their remotes,
+  work in flight, red flags; ends in the stage to run next.
+- `project:recap` — back to a project after a pause or a stalled
+  session: where the last session left off, read from **either** Claude
+  Code or OpenCode whichever you run in (requests, unfinished work,
+  unanswered questions, a stop mid-task); what changed since, by you, the
+  remote and others; the conflicts between the two; one next step.
+- `plugins/project/scripts/sessions.py` (session digests for both tools,
+  secrets redacted, tool output left out) and `repo_state.py` (a
+  read-only git snapshot), tested by `test_scripts.py` in `scripts/check.sh`.
+
+- `scripts/test-dbrun-engines.py` — `dbrun` end to end against real
+  PostgreSQL, MySQL, MariaDB, SQL Server and Oracle containers, one engine
+  at a time with memory caps (`--engine` for one); run before pushing a
+  `dbrun` change, not part of CI.
+
+- `compact` plugin — `compact:code` reads source code token-lean: a
+  lexer-aware, self-verified compact view (strings, comments and
+  preprocessor lines kept) and an outline with original line numbers, for
+  Java, C#, C/C++, Go, Rust, JS/TS, Kotlin, PHP and more. Read-only: the
+  writing and formatting side of the original skill is left out. Pygments
+  comes through `uv`; tested by `test_compact.py` in `scripts/check.sh`.
+  Its verifier is stricter than the original's: spacing inside any string,
+  operators fused across a removed space, and (with tree-sitter) a result
+  that no longer parses are all rejected; SCSS and Less files with `//`
+  comments keep their lines, since Pygments misses some of those comments
+  and code could otherwise be joined into one.
+
+### Changed
+
+- `scripts/check.sh` pins the Pygments that `compact:code`'s tests run with
+  (`PYGMENTS_VERSION`) and the uv fetched through pipx (`UV_VERSION`), as
+  it already pinned shellcheck, so local runs and CI agree.
+- The `git` guard (and its OpenCode port) follows the branch chain: it
+  also asks before commits or merges on `homolog`/`staging` and before
+  commits made directly on `dev`/`develop`; merges into `dev` pass, and a
+  conflicted one is concluded with `git merge --continue`.
+- `git:workflow` asks for a commit by showing each commit's message with the
+  files it stages, one block per commit. Inside an approved development
+  workflow (a pipeline stage's phases, Spec Kit tasks, a plan the user said
+  to execute) it commits as each task or phase finishes without asking, and
+  lists the commits in the handoff; merges, pushes and promotions still ask.
+- `git:workflow` follows a branch chain — `main`/`master` >
+  `homolog`/`staging` > `dev`/`develop` > work branches: every branch
+  starts from and merges into `dev` (conflicts settled there), and `dev`
+  is promoted one level at a time up to `main`. `dev` is created from
+  `main` when it doesn't exist, from the remote when only the remote has
+  it, recreated at the remote's point when it's purely behind it, and
+  used as it is when it's only behind `main`; a `dev` diverged from its
+  remote stops for a question, with a backup branch suggested.
+  When `dev` has fallen far behind the levels above, the skill flags it and
+  asks; if the user agrees, work branches off the highest current level and
+  merges back into it, leaving `dev` alone. Promotion into `main` needs its
+  own explicit request.
+
+- `shared/reading-code.md` — how skills that read code in bulk keep its
+  token cost down: map first, `compact:code` for large or many
+  brace-language files, `sed -n`/`cat` instead of line-numbered Reads for
+  the rest, exact lines Read before an edit. Linked into `project`, `db`,
+  `qa`, `backend` and `frontend`; `survey`, `introspec`, `retrofit`,
+  `refactor`, `db:review`, `qa:review`, `backend:build` and
+  `frontend:build` point to it.
+
+- `setup.sh` prints a summary instead of a line per skill: on a terminal
+  the current item is shown on one line rewritten in place, and each
+  section ends with one line per status and its count (`[ok] [8/9]`,
+  `[link] [1/9] compact`, skip reasons below), in color, bold and italics
+  where the terminal has them (`NO_COLOR` turns them off). Without a
+  terminal only the summary is printed; `--verbose` restores one line per
+  item.
+
+- The pipeline contract (`shared/pipeline.md`) places `project:survey`
+  before `project:introspec` and `project:recap` alongside
+  `project:status`, both report-only, and its versioning rule follows the
+  branch chain.
+
+### Fixed
+
+- `project:spec` bootstraps Spec Kit with `--ignore-agent-tools`: `specify
+  init --integration claude` stopped when no `claude` CLI was on PATH
+  (OpenCode, a sandbox), although the agent running it is the integration.
+- `dbrun`, tested end to end against MariaDB 11.4, SQL Server 2022 and
+  Oracle Free 23 (and again on PostgreSQL 17 and MySQL 8.4):
+  - SQL Server `apply` always rolled back: the session set `SET NOCOUNT
+    ON`, which hides row counts from the driver.
+  - `--explain` returned the echoed statement on SQL Server and failed on
+    Oracle (`ORA-02000`); both now return the plan.
+  - `restore` left behind objects the plan created. PostgreSQL, MySQL and
+    MariaDB backups now recreate the whole database.
+  - Plans in system databases (SQL Server `master`, which can't be
+    restored; MySQL `mysql`; …) are refused.
+  - On remote targets, SQL Server locking table hints and `NEXT VALUE
+    FOR` / `seq.NEXTVAL` are refused as writes.
+  - Without a backup (Oracle), `apply` no longer offers a `restore` that
+    can't work.
+
 ## 1.4.0 — 2026-09-26
 
 ### Added
