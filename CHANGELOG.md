@@ -62,6 +62,14 @@ changes.
   `refactor`, `db:review`, `qa:review`, `backend:build` and
   `frontend:build` point to it.
 
+- `setup.sh` prints a summary instead of a line per skill: on a terminal
+  the current item is shown on one line rewritten in place, and each
+  section ends with one line per status and its count (`[ok] [8/9]`,
+  `[link] [1/9] compact`, skip reasons below), in color, bold and italics
+  where the terminal has them (`NO_COLOR` turns them off). Without a
+  terminal only the summary is printed; `--verbose` restores one line per
+  item.
+
 ### Fixed
 
 - `project:spec` bootstraps Spec Kit with `--ignore-agent-tools`: `specify

@@ -63,6 +63,9 @@ Re-run it after adding, renaming or removing a skill or plugin, or after changin
 | `--uninstall` | remove everything the script installed for the target(s), including the opencode config edits below |
 | `--yes` | apply the opencode config edits without asking |
 | `--no-config-edits` | never edit `opencode.json` or a shell profile; print what to add instead |
+| `--verbose` | one line per skill and plugin instead of the summary |
+
+Each section ends with a line per status and how many items have it (`[ok] [8/9]`, then `[link] [1/9] compact`, and the reason for any skip); on a terminal the item being processed is shown on a single line as it goes, in color unless `NO_COLOR` is set.
 
 `CLAUDE_SKILLS_DIR`, `OPENCODE_SKILLS_DIR` and `OPENCODE_COMMANDS_DIR` override the target directories. `~/.claude/skills/synced/` is managed by [claude.ai](https://support.claude.com/en/collections/14445694-claude-code) skill sync and is never modified.
 
