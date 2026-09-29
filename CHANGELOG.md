@@ -41,6 +41,13 @@ changes.
 
 ### Changed
 
+- `scripts/check.sh` pins the Pygments that `compact:code`'s tests run with
+  (`PYGMENTS_VERSION`) and the uv fetched through pipx (`UV_VERSION`), as
+  it already pinned shellcheck, so local runs and CI agree.
+- The `git` guard (and its OpenCode port) follows the branch chain: it
+  also asks before commits or merges on `homolog`/`staging` and before
+  commits made directly on `dev`/`develop`; merges into `dev` pass, and a
+  conflicted one is concluded with `git merge --continue`.
 - `git:workflow` follows a branch chain — `main`/`master` >
   `homolog`/`staging` > `dev`/`develop` > work branches: every branch
   starts from and merges into `dev` (conflicts settled there), and `dev`

@@ -283,7 +283,7 @@ Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules 
 
 | Hook | Blocks | Asks first |
 | --: | :-- | :-- |
-| `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master`; `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
+| `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master` or `homolog`/`staging`; commits on `dev`/`develop` (merges into it pass); `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
 | `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool reading or editing the credentials file | any other direct client use |
 
 > [!NOTE]
@@ -335,7 +335,7 @@ Conventions for editing skills and plugins are in `AGENTS.md` (also available as
 - **Metadata:** skill names and description budgets (400 characters, since every session loads them), and plugin manifests.
 - **References:** `plugin:skill` references, relative paths and symlinks.
 - **Scripts:** shell scripts through shellcheck.
-- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the project scripts (`sessions.py`, `repo_state.py`), `compact:code` (with Pygments, fetched through `uv`), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
+- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the project scripts (`sessions.py`, `repo_state.py`), `compact:code` (with a pinned Pygments, `PYGMENTS_VERSION`, fetched through `uv`), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
 - **Options:** `--quick` skips the installer tests. Shellcheck runs at a pinned version (`SHELLCHECK_VERSION`) through `uvx` or `pipx`, so a local run and CI agree.
 
 **Database engines.** Before pushing a change to `dbrun`, run `scripts/test-dbrun-engines.py` (`--engine <name>` for one). It tests `dbrun` end to end against real PostgreSQL, MySQL, MariaDB, SQL Server and Oracle containers, one at a time, capped at 2 GB of RAM; the images (about 5.5 GB) are pulled once. It isn't part of CI.
