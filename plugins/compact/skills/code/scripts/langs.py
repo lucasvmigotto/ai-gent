@@ -94,8 +94,12 @@ LANGS = {
     "kotlin": L("kotlin", [".kt", ".kts"], ALL, "kotlin", ts="kotlin", ts_verify=False,
                 fmt=["ktlint@config", "ktfmt", "ktlint"]),
     "css":    L("css", [".css"], ALL, "css", ts="css", fmt=["biome@config", "prettier"]),
-    "scss":   L("scss", [".scss"], ALL, "css", ts="scss", fmt=["prettier"]),
-    "less":   L("less", [".less"], ALL, "css", fmt=["prettier"]),
+    # Pygments doesn't always lex SCSS/Less `//` comments as comments (inside rules it
+    # misses them), so joining lines could pull code into one; keep lines where they occur
+    "scss":   L("scss", [".scss"], ALL, "css", ts="scss", fmt=["prettier"],
+                hazard=r"(?<![:/])//", hazard_allowed=LINES),
+    "less":   L("less", [".less"], ALL, "css", fmt=["prettier"],
+                hazard=r"(?<![:/])//", hazard_allowed=LINES),
     # ---- newline-sensitive: keep line structure, drop indentation ---------
     "swift":  L("swift", [".swift"], LINES, ts="swift", fmt=["swift-format", "swiftformat"]),
     "groovy": L("groovy", [".groovy", ".gradle"], LINES, ts="groovy", fmt=["npm-groovy-lint"]),

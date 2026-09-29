@@ -33,6 +33,11 @@ changes.
   Java, C#, C/C++, Go, Rust, JS/TS, Kotlin, PHP and more. Read-only: the
   writing and formatting side of the original skill is left out. Pygments
   comes through `uv`; tested by `test_compact.py` in `scripts/check.sh`.
+  Its verifier is stricter than the original's: spacing inside any string,
+  operators fused across a removed space, and (with tree-sitter) a result
+  that no longer parses are all rejected; SCSS and Less files with `//`
+  comments keep their lines, since Pygments misses some of those comments
+  and code could otherwise be joined into one.
 
 ### Changed
 

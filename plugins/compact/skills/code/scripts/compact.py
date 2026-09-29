@@ -208,6 +208,12 @@ def _directive_end(code, start):
 
 # ----------------------------------------------------------------- spacing rules
 OPCH = set("+-*/%=<>!&|^~?:.@#\\")
+# two operator characters that read as one operator when nothing separates them; a
+# lexer may still split them (Pygments lexes `--` as two `-`), so the check doesn't
+# rely on token bounds
+FUSING = {"++", "--", "->", "=>", "==", "!=", "<=", ">=", "&&", "||", "<<", ">>", "::", "+=", "-=",
+          "*=", "/=", "%=", "&=", "|=", "^=", "//", "/*", "*/", "**", "..", "?.", "??", "?:", "!!",
+          "<-", ":="}
 QUOTES = set("\"'`")
 
 
@@ -905,29 +911,67 @@ def _go_effective(sigs, gaps):
     return res, rgaps
 
 
+def literal_view(code, spec, lang, strip_comments=False):
+    """String literals of `code` in order, and the `lex_view` stream positions that
+    come from comments, strings or preprocessor lines (not code)."""
+    sigs, gaps = tokenize(code, spec, make_lexer(spec, code))
+    if lang == "go":
+        sigs, gaps = _go_effective(sigs, gaps)
+    strings, literal, n = [], set(), 0
+    for t in sigs:
+        if t.kind in ("com", "lc") and strip_comments and not DIRECTIVE.search(t.v):
+            continue
+        size = len("".join(t.v.split()))
+        if t.kind in ("com", "lc", "str", "pre"):
+            literal.update(range(n, n + size))
+        if t.kind == "str":
+            strings.append(t.v)
+        n += size
+    return strings, literal
+
+
+def strings_kept(orig_strings, new):
+    """Every string literal of the original appears verbatim, in order, in `new` —
+    independent of how a lexer splits the compact text."""
+    pos = 0
+    for v in orig_strings:
+        i = new.find(v, pos)
+        if i < 0:
+            return v
+        pos = i + len(v)
+    return None
+
+
 def lexical_diff(orig, new, spec, lang, strip_comments=False):
     """None if `new` differs from `orig` only in layout, else a short reason."""
     s0, b0, g0, c0, p0, m0, nl0 = lex_view(orig, spec, lang, strip_comments)
-    s1, b1, _, c1, p1, m1, _ = lex_view(new, spec, lang, strip_comments)
+    s1, b1, g1, c1, p1, m1, _ = lex_view(new, spec, lang, strip_comments)
     if s0 != s1:
         if spec["join"] not in ("js", "kotlin"):
             i = next((i for i, (x, y) in enumerate(zip(s0, s1)) if x != y), min(len(s0), len(s1)))
             return "chars differ near %r" % s0[max(0, i - 15):i + 15]
         # JS/Kotlin: a ';' may stand where the original had a statement-ending newline
         i = j = 0
-        mapped = set()
+        mapped, mapped_gaps = set(), set()
         while i < len(s0) or j < len(s1):
             if j < len(s1) and j in b1:
                 mapped.add(i)
+            if j < len(s1) and j in g1:
+                mapped_gaps.add(i)
             if i < len(s0) and j < len(s1) and s0[i] == s1[j]:
                 i += 1
                 j += 1
             elif j < len(s1) and s1[j] == ";" and i in nl0:
                 j += 1
                 mapped.add(i)
+                mapped_gaps.add(i)
             else:
                 return "chars differ near %r" % s0[max(0, i - 15):i + 15]
-        b1 = mapped
+        b1, g1 = mapped, mapped_gaps
+    strings0, literal0 = literal_view(orig, spec, lang, strip_comments)
+    for b in sorted(g0 - g1):
+        if b - 1 not in literal0 and b not in literal0 and s0[b - 1] + s0[b] in FUSING:
+            return "operators fused near %r" % s0[max(0, b - 15):b + 15]
     for b in sorted(g0 - b1):  # a separation that existed is gone: did two tokens fuse?
         a, c = s0[b - 1], s0[b]
         if (word(a) and word(c)) or (a in OPCH and c in OPCH and a + c != "><"):
@@ -938,6 +982,9 @@ def lexical_diff(orig, new, spec, lang, strip_comments=False):
         return "preprocessor lines differ"
     if m0 != m1:
         return "multi-line string differs"
+    lost = strings_kept(strings0, new)
+    if lost is not None:
+        return "string literal differs: %r" % lost[:40]
     return None
 
 
@@ -1073,9 +1120,9 @@ def verify(orig, new, spec, lang, strip_comments):
     if bad_a:
         return True, "lex"  # grammar can't parse the original: AST check not meaningful
     sig_b, bad_b = ast_signature(new, spec.get("ts_verify", spec.get("ts")), strip_comments)
-    if bad_b and spec["join"] not in ("js",):
-        # tree-sitter rejects some valid one-line code (e.g. Go var groups); for languages
-        # whose newlines are checked lexically this is noise, not evidence
+    if bad_b and spec["join"] in ("go", "kotlin"):
+        # tree-sitter-go and tree-sitter-kotlin reject some valid one-line code (Go var
+        # groups, ...); their newlines are checked lexically, so this is noise, not evidence
         return True, "lex"
     if bad_b or sig_a != sig_b:
         return False, "ast"

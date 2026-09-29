@@ -4,7 +4,7 @@
 - The paper (arXiv:2508.13666)
 - What this skill measured
 - Round-trip validation on real code
-- Measured on this user's code (ai-gent)
+- Testing against repositories
 - Caveats
 - Re-running the measurements
 
@@ -112,22 +112,48 @@ tags that Pygments does not recognise, C `#else` inside `#if 0` blocks, Rust `id
 (reserved in 2021), import groups re-sorted by gofmt/rustfmt when blank lines vanish,
 clang-format rewriting C# raw strings (now refused).
 
-## Measured on this user's code (ai-gent)
+## Testing against repositories
 
 `o200k_base` tokens (a proxy; Claude's tokenizer differs), 2026-09-28. "Read view"
 is the file with line numbers, which is what the Read tool puts in context.
 
 | code | files | Read view vs raw | raw vs Read view | L3 vs Read view | L3 `-c` vs Read view |
 |---|---|---|---|---|---|
-| Java (a Spring/Tomcat service) | 60 | +41% | −29% | −36% | −42% |
-| TypeScript (an Angular client) | 34 | +45% | −31% | −39% | −44% |
-| Python (ai-gent's scripts) | 5 | +26% | −21% | −21% | −22% |
-| shell (ai-gent's hooks) | 3 | +21% | −17% | −18% | −39% |
+| Java | 60 | +41% | −29% | −36% | −42% |
+| TypeScript | 34 | +45% | −31% | −39% | −44% |
+| Python | 5 | +26% | −21% | −21% | −22% |
+| shell | 3 | +21% | −17% | −18% | −39% |
 
 Most of the saving is avoiding the line-numbered view; compaction adds 10–19% on
-brace languages and next to nothing on Python and shell. `corpus_check.py` on the same
-Java and TypeScript (69 and 34 files) reached L3 and L4 with no fallback; one
+brace languages and next to nothing on Python and shell. On the same Java and
+TypeScript (69 and 34 files), every file reached L3 and L4 without a fallback; one
 already-minified JavaScript file fell back safely.
+
+## Verifier fixes in this copy (2026-09-29)
+
+Corrupted compact text that the original verifier accepted, now rejected
+(`tests/test_compact.py`, `VerifierTest`):
+
+- **Spacing inside a single-line string** (`"a  b"` → `"a b"`): the lexical view
+  drops all whitespace, and only multi-line strings were compared. Now every
+  string literal of the original must appear verbatim, in order, in the compact
+  text — a check that doesn't depend on how the compact text lexes.
+- **Operators fused** (`i - -j` → `i--j`): the fused-token check trusted the
+  lexer's token bounds, and Pygments lexes `--` as two `-`. Now a space the
+  original had between two code characters that form an operator (`--`, `++`,
+  `->`, `==`, `&&`, `>>`, `//`, …) may not disappear.
+- **A result that no longer parses:** with tree-sitter, that used to count as
+  noise for every language but JS/TS. Now it fails, except for Go and Kotlin,
+  whose grammars have known false alarms on one-line code.
+
+Testing against 13 repositories (tree-sitter installed), the stricter checks
+rejected 40 renders the old ones accepted — all SCSS, all no longer parsing, 38 of
+them with code joined onto the end of a `//` comment (the compact view showed it
+commented out). Pygments misses some `//` comments inside SCSS rules, which blinds
+the renderer and the lexical check alike: without tree-sitter the wrong text passed. SCSS and Less files with
+`//` comments now keep their lines (L2), so this can't happen with or without
+tree-sitter; across the same 13 repositories, fallbacks then went down or stayed
+the same, and Java, TypeScript, CSS, HTML and SQL were unaffected.
 
 ## Caveats
 

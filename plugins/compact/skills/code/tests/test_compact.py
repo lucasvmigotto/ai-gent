@@ -18,6 +18,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -31,8 +32,8 @@ try:
 except ImportError:  # pragma: no cover - reported as a skip
     compact = None
 
-# the level each fixture must reach (its language's maximum)
-EXPECTED = {"yaml": 0, "python": 1}
+# the level each fixture must reach (its language's maximum; SCSS with `//` comments keeps lines)
+EXPECTED = {"yaml": 0, "python": 1, "scss": 2}
 
 
 @unittest.skipIf(compact is None, "needs Pygments (pip install pygments, or uv run --with pygments)")
@@ -93,6 +94,48 @@ class CompactTest(unittest.TestCase):
                 code = compact.main(["-q", "-o", os.path.join(d, "view.txt"), str(p)])
             self.assertEqual(code, 0)
             self.assertEqual((p.read_bytes(), p.stat().st_mtime_ns), before)
+
+
+@unittest.skipIf(compact is None, "needs Pygments (pip install pygments, or uv run --with pygments)")
+class VerifierTest(unittest.TestCase):
+    """The safety net must reject a wrong compact text, whatever the renderer did."""
+
+    ORIGINAL = 'class A{void f(){String s="a  b";int k=i - -j;int m=a + +b;boolean t=a && !c;int n=x = -1;}}\n'
+
+    def diff(self, new, lang="java", original=None):
+        return compact.lexical_diff(original or self.ORIGINAL, new, LANGS[lang], lang)
+
+    def test_string_spacing_is_content(self):
+        self.assertIsNotNone(self.diff(self.ORIGINAL.replace('"a  b"', '"a b"')))
+
+    def test_fused_operators_rejected(self):
+        for before, after in [("i - -j", "i--j"), ("a + +b", "a++b")]:
+            with self.subTest(fused=after):
+                self.assertIsNotNone(self.diff(self.ORIGINAL.replace(before, after)))
+        go = "package main\nfunc f(x int) bool { return x < -1 }\n"
+        self.assertIsNotNone(self.diff(go.replace("x < -1", "x<-1"), "go", go))
+
+    def test_layout_only_changes_accepted(self):
+        compacted = self.ORIGINAL.replace("a && !c", "a&&!c").replace("x = -1", "x=-1").replace("i - -j", "i- -j")
+        self.assertIsNone(self.diff(compacted))
+
+    def test_scss_line_comment_never_swallows_code(self):
+        # Pygments misses this `//` comment inside a rule; joining lines would comment out line-height
+        code = "pre {\n  font-size: 13px; // 14px to 13px\n  line-height: 1;\n}\n"
+        for level in (3, 4):
+            text, _ = compact.compact_text(code, "scss", level)
+            comment_line = next(line for line in text.splitlines() if "//" in line)
+            self.assertTrue(comment_line.rstrip().endswith("// 14px to 13px"), text)
+        url = ".a{background:url(http://x/y.png);}\n.b {\n  color: red;\n}\n"
+        self.assertEqual(compact.level_of(compact.compact_text(url, "scss", 4)[1]["flags"]), 4)
+
+    def test_unparsable_result_rejected(self):
+        if compact._ts_parser("java") is None:
+            self.skipTest("needs tree-sitter-language-pack")
+        broken = "class A{void f(){int k=1 int m=2;}}\n"  # a missing ';' the lexical view can't see
+        with unittest.mock.patch.object(compact, "lexical_diff", return_value=None):
+            self.assertEqual(compact.verify("class A{void f(){int k=1;int m=2;}}\n", broken, LANGS["java"], "java", False),
+                             (False, "ast"))
 
 
 def corpus(root: str) -> int:
