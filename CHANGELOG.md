@@ -70,6 +70,11 @@ changes.
   terminal only the summary is printed; `--verbose` restores one line per
   item.
 
+- The pipeline contract (`shared/pipeline.md`) places `project:survey`
+  before `project:introspec` and `project:recap` alongside
+  `project:status`, both report-only, and its versioning rule follows the
+  branch chain.
+
 ### Fixed
 
 - `project:spec` bootstraps Spec Kit with `--ignore-agent-tools`: `specify

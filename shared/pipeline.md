@@ -37,13 +37,16 @@ idea text / references dir
  devsecops:iac ────────► infra/                            cloud environments, once hosting is decided
  project:docs ─────────► docs/site/                        reads all of the above
  project:status ───────► (report only)                     where things stand, what to run next
+ project:recap ────────► (report only)                     where the last session stopped, what changed since
  db:inspect, db:review, db:investigate ─► docs/product/db/  any time a database is involved (the `db` plugin)
 ```
 
-For an existing codebase, the chain starts one step earlier:
+For an existing codebase, the chain starts earlier:
 
 ```
 existing code, schema, config, tests
+        │
+ project:survey ───────► (report only)                        first contact: stack, history, branches, red flags
         │
  project:introspec ────► the artifacts above, reconstructed    evidence-labelled; only those missing
         │                 docs/product/introspec.md           evidence report, drift, open items
@@ -59,8 +62,11 @@ mode), `project:spec` for changed features, and the build and QA stages.
 The frontend, backend and QA branches run in parallel once `project:spec`
 has produced features and a contract skeleton. Frontend and backend meet
 only at the contract and the glossary. `devsecops:audit` and
-`devsecops:migrate` run whenever needed; `project:status` reads everything
-and writes nothing.
+`devsecops:migrate` run whenever needed. `project:status` reads everything
+and writes nothing. So do `project:survey`, run before `project:introspec`
+on a repository nobody has explained yet, and `project:recap`, run on any
+project after a pause or a stalled session; the only thing either changes
+is the remote-tracking refs, through `git fetch`.
 
 ## Artifacts and owners
 
@@ -180,8 +186,11 @@ definition and the words **not** to use for it
    Draft` until the user accepts them, then `Accepted`; ADRs use MADR's
    `proposed` / `accepted` / `superseded`; Spec Kit's own `Status: Draft`
    in `spec.md` stays as Spec Kit writes it.
-7. **Versioning** follows `git:workflow` (branch per stage/phase, small
-   Conventional Commits, ask before committing and merging).
+7. **Versioning** follows `git:workflow`: a branch per stage or phase,
+   started from `dev`/`develop` and merged back into it; small
+   Conventional Commits; ask before committing and merging. Promoting
+   `dev` up the chain (`homolog`/`staging`, then `main`/`master`) needs
+   its own explicit request.
 8. **Finish with a handoff line**: what was written, what's still open,
    and the next stage to run.
 

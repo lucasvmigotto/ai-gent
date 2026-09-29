@@ -8,6 +8,7 @@ They cover the whole path of a software project, from idea to docs site, plus th
 - **Container-first development environments.**
 - **CI/CD and supply-chain security.**
 - **Safe database access.**
+- **Token-lean code reading**, verified against the original.
 - **git rules**, enforced by a hook.
 
 ## Install / update
@@ -98,7 +99,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 | with arguments | `/qa:load 2000 concurrent users` | `/qa-load 2000 concurrent users` |
 
 > [!TIP]
-> Every enabled plugin's skill descriptions cost context in every session, about 3.1k tokens for all eight plugins together. Turn off the plugins a project doesn't need, for that project only:
+> Every enabled plugin's skill descriptions cost context in every session, about 4.8k tokens for all nine plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
 >
 > ```bash
 > claude plugin disable devsecops@skills-dir --scope project   # writes .claude/settings.json
@@ -156,7 +157,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 - `plugins/compact/`
   - `code` — read source code token-lean: a verified compact view (no indentation, newlines or optional spaces; strings and comments kept) and an outline with original line numbers. Read-only. In testing, 29–39% fewer tokens than a line-numbered Read
 - `plugins/git/`
-  - `workflow` — Conventional Commits, branch-per-context naming, merge and cleanup rules, tags, issue linking (see [Guard hooks](#guard-hooks))
+  - `workflow` — Conventional Commits, branch-per-context naming, the branch chain (work branches → `dev`/`develop` → `homolog`/`staging` → `main`/`master`, promotion to `main` only when asked), merge and cleanup rules, tags, issue linking (see [Guard hooks](#guard-hooks))
 
 ## Product pipeline
 
@@ -316,12 +317,13 @@ plugins/<name>/skills/<skill>/SKILL.md          a plugin skill                  
 plugins/<name>/skills/<skill>/references/       files one skill reads on demand
 plugins/<name>/references/                      files a plugin's skills share
 plugins/<name>/hooks/                           guard hooks (git, db)
-plugins/<name>/scripts/                         tools a plugin runs (db: dbrun)
+plugins/<name>/skills/<skill>/scripts/          tools one skill runs (compact:code: compact.py)
+plugins/<name>/scripts/                         tools a plugin's skills run (db: dbrun; project: sessions, repo_state)
 plugins/<name>/evals/                           trigger and behavior evals
 skills/<name>/SKILL.md                          personal skills (none yet)        → /<name>
-shared/                                         pipeline and container rules, symlinked into plugins' references/
+shared/                                         pipeline, container and code-reading rules, symlinked into plugins' references/
 opencode/guard/                                 the OpenCode V2 guard plugin, its rules and parity test
-scripts/                                        check.sh, release.py, opencode-config.py and their tests
+scripts/                                        check.sh, release.py, opencode-config.py, test-dbrun-engines.py and the tests
 .github/workflows/                              check (pull requests), release (pushes to main)
 ```
 
@@ -333,8 +335,10 @@ Conventions for editing skills and plugins are in `AGENTS.md` (also available as
 - **Metadata:** skill names and description budgets (400 characters, since every session loads them), and plugin manifests.
 - **References:** `plugin:skill` references, relative paths and symlinks.
 - **Scripts:** shell scripts through shellcheck.
-- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
+- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the project scripts (`sessions.py`, `repo_state.py`), `compact:code` (with Pygments, fetched through `uv`), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
 - **Options:** `--quick` skips the installer tests. Shellcheck runs at a pinned version (`SHELLCHECK_VERSION`) through `uvx` or `pipx`, so a local run and CI agree.
+
+**Database engines.** Before pushing a change to `dbrun`, run `scripts/test-dbrun-engines.py` (`--engine <name>` for one). It tests `dbrun` end to end against real PostgreSQL, MySQL, MariaDB, SQL Server and Oracle containers, one at a time, capped at 2 GB of RAM; the images (about 5.5 GB) are pulled once. It isn't part of CI.
 
 **Evals.** `claude plugin eval plugins/<name> --runs 1 --ablation none` runs a plugin's trigger cases. They check that a request loads the right skill and not its neighbor.
 
