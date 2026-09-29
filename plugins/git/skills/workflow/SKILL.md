@@ -150,7 +150,9 @@ syntax, and when closing actually happens. The rules that always hold:
 The `git` plugin ships a PreToolUse hook (`../../hooks/guard.sh`) that
 enforces the rules above mechanically: it **blocks** `--no-verify`,
 co-author trailers and `git push --force` without a lease, and it makes
-the user **confirm** pushes, commits or merges on `main`/`master`,
+the user **confirm** pushes, commits or merges on `main`/`master` or
+`homolog`/`staging`, commits made directly on `dev`/`develop` (merges into
+it pass; conclude a conflicted merge with `git merge --continue`),
 `git branch -D`, `reset --hard`, `clean -f`, `commit --amend`,
 `filter-branch`/`filter-repo` and `gh pr create`. A confirmation prompt
 is the hook working, not an error — never try to get around it (other

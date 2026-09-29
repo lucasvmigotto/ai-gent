@@ -9,8 +9,9 @@ GUARD="$REPO_DIR/plugins/git/hooks/guard.sh"
 SANDBOX="$(mktemp -d)"
 trap 'rm -rf "$SANDBOX"' EXIT
 
-# A repo on main and one on a feature branch, to test the branch check.
-for b in main feat/x; do
+# A repo on each level of the branch chain and one on a feature branch, to
+# test the branch check.
+for b in main staging dev feat/x; do
   d="$SANDBOX/${b//\//-}"
   git init -q -b "$b" "$d"
 done
@@ -30,6 +31,8 @@ expect() { # expect deny|ask|none <cwd> <command>
 }
 
 main="$SANDBOX/main"
+staging="$SANDBOX/staging"
+dev="$SANDBOX/dev"
 feat="$SANDBOX/feat-x"
 
 expect deny "$feat" 'git commit --no-verify -m "fix: x"'
@@ -56,6 +59,14 @@ expect ask "$feat" 'git filter-repo --mailmap m'
 expect ask "$main" 'git commit -m "fix: x"'
 expect ask "$main" 'git merge --ff-only feat/x'
 expect ask "$feat" "git -C $main commit -m \"fix: x\""
+expect ask "$staging" 'git merge --no-ff dev'
+expect ask "$staging" 'git commit -m "fix: x"'
+expect ask "$dev" 'git commit -m "fix: x"'
+expect ask "$dev" 'git merge --no-ff feat/x && git commit -m "fix: x"'
+expect ask "$feat" "git -C $dev commit -m \"fix: x\""
+expect none "$dev" 'git merge --no-ff feat/x'
+expect none "$dev" 'git merge --ff-only feat/x'
+expect none "$dev" 'git merge --continue'
 expect none "$feat" 'git commit -m "fix: x"'
 expect none "$feat" 'git commit -m "feat(git): block --no-verify and -n in the guard"'
 expect none "$feat" 'git commit -m "docs: explain git push --force"'

@@ -4,8 +4,10 @@
 #
 #   deny  --no-verify / commit -n, Co-Authored-By trailers, push --force
 #         without --force-with-lease
-#   ask   git push, commit or merge on main/master, branch -D, reset --hard,
-#         clean -f, commit --amend, filter-branch/filter-repo, gh pr create
+#   ask   git push, commit or merge on main/master or homolog/staging,
+#         commit on dev/develop (merging into it is the workflow), branch -D,
+#         reset --hard, clean -f, commit --amend, filter-branch/filter-repo,
+#         gh pr create
 #
 # Reads the hook event JSON on stdin and prints a permission decision, or
 # nothing to let the normal permission flow decide. Pattern matching on
@@ -75,6 +77,13 @@ if has '(commit|merge)'; then
   case "$branch" in
     main | master)
       decide ask "this commits or merges on $branch; the workflow works on a branch (allow only if the user asked for it)"
+      ;;
+    homolog | staging)
+      decide ask "this commits or merges on $branch; promotion up the branch chain needs the user's explicit request"
+      ;;
+    dev | develop)
+      has 'commit' &&
+        decide ask "this commits directly on $branch; work goes on a branch merged into it (conclude a merge with git merge --continue)"
       ;;
   esac
 fi

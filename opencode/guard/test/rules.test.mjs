@@ -17,12 +17,14 @@ const sandbox = mkdtempSync(join(tmpdir(), "ai-gent-guard-"))
 process.on("exit", () => rmSync(sandbox, { recursive: true, force: true }))
 
 const dirs = {}
-for (const b of ["main", "feat/x"]) {
+for (const b of ["main", "staging", "dev", "feat/x"]) {
   const d = join(sandbox, b.replace("/", "-"))
   execFileSync("git", ["init", "-q", "-b", b, d])
   dirs[b] = d
 }
 const main = dirs["main"]
+const staging = dirs["staging"]
+const dev = dirs["dev"]
 const feat = dirs["feat/x"]
 
 const branchOf = (dir) => {
@@ -79,6 +81,14 @@ const gitVectors = [
   ["ask", main, 'git commit -m "fix: x"'],
   ["ask", main, "git merge --ff-only feat/x"],
   ["ask", feat, `git -C ${main} commit -m "fix: x"`],
+  ["ask", staging, "git merge --no-ff dev"],
+  ["ask", staging, 'git commit -m "fix: x"'],
+  ["ask", dev, 'git commit -m "fix: x"'],
+  ["ask", dev, 'git merge --no-ff feat/x && git commit -m "fix: x"'],
+  ["ask", feat, `git -C ${dev} commit -m "fix: x"`],
+  ["none", dev, "git merge --no-ff feat/x"],
+  ["none", dev, "git merge --ff-only feat/x"],
+  ["none", dev, "git merge --continue"],
   ["none", feat, 'git commit -m "fix: x"'],
   ["none", feat, 'git commit -m "feat(git): block --no-verify and -n in the guard"'],
   ["none", feat, 'git commit -m "docs: explain git push --force"'],
