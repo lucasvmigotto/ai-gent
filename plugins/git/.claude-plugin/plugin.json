@@ -1,6 +1,6 @@
 {
   "name": "git",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "GPL-3.0-or-later",
   "description": "This user's git rules: workflow (Conventional Commits, branch-per-context, merge and cleanup rules), enforced by a PreToolUse guard hook",
   "author": {
