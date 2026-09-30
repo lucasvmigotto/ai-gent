@@ -214,7 +214,10 @@ This applies to every stage that starts a container — `devcontainer:*`,
   `rm -f` the containers, then `rmi` their images (a *running* container
   pins its image, so stop before removing), then `volume rm` anything you
   added. Re-run the same three commands and **confirm the count actually
-  dropped**; an exit code of 0 is not evidence.
+  dropped**; an exit code of 0 is not evidence. Don't wrap the removal in
+  `>/dev/null 2>&1` either — a loop that discards the engine's complaint
+  ("image is in use", "no such image") reports success while removing
+  nothing, and the wasted space looks identical to a slow disk.
 - **Target precisely; never prune broadly.** `--filter dangling`,
   `image prune` and `system prune -a` will happily delete images another
   project is mid-build on, and volumes that look unused are frequently not.
