@@ -191,3 +191,43 @@ test module="api":
   and the token is `DOCKER_HUB_PAT`.
 - Tag with the version and the commit SHA; deploy and promote by digest
   (`devsecops:pipeline`), sign and attest per `devsecops:supply-chain`.
+
+## 9. Clean up what you create — containers *and* images
+
+A container or image you start to answer a question ("does this feature
+install?", "does the stack come up?", "did the build pass?") is **scratch**.
+It is removed when the question is answered, the same way you'd delete a
+scratch file. The user's own dev environment is **standing** and is never
+yours to remove. Left alone, a handful of probes will pin gigabytes and
+RAM indefinitely, because a *stopped* container still holds its layers.
+
+This applies to every stage that starts a container — `devcontainer:*`,
+`backend`/`frontend:build`, `qa:e2e`/`qa:load`, `db:connect`/`db:investigate`,
+`devsecops:*` — not just the container tooling.
+
+- **Name scratch things** with a prefix you own
+  (`--name scratch-uv-probe`). Devcontainer builds leave
+  `localhost/vsc-<workspace>-<hash>-features*` images that are impossible to
+  attribute later; a deliberate name is what makes them removable.
+- **Snapshot, act, then verify.** Before starting: `$CONTAINER_ENGINE ps -a`,
+  `images`, `volume ls`. Remove only what the diff shows you added —
+  `rm -f` the containers, then `rmi` their images (a *running* container
+  pins its image, so stop before removing), then `volume rm` anything you
+  added. Re-run the same three commands and **confirm the count actually
+  dropped**; an exit code of 0 is not evidence.
+- **Target precisely; never prune broadly.** `--filter dangling`,
+  `image prune` and `system prune -a` will happily delete images another
+  project is mid-build on, and volumes that look unused are frequently not.
+  Remove by **exact ID or your own prefix**. If a sweep is genuinely the
+  right call, list exactly what it would take and get agreement first.
+- **Ask before removing anything you did not create** — including something
+  that looks orphaned. On a shared host, "unused" is indistinguishable from
+  "someone's in-flight work". Offer the list; let the user decide.
+- **If cleanup didn't take, suspect the context before retrying.** Rootless
+  vs. root store, or a `DOCKER_HOST`/`system connection` pointing elsewhere,
+  produces a removal that reports success against a *different* store and
+  leaves the real one untouched. Check
+  `"$CONTAINER_ENGINE" system connection ls` and `info --format
+  '{{.Store.GraphRoot}}'` before concluding the engine is broken.
+- Report what you removed and what you deliberately left, so the user can
+  see the workspace is clean without re-deriving it.

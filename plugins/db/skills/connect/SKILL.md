@@ -48,4 +48,6 @@ project.
 Which profiles are usable and in which class, what the user must fill
 in, and the next skill: `db:inspect` for a schema discovery, `db:review`
 for the application's database usage, `db:investigate` for a data
-problem.
+problem. If you started a throwaway datastore container to prove a
+profile connects, remove it and its image per
+`../../references/containers.md` §9.

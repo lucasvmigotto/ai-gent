@@ -417,9 +417,12 @@ containers boot:
    confirm an HMR log line, not a full page reload.
 10. If a reverse-proxy simulation exists, run `devcontainer:proxy`'s smoke
    test with the **real** backend behind it.
-11. Clean up every container/volume created purely for this verification
-   (`$CONTAINER_ENGINE ps -a`, `$CONTAINER_ENGINE volume ls`) — an
-   orphaned volume from a naming-prefix mistake is easy to leave behind.
+11. Clean up every container/volume/image created purely for this
+   verification (`$CONTAINER_ENGINE ps -a`, `volume ls`, `images`) per
+   `references/containers.md` §9 — an orphaned volume from a
+   naming-prefix mistake is easy to leave behind, and so is the pile of
+   images a feature probe leaves behind. Remove them; re-run the three
+   commands to confirm the counts dropped.
 
 ## Phase 9 — Document the decisions, not just the commands
 

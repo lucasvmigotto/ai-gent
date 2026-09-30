@@ -274,6 +274,10 @@ not because the user asked you to leave something running — treat it as
 scoped to the task: stop it before considering the task done, the same
 way you'd clean up a scratch file.
 
+Containers and images follow `references/containers.md` §9 — which is
+about artifacts, not just processes, and applies to every stage that
+starts a container.
+
 - Track what you started (PID, container, port) as you go, especially
   across several rounds of restart-to-test-a-fix — it's easy to lose
   count of which PID is your latest one.
@@ -291,6 +295,15 @@ way you'd clean up a scratch file.
   app (backend, frontend dev server, any proxy/compose stack brought up)
   and confirm each one is actually stopped (port free, process gone), not
   just that one `kill` was sent.
+- **A probe you run to answer a question ("does this feature install?")
+  is scratch.** Removing it means the container *and* the images it built
+  (`vsc-<workspace>-<hash>-features*`), not stopping it: a stopped
+  container still pins its layers, and those images accumulate until the
+  host stalls. Snapshot `ps -a` / `images` before you start, remove only
+  the difference afterwards, and re-run both to confirm the count really
+  dropped — an exit code of 0 proves nothing, especially when rootless
+  vs. root or a `DOCKER_HOST` pointing at another store makes cleanup
+  succeed against a different engine than the one holding the container.
 
 ## Guardrails
 

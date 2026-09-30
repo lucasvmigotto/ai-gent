@@ -127,4 +127,5 @@ values in components.
 
 Per feature: what's Implemented, what's still Planned, gaps reported
 upstream, screenshots location, and next steps (next feature, or
-`project:docs`). Stop any dev servers you started.
+`project:docs`). Stop any dev servers you started, and remove any
+container you started for them per `../../references/containers.md` §9.

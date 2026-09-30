@@ -135,4 +135,6 @@ With `devsecops:pipeline` (it owns the CI files):
 The modules and environments written, what a human must bootstrap (state
 storage, deploy identities, DNS delegation), the plan summary if one ran,
 estimated monthly cost against the ceiling, and follow-ups. Record gaps in
-the architecture as `[UPSTREAM GAP: …]`. Commits follow `git:workflow`.
+the architecture as `[UPSTREAM GAP: …]`. Anything built or started to
+verify a plan is scratch: remove it and its images per
+`../../references/containers.md` §9. Commits follow `git:workflow`.

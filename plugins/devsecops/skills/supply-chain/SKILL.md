@@ -100,4 +100,5 @@ description: Harden the software supply chain and add security scanning to CI โ€
 
 Controls added, gates, the SLSA level reached, anything that needs
 platform settings or licenses the user must enable, and follow-ups.
-Commits follow `git:workflow`.
+Scanner images pulled to prove a gate are scratch: remove them per
+`../../references/containers.md` ยง9. Commits follow `git:workflow`.

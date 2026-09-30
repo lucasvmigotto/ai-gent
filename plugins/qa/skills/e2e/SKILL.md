@@ -92,5 +92,7 @@ the trace, keep the status Implemented, and tell the owning build stage.
 ## Handoff
 
 Journeys covered per feature, pass/flake results, defects filed with
-evidence, statuses changed, and the CI job. Stop any stack you started
-only for the run. Commits follow `git:workflow`.
+evidence, statuses changed, and the CI job. Then clean up per
+`../../references/containers.md` §9 — remove the stack you started **and its
+images**, not merely stop it, and confirm the counts actually dropped.
+Commits follow `git:workflow`.

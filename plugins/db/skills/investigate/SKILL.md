@@ -87,4 +87,6 @@ shapes only.
 ## Handoff
 
 Root cause in two lines, the blast radius, the repair script and who
-must run it, and the prevention handoffs.
+must run it, and the prevention handoffs. Any snapshot or scratch
+database container started for the investigation goes per
+`../../references/containers.md` §9 — removed, not merely stopped.

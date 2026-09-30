@@ -255,7 +255,9 @@ it. From the app's own container, over the network alias:
   bypass, not a simulation.
 - Stubs: the app's real client hits the stub and parses the response.
 
-Clean up any container/volume created only for the verification.
+Clean up any container/volume/image created only for the verification, per
+`references/containers.md` §9 — the stub images are as disposable as the
+containers, and a stopped container still pins them.
 
 ## 10. Document the gaps
 

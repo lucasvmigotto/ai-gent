@@ -117,4 +117,5 @@ never weaken a gate there to go green.
 Per feature: what's Implemented, what's still Planned, contract changes
 (and whether the frontend was told), upstream gaps, and next steps (next
 feature, or `project:docs`). Stop any servers and containers you started
-only for verification.
+only for verification, then remove them and their images per
+`../../references/containers.md` §9.
