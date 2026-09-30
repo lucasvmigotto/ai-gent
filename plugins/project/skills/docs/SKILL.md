@@ -178,7 +178,10 @@ error states) before calling anything done.
   HTML, `llms.txt`, `llms-full.txt` and the `.md` pages, which are served
   as `text/markdown; charset=utf-8` (`.txt` as `text/plain;
   charset=utf-8`). Concurrency cancel-in-progress, least-privilege permissions,
-  endpoint validation. Credentials via Variables/Secrets placeholders.
+  endpoint validation. Credentials via Variables/Secrets placeholders —
+  **the names are `devsecops:pipeline`'s scheme, not a per-project
+  spelling**: `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCOUNT_SECRET`,
+  `CLOUDFLARE_R2_ENDPOINT_S3_CLIENT`, `CLOUDFLARE_R2_BUCKET_ID`.
 - **Docker (optional):** per `../../references/containers.md` — a Bun
   build stage with the sources bind-mounted and Bun's cache mounted, a
   hardened (or unprivileged) nginx runtime pinned by digest that copies
