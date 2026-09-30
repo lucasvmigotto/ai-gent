@@ -88,5 +88,5 @@ the setting name.
 - Edit frontend source and confirm an HMR update through the proxy URL,
   not a full reload.
 - Stop the proxy stack afterwards if it was only started to verify, and
-  remove it with its images per `references/containers.md` §9 — stopping it
+  remove it with its images per `../../references/containers.md` §9 — stopping it
   leaves the layers pinned.

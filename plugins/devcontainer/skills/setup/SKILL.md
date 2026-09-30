@@ -419,7 +419,7 @@ containers boot:
    test with the **real** backend behind it.
 11. Clean up every container/volume/image created purely for this
    verification (`$CONTAINER_ENGINE ps -a`, `volume ls`, `images`) per
-   `references/containers.md` §9 — an orphaned volume from a
+   `../../references/containers.md` §9 — an orphaned volume from a
    naming-prefix mistake is easy to leave behind, and so is the pile of
    images a feature probe leaves behind. Remove them; re-run the three
    commands to confirm the counts dropped.

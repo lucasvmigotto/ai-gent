@@ -274,7 +274,7 @@ not because the user asked you to leave something running — treat it as
 scoped to the task: stop it before considering the task done, the same
 way you'd clean up a scratch file.
 
-Containers and images follow `references/containers.md` §9 — which is
+Containers and images follow `../../references/containers.md` §9 — which is
 about artifacts, not just processes, and applies to every stage that
 starts a container.
 
