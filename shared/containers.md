@@ -68,6 +68,12 @@ Preference, per stage:
 2. The official distroless or `-slim` image for that runtime.
 3. Alpine only when musl is verified to work for every native dependency.
 
+A project's or user's own curated image family ranks alongside these for the
+**human** devcontainer — a non-root user, a configured shell and
+language-aware cache volumes already baked in is worth preferring over
+assembling the same from a generic base. For the `tools` image, weigh §2's
+"thin" rule: the comfort image is usually the wrong choice there. See §3b.
+
 - **Pin by digest** with the tag as a comment
   (`FROM dhi.io/node:22-dev@sha256:… # 22-dev`) and let Renovate or
   Dependabot move the digests.
@@ -79,6 +85,107 @@ Preference, per stage:
   ```bash
   printf '%s' "$DOCKER_HUB_PAT" | "$CONTAINER_ENGINE" login dhi.io -u "${DOCKER_HUB_USERNAME:-$OWNER}" --password-stdin
   ```
+
+## 3b. Composing a base image plus features
+
+A devcontainer can also be *composed*: a base image carrying the common ground,
+plus one devcontainer feature per toolchain. This is an addition to §3's
+preference order, not a replacement for it — reach for it only under rule 1.
+
+1. **Compose when no single image carries the toolchains.** Reach for
+   base + features when a repo needs two unrelated runtimes, no published
+   language image carries both, and a curated base (or a slim official one)
+   already provides the common ground. When a language image *does* carry the
+   needed toolchain, prefer it — one `FROM`, nothing to assemble.
+
+2. **A feature supplies only what the base lacks.** Adding a feature for a
+   toolchain the base already ships is redundant at best and a version
+   conflict at worst. Check what the base actually contains before listing
+   features.
+   *Observed:* a language feature defaulted the editor formatter to a tool the
+   project did not use, and its "install common tools" option pulled a linter,
+   a formatter and several analysers that the project's own (already listed)
+   tools covered — all of it invisible until read from the feature metadata.
+
+3. **A package manager may replace the runtime feature.** Before adding a
+   feature that installs a language runtime, check whether the project's
+   package manager provisions it already.
+   *Observed:* a Python project on `uv` dropped its Python feature entirely —
+   `uv sync` fetched CPython on a base with **no Python at all**, honouring the
+   `requires-python` in the manifest. Two features (manager + second runtime)
+   instead of three, and the interpreter's version came from the project's own
+   manifest rather than a second pin.
+
+4. **A composed single devcontainer is only for a single-scoped
+   architecture.** Compose one when the project *is* one scope: a single
+   artifact family, or several that never relate technically.
+
+   **Split when the application guards self-contained contexts that
+   communicate with each other but do not relate technically.** Any one
+   signal is enough:
+   - separate deploy targets (a `Dockerfile` per module),
+   - a client calling the service over a protocol,
+   - a shared runtime contract (an OpenAPI document, a published schema),
+   - separate debuggers, env files or restart lifecycles.
+
+   That the modules share a language, a repository or a toolchain is **not** a
+   reason to merge them — those are the cheapest things to duplicate and the
+   least of what a devcontainer configures.
+
+   *Split — two modules, one repo:* an `api/` and an `app/` with a
+   `Dockerfile` each, the app calling the API through its own client module,
+   and a `contracts/openapi.yaml` between them. Two devcontainers and two
+   `tools` services.
+
+   *Single — two artifacts, one scope:* a CLI and a static site in one
+   repository, where the site never invokes the CLI and they share no
+   contract. One devcontainer on a curated base plus a feature per toolchain;
+   one `tools` image, because the checks are independent rather than
+   conflicting.
+
+5. **Persist what a feature installs, and own it once.** A feature-installed
+   runtime lands in the **user's home**, so a rebuild without a volume
+   re-downloads it (tens of megabytes for an interpreter). Volume the
+   package manager's cache *and* its data directory. A fresh named volume is
+   root-owned, so a non-root user cannot write into it — `chown` it in
+   `postCreateCommand`, once, rather than repeating a manual fix every
+   rebuild.
+
+6. **"Offline" is a service, not a flag.** Where a compose `run` has no
+   `--network` option, express the network-free guarantee as a second service
+   that extends the tools one with `network_mode: none`, and have the recipes
+   target it. Keeps the recipes portable across compose providers.
+   *Observed:* `run --network=none` fails outright where compose delegates to
+   a provider whose `run` lacks the flag.
+   Note that some build steps cannot be network-free even with a warm cache —
+   a packaging command that fetches its own build backend, for instance. Keep
+   those on the networked service, and say why in the recipe.
+
+7. **A dependency environment must live outside the bind mount.** Recipes
+   mount the repository over the image's working directory, which **hides**
+   whatever the image built there: a virtual environment at
+   `<workdir>/.venv` disappears at run time and every recipe fails as if the
+   dependencies were never installed. Build it elsewhere and point the tool
+   at it (`UV_PROJECT_ENVIRONMENT=/opt/venv` and the equivalent for other
+   ecosystems), so it survives the mount.
+   *Observed:* an image whose `/src/.venv` was correct at build time ran
+   `python: not found` the moment the repo was mounted.
+
+8. **One file states the versions.** Feature `version` options, build args and
+   CI all read the same source (`.tool-versions` or the manifest's own field);
+   never `latest`. A `doctor` recipe prints what each layer actually has and
+   fails on drift — composed containers have more places for a version to hide
+   than a single `FROM` does.
+
+> **Observed — a canvas test runtime needs a font backend.** A graphical suite
+> built on node-canvas or `@napi-rs/canvas` draws **nothing** without
+> fontconfig and fonts available: measured 0 ink pixels in a bare container
+> against ~2000 on a host, so every glyph vanished and the suite compared
+> blank text areas — passing while proving nothing about text. Install
+> `fontconfig`, register the product's **own** font, and assert at build time
+> that it resolves (`fc-list | grep -qi <family>`). Register the bundled face
+> even where the platform has one: two environments resolving *different*
+> fallback faces makes any pixel comparison meaningless.
 
 ## 4. Containerfiles
 
