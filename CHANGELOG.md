@@ -4,6 +4,12 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## 1.5.1 — 2026-09-30
+
+### Fixed
+
+- **devcontainer:** point the cleanup rules at the shared containers reference
+
 ## 1.5.0 — 2026-09-29
 
 ### Added
