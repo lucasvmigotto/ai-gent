@@ -4,6 +4,37 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **Spec Kit flow is now explicit**: every feature goes through
+  `specify → clarify → plan → tasks → implement`, each step with a gate
+  that must hold before the next one starts. `clarify` is a step in its
+  own right (a feature with an open `[NEEDS CLARIFICATION]` is not
+  planned), and `implement` is named rather than implied.
+- **`implement` is the build stages' step.** `frontend:build` and
+  `backend:build` adopt `/speckit-implement`'s contract — context load,
+  the installed template's phases, tests before code, `- [x]` as each task
+  lands, halt on failure, validation at the end — scoped to their own
+  `## Frontend` / `## Backend` section of `tasks.md`. The bare command is
+  never run over a multi-layer `tasks.md`, since it has no scoping flag
+  and would tick another stage's tasks.
+- **`/speckit-converge` joins the loop.** Each build skill runs it after a
+  feature's last checkpoint; anything still unbuilt is appended as
+  `## Phase N: Convergence (<Layer>)` and implemented before the feature is
+  marked Implemented. A feature is Implemented only once it has converged.
+- `project:status` reports a feature blocked by an open clarification
+  marker, and a feature claimed Implemented with unchecked Convergence
+  tasks, as contradictions.
+- `shared/pipeline.md` documents where the CLI and the pipeline disagree
+  (phase names, "tests are optional", whole-file ticking, converge's
+  heading) and which one wins.
+- **README:** the pipeline flowchart now names the four steps inside
+  `project:spec` and marks the build stages as *implement + converge*,
+  and the status diagram's transition to Implemented reads "build
+  checkpoints pass + converge", matching the pipeline's statuses.
+
 ## 1.5.1 — 2026-09-30
 
 ### Fixed

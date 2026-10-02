@@ -34,13 +34,18 @@ against the repository rather than trusting the table:
 
 | Claimed | Evidence expected |
 |---|---|
-| Planned | `spec.md`, `plan.md`, `tasks.md` exist |
+| Planned | `spec.md` exists with no open `[NEEDS CLARIFICATION]`, plus `plan.md` and `tasks.md` |
 | In progress | some tasks checked in the matching `## Frontend` / `## Backend` section of `tasks.md` |
-| Implemented | all of that side's tasks checked, code and tests for them present |
+| Implemented | all of that side's tasks checked, code and tests for them present, and no unchecked `## Phase N: Convergence` phase |
 | Verified | `qa.md` journeys exist as tests under `tests/e2e/` (and `tests/load/` where the feature has load targets), and CI runs them |
 
 A claim without its evidence is a **contradiction**. Report it, and name
-the stage that should move the status back (pipeline rule 6).
+the stage that should move the status back (pipeline rule 6). Two that
+matter most: a feature claimed Implemented whose Convergence phase still
+has unchecked tasks (the build stage hasn't closed its loop), and a
+feature whose `spec.md` still carries an open `[NEEDS CLARIFICATION]`
+marker — that one blocks `plan`, so everything downstream of it is
+stalled.
 
 Also flag features whose dependencies are less advanced than they are,
 and features with a `ui.md` or `backend.md` missing although the other
@@ -68,7 +73,9 @@ Pick from the chain in `pipeline.md`, in this order:
    others → resolve it first (name the question or the owning stage).
 2. The earliest missing or stale artifact that later stages depend on.
 3. For features: the highest-priority feature whose dependencies are
-   done, at the least advanced side (frontend, backend or QA).
+   done, at the least advanced side (frontend, backend or QA) — following
+   the Spec Kit flow, that means the first step of the flow that feature
+   hasn't cleared (`specify`, `clarify`, `plan`, `tasks`, `implement`).
 4. Once features are Implemented: `qa:e2e` / `qa:load` to reach
    Verified; then `project:docs` for the docs site; `devsecops:pipeline`
    whenever CI is missing, and `devsecops:iac` when the architecture has

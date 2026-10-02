@@ -169,14 +169,14 @@ flowchart LR
 
     init["<b>project:init</b><br/>brief.md with the glossary"]
     arch["<b>project:architecture</b><br/>architecture.md, ADRs, stack"]
-    spec["<b>project:spec</b><br/>Spec Kit features, specs/README.md,<br/>contracts/openapi.yaml skeleton"]
+    spec["<b>project:spec</b><br/>specify → clarify → plan → tasks<br/>Spec Kit features, specs/README.md,<br/>contracts/openapi.yaml skeleton"]
     init --> arch --> spec
 
     subgraph frontend ["Frontend"]
         direction TB
         uiux["<b>frontend:uiux</b><br/>ux-vision.md"]
         fspec["<b>frontend:spec</b><br/>design system, ui.md per feature"]
-        fbuild["<b>frontend:build</b><br/>web client"]
+        fbuild["<b>frontend:build</b><br/>web client — implement + converge"]
         tui["<b>frontend:tui</b> — only if you ask<br/>tui.md → TUI and CLI"]:::optional
         uiux --> fspec --> fbuild
         fspec -.-> tui
@@ -186,7 +186,7 @@ flowchart LR
         direction TB
         domain["<b>backend:domain</b><br/>domain-model.md"]
         bspec["<b>backend:spec</b><br/>canonical openapi.yaml, backend.md"]
-        bbuild["<b>backend:build</b><br/>API, migrations, contract tests"]
+        bbuild["<b>backend:build</b><br/>API, migrations, contract tests<br/>— implement + converge"]
         domain --> bspec --> bbuild
     end
 
@@ -221,7 +221,7 @@ flowchart LR
     end
 ```
 
-In plain text: init → architecture → spec → frontend, backend and QA in parallel → e2e and load → docs. For an existing codebase: survey → introspec → retrofit or refactor. Returning to any project: recap.
+In plain text: init → architecture → spec → frontend, backend and QA in parallel (each build stage is the `implement` step, converged before Implemented) → e2e and load → docs. For an existing codebase: survey → introspec → retrofit or refactor. Returning to any project: recap.
 
 Every feature's status, per side, in `specs/README.md`:
 
@@ -229,16 +229,16 @@ Every feature's status, per side, in `specs/README.md`:
 stateDiagram-v2
     direction LR
     state "In progress" as InProgress
-    [*] --> Planned: project:spec
+    [*] --> Planned: project:spec (specify → clarify → plan → tasks)
     Planned --> InProgress: a build stage starts
-    InProgress --> Implemented: build checkpoints pass
+    InProgress --> Implemented: build checkpoints pass + converge
     Implemented --> Verified: qa:e2e (and qa:load) pass in CI
     Verified --> Implemented: a check stops holding
 ```
 
 - Documents (brief, architecture, UX vision, domain model) stay `Draft` until you accept them.
 - Frontend and backend meet only at `contracts/openapi.yaml` and the brief's glossary.
-- Specs use GitHub Spec Kit (`specify` CLI 1.x), set up by `project:spec`.
+- Specs use GitHub Spec Kit (`specify` CLI 1.x), set up by `project:spec`. Every feature goes through **specify → clarify → plan → tasks → implement**: `project:spec` runs the first four, `frontend:build` and `backend:build` are the `implement` step (each against its own `## Frontend` / `## Backend` tasks), closing with `/speckit-converge` before a feature is Implemented.
 
 > [!NOTE]
 > `frontend:tui` and every terminal section of the vision and specs appear only when you ask for a terminal interface. No stage adds one on its own.

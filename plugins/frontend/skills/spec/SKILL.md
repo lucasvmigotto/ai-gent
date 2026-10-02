@@ -110,24 +110,33 @@ for a TUI or CLI), write `tui.md` for every feature it covers, per
 equivalent of every action, and the test plan. Never create `tui.md`
 otherwise.
 
-### 4. Frontend tasks
+### 4. Frontend tasks — the `tasks` step, layer section
 
 Append a `## Frontend` section to each feature's `tasks.md` (and fill
 `000-design-system/tasks.md`) in Spec Kit's task format, phased like the
-template: Setup → Foundational → one phase per user story in priority
-order → Polish. Each task names its file path, marks `[P]` only when it
+installed template: Setup → Foundational → one phase per user story in
+priority order → Polish. This is the same `tasks` step `project:spec` ran
+layer-neutrally — you're adding the Frontend layer to it, not re-planning
+the feature. Don't re-run `specify`, `clarify` or `plan`: if `spec.md`
+still carries an open `[NEEDS CLARIFICATION]`, stop and report it instead
+of writing tasks on an unresolved spec.
+
+Each task names its file path, marks `[P]` only when it
 truly touches different files with no dependency, and ends each phase
 with a **Checkpoint** line stating how to verify it. Include a task to
 run the contract mock (`prism mock contracts/openapi.yaml`) in Setup so
 UI work never waits on the backend. Terminal work goes in the same
 section, each task tagged `[TUI]` or `[CLI]`, built by `frontend:tui`.
 
+Number after the last existing ID, so the ids `frontend:build` ticks in
+the `implement` step continue the sequence `project:spec` left off at.
+
 Technical frontend decisions not covered by the feature `plan.md`
 (state management, data-fetching library, form library, testing tools)
 go in `000-design-system/plan.md` with rationale — the stack itself comes
 from `plan.md`/the constitution; don't override it.
 
-### 5. Consistency pass
+### 5. Cross-cutting check — after the flow
 
 Run `/speckit-analyze` (or follow its skill file) across the updated
 features and fix what it finds in *your* layer; report the rest.

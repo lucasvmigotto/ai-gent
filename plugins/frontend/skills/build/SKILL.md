@@ -1,9 +1,9 @@
 ---
 name: build
-description: Implement the frontend from its Spec Kit specs — design system first, then each feature's ui.md phase by phase — against a mock of contracts/openapi.yaml, with i18n, WCAG 2.2 AA, responsive layouts, tests and screenshot self-critique before marking anything Implemented. Use for "build the frontend", "implement the UI". Runs after frontend:spec.
+description: Implement the frontend — the Spec Kit implement step for a feature's Frontend tasks — design system first, then each feature's ui.md phase by phase, against a mock of contracts/openapi.yaml, with i18n, WCAG 2.2 AA, responsive layouts, tests, screenshot self-critique and /speckit-converge before marking Implemented. Use for "build the frontend", "implement the UI". Runs after frontend-spec.
 ---
 
-# Frontend implementation
+# Frontend implementation — the Spec Kit `implement` step
 
 ## Role
 
@@ -41,6 +41,39 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
 
 Read code the cheap way: `../../references/reading-code.md` — `compact:code`
 for large or many files in a brace language.
+
+## The implement contract
+
+You are the `implement` step of the pipeline's Spec Kit flow, scoped to
+this feature's `## Frontend` tasks. Follow `/speckit-implement`'s contract
+— read its `.claude/skills/speckit-implement/SKILL.md` if loaded, but
+these rules win where they differ:
+
+- **Resolve the feature explicitly.** `SPECIFY_FEATURE=NNN-<feature>` is
+  set before you start; never rely on `.specify/feature.json`.
+- **Checklist gate.** If `specs/NNN-<feature>/checklists/` has any
+  unchecked item, report the per-checklist table (total / checked /
+  unchecked) and **ask** before implementing. Don't tick checklist items —
+  they're reviewer-owned requirements quality, not implementation state.
+- **Load the context** in this order: `tasks.md`, `plan.md`, `data-model.md`,
+  `contracts/`, `research.md`, the constitution, `quickstart.md`.
+- **Phases** are the ones in `.specify/templates/tasks-template.md` —
+  Setup → Foundational → one phase per user story → Polish. Not
+  `implement.md`'s older "Setup, Tests, Core, Integration, Polish" list.
+- **Tests are mandatory**, one story phase at a time, written to fail
+  first. The Spec Kit template calls them optional; the constitution and
+  this pipeline don't.
+- **Scope: your section only.** Tick `- [ ]` → `- [x]` inside `## Frontend`
+  and `000-design-system/tasks.md` only. Never tick a `## Backend` or
+  `## QA` task, and don't run a whole-file implementation pass over a
+  `tasks.md` that has more than one layer section.
+- **Setup may fix ignore files.** In the Setup phase only, verify the
+  repo's ignore files cover the stack (`node_modules/`, `dist/`, `.env*`,
+  coverage) and append what's missing. Never write outside the repository.
+- **Halting is not implementing.** A failing test, a missing copy key or a
+  contract gap stops the phase; the feature stays *In progress* and the
+  handoff says what's blocked. Only a converged feature becomes
+  Implemented (below).
 
 ## Execution — phase by phase
 
@@ -110,11 +143,31 @@ devcontainer) and check, for the screens this phase touched:
 5. **Copy check**: every visible string is a key from the vision; CTA
    verbs match their result messages.
 
-Only after a feature's last checkpoint passes does it become
-**Implemented** — update its status in `specs/README.md` (if present) and
-tell `project:docs` it can document it as such. **Verified** is set by
-`qa:e2e` once the cross-stack journeys pass. CI for the frontend comes
-from `devsecops:pipeline`; never weaken a gate there to go green.
+## Converge — before marking Implemented
+
+When the feature's last phase checkpoint passes, close the loop before
+claiming anything:
+
+1. Run `/speckit-converge` with `SPECIFY_FEATURE` set. It assesses the
+   code against `spec.md`, `plan.md` and `tasks.md` and reports findings
+   by gap type (`missing`, `partial`, `contradicts`, `unrequested`) and
+   severity, constitution violations first.
+2. **A `## Phase N: Convergence (Frontend)` phase was appended** →
+   implement those tasks under the same rules, re-run the phase
+   checkpoint, then converge again. After 3 rounds, whatever remains is an
+   `[UPSTREAM GAP]` for `project:spec` (or `frontend:spec` for copy) —
+   report it, don't grind.
+3. **"✅ Converged"** → the feature is Implemented.
+
+Never mark a feature Implemented with unchecked items in a Convergence
+phase. Converge appends tasks; it never deletes code and never ticks
+anything itself.
+
+Only after convergence does the feature become **Implemented** — update
+its status in `specs/README.md` (if present) and tell `project:docs` it
+can document it as such. **Verified** is set by `qa:e2e` once the
+cross-stack journeys pass. CI for the frontend comes from
+`devsecops:pipeline`; never weaken a gate there to go green.
 
 ## Quality floor (never below this, never announced)
 
@@ -125,7 +178,9 @@ values in components.
 
 ## Handoff
 
-Per feature: what's Implemented, what's still Planned, gaps reported
-upstream, screenshots location, and next steps (next feature, or
-`project:docs`). Stop any dev servers you started, and remove any
-container you started for them per `../../references/containers.md` §9.
+Per feature: which step of the Spec Kit flow it reached, whether
+converge converged or what's left, what's Implemented, what's still
+Planned, gaps reported upstream, screenshots location, and next steps
+(next feature, or `project:docs`). Stop any dev servers you started, and
+remove any container you started for them per
+`../../references/containers.md` §9.

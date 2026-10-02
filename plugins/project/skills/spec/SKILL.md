@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Turn docs/product/brief.md into a phased GitHub Spec Kit specification — bootstraps Spec Kit, writes the constitution, splits the product into specs/NNN-* features taken through specify, clarify, plan and tasks, and adds specs/README.md and the contracts/openapi.yaml skeleton. Use for "create the speckit specs", "break the project into features".
+description: Turn docs/product/brief.md into a phased GitHub Spec Kit specification — bootstraps Spec Kit, writes the constitution, splits the product into specs/NNN-* features taken through specify, clarify, plan and tasks (implement is frontend-build/backend-build), and adds specs/README.md and the contracts/openapi.yaml skeleton. Use for "create the speckit specs", "break the project into features".
 ---
 
 # Phased specification (Spec Kit)
@@ -75,25 +75,31 @@ From the brief's candidate feature map, decide the final features:
 Write `specs/README.md`: number, name, one-line scope, priority,
 depends on, frontend status, backend status (all `Planned`).
 
-### 4. Each feature, in order
+### 4. Each feature: specify → clarify → plan → tasks
 
-For each feature, using the Spec Kit skills (or their skill files), with
+Per the pipeline's *Spec Kit flow*, in this order — each step's gate is in
+brackets. Use the Spec Kit skills (or their skill files), with
 `SPECIFY_FEATURE=NNN-<feature>` exported once the feature exists (see the
-pipeline's *Spec Kit* section):
+pipeline's *Spec Kit* section), so stages running in parallel never work on
+each other's feature.
 
 1. `/speckit-specify` — prioritized user stories (P1…) with independent
    tests and Given/When/Then scenarios, edge cases, `FR-###`
    requirements, key entities, `SC-###` measurable success criteria,
    assumptions. Use glossary terms only. State in the spec that tests
    are required (the constitution demands them), so `/speckit-tasks`
-   generates test tasks. Fill `Feature Branch` with the `git:workflow`
+   generates test tasks — the Spec Kit template calls them optional, and
+   here they are not. Fill `Feature Branch` with the `git:workflow`
    branch name.
-2. `/speckit-clarify` — resolve `[NEEDS CLARIFICATION]` markers with the
-   user, following its flow (one question at a time, up to five per
-   feature); record answers in the spec.
-3. `/speckit-plan` — technical context, constitution check, project
-   structure, `research.md`, `data-model.md`, `contracts/`,
-   `quickstart.md`. Decisions:
+2. `/speckit-clarify` — [gate: `spec.md` written] resolve every
+   `[NEEDS CLARIFICATION]` marker with the user, following its flow (one
+   question at a time, up to five per feature), and write the answers back
+   into `spec.md`. The step is not done while a marker is open; if the
+   user can't answer one now, stop and leave it open — a feature with an
+   open marker is not planned.
+3. `/speckit-plan` — [gate: **no open `[NEEDS CLARIFICATION]`**] technical
+   context, constitution check, project structure, `research.md`,
+   `data-model.md`, `contracts/`, `quickstart.md`. Decisions:
    - **Stack**: from `architecture.md`'s Stack decision. Only where it
      leaves a choice open — then record it as an `[UPSTREAM GAP]` for
      `project:architecture` — ask the user, suggesting their usual web
@@ -106,7 +112,8 @@ pipeline's *Spec Kit* section):
      `devcontainer:infra` for each external resource) provides it.
    - **Delivery**: CI/CD comes from `devsecops:pipeline`; the test layers
      from `qa:strategy`.
-4. `/speckit-tasks` — Spec Kit's phases as it generates them (Setup →
+4. `/speckit-tasks` — [gate: `plan.md` written and its Constitution Check
+   passes] Spec Kit's phases as the installed template writes them (Setup →
    Foundational → one phase per user story → Polish), with checkpoints.
    Keep each story's phase at story level: its acceptance-test tasks and
    the layer-neutral work, plus one task per affected layer that points
@@ -114,6 +121,10 @@ pipeline's *Spec Kit* section):
    see ## Backend`). `frontend:spec` and `backend:spec` append those
    `## Frontend` / `## Backend` sections with the detailed tasks, so
    nothing is planned twice.
+
+The **implement** step is not yours: `frontend:build` and `backend:build`
+execute it, each against its own section of `tasks.md`, then close it with
+`/speckit-converge`. Name it in the handoff so nobody looks for it here.
 
 ### 5. Contract skeleton — `contracts/openapi.yaml`
 
@@ -123,7 +134,7 @@ feature, resources named with glossary terms, every operation with an
 outlines. Mark it `x-status: skeleton` in the `info` object (`info.x-status`) —
 `backend:spec` makes it canonical. Add `asyncapi.yaml` only if events leave the service.
 
-### 6. Consistency pass
+### 6. Cross-cutting checks — after the flow
 
 `/speckit-analyze` works on one feature and is read-only: run it once per
 feature, with `SPECIFY_FEATURE` set to that feature. Fix what's in your
@@ -131,18 +142,24 @@ artifacts and report upstream gaps (brief, architecture) to the user.
 Requirements whose only tasks are the layer pointers are expected at this
 stage; analyze again after `frontend:spec` and `backend:spec` have added
 their sections. Optionally `/speckit-checklist` for requirement quality
-on the MVP features.
+on the MVP features — those checklists become a read-only gate
+`/speckit-implement` and the build stages respect, so tick them honestly.
+
+You own steps 1–4 (`specify`, `clarify`, `plan`, `tasks`). The `implement`
+step belongs to the build stages; do not write code here.
 
 ## Coverage checklist
 
 - [ ] every MVP capability of the brief is covered by a feature
-- [ ] every feature has spec, plan, tasks, and no open `[NEEDS CLARIFICATION]`
+- [ ] every feature went through specify → clarify → plan → tasks, in order
+- [ ] no `[NEEDS CLARIFICATION]` marker is open anywhere (an open one blocks plan)
 - [ ] every plan passes its Constitution Check (or justifies violations in Complexity Tracking)
 - [ ] every user story has an independent test and success criteria
 - [ ] every data-touching story has entities in `data-model.md`
 - [ ] every client–server interaction has an `operationId` in the contract skeleton
 - [ ] only glossary terms used in specs and contract
 - [ ] `specs/README.md` lists all features with dependencies
+- [ ] each feature has a layer-pointer task per layer, so `implement` has an entry point
 - [ ] `/speckit-analyze` run per feature; findings fixed or reported
 
 ## Handoff
@@ -151,5 +168,6 @@ Summarize features (MVP first), key technical decisions, open risks, and
 the next stages — in parallel: `frontend:uiux` → `frontend:spec` →
 `frontend:build`, `backend:domain` → `backend:spec` → `backend:build`, and
 `qa:strategy`; plus `devcontainer:setup` for the environment and
-`devsecops:pipeline` for CI/CD. Commits
+`devsecops:pipeline` for CI/CD. Say which step of the flow each feature
+reached, and that `implement` is the build stages' job. Commits
 follow `git:workflow`.

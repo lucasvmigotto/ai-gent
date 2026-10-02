@@ -41,7 +41,10 @@ every `ui.md` data need maps to one. Missing on either side →
 
 ### 2. The canonical contract — `contracts/openapi.yaml`
 
-Promote the skeleton to canonical (`info.x-status: canonical`), OpenAPI 3.1:
+`project:spec` wrote a skeleton in the feature's `plan` step; this is
+where it becomes canonical, so the contract is settled before any
+`implement` step runs. Promote the skeleton (`info.x-status: canonical`),
+OpenAPI 3.1:
 
 - **Resources and verbs from the domain**: collection/item resources for
   reads; explicit command endpoints for state transitions that carry
@@ -107,16 +110,24 @@ library) go in the first backend feature's `backend.md` under
 "Technical decisions" with rationale — the language/stack itself comes
 from `plan.md`/the constitution.
 
-### 4. Backend tasks
+### 4. Backend tasks — the `tasks` step, layer section
 
 Append a `## Backend` section to each feature's `tasks.md` in Spec Kit's
-format, phased: Setup → Foundational (migrations framework, error
-handling, authn/authz, observability, contract-test harness) → one phase
-per user story in priority order (tests first: contract + invariant +
-authz tests, then implementation) → Polish (performance, hardening).
-Each phase ends with a **Checkpoint** stating how to verify it.
+format, phased like the installed template: Setup → Foundational
+(migrations framework, error handling, authn/authz, observability,
+contract-test harness) → one phase per user story in priority order
+(tests first: contract + invariant + authz tests, then implementation) →
+Polish (performance, hardening). This is the same `tasks` step
+`project:spec` ran layer-neutrally — you're adding the Backend layer to
+it, not re-planning the feature. Don't re-run `specify`, `clarify` or
+`plan`: if `spec.md` still carries an open `[NEEDS CLARIFICATION]`, stop
+and report it instead of writing tasks on an unresolved spec.
 
-### 5. Review and consistency
+Each phase ends with a **Checkpoint** stating how to verify it. Number
+after the last existing ID, so the ids `backend:build` ticks in the
+`implement` step continue the sequence `project:spec` left off at.
+
+### 5. Cross-cutting check — after the flow
 
 Review against `backend-quality.md` (tells, quality floor,
 self-critique questions) and revise. Run `/speckit-analyze` across the

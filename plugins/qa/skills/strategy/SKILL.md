@@ -73,7 +73,9 @@ description: Define a risk-based test strategy for the project and each feature 
   exit criteria.
 - A `## QA` section appended to each `tasks.md` (Spec Kit task format)
   for the QA-owned work: e2e journeys, load scripts, charters, gate
-  wiring — with checkpoints.
+  wiring — with checkpoints. It's the QA layer of the `tasks` step, so
+  number after the last existing ID; `qa:e2e` and `qa:load` execute it in
+  the `implement` step's place, ticking only this section.
 
 ## Coverage checklist
 

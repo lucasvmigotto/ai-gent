@@ -110,7 +110,10 @@ Only the missing artifacts, each with `Status: Draft` and a first line
 - `specs/README.md` and `specs/NNN-<feature>/` — one feature per coherent
   capability. Bootstrap Spec Kit as `project:spec` does; write `spec.md`
   (stories and acceptance scenarios from behavior and tests), `plan.md`
-  (as-is technical context), `data-model.md` and `contracts/`. No
+  (as-is technical context), `data-model.md` and `contracts/`. A
+  reconstructed feature enters the Spec Kit flow at `plan`, evidence-
+  labelled, never at `specify`: there is no intent to reconstruct, and
+  `clarify` has no user to ask. No
   `tasks.md` — nothing is planned yet. Statuses from evidence only:
   **Implemented** when the code path exists and runs (note "no tests"
   where true); **Verified** only when end-to-end tests cover the stories
