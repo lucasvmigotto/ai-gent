@@ -47,20 +47,31 @@ user (`uv tool install specify-cli --from git+https://github.com/github/spec-kit
 
 ### 2. Constitution
 
-Run `/speckit-constitution` (or follow its skill file) to write
-`.specify/memory/constitution.md` from:
+**If `.specify/memory/constitution.md` already exists** — load it, keep
+it, and never overwrite it. It governs the features below. Amend it only
+under its own Governance rules, and say in the handoff what changed. If
+it's thin (prose with no gates), that's an amendment, not a rewrite: add
+the missing `Checked by:` lines, bump the version, keep the author's
+wording.
 
-- the brief's NFRs (performance, security, accessibility, privacy
-  regime, supported platforms) turned into testable principles;
-- the user's standing practices: `git:workflow` (Conventional Commits,
-  branch per context), tests required for every user story, WCAG 2.2 AA,
-  no secrets in the repo, contract-first API (`contracts/openapi.yaml` is
-  the source of truth), separate frontend/backend modules and
-  devcontainers when both exist;
-- the decisions in `docs/product/architecture.md` and its ADRs.
+**If none exists** — run `/speckit-constitution` (or follow its skill
+file) to write one. Read `references/constitution.md` first: it carries
+the default text, the gate test, how to derive principles from the brief
+and the ADRs, and the bar a finished constitution has to clear. In short:
 
-Keep principles few and enforceable — each one should be checkable in a
-plan's Constitution Check.
+- **every principle is a gate** — a pass/fail check with named evidence.
+  The plan template's Constitution Check is generated from this file, so a
+  principle you can't gate is a slogan;
+- principles come from the brief's NFRs, the user's standing practices
+  and the ADRs — and nowhere else. Don't restate the stack; that belongs
+  to `plan.md`;
+- five to nine of them. Past nine the check stops being a gate;
+- number them, so `plan.md` and `/speckit-converge` can cite
+  "Constitution III".
+
+Cut any principle the project genuinely doesn't need, and list the cuts
+in the handoff with the reason — a constitution carrying a principle the
+project ignores teaches every later stage that it is advisory.
 
 ### 3. Feature split — `specs/README.md`
 

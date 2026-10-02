@@ -6,6 +6,23 @@ changes.
 
 ## Unreleased
 
+### Added
+
+- **`project:spec` writes a good constitution when the project has none.**
+  A new `plugins/project/skills/spec/references/constitution.md` carries
+  the default text, the gate test, and the bar a finished constitution
+  clears.
+
+  The central idea: Spec Kit's plan template derives its Constitution
+  Check *from the constitution file*, so the test of a principle is
+  whether it can be expressed as a pass/fail check with named evidence.
+  A principle you can't gate is a value, not a principle. Each of the
+  eight defaults therefore carries a `Checked by:` line naming its gate —
+  OWASP ASVS L2 where personal data is handled, WCAG 2.2 AA, tests
+  required per story (overriding the Spec Kit template's "tests
+  OPTIONAL"), contract-first API, privacy minimisation, stated
+  performance budgets, observability, and `git:workflow` versioning.
+
 ### Changed
 
 - **The Spec Kit contract moved to `shared/spec-kit.md`.** The five-step
@@ -19,6 +36,13 @@ changes.
 - Removed `db`'s unused `references/pipeline.md` link — no db skill ever
   read it, so a pipeline edit was bumping that plugin for a contract it
   never consults.
+
+### Fixed
+
+- **`project:spec` no longer implies it may overwrite an existing
+  constitution.** It loads one and amends it under the document's own
+  Governance rules, keeping the author's wording; a thin constitution
+  missing its gates is amended, not rewritten.
 
 ## 1.6.0 — 2026-10-02
 
