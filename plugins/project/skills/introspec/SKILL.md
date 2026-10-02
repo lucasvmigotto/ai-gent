@@ -20,7 +20,8 @@ should do. Behavior the code contradicts is a finding, not a typo to fix.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` and `references/signals.md` (what
+1. Read `../../references/pipeline.md`, `../../references/spec-kit.md`
+   and `references/signals.md` (what
    each manifest, library and config file reveals).
 2. Read existing pipeline artifacts. **If they exist, don't rewrite
    them** — compare them with the code and report drift in
@@ -111,7 +112,7 @@ Only the missing artifacts, each with `Status: Draft` and a first line
   capability. Bootstrap Spec Kit as `project:spec` does; write `spec.md`
   (stories and acceptance scenarios from behavior and tests), `plan.md`
   (as-is technical context), `data-model.md` and `contracts/`. A
-  reconstructed feature enters the Spec Kit flow at `plan`, evidence-
+  reconstructed feature enters `spec-kit.md`'s flow at `plan`, evidence-
   labelled, never at `specify`: there is no intent to reconstruct, and
   `clarify` has no user to ask. No
   `tasks.md` — nothing is planned yet. Statuses from evidence only:

@@ -15,8 +15,8 @@ another senior engineer would approve without a rewrite.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` and
-   `../../references/backend-quality.md`.
+1. Read `../../references/pipeline.md`, `../../references/spec-kit.md`
+   and `../../references/backend-quality.md`.
 2. Required inputs: `contracts/openapi.yaml` marked canonical and at
    least one feature with `backend.md` and a `## Backend` section in
    `tasks.md`. If missing, stop and propose `backend:spec`.
@@ -35,7 +35,8 @@ for large or many files in a brace language.
 
 ## The implement contract
 
-You are the `implement` step of the pipeline's Spec Kit flow, scoped to
+You are the `implement` step of `../../references/spec-kit.md`'s flow,
+scoped to
 this feature's `## Backend` tasks. Follow `/speckit-implement`'s contract
 — read its `.claude/skills/speckit-implement/SKILL.md` if loaded, but
 these rules win where they differ:

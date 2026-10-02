@@ -15,8 +15,9 @@ stage builds on — so make them explicit, justified and consistent.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` — especially the Spec Kit and
-   ownership sections.
+1. Read `../../references/spec-kit.md` — the five steps, their gates and
+   who owns each — and `../../references/pipeline.md` for ownership,
+   artifacts and statuses.
 2. Required input: `docs/product/brief.md`. If missing, propose
    `project:init`; if the user wants to skip it, run its clarifying
    questions yourself and record the answers as the feature inputs.
@@ -77,10 +78,10 @@ depends on, frontend status, backend status (all `Planned`).
 
 ### 4. Each feature: specify → clarify → plan → tasks
 
-Per the pipeline's *Spec Kit flow*, in this order — each step's gate is in
-brackets. Use the Spec Kit skills (or their skill files), with
-`SPECIFY_FEATURE=NNN-<feature>` exported once the feature exists (see the
-pipeline's *Spec Kit* section), so stages running in parallel never work on
+Per `../../references/spec-kit.md`'s flow, in this order — each step's
+gate is in brackets. Use the Spec Kit skills (or their skill files), with
+`SPECIFY_FEATURE=NNN-<feature>` exported once the feature exists (see
+*Spec Kit* in that file), so stages running in parallel never work on
 each other's feature.
 
 1. `/speckit-specify` — prioritized user stories (P1…) with independent

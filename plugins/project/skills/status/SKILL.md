@@ -11,7 +11,8 @@ anything: every problem it finds goes into the report, with the stage that
 owns the fix.
 
 Read `../../references/pipeline.md` first — the artifact table and the
-status rules there are what this skill checks against.
+status rules there are what this skill checks against — and
+`../../references/spec-kit.md` for the steps a feature moves through.
 
 ## 1. Artifacts
 
@@ -74,7 +75,8 @@ Pick from the chain in `pipeline.md`, in this order:
 2. The earliest missing or stale artifact that later stages depend on.
 3. For features: the highest-priority feature whose dependencies are
    done, at the least advanced side (frontend, backend or QA) — following
-   the Spec Kit flow, that means the first step of the flow that feature
+   the flow in `../../references/spec-kit.md`, that means the first step
+   that feature
    hasn't cleared (`specify`, `clarify`, `plan`, `tasks`, `implement`).
 4. Once features are Implemented: `qa:e2e` / `qa:load` to reach
    Verified; then `project:docs` for the docs site; `devsecops:pipeline`

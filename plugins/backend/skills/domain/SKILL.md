@@ -16,8 +16,10 @@ rules and the non-functional requirements.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` and
-   `../../references/backend-quality.md` (the modeling tells apply here).
+1. Read `../../references/pipeline.md`,
+   `../../references/spec-kit.md` (the `plan` step's `data-model.md` is
+   an input here) and `../../references/backend-quality.md` (the modeling
+   tells apply here).
 2. Read `docs/product/brief.md` — glossary, business rules, NFRs,
    integrations, volumes. Without it, work from the user's text or
    references (default `docs/product/references/`) and say so.

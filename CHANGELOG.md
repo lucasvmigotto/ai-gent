@@ -4,6 +4,22 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **The Spec Kit contract moved to `shared/spec-kit.md`.** The five-step
+  flow, its gates, its owners and the CLI-vs-pipeline divergences now live
+  beside `shared/pipeline.md`, symlinked only into the four plugins that
+  act on `specs/` (project, frontend, backend, qa) instead of six. An
+  edit to the Spec Kit flow bumps four plugins rather than six, and the
+  ten skills that read the pipeline for ownership alone stop loading a
+  section they never used. `shared/pipeline.md` keeps the chain, the
+  artifact owners and the rules every stage follows.
+- Removed `db`'s unused `references/pipeline.md` link — no db skill ever
+  read it, so a pipeline edit was bumping that plugin for a contract it
+  never consults.
+
 ## 1.6.0 — 2026-10-02
 
 ### Changed

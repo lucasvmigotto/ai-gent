@@ -1,0 +1,1 @@
+../../../shared/spec-kit.md

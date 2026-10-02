@@ -20,8 +20,8 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` and
-   `../../references/visual-direction.md`.
+1. Read `../../references/pipeline.md`, `../../references/spec-kit.md`
+   and `../../references/visual-direction.md`.
 2. Required inputs: `specs/000-design-system/` and at least one feature
    with `ui.md` and a `## Frontend` section in `tasks.md`. If missing,
    stop and propose `frontend:spec`.
@@ -44,7 +44,8 @@ for large or many files in a brace language.
 
 ## The implement contract
 
-You are the `implement` step of the pipeline's Spec Kit flow, scoped to
+You are the `implement` step of `../../references/spec-kit.md`'s flow,
+scoped to
 this feature's `## Frontend` tasks. Follow `/speckit-implement`'s contract
 — read its `.claude/skills/speckit-implement/SKILL.md` if loaded, but
 these rules win where they differ:

@@ -8,7 +8,8 @@ description: Audit an existing test suite for gaps against stories and risky cod
 ## Before starting
 
 1. Read `../../references/qa-quality.md` (anti-patterns and quality
-   floor) and `../../references/pipeline.md`.
+   floor), `../../references/pipeline.md` and
+   `../../references/spec-kit.md`.
 2. Read what defines "enough": `specs/*/spec.md` and `qa.md`
    (traceability), `test-strategy.md` if present, `domain-model.md`
    invariants, `backend.md` authz matrices, `ui.md` state matrices.

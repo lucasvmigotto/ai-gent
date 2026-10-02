@@ -17,7 +17,8 @@ source of truth.
 
 1. Read `../../references/pipeline.md` (ownership: this skill **adds a
    backend layer** to features `project:spec` owns, and **owns the
-   canonical contract**) and `../../references/backend-quality.md`.
+   canonical contract**), `../../references/spec-kit.md` (the `tasks` step
+   this extends) and `../../references/backend-quality.md`.
 2. Required inputs:
    - `docs/product/domain-model.md` — if missing, propose
      `backend:domain` first.
