@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the pipeline's brief, domain model and specs (labelled Planned until built), branded from the UX vision — plus llms.txt and Markdown pages for LLMs, with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
+description: Build a static, accessible, internationalized documentation site in docs/site/ (or site/ when the repository is itself the site) — truth-first from the code, enriched by the pipeline's brief, domain model and specs (labelled Planned until built), branded from the UX vision — plus llms.txt and Markdown pages for LLMs, with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
 ---
 
 # Project documentation websites
@@ -44,11 +44,20 @@ Its artifacts are content sources, not substitutes for reading the code:
 
 ## Phase 0 — Placement
 
-The site always lives in `docs/site/` — its own `package.json`, lockfile
-and build. `docs/` is the umbrella for all documentation: `docs/product/`
-(pipeline artifacts) and any existing ADRs/runbooks stay where they are
-and become content sources. If a site already exists elsewhere (`docs/`
-root, `website/`), ask before moving it.
+In a project repo the site lives in `docs/site/` — its own `package.json`,
+lockfile and build. `docs/` is the umbrella for all documentation:
+`docs/product/` (pipeline artifacts) and any existing ADRs/runbooks stay
+where they are and become content sources.
+
+**When the repository *is* the site** — a documentation hub, landing or
+portfolio whose whole purpose is the site, with no host application to
+document — put it at the root instead, in `site/`. There is no
+"documentation of something else" to sit beside, so nesting it under
+`docs/site/` would only be `docs/`-of-`docs/`. Every other repo stays on
+`docs/site/`.
+
+If a site already exists elsewhere (`docs/` root, `website/`), ask before
+moving it.
 
 ## Phase 1 — Discovery (no implementation yet)
 
@@ -166,9 +175,9 @@ error states) before calling anything done.
 ## Phase 7 — Ship
 
 - **Paths:** every CI step, cache key and the Docker build context use
-  `docs/site/` (`working-directory: docs/site`, `paths: [docs/site/**]`
-  triggers). Content read from `docs/product/` or `specs/` must also
-  trigger a rebuild.
+  the site directory — `docs/site/` normally, `site/` for a hub-type repo
+  (`working-directory: <site>`, `paths: [<site>/**]` triggers). Content
+  read from `docs/product/` or `specs/` must also trigger a rebuild.
 - **GitHub Actions, written here.** Unless the project already uses
   another platform, the skill writes the site's workflow itself —
   `.github/workflows/<site>.yml` with a `verify` job (checkout → setup Bun
