@@ -1,55 +1,57 @@
 @import "tailwindcss";
 
-/* Draft tokens from docs/product/ux-vision.md (frontend:spec finalizes). */
+/* Draft tokens from docs/product/ux-vision.md, mapped to Tailwind theme
+   tokens (frontend:spec finalizes). Raw vars carry an ag- prefix to avoid a
+   self-referential cycle when @theme maps to them. */
 
 :root,
 :root[data-theme="dark"] {
 	color-scheme: dark;
-	--color-bg: #16121e;
-	--color-surface: #1e1828;
-	--color-text: #efe9d8;
-	--color-text-muted: #a79fb2;
-	--color-signal: #e5a829;
-	--color-on-signal: #16121e;
-	--color-ok: #7fb069;
-	--color-danger: #d95f5f;
-	--font-display: "Fraunces", Georgia, serif;
-	--font-body: "Inter", system-ui, sans-serif;
-	--font-code: "JetBrains Mono", ui-monospace, monospace;
+	--ag-bg: #16121e;
+	--ag-surface: #1e1828;
+	--ag-text: #efe9d8;
+	--ag-text-muted: #a79fb2;
+	--ag-signal: #e5a829;
+	--ag-on-signal: #16121e;
+	--ag-ok: #7fb069;
+	--ag-danger: #d95f5f;
+	--ag-display: "Fraunces", Georgia, serif;
+	--ag-body: "Inter", system-ui, sans-serif;
+	--ag-code: "JetBrains Mono", ui-monospace, monospace;
 }
 
 :root[data-theme="light"] {
 	color-scheme: light;
-	--color-bg: #fafaf7;
-	--color-surface: #ffffff;
-	--color-text: #1a1626;
-	--color-text-muted: #5c5566;
-	--color-signal: #7a5200;
-	--color-on-signal: #fafaf7;
+	--ag-bg: #fafaf7;
+	--ag-surface: #ffffff;
+	--ag-text: #1a1626;
+	--ag-text-muted: #5c5566;
+	--ag-signal: #7a5200;
+	--ag-on-signal: #fafaf7;
 }
 
 @theme inline {
-	--color-bg: var(--color-bg);
-	--color-surface: var(--color-surface);
-	--color-text: var(--color-text);
-	--color-text-muted: var(--color-text-muted);
-	--color-signal: var(--color-signal);
-	--color-on-signal: var(--color-on-signal);
-	--color-ok: var(--color-ok);
-	--color-danger: var(--color-danger);
-	--font-display: var(--font-display);
-	--font-body: var(--font-body);
-	--font-code: var(--font-code);
+	--color-bg: var(--ag-bg);
+	--color-surface: var(--ag-surface);
+	--color-text: var(--ag-text);
+	--color-muted: var(--ag-text-muted);
+	--color-signal: var(--ag-signal);
+	--color-on-signal: var(--ag-on-signal);
+	--color-ok: var(--ag-ok);
+	--color-danger: var(--ag-danger);
+	--font-display: var(--ag-display);
+	--font-body: var(--ag-body);
+	--font-code: var(--ag-code);
 }
 
 body {
-	background-color: var(--color-bg);
-	color: var(--color-text);
-	font-family: var(--font-body);
+	background-color: var(--ag-bg);
+	color: var(--ag-text);
+	font-family: var(--ag-body);
 }
 
 :focus-visible {
-	outline: 2px solid var(--color-signal);
+	outline: 2px solid var(--ag-signal);
 	outline-offset: 2px;
 }
 

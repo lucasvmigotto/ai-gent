@@ -1,32 +1,34 @@
-import { HashRouter, Link, Route, Routes } from "react-router";
-import { SITE_VERSION } from "./version";
-
-function TopBar() {
-	return (
-		<header>
-			<nav aria-label="Primary">
-				<Link to="/">ai-gent docs</Link> <span>{SITE_VERSION}</span>
-			</nav>
-		</header>
-	);
-}
-
-function Landing() {
-	return (
-		<main>
-			<h1>Find the skill for the task.</h1>
-			<p>36 skills · 9 plugins · en-US + pt-BR</p>
-		</main>
-	);
-}
+import { HashRouter, Route, Routes } from "react-router";
+import { Layout } from "./components";
+import { I18nProvider } from "./i18n";
+import {
+	ChangelogPage,
+	ContributePage,
+	InstallPage,
+	LandingPage,
+	NotFoundPage,
+	ReferencePage,
+	SkillPage,
+	SkillsPage,
+} from "./pages";
 
 export function App() {
 	return (
-		<HashRouter>
-			<TopBar />
-			<Routes>
-				<Route path="/" element={<Landing />} />
-			</Routes>
-		</HashRouter>
+		<I18nProvider>
+			<HashRouter>
+				<Layout>
+					<Routes>
+						<Route path="/" element={<LandingPage />} />
+						<Route path="/use/install" element={<InstallPage />} />
+						<Route path="/use/skills" element={<SkillsPage />} />
+						<Route path="/use/skills/:id" element={<SkillPage />} />
+						<Route path="/contribute" element={<ContributePage />} />
+						<Route path="/reference" element={<ReferencePage />} />
+						<Route path="/changelog" element={<ChangelogPage />} />
+						<Route path="*" element={<NotFoundPage />} />
+					</Routes>
+				</Layout>
+			</HashRouter>
+		</I18nProvider>
 	);
 }
