@@ -4,10 +4,21 @@ import {
 	pluginOf,
 	searchSkills,
 	skillById,
+	skills,
 	triggers,
 } from "../src/content";
 
 describe("generated content", () => {
+	it("generates a complete, unique page per skill", () => {
+		const ids = skills.map((s) => s.id);
+		expect(new Set(ids).size).toBe(ids.length);
+		for (const s of skills) {
+			expect(s.description.trim().length).toBeGreaterThan(0);
+			expect(s.body.trim().length).toBeGreaterThan(0);
+			expect(s.sourceUrl).toMatch(/^https:\/\/github\.com\//);
+		}
+	});
+
 	it("covers every plugin and skill", () => {
 		expect(counts.plugins).toBeGreaterThanOrEqual(9);
 		expect(counts.skills).toBeGreaterThanOrEqual(36);

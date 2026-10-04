@@ -49,4 +49,11 @@ describe("pages", () => {
 		);
 		expect(screen.getByText(/\/qa:load/)).toBeInTheDocument();
 	});
+
+	it("has no accessibility violations on a skill page", async () => {
+		const { container } = renderSkill("qa-load");
+		await screen.findByText(/\/qa:load/);
+		const results = await axe(container);
+		expect(results.violations).toEqual([]);
+	});
 });
