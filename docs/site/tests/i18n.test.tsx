@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
-import { enUS, I18nProvider, ptBR, useI18n } from "../src/i18n";
+import { I18nProvider, LOCALES, messages, useI18n } from "../src/i18n";
 
 function Probe() {
 	const { t, locale, setLocale } = useI18n();
@@ -9,20 +9,33 @@ function Probe() {
 		<div>
 			<span data-testid="locale">{locale}</span>
 			<span data-testid="title">{t.landing.title}</span>
-			<button type="button" onClick={() => setLocale("pt-BR")}>
-				pt
+			<button type="button" onClick={() => setLocale(LOCALES[0])}>
+				set
 			</button>
 		</div>
 	);
 }
 
+/** Every leaf key path of a messages object, so locales can be compared. */
+function keyPaths(value: unknown, prefix = ""): string[] {
+	if (value === null || typeof value !== "object") return [prefix];
+	return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) =>
+		keyPaths(v, prefix ? `${prefix}.${k}` : k),
+	);
+}
+
 describe("i18n", () => {
-	it("ships both locales with the same shape", () => {
-		expect(Object.keys(enUS)).toEqual(Object.keys(ptBR));
-		expect(ptBR.landing.title).not.toBe(enUS.landing.title);
+	it("has at least one locale and a complete message set for each", () => {
+		expect(LOCALES.length).toBeGreaterThan(0);
+		const reference = keyPaths(messages[LOCALES[0]]);
+		for (const locale of LOCALES) {
+			expect(messages[locale]).toBeDefined();
+			expect(keyPaths(messages[locale])).toEqual(reference);
+		}
 	});
 
-	it("defaults to en-US and switches locale", () => {
+	it("defaults to the first locale and persists the choice", () => {
+		localStorage.clear();
 		render(
 			<I18nProvider>
 				<MemoryRouter>
@@ -30,10 +43,9 @@ describe("i18n", () => {
 				</MemoryRouter>
 			</I18nProvider>,
 		);
-		expect(screen.getByTestId("locale")).toHaveTextContent("en-US");
-		expect(screen.getByTestId("title")).toHaveTextContent(enUS.landing.title);
-		fireEvent.click(screen.getByRole("button", { name: "pt" }));
-		expect(screen.getByTestId("title")).toHaveTextContent(ptBR.landing.title);
-		expect(document.documentElement.lang).toBe("pt-BR");
+		expect(screen.getByTestId("locale")).toHaveTextContent(LOCALES[0]);
+		fireEvent.click(screen.getByRole("button", { name: "set" }));
+		expect(localStorage.getItem("ai-gent-docs-locale")).toBe(LOCALES[0]);
+		expect(document.documentElement.lang).toBe(LOCALES[0]);
 	});
 });

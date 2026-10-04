@@ -6,8 +6,9 @@ Status: Draft
 
 The ai-gent docs site is a reference-first documentation site for a
 developer toolkit: its primary job is getting a working developer to the
-right skill page in under a minute, in the dark, in either English or
-Portuguese. The landing page is a skill finder, not a sales pitch — search
+right skill page in under a minute, in the dark. Copy ships in English
+(en-US) at launch, with the i18n architecture in place so another locale
+is an additive content task. The landing page is a skill finder, not a sales pitch — search
 and the skill index are the hero; install is one step away in the nav. The
 visual language is terminal-native (the toolkit's own medium) without
 terminal pastiche: a ruled-ledger layout, one serif display face against a
@@ -17,8 +18,8 @@ violet-ink dark theme with a single marigold signal color.
 ## Inputs used (and missing)
 
 - Used: `docs/product/brief.md` — audiences (toolkit users, contributors,
-  agents over HTTP, maintainer), MVP scope (all 36 skill pages, full pt-BR
-  parity, `llms.txt` output, R2 deploy), glossary, constraints (single
+  agents over HTTP, maintainer), MVP scope (all 36 skill pages, English
+  with the i18n architecture, `llms.txt` output, R2 deploy), glossary, constraints (single
   maintainer, automation over process), public URL
   `https://docs.lucasvmigotto.me/ai-gent/`.
 - Used: user decisions — dark-first theme, find-a-skill landing priority,
@@ -58,7 +59,7 @@ bilingual reader base.
 
 Jobs (from the brief): install for my tool; find the right skill; make a
 correct first contribution; consume releases and versions; ingest via
-`llms.txt`; read everything in Portuguese.
+`llms.txt`.
 
 ## Principles
 
@@ -68,8 +69,9 @@ correct first contribution; consume releases and versions; ingest via
    exact versions. Never paraphrase something the reader will paste.
 3. **One memorable thing per screen.** The ledger rules and the marigold
    signal carry the identity; everything else stays quiet.
-4. **Portuguese is not a translation layer.** pt-BR pages are first-class:
-   same IA, same completeness, same freshness — never a subset.
+4. **Globalization is architecture, not a translation pass.** Copy lives in
+   a typed `Messages` contract and output is locale-keyed, so a second
+   locale is additive; no string is hardcoded into a component.
 5. **Stale is wrong.** A skill page older than its skill is a bug, so the
    design must make generated-from-source content visible, not hide it.
 
@@ -142,7 +144,7 @@ Landing, desktop:
 +----------------------------------------------------------+
 |  Find the skill for the task.                            |
 |  [ what are you trying to do? .................... ]     |
-|  36 skills · 9 plugins · en-US + pt-BR                    |
+|  36 skills · 9 plugins · en-US                           |
 |                                                          |
 |  project ......... init architecture spec status docs .. |
 |  frontend ........ uiux spec build tui                   |
@@ -259,12 +261,11 @@ menu button, rail content reflows inline.
 WCAG 2.2 AA minimum: all text pairs above are ≥ 4.5 (muted included —
 muted is never below AA here). Focus is always visible: 2px marigold
 outline offset 2px, never removed. Keyboard paths: `/` focuses search,
-`Esc` closes menu/search, every flow (find skill, install, switch locale,
-toggle theme) completes without a pointer. `prefers-reduced-motion`
+`Esc` closes menu/search, every flow (find skill, install, toggle theme)
+completes without a pointer. `prefers-reduced-motion`
 disables the copy-confirm timing animation and any transition. Async
 results (search counts, copy confirmations) announced via live regions.
-`<html lang="en-US">` / `<html lang="pt-BR">` per locale; code blocks
-keep `lang="en"` where identifiers are English.
+`<html lang="en-US">`, synced to the active locale (one today).
 
 ## Voice & tone
 
@@ -273,9 +274,9 @@ names them (Skill, Plugin, `setup.sh`); write commands to be pasted, not
 admired. Tone shifts: onboarding is encouraging and concrete ("Run this,
 then check that"); errors are blameless and fix-directed; success states
 are brief. Don't: apologize in errors, hedge with "simply" or "just",
-sell the toolkit on reference pages. pt-BR carries the same voice:
-direct, second person, technical terms in English where the repo uses
-them (`skill`, `plugin`, `pipeline` stay untranslated in prose).
+sell the toolkit on reference pages. Copy is English today; a future
+locale inherits the same voice — direct, second person, technical terms
+kept in English where the repo uses them (`skill`, `plugin`, `pipeline`).
 
 ## Terminology
 
@@ -293,55 +294,53 @@ terms introduced — none needed, so the brief's glossary is unchanged.
   "No skill matches 'perf test'. Try 'load' or browse the qa plugin."
 - Empty states invite action: "No results — browse all 36 skills."
 - Numbers and versions use the repo's forms: `1.7.0`, `/qa-load`,
-  `docs/site/`. Dates in ISO with locale-appropriate rendering.
-- Text-expansion allowance: pt-BR runs ~30% longer; layouts must not
-  clip, truncate, or overlap at +30%.
+  `docs/site/`. Dates in ISO.
+- A future locale may run ~30% longer; layouts must not clip or overlap,
+  which the typography scale already allows.
 
 ## Key-screen copy
 
+Copy ships in English (en-US) today; keys are stable so a future locale
+fills the same keys.
+
 Landing hero:
 
-- `landing.hero.title` — "Find the skill for the task." /
-  "Encontre a skill para a tarefa."
-- `landing.hero.search.placeholder` — "What are you trying to do?" /
-  "O que você está tentando fazer?"
-- `landing.hero.meta` — "36 skills · 9 plugins · en-US + pt-BR" /
-  "36 skills · 9 plugins · en-US + pt-BR" (identifiers untranslated)
-- `landing.hero.install` — "Install ai-gent" / "Instalar ai-gent"
+- `landing.hero.title` — "Find the skill for the task."
+- `landing.hero.search.placeholder` — "What are you trying to do?"
+- `landing.hero.meta` — "36 skills · 9 plugins · en-US"
+- `landing.hero.install` — "Install ai-gent"
 
 Skill page:
 
-- `skill.when` — "When to invoke" / "Quando invocar"
-- `skill.copy` — "Copy" / "Copiar", confirmed `skill.copied` —
-  "Copied" / "Copiado"
+- `skill.when` — "When to invoke"
+- `skill.copy` — "Copy", confirmed `skill.copied` — "Copied"
 - `skill.generated` — "Generated from {plugin} v{version} · ai-gent
-  {version}" / "Gerado de {plugin} v{version} · ai-gent {version}"
-- `skill.source` — "Read the source SKILL.md" / "Ler o SKILL.md original"
-- `skill.related` — "Related skills" / "Skills relacionadas"
+  {version}"
+- `skill.source` — "Read the source SKILL.md"
+- `skill.related` — "Related skills"
 
 Search empty:
 
-- `search.empty.title` — "No skill matches '{query}'." / "Nenhuma
-  skill corresponde a '{query}'."
-- `search.empty.body` — "Try fewer words, or browse the full index." /
-  "Tente menos palavras ou navegue pelo índice completo."
+- `search.empty.title` — "No skill matches '{query}'."
+- `search.empty.body` — "Try fewer words, or browse the full index."
 
 404:
 
-- `notfound.title` — "This page isn't in the index." / "Esta página
-  não está no índice."
-- `notfound.body` — "Search the skills, or start from the landing
-  page." / "Busque nas skills ou volte ao início."
+- `notfound.title` — "This page isn't in the index."
+- `notfound.body` — "Search the skills, or start from the landing page."
 
 ## Localization
 
-Locales: en-US (default) and pt-BR, full parity at launch — every page,
-every string, every check. Typed `ui` + `docs` namespaces; a missing key
-is a type error, never a silent fallback gap (fallback chains to en-US
-only for not-yet-translated contributor drafts, never silently). Browser
-language detection → persisted choice → en-US default. Technical
-identifiers (commands, flags, paths, skill IDs, URLs, version numbers)
-stay untranslated in both locales. Layouts tolerate +30% text length.
+English (en-US) at launch. The i18n architecture is deliberately kept:
+`LOCALES` is the single source of truth, `Messages` is a typed contract
+compiled as `Record<Locale, Messages>`, output and `llms`/Markdown paths
+are locale-keyed, and a completeness test compares every locale's key set
+against the reference. Adding a locale is therefore additive — add it to
+`LOCALES` and supply a complete `Messages`; the compiler and the test fail
+on any gap, and the language switcher reappears with no layout change.
+No silent fallback: a locale either exists and is complete, or it isn't in
+`LOCALES`. Technical identifiers (commands, flags, paths, skill IDs, URLs,
+versions) stay untranslated.
 
 ## Open questions
 
@@ -369,5 +368,11 @@ stay untranslated in both locales. Layouts tolerate +30% text length.
 - 2026-10-04, ruled-ledger rows instead of cards; marigold signal over
   terracotta/acid defaults; mono for code only — all from the
   AI-default review, with what changed stated above.
+- 2026-10-05, **reversed**: ship English only; drop the pt-BR strings.
+  Keep the i18n architecture (typed `Messages`, `LOCALES`, locale-keyed
+  output, completeness test). Reason: parity doubles per-change review
+  load and would require translating 36 skill descriptions that then
+  drift; the brief recorded that risk. Alternatives: keep pt-BR content
+  (rejected — maintenance), silent en-US fallback (rejected — hides gaps).
 - 2026-10-04, no terminal-interface section: none was requested for this
   site.

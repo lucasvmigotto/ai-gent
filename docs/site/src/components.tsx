@@ -53,6 +53,9 @@ function ThemeToggle() {
 
 function LanguageSwitcher() {
 	const { locale, setLocale, t } = useI18n();
+	// Only meaningful with more than one locale; the code stays so a second
+	// locale reappears without touching the layout.
+	if (LOCALES.length < 2) return null;
 	return (
 		<label className="text-sm">
 			<span className="sr-only">{t.nav.language}</span>

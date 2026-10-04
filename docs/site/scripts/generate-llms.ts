@@ -4,14 +4,12 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import generated from "../src/content/generated.json";
-import type { Locale } from "../src/i18n";
-import { messages } from "../src/i18n";
+import { LOCALES, type Locale, messages } from "../src/i18n";
 
 const site = fileURLToPath(new URL("..", import.meta.url));
 const dist = join(site, "dist");
 const base =
 	process.env.VITE_SITE_URL || "https://docs.lucasvmigotto.me/ai-gent";
-const LOCALES: Locale[] = ["en-US", "pt-BR"];
 
 interface Page {
 	slug: string;
@@ -197,5 +195,5 @@ writeFileSync(
 );
 
 console.log(
-	"wrote llms.txt, llms-full.txt and per-page Markdown for 2 locales",
+	`wrote llms.txt, llms-full.txt and per-page Markdown for ${LOCALES.length} locale(s)`,
 );

@@ -1,5 +1,4 @@
 import generated from "./content/generated.json";
-import type { Locale } from "./i18n";
 
 export interface PluginInfo {
 	name: string;
@@ -67,14 +66,4 @@ export function triggers(description: string): string[] {
 	const matches = description.match(/"(?:[^"\\]|\\.)*"/g);
 	if (!matches) return [];
 	return matches.map((m) => m.slice(1, -1)).slice(0, 6);
-}
-
-export function invokeCommand(skill: SkillInfo, locale: Locale): string {
-	return locale === "pt-BR"
-		? `/${skill.id}`
-		: `/${skill.plugin}:${skill.skill}`;
-}
-
-export function defineSiteVersion(): string {
-	return version;
 }

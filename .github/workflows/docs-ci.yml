@@ -169,8 +169,8 @@ jobs:
       - name: Sync LLM entry files (no-cache)
         if: steps.creds.outputs.present == 'true'
         run: |
-          for f in llms.txt llms-full.txt llms-en-US.txt llms-pt-BR.txt llms-full-en-US.txt llms-full-pt-BR.txt; do
-            aws s3 cp "docs/site/dist/$f" "s3://$R2_BUCKET${R2_PREFIX}$f" \
+          for f in docs/site/dist/llms*.txt; do
+            aws s3 cp "$f" "s3://$R2_BUCKET${R2_PREFIX}$(basename "$f")" \
               --endpoint-url "$R2_ENDPOINT" --content-type "text/plain; charset=utf-8" --cache-control "no-cache"
           done
 
