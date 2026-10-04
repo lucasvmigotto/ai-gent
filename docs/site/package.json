@@ -11,7 +11,8 @@
 		"lint": "biome check .",
 		"typecheck": "bun run gen && tsc --noEmit",
 		"test": "bun run gen && vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"e2e": "bun tests/e2e/smoke.mjs"
 	},
 	"dependencies": {
 		"react": "19.3.0",
@@ -31,6 +32,7 @@
 		"@vitejs/plugin-react": "6.1.1",
 		"happy-dom": "20.14.5",
 		"jest-axe": "11.0.0",
+		"selenium-webdriver": "4.50.0",
 		"tailwindcss": "4.3.3",
 		"typescript": "7.0.2",
 		"vite": "8.3.2",

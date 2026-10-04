@@ -89,6 +89,73 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  e2e:
+    # Containerized-browser smoke (no host driver). Advisory: deploy gates on
+    # verify, so a browser-image hiccup cannot block publishing.
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: docs/site
+
+      - name: Build
+        run: bun run build
+        working-directory: docs/site
+        env:
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_SITE_URL: https://docs.lucasvmigotto.me/${{ github.event.repository.name }}
+
+      - name: Start containerized Chrome
+        # --network host so the browser can reach the site served on the runner
+        # (a container cannot see the host's 127.0.0.1 otherwise). Pinned by
+        # digest; the tag is the comment (containers rule §3).
+        run: |
+          docker run -d --name ai-gent-chrome --network host --shm-size=2g \
+            selenium/standalone-chrome:153.0@sha256:7efe71e7e4a83bdf574b26bd354690928075e8f443223d2ced16a2c208eae1d7
+
+      - name: Wait for Chrome
+        run: |
+          for _ in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:4444/wd/hub/status >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::selenium grid did not start"
+          docker logs ai-gent-chrome | tail -50
+          exit 1
+
+      - name: Serve the built site
+        run: nohup bunx vite preview --host 127.0.0.1 --port 4173 --strictPort >"$RUNNER_TEMP/preview.log" 2>&1 &
+        working-directory: docs/site
+
+      - name: Wait for the site
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:4173/${{ github.event.repository.name }}/" >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "::error::preview server did not start"
+          cat "$RUNNER_TEMP/preview.log"
+          exit 1
+
+      - name: Smoke the site in Chrome
+        run: bun run e2e
+        working-directory: docs/site
+        env:
+          SITE_URL: http://127.0.0.1:4173/${{ github.event.repository.name }}/
+          SELENIUM_URL: http://127.0.0.1:4444
+
+      - name: Stop Chrome
+        if: always()
+        run: docker rm -f ai-gent-chrome || true
+
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: verify
