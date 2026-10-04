@@ -320,7 +320,7 @@ plugins/<name>/hooks/                           guard hooks (git, db)
 plugins/<name>/skills/<skill>/scripts/          tools one skill runs (compact:code: compact.py)
 plugins/<name>/scripts/                         tools a plugin's skills run (db: dbrun; project: sessions, repo_state)
 plugins/<name>/evals/                           trigger and behavior evals
-skills/<name>/SKILL.md                          personal skills (none yet)        → /<name>
+skills/<name>/SKILL.md                          personal skills (skill-docs)     → /<name>
 shared/                                         pipeline, container and code-reading rules, symlinked into plugins' references/
 opencode/guard/                                 the OpenCode V2 guard plugin, its rules and parity test
 scripts/                                        check.sh, release.py, opencode-config.py, test-dbrun-engines.py and the tests

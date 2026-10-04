@@ -8,6 +8,12 @@ changes.
 
 ### Added
 
+- **`skill-docs`: keep ai-gent's own docs in sync with skill changes.**
+  A repo-local skill (`/skill-docs`) that fires after adding, updating,
+  renaming or removing a skill or plugin: it walks the docs-site
+  reference, README, CHANGELOG and AGENTS.md, then `setup.sh` and
+  `scripts/check.sh`, so a skill change never lands with stale docs.
+
 - **`project:spec` writes a good constitution when the project has none.**
   A new `plugins/project/skills/spec/references/constitution.md` carries
   the default text, the gate test, and the bar a finished constitution
