@@ -105,3 +105,6 @@ R2 at `https://docs.lucasvmigotto.me/ai-gent/` by
 - e2e smoke drives the built site in containerized Chrome:
   `bun run build`, serve it, then `SELENIUM_URL=<url> bun run e2e` (CI job
   `e2e`, pinned `selenium/standalone-chrome` — never a host driver).
+- Open Graph image: `bun run og` regenerates the committed
+  `public/og-image.png` (1200×630) from `scripts/og-image.svg`; CI asserts
+  it is built and advertised.

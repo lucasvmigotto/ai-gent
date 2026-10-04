@@ -70,6 +70,14 @@ jobs:
             exit 1
           fi
 
+      - name: Assert the Open Graph image is built and advertised
+        run: |
+          # Preview cards are a product feature; a missing image or meta is a
+          # silent regression, so fail loudly (mirrors sibling docs sites).
+          test -f docs/site/dist/og-image.png || { echo "::error::dist/og-image.png missing"; exit 1; }
+          grep -q 'property="og:image"' docs/site/dist/index.html || { echo "::error::built index.html has no og:image"; exit 1; }
+          grep -q 'name="twitter:image"' docs/site/dist/index.html || { echo "::error::built index.html has no twitter:image"; exit 1; }
+
       - name: Guard prefix-scoped R2 deploy
         run: |
           # Fitness function: every R2 sync/cp must be prefix-scoped, so a

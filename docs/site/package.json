@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"gen": "node scripts/generate-content.mjs",
+		"og": "bun run scripts/og-image.ts",
 		"dev": "bun run gen && vite",
 		"build": "bun run gen && vite build && bun scripts/generate-llms.ts",
 		"preview": "vite preview",
@@ -33,6 +34,7 @@
 		"happy-dom": "20.14.5",
 		"jest-axe": "11.0.0",
 		"selenium-webdriver": "4.50.0",
+		"sharp": "0.35.5",
 		"tailwindcss": "4.3.3",
 		"typescript": "7.0.2",
 		"vite": "8.3.2",

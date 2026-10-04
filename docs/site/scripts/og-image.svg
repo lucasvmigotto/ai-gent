@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="ai-gent docs">
+  <!-- Open Graph source of truth (rendered to public/og-image.png by
+       scripts/og-image.ts). Violet-ink ground, parchment type, one marigold
+       accent. A single left-aligned column: the favicon mark, then the
+       wordmark and copy. No rules cross the text. -->
+  <rect width="1200" height="630" fill="#16121E" />
+
+  <!-- The favicon mark: two parchment ledger rules and a marigold bar. -->
+  <g>
+    <line x1="96" y1="108" x2="256" y2="108" stroke="#EFE9D8" stroke-opacity="0.85" stroke-width="8" stroke-linecap="round" />
+    <line x1="96" y1="140" x2="256" y2="140" stroke="#EFE9D8" stroke-opacity="0.4" stroke-width="8" stroke-linecap="round" />
+    <rect x="96" y="162" width="72" height="22" rx="11" fill="#E5A829" />
+  </g>
+
+  <!-- Wordmark and copy. -->
+  <text x="96" y="336" fill="#EFE9D8" font-family="Inter, 'DejaVu Sans', system-ui, sans-serif" font-size="160" font-weight="700" letter-spacing="-5">ai-gent</text>
+  <text x="99" y="398" fill="#EFE9D8" fill-opacity="0.82" font-family="Inter, 'DejaVu Sans', system-ui, sans-serif" font-size="40" font-weight="500">Docs</text>
+
+  <rect x="96" y="440" width="120" height="6" rx="3" fill="#E5A829" />
+
+  <text x="96" y="506" fill="#A79FB2" font-family="Inter, 'DejaVu Sans', system-ui, sans-serif" font-size="34">Skills and plugins for</text>
+  <text x="96" y="548" fill="#A79FB2" font-family="Inter, 'DejaVu Sans', system-ui, sans-serif" font-size="34">Claude Code and opencode</text>
+
+  <text x="96" y="592" fill="#A79FB2" fill-opacity="0.85" font-family="ui-monospace, 'DejaVu Sans Mono', monospace" font-size="24">36 skills · 9 plugins · docs.lucasvmigotto.me/ai-gent</text>
+</svg>

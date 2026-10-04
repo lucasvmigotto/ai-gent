@@ -5,8 +5,9 @@ import { defineConfig } from "vite";
 // Served under a path prefix (https://docs.lucasvmigotto.me/ai-gent/); CI
 // overrides both values from the repository name (see .env.example).
 const basePath = process.env.VITE_BASE_PATH || "/ai-gent/";
-const siteUrl =
-	process.env.VITE_SITE_URL || "https://docs.lucasvmigotto.me/ai-gent";
+const siteUrl = (
+	process.env.VITE_SITE_URL || "https://docs.lucasvmigotto.me/ai-gent"
+).replace(/\/$/, "");
 
 function htmlEnv() {
 	return {
