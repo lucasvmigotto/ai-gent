@@ -51,7 +51,8 @@ docs and stable enough to document truthfully.
 Goals (measurable; see Success metrics):
 
 - Every one of the 36 skills has its own reference page, accurate to the
-  code, in en-US and pt-BR at launch.
+  code, in English at launch, with the i18n architecture in place so a
+  second locale is a content task, not a rewrite.
 - A new user can go from landing to installed toolkit and first invoked
   skill without reading the raw repository.
 - A contributor can go from landing to a passing `scripts/check.sh` run
@@ -101,8 +102,6 @@ Non-goals (things a reasonable person might assume are in scope):
   changelog in one place, so I know what changed and what to pin.
 - When an agent needs toolkit knowledge, I want `llms.txt` and per-page
   Markdown, so it can ingest the docs without a browser.
-- When I read in Portuguese, I want the same complete site, so language is
-  never a reason to read stale material.
 
 ## Capabilities & scope
 
@@ -119,12 +118,12 @@ audiences and agents end to end.
   release flow, layout rules, per-plugin version table.
 - **Shared reference (MVP):** pipeline, containers, databases, guard
   hooks, license — the README's conceptual sections as pages.
-- **Bilingual (MVP):** en-US + pt-BR, full parity at launch, typed
-  namespaces so a missing translation is a build error.
+- **Localization-ready (MVP):** English (en-US) only at launch; typed
+  namespaces and locale-keyed output mean a missing translation for any
+  future locale is a build error, so adding one is additive.
 - **LLM-readable output (MVP):** `llms.txt`, `llms-full.txt`, one `.md`
-  per page and locale from the same typed content.
-- **Search (MVP):** client-side search over titles and content in both
-  locales.
+  per page from the same typed content.
+- **Search (MVP):** client-side search over titles and content.
 - **R2 deploy + environment (MVP):** CI builds and syncs to Cloudflare R2
   under `https://docs.lucasvmigotto.me/ai-gent/`, environment
   `ai-gent-docs`.
@@ -233,8 +232,9 @@ property, not a nicety.
   Success metrics).
 - **Accessibility:** WCAG 2.2 AA — keyboard operable, visible focus,
   semantic HTML before ARIA, `prefers-reduced-motion` honored.
-- **Localization:** en-US (default) + pt-BR, full parity at launch; missing
-  translation is a type error; technical identifiers untranslated.
+- **Localization:** English (en-US) at launch; the i18n architecture
+  (typed namespaces, locale-keyed output paths) is in place so a second
+  locale is additive; technical identifiers untranslated.
 - **Observability:** CI build status and R2 sync result per deploy; no
   runtime to monitor.
 - **Supported platforms/browsers:** any modern browser (static site, hash
@@ -275,8 +275,9 @@ property, not a nicety.
 
 1. Truthfulness to code (rank 1): stale docs mislead agents, not just
    humans — drives generated-from-source content and CI rebuilds.
-2. Bilingual parity en-US + pt-BR at launch (rank 2): doubles content
-   work, drives typed locale namespaces.
+2. Localization-readiness (rank 2): the site ships English only, but the
+   typed `Messages` contract and locale-keyed output keep a second locale
+   an additive content task.
 3. Zero-backend static hosting on existing R2 under a path prefix
    (`/ai-gent/`) (rank 3): drives `base: "/ai-gent/"`, hash routing, and
    prefix-aware sync.
@@ -300,9 +301,9 @@ by `project:docs` phases, not Spec Kit features — the host repo has no
    Priority: high. Depends on: 1.
 4. **Shared reference pages** — pipeline, containers, databases, guards.
    Priority: high. Depends on: 1.
-5. **Bilingual + LLM output** — pt-BR parity, `llms.txt`/`.md`.
+5. **LLM output** — `llms.txt`, `llms-full.txt`, per-page `.md`.
    Priority: high (launch-blocking). Depends on: 2–4.
-6. **Search** — bilingual client-side search. Priority: medium. Depends
+6. **Search** — client-side search. Priority: medium. Depends
    on: 2–4.
 7. **CI + R2 deploy** — workflow, environment, prefix sync. Priority:
    highest (nothing is "launched" without it). Depends on: 1.
@@ -312,9 +313,9 @@ by `project:docs` phases, not Spec Kit features — the host repo has no
 - **Risk** (medium likelihood, high impact): docs drift from code between
   releases. Mitigation: generate reference content from sources; CI
   rebuilds on content paths; release checklist includes a docs-diff look.
-- **Risk** (medium, medium): pt-BR parity doubles review load per change.
-  Mitigation: typed namespaces fail the build on gaps; core pages reviewed
-  first.
+- **Risk** (low, low): a second locale drifts or ships half-translated.
+  Mitigation: typed namespaces and a completeness test fail the build on a
+  gap; a locale is added deliberately, not partially.
 - **Risk** (low, medium): R2 path-prefix sync misconfigured (sibling
   content clobbered or prefix 404s). Mitigation: prefix-scoped sync,
   endpoint validation, staging check before first production sync.
@@ -329,8 +330,9 @@ by `project:docs` phases, not Spec Kit features — the host repo has no
 ## Open questions
 
 - None open: placement (`docs/site/`), audiences (users + contributors),
-  upstream-first, locales (en-US + pt-BR), deploy (R2), skill depth (all
-  36), and the public URL were all decided with the user before writing.
+  upstream-first, locales (English at launch, i18n-ready), deploy (R2),
+  skill depth (all 36), and the public URL were all decided with the user
+  before writing.
 
 ## Decision log
 
@@ -343,6 +345,13 @@ by `project:docs` phases, not Spec Kit features — the host repo has no
   to the raw repo.
 - 2026-10-04, pt-BR full parity at launch (not core-first): language must
   never be a reason to read stale material; enforced by typed namespaces.
+- 2026-10-05, **reversed**: drop the pt-BR translations; ship English only.
+  The i18n architecture stays (typed `Messages`, `LOCALES`, locale-keyed
+  `llms`/Markdown paths, a completeness test), so a locale is added
+  additively. Reason: parity doubles review load per change and would
+  require translating 36 skill descriptions that then drift; the brief's
+  own risk register named this. Alternatives: keep pt-BR content
+  (rejected — maintenance), silent en-US fallback (rejected — hides gaps).
 - 2026-10-04, success = adoption + fewer questions (not freshness-only):
   the site exists to reduce maintainer load and onboard users.
 - 2026-10-04, deploy to Cloudflare R2 at
