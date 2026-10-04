@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* Draft tokens from docs/product/ux-vision.md (frontend:spec finalizes). */
+
+:root,
+:root[data-theme="dark"] {
+	color-scheme: dark;
+	--color-bg: #16121e;
+	--color-surface: #1e1828;
+	--color-text: #efe9d8;
+	--color-text-muted: #a79fb2;
+	--color-signal: #e5a829;
+	--color-on-signal: #16121e;
+	--color-ok: #7fb069;
+	--color-danger: #d95f5f;
+	--font-display: "Fraunces", Georgia, serif;
+	--font-body: "Inter", system-ui, sans-serif;
+	--font-code: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root[data-theme="light"] {
+	color-scheme: light;
+	--color-bg: #fafaf7;
+	--color-surface: #ffffff;
+	--color-text: #1a1626;
+	--color-text-muted: #5c5566;
+	--color-signal: #7a5200;
+	--color-on-signal: #fafaf7;
+}
+
+@theme inline {
+	--color-bg: var(--color-bg);
+	--color-surface: var(--color-surface);
+	--color-text: var(--color-text);
+	--color-text-muted: var(--color-text-muted);
+	--color-signal: var(--color-signal);
+	--color-on-signal: var(--color-on-signal);
+	--color-ok: var(--color-ok);
+	--color-danger: var(--color-danger);
+	--font-display: var(--font-display);
+	--font-body: var(--font-body);
+	--font-code: var(--font-code);
+}
+
+body {
+	background-color: var(--color-bg);
+	color: var(--color-text);
+	font-family: var(--font-body);
+}
+
+:focus-visible {
+	outline: 2px solid var(--color-signal);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0.01ms;
+		animation-duration: 0.01ms;
+	}
+}
