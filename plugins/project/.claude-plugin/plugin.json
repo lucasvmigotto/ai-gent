@@ -1,6 +1,6 @@
 {
   "name": "project",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "license": "GPL-3.0-or-later",
   "description": "Project chain: init (product brief), architecture (drivers, capacity, ADRs), spec (Spec Kit phased specification), docs (documentation site), status (where the pipeline stands, what to run next), recap (where the last Claude Code or OpenCode session left off and what changed since); for existing code: survey (first-contact overview), introspec (reverse-engineered spec), retrofit (upgrades with behavior frozen), refactor (redesign with core invariants kept)",
   "author": {

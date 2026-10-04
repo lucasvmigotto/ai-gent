@@ -4,6 +4,22 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## 1.8.0 — 2026-10-04
+
+### Added
+
+- **docs-site:** add a generated Open Graph image and preview metadata
+- **docs-site:** content, i18n, pages and LLM output
+- **docs-site:** scaffold the site
+- add skill-docs to sync docs with skill changes
+- **project:** have the docs skill register a deploy environment
+
+### Changed
+
+- **docs-site:** load the Markdown renderer lazily
+- **docs-site:** ship English only, keep the i18n architecture
+- **scripts:** drive release manifests from release.json
+
 ## 1.7.0 — 2026-10-02
 
 ### Added
