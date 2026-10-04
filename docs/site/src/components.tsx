@@ -1,7 +1,13 @@
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import {
+	lazy,
+	type ReactNode,
+	Suspense,
+	useEffect,
+	useId,
+	useRef,
+	useState,
+} from "react";
 import { Link, NavLink, useNavigate } from "react-router";
-import remarkGfm from "remark-gfm";
 import {
 	counts,
 	plugins,
@@ -12,22 +18,14 @@ import {
 } from "./content";
 import { LOCALES, type Locale, useI18n } from "./i18n";
 
-// Rendered page bodies already own the h1, so Markdown headings are demoted
-// one level to keep one h1 per page.
-const DEMOTED_HEADINGS = {
-	h1: "h2",
-	h2: "h3",
-	h3: "h4",
-	h4: "h5",
-	h5: "h6",
-	h6: "h6",
-} as const;
+// react-markdown is heavy; load it only on pages that render Markdown.
+const LazyMarkdown = lazy(() => import("./Markdown"));
 
 export function Markdown({ children }: { children: string }) {
 	return (
-		<ReactMarkdown remarkPlugins={[remarkGfm]} components={DEMOTED_HEADINGS}>
-			{children}
-		</ReactMarkdown>
+		<Suspense fallback={<p className="text-muted">…</p>}>
+			<LazyMarkdown>{children}</LazyMarkdown>
+		</Suspense>
 	);
 }
 
