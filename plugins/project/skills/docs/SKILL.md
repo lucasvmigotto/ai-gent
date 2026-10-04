@@ -44,11 +44,20 @@ Its artifacts are content sources, not substitutes for reading the code:
 
 ## Phase 0 — Placement
 
-The site always lives in `docs/site/` — its own `package.json`, lockfile
-and build. `docs/` is the umbrella for all documentation: `docs/product/`
-(pipeline artifacts) and any existing ADRs/runbooks stay where they are
-and become content sources. If a site already exists elsewhere (`docs/`
-root, `website/`), ask before moving it.
+In a project repo the site lives in `docs/site/` — its own `package.json`,
+lockfile and build. `docs/` is the umbrella for all documentation:
+`docs/product/` (pipeline artifacts) and any existing ADRs/runbooks stay
+where they are and become content sources.
+
+**When the repository *is* the site** — a documentation hub, landing or
+portfolio whose whole purpose is the site, with no host application to
+document — put it at the root instead, in `site/`. There is no
+"documentation of something else" to sit beside, so nesting it under
+`docs/site/` would only be `docs/`-of-`docs/`. Every other repo stays on
+`docs/site/`.
+
+If a site already exists elsewhere (`docs/` root, `website/`), ask before
+moving it.
 
 ## Phase 1 — Discovery (no implementation yet)
 
@@ -166,14 +175,40 @@ error states) before calling anything done.
 ## Phase 7 — Ship
 
 - **Paths:** every CI step, cache key and the Docker build context use
-  `docs/site/` (`working-directory: docs/site`, `paths: [docs/site/**]`
-  triggers). Content read from `docs/product/` or `specs/` must also
-  trigger a rebuild.
-- **Pipeline:** the site's workflow is designed by `devsecops:pipeline`
-  (GitHub Actions unless the project uses another platform) with its
-  supply-chain baseline; the steps below are what it must contain.
-- **R2 workflow:** checkout → setup Bun (pinned) → install → lint →
-  typecheck → test → build → artifact → S3-sync to Cloudflare R2.
+  the site directory — `docs/site/` normally, `site/` for a hub-type repo
+  (`working-directory: <site>`, `paths: [<site>/**]` triggers). Content
+  read from `docs/product/` or `specs/` must also trigger a rebuild.
+- **GitHub Actions, written here.** Unless the project already uses
+  another platform, the skill writes the site's workflow itself —
+  `.github/workflows/<site>.yml` with a `verify` job (checkout → setup Bun
+  pinned → install → lint → typecheck → test → build → upload `dist/`) and
+  a `deploy` job (`needs: verify`) that publishes on the default branch
+  only. `devsecops:pipeline` still owns the supply-chain baseline (action
+  pinning, SBOM, signing) and reviews/hardens this file; it does not invent
+  its shape.
+- **Register the deployment.** The publishing job must declare a GitHub
+  Actions **environment** — a run that only syncs files is invisible in the
+  repository's Deployments and has nowhere to attach protection rules:
+
+  ```yaml
+  deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: <repo>-docs        # e.g. rusteams-docs
+      url: <public site URL>   # e.g. https://docs.lucasvmigotto.me/rusteams/
+  ```
+
+  `environment:` is what makes GitHub treat the run as a real Deployment:
+  it lists under Deployments, keeps its own history, and becomes the home
+  for environment-scoped variables/secrets and, later, required reviewers.
+  A job merely *named* `deploy` without it is still just steps. One
+  environment per site (`<repo>-docs`) so sibling repos don't share
+  protection rules by accident; the job's display name stays descriptive
+  (`Sync static site to …`).
+- **R2 deploy steps:** the `deploy` job runs checkout → setup Bun (pinned) →
+  install → lint → typecheck → test → build → artifact → S3 sync to
+  Cloudflare R2.
   Immutable long-lived caching for hashed assets, `no-cache` for entry
   HTML, `llms.txt`, `llms-full.txt` and the `.md` pages, which are served
   as `text/markdown; charset=utf-8` (`.txt` as `text/plain;

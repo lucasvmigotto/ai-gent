@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ai-gent docs mark">
+  <rect x="4" y="4" width="56" height="56" rx="10" fill="#16121E" />
+  <line x1="16" y1="24" x2="48" y2="24" stroke="#EFE9D8" stroke-width="3" stroke-linecap="round" />
+  <line x1="16" y1="33" x2="48" y2="33" stroke="#EFE9D8" stroke-width="3" stroke-linecap="round" opacity="0.55" />
+  <rect x="16" y="40" width="20" height="7" rx="3.5" fill="#E5A829" />
+</svg>

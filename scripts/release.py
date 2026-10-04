@@ -147,6 +147,62 @@ def plugin_paths(root, plugin_dir):
 
 
 VERSION_RE = re.compile(r'("version"\s*:\s*")([^"]+)(")')
+MANIFEST_CONFIG = "release.json"
+
+
+def version_in(text):
+    match = re.search(r'"version"\s*:\s*"([^"]+)"', text)
+    if not match:
+        raise ReleaseError('no "version" field')
+    return match.group(1)
+
+
+def load_manifest_config(root):
+    """Manifests listed in release.json, or None to use the plugins/ layout."""
+    path = os.path.join(root, MANIFEST_CONFIG)
+    if not os.path.isfile(path):
+        return None
+    try:
+        data = json.loads(open(path).read())
+    except ValueError as e:
+        raise ReleaseError(f"{MANIFEST_CONFIG}: invalid JSON ({e})")
+    manifests = data.get("manifests")
+    if not isinstance(manifests, list) or not manifests:
+        raise ReleaseError(f"{MANIFEST_CONFIG}: 'manifests' must be a non-empty list")
+    return manifests
+
+
+def plan_manifests(root, tag, config):
+    """Version bumps for the manifests in release.json.
+
+    Each entry is {file: path, paths: [extra paths]} — the version at `file`
+    is compared with its value at the last tag, and bumped by the strongest
+    commit touching `file`'s directory (plus any extra `paths`).
+    """
+    plans = []
+    for entry in config:
+        rel = entry.get("file")
+        if not rel:
+            raise ReleaseError(f"{MANIFEST_CONFIG}: a manifest entry has no 'file'")
+        full = os.path.join(root, rel)
+        if not os.path.isfile(full):
+            raise ReleaseError(f"{rel}: manifest not found")
+        text = open(full).read()
+        current = version_in(text)
+        if tag is None:
+            continue
+        try:
+            tagged = version_in(git("show", f"{tag}:{rel}"))
+        except ReleaseError:
+            continue  # new since the tag: its version is whatever it was created with
+        if tagged != current:
+            continue  # already bumped by hand since the tag
+        paths = entry.get("paths") or [os.path.dirname(rel) or "."]
+        bump = max_bump(commits(tag, paths))
+        if bump != "none":
+            plans.append({"label": f"manifest {rel}", "manifest": full, "text": text,
+                          "from": current, "to": bump_version(current, bump), "bump": bump})
+    return plans
 
 
 def plan_plugins(root, tag):
@@ -176,7 +232,7 @@ def plan_plugins(root, tag):
             continue  # already bumped by hand since the tag
         bump = max_bump(commits(tag, plugin_paths(root, plugin_dir)))
         if bump != "none":
-            plans.append({"name": name, "manifest": manifest, "text": text,
+            plans.append({"label": f"plugin {name}", "manifest": manifest, "text": text,
                           "from": current, "to": bump_version(current, bump), "bump": bump})
     return plans
 
@@ -257,13 +313,14 @@ def main(argv):
         return NO_RELEASE
     version = bump_version(tag, bump) if tag else args.initial
     date = args.date or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-    plugins = plan_plugins(root, tag)
+    config = load_manifest_config(root)
+    plans = plan_manifests(root, tag, config) if config is not None else plan_plugins(root, tag)
 
     text = open(changelog).read() if os.path.exists(changelog) else ""
     new_changelog, how = updated_changelog(text, version, date, items)
 
     plan = [f"release {version} ({bump}, since {tag or 'the start'})",
-            *(f"plugin {p['name']}: {p['from']} -> {p['to']} ({p['bump']})" for p in plugins),
+            *(f"{p['label']}: {p['from']} -> {p['to']} ({p['bump']})" for p in plans),
             f"CHANGELOG.md: {how}"]
     if args.dry_run:
         print("\n".join(plan))
@@ -273,7 +330,7 @@ def main(argv):
         print(section_of(new_changelog, version), end="")
         return 0
 
-    for p in plugins:
+    for p in plans:
         new_text, count = VERSION_RE.subn(lambda m: m[1] + p["to"] + m[3], p["text"], count=1)
         if count != 1:
             raise ReleaseError(f"{p['manifest']}: no version field to bump")
