@@ -106,10 +106,11 @@ def ro_mount() -> str:
     return "ro,z" if os.path.basename(engine_cmd() or "") == "podman" else "ro"
 
 
-def run(cmd: list[str], *, input: str | bytes | None = None, timeout: float = 60, text: bool = True):
+def run(cmd: list[str], *, input: str | bytes | None = None, timeout: float = 60, text: bool = True,
+        env: dict[str, str] | None = None):
     """subprocess.run that turns a missing binary or a timeout into a failed result."""
     try:
-        return subprocess.run(cmd, input=input, capture_output=True, text=text, timeout=timeout)
+        return subprocess.run(cmd, input=input, capture_output=True, text=text, timeout=timeout, env=env)
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(cmd, 124, "" if text else b"", f"timed out after {timeout} s")
     except OSError as e:
@@ -755,9 +756,25 @@ def connect(req: dict):
     if eng == "oracle":
         import oracledb  # noqa: PLC0415
 
-        conn = oracledb.connect(user=c.get("user"), password=c.get("password"),
-                                dsn=f"{c.get('host')}:{c.get('port') or 1521}/{c.get('service') or c.get('database')}",
-                                tcp_connect_timeout=10)
+        params = dict(user=c.get("user"), password=c.get("password"),
+                      dsn=f"{c.get('host')}:{c.get('port') or 1521}/{c.get('service') or c.get('database')}",
+                      tcp_connect_timeout=10)
+        try:
+            conn = oracledb.connect(**params)  # thin mode: the default, always tried first
+        except oracledb.Error as e:
+            # DPY-3015: the account's password uses the legacy 10G verifier, which thin mode cannot
+            # read. Thick mode (Oracle Instant Client) is the fallback for exactly that error —
+            # references/engines/oracle.md, "Thick-mode fallback".
+            if "DPY-3015" not in str(e):
+                raise
+            lib = os.environ.get("AI_GENT_ORACLE_CLIENT_LIB")
+            if not lib:
+                raise Failed(f"{e} — thin mode can't read this account's legacy password verifier; the documented "
+                             "fallback is thick mode: set AI_GENT_ORACLE_CLIENT_LIB to an Oracle Instant Client "
+                             "directory (see references/engines/oracle.md, 'Thick-mode fallback')",
+                             EXIT_CONNECT) from None
+            oracledb.init_oracle_client(lib_dir=lib)
+            conn = oracledb.connect(**params)
         conn.call_timeout = timeout_ms
         return conn
     if eng == "sqlite":
@@ -904,8 +921,14 @@ def driver_process(p: dict, cls: dict, req: dict) -> dict:
     else:
         raise Failed("neither uv nor a container engine is available to run the database driver; install uv "
                      "(https://docs.astral.sh/uv/) or Podman/Docker", EXIT_CONNECT)
+    env = None
+    lib = os.environ.get("AI_GENT_ORACLE_CLIENT_LIB")
+    if p["engine"] == "oracle" and lib and cmd[0] == "uv":
+        # Thick-mode fallback only (oracle.md): the Instant Client's own libraries must be on the
+        # loader path of the driver process. Thin mode ignores it.
+        env = {**os.environ, "LD_LIBRARY_PATH": lib + (":" + os.environ["LD_LIBRARY_PATH"] if os.environ.get("LD_LIBRARY_PATH") else "")}
     try:
-        out = run(cmd, input=payload, timeout=req["timeout"] * max(1, len(req.get("statements") or [1])) + 180)
+        out = run(cmd, input=payload, env=env, timeout=req["timeout"] * max(1, len(req.get("statements") or [1])) + 180)
     except subprocess.TimeoutExpired:
         raise Failed("the driver process timed out", EXIT_CONNECT) from None
     try:
