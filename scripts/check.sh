@@ -279,6 +279,16 @@ else
   fail "installer tests"
 fi
 
+# ------------------------------------------------------ update-check tests
+
+if ((QUICK)); then
+  warn "--quick: skipped update-check tests"
+elif scripts/test-update-check.sh; then
+  pass "update-check tests"
+else
+  fail "update-check tests"
+fi
+
 echo
 if ((failures)); then
   echo "$failures check(s) failed"

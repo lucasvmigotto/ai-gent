@@ -49,8 +49,18 @@ main() {
       update_to "$dir" "$branch"
     elif ! git -C "$dir" symbolic-ref --quiet HEAD >/dev/null; then
       say "$dir is pinned to $(git -C "$dir" describe --tags --always) — set AI_GENT_BRANCH to move it"
-    elif ! git -C "$dir" pull --ff-only --quiet; then
-      say "couldn't fast-forward $dir — not updating it, linking what's there"
+    else
+      before="$(git -C "$dir" describe --tags --always)"
+      if ! git -C "$dir" pull --ff-only --quiet; then
+        say "couldn't fast-forward $dir — not updating it, linking what's there"
+      else
+        after="$(git -C "$dir" describe --tags --always)"
+        if [ "$before" = "$after" ]; then
+          say "already at $after"
+        else
+          say "updated $before → $after"
+        fi
+      fi
     fi
   elif [ -e "$dir" ]; then
     die "$dir exists and isn't a git clone; set AI_GENT_DIR to another path"

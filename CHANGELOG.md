@@ -4,6 +4,23 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Update notice at session start.** A Claude Code `SessionStart` hook
+  (in the git plugin) prints one line when a newer ai-gent release is
+  known. The check behind it (`scripts/update-check.sh`) reads a weekly
+  cache and refreshes it detached, so startup never touches the network;
+  pinned checkouts stay silent and `AI_GENT_NO_UPDATE_CHECK=1` disables
+  it. `scripts/ai-gent-update.sh` applies the update by path
+  (fast-forward, refuses dirty or pinned trees), and the noticing session
+  only proposes — an update rewrites the agent's own instructions, so it
+  takes effect next session. opencode has no session-start hook point,
+  so the notice is Claude-only for now.
+- **`install.sh` reports what it did**: `already at 1.9.0` vs
+  `updated 1.8.1 → 1.9.0`, instead of updating in silence.
+
 ## 1.9.0 — 2026-10-05
 
 ### Added

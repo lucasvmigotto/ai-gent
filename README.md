@@ -34,6 +34,14 @@ curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.
 
 A pinned clone stays on its tag until you pass another one, or the default branch's name to follow it again. Releases are listed in `CHANGELOG.md`.
 
+When a Claude Code session starts in a checkout with the git plugin installed, a SessionStart hook prints one line if a newer release is known — the check reads a weekly cache and never blocks startup:
+
+```text
+[ai-gent] update available: 1.9.0 → 1.10.0 — run scripts/ai-gent-update.sh in the ai-gent checkout (propose first, never self-apply in-session)
+```
+
+Pinned checkouts stay silent, and `AI_GENT_NO_UPDATE_CHECK=1` disables the check. An update rewrites the agent's own instructions, so the session that notices it only proposes — applying it (`scripts/ai-gent-update.sh`, then re-running `setup.sh`) takes effect next session. (opencode has no session-start hook point yet, so the notice is Claude-only for now.)
+
 > [!TIP]
 > Piping a script into `sh` runs it unseen. To read it first, download, inspect, then run:
 
