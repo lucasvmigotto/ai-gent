@@ -137,6 +137,11 @@ syntax, and when closing actually happens. The rules that always hold:
   release title).
 - Pushing a tag publishes it: `git push <remote> <tag>` needs the same
   explicit order as any push.
+- **When the repo has release automation** (a push-to-main workflow with
+  a release script), the automation cuts the tag — don't tag by hand on
+  the same commit it releases. The flow to follow is
+  `../../references/releasing.md`; this section's rules are the manual
+  fallback for repos that don't run it.
 
 ## History rewriting — only on explicit request
 

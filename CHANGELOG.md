@@ -4,6 +4,24 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **A default release methodology.** New `shared/releasing.md` —
+  symlinked into the `git` and `devsecops` plugins — captures the flow
+  ai-gent and dottod both run: Conventional Commits decide the bump
+  (`feat` minor, `fix`/`perf`/`refactor` patch, `!`/`BREAKING CHANGE`
+  major), a plan script plans then applies, a push-to-main workflow
+  checks, tags a plain-SemVer annotated tag and publishes, with
+  hand-written `## Unreleased` notes winning over generated ones. It
+  splits the rest by product shape (per-plugin manifest bumps vs. a
+  single-product tag), makes checksums conditional on shipping files
+  (signing points to `devsecops:supply-chain`), keeps the release gate
+  unskippable, and closes the `release/*`-branch ambiguity.
+  `devsecops:pipeline` now defaults to it for the Release stage;
+  `git:workflow` defers to it where release automation owns the tags.
+
 ## 1.10.0 — 2026-10-08
 
 ### Added

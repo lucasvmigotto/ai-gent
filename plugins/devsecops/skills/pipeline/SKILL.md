@@ -10,7 +10,8 @@ description: Design and write CI/CD pipelines — pull request, main, release, s
 1. Read `../../references/principles.md` (role, platform detection and
    default, principles), `../../references/platforms/concepts.md`, and the
    detected platform's file in `../../references/platforms/`.
-2. Read `../../references/pipeline.md` and the inputs that exist:
+2. Read `../../references/pipeline.md`, `../../references/releasing.md`
+   (the default release flow), and the inputs that exist:
    - `docs/product/architecture.md` / ADRs — environments, hosting,
      deploy targets, deployment strategy, regions;
    - `docs/product/test-strategy.md` and `specs/*/qa.md` — which suites
@@ -22,7 +23,9 @@ description: Design and write CI/CD pipelines — pull request, main, release, s
 3. Ask what's missing (in one round): platform if undetectable and the
    user may not want the GitHub Actions default, deploy targets and
    environments, who approves production, the cloud account/subscription
-   structure for OIDC, release/versioning scheme.
+   structure for OIDC. The release scheme defaults to
+   `../../references/releasing.md` — ask only if the user wants
+   something different.
 
 ## Design — the portable model first
 
@@ -40,7 +43,11 @@ rendering any YAML:
      sign, provenance, deploy to staging, smoke test, then promotion to
      production behind approval.
    - **Release** — tags/versions, changelog, publishing, production
-     deploy of the already-built digest.
+     deploy of the already-built digest. Unless the user overrides,
+     implement `../../references/releasing.md` as-is: Conventional
+     Commits decide the bump, a plan script plans and applies it, a
+     push-to-main workflow checks then releases, plain SemVer annotated
+     tags cut by the automation.
    - **Scheduled** — full SAST/SCA/container scans, DAST baseline against
      staging, load tests (`qa:load`), dependency update PRs, cache warmup
      if useful.
