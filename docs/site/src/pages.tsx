@@ -194,6 +194,8 @@ export function InstallPage() {
 				label="shell"
 				code={`claude plugin details project@skills-dir\nopencode plugin list`}
 			/>
+			<h2 className="mt-6 font-display text-xl">{t.install.updates}</h2>
+			<p className="mt-2 max-w-2xl text-muted">{t.install.updatesBody}</p>
 			<h2 className="mt-6 font-display text-xl">{t.install.firstSkill}</h2>
 			<p className="mt-2 max-w-2xl text-muted">{t.install.firstSkillBody}</p>
 			<p className="mt-4">

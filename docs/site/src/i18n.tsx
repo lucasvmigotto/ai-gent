@@ -61,6 +61,8 @@ export interface Messages {
 		claude: string;
 		opencode: string;
 		verify: string;
+		updates: string;
+		updatesBody: string;
 		firstSkill: string;
 		firstSkillBody: string;
 		troubleshooting: string;
@@ -159,6 +161,9 @@ export const enUS: Messages = {
 		claude: "Claude Code",
 		opencode: "opencode",
 		verify: "Verify",
+		updates: "Updates",
+		updatesBody:
+			"When a Claude Code session starts, a SessionStart check prints one line if a newer release is known — the check reads a weekly cache and never blocks startup. Pinned checkouts stay silent, and AI_GENT_NO_UPDATE_CHECK=1 disables it. The session that notices an update only proposes it; applying it takes effect next session.",
 		firstSkill: "Invoke your first skill",
 		firstSkillBody:
 			"Type what you want in plain words and the matching skill loads, or invoke one directly.",
@@ -192,7 +197,7 @@ export const enUS: Messages = {
 		readingCode: "Reading code",
 		specKit: "Spec Kit",
 		guardsBody:
-			"Two PreToolUse hooks enforce the git and db rules in Claude Code; an OpenCode V2 plugin enforces the same rules there.",
+			"Two PreToolUse hooks enforce the git and db rules in Claude Code; an OpenCode V2 plugin enforces the same rules there. The git plugin also runs a SessionStart check that prints one line when a newer ai-gent release is known.",
 	},
 	changelog: { title: "Changelog", lede: "Releases and what changed." },
 	notFound: {
