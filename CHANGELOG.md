@@ -4,6 +4,30 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **`agents:orchestrate`, a new `agents` plugin.** Runs a spec'd feature
+  or task list with role-separated agents — `thinker` plans and decides,
+  `builder` implements, `reviewer` checks in a fresh context, `scout`
+  searches — routed by task to spend tokens where they matter:
+  self-contained cards, short reports, diffs instead of trees, effort per
+  card, a cap on parallel agents, resume after limits, a status ledger, a
+  worktree per parallel branch, and merges, pushes and releases always
+  asked. Agent-agnostic (Claude, Codex, OpenCode and others), with Claude as
+  the default. Roles and their model mapping live in the new
+  `shared/agent-roles.md`, symlinked into `agents` and `project`;
+  `project:spec` now tags each task with `Executor`, `Reviewer` and
+  `Effort`.
+- **`project:pitch`.** The project's presentation page from what the
+  repository records — short, medium or large; non-tech, basic-tech or a
+  tech team — as a Claude Artifact, a ChatGPT Canvas or a static page in
+  `docs/pitch/`. Every number has a source, targets are labelled as
+  targets, validation is shown with a "how to read these numbers" note, an
+  optional collapsed AI-effort and cost section estimates tokens from local
+  agent logs, and changes stack (`--stack`) until applied (`--apply`),
+  merging edits made on the live page.
 ## 1.11.0 — 2026-10-08
 
 ### Added

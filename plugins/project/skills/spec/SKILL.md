@@ -132,7 +132,10 @@ each other's feature.
    to the layer's section (`- [ ] T014 [US1] Backend implementation —
    see ## Backend`). `frontend:spec` and `backend:spec` append those
    `## Frontend` / `## Backend` sections with the detailed tasks, so
-   nothing is planned twice.
+   nothing is planned twice. Tag each task with the role that runs it and
+   the one that reviews it (`Executor: builder · Reviewer: thinker`, plus
+   `Effort: low` for mechanical work), roles from
+   `../../references/agent-roles.md`, so `agents:orchestrate` can route it.
 
 The **implement** step is not yours: `frontend:build` and `backend:build`
 execute it, each against its own section of `tasks.md`, then close it with
