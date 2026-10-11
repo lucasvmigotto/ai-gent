@@ -4,7 +4,7 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
-## 1.11.0 — 2026-10-08
+## Unreleased
 
 ### Added
 
@@ -28,6 +28,10 @@ changes.
   optional collapsed AI-effort and cost section estimates tokens from local
   agent logs, and changes stack (`--stack`) until applied (`--apply`),
   merging edits made on the live page.
+## 1.11.0 — 2026-10-08
+
+### Added
+
 - **A default release methodology.** New `shared/releasing.md` —
   symlinked into the `git` and `devsecops` plugins — captures the flow
   ai-gent and dottod both run: Conventional Commits decide the bump
