@@ -107,7 +107,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 | with arguments | `/qa:load 2000 concurrent users` | `/qa-load 2000 concurrent users` |
 
 > [!TIP]
-> Every enabled plugin's skill descriptions cost context in every session, about 4.8k tokens for all nine plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
+> Every enabled plugin's skill descriptions cost context in every session, about 5k tokens for all ten plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
 >
 > ```bash
 > claude plugin disable devsecops@skills-dir --scope project   # writes .claude/settings.json
@@ -126,6 +126,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `docs` — static documentation site in `docs/site/`, plus `llms.txt` and Markdown pages for LLMs
   - `survey` — first contact with a repository: stack, layout, history, how the main branches drift, red flags, and what to run next
   - `recap` — back to a project: where the last Claude Code or OpenCode session left off, what changed since (you, the remote, others), the next step
+  - `pitch` — the project's presentation page (short, medium or large; non-tech, basic-tech or tech team) as a Claude Artifact, a ChatGPT Canvas or a static page, every number sourced
   - `introspec` — reverse-engineer an existing codebase into the full pipeline spec, every claim Observed, Inferred or Assumed
   - `retrofit` — upgrade in place with behavior frozen: `patch` (CVEs), `minor` (adapt code), `major` (breaking upgrades)
   - `refactor` — redesign keeping the core invariants; business changes recorded for approval; incremental migration
@@ -162,6 +163,8 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
   - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
   - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
+- `plugins/agents/`
+  - `orchestrate` — run a spec'd feature with role-separated agents: a strong model plans and reviews, a fast model builds, a small one searches; self-contained cards, a worktree per parallel branch, merges asked first, routed for token-efficient use. Agent-agnostic, Claude by default; roles in `shared/agent-roles.md`
 - `plugins/compact/`
   - `code` — read source code token-lean: a verified compact view (no indentation, newlines or optional spaces; strings and comments kept) and an outline with original line numbers. Read-only. In testing, 29–39% fewer tokens than a line-numbered Read
 - `plugins/git/`
