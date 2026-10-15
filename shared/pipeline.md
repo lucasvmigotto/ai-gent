@@ -36,6 +36,7 @@ idea text / references dir
 
  devsecops:pipeline, devsecops:supply-chain ─► CI/CD config     from project:spec on
  devsecops:iac ────────► infra/                            cloud environments, once hosting is decided
+ devsecops:watch ──────► (report; fixes go through the stage) after every push, merge or promotion (rule 8)
  project:docs ─────────► docs/site/                        reads all of the above
  project:status ───────► (report only)                     where things stand, what to run next
  project:recap ────────► (report only)                     where the last session stopped, what changed since
@@ -183,7 +184,7 @@ definition and the words **not** to use for it
      `/speckit-converge` reported the feature converged**;
    - *Verified* — `qa:e2e` (and `qa:load` where the feature has load
      targets) passed against the implemented feature, and CI runs those
-     suites.
+     suites and they pass there.
    Only the named stage moves a status forward; any stage moves it back
    when it finds the claim no longer holds. The one exception is
    `project:introspec` on existing code, which sets Implemented or
@@ -200,8 +201,26 @@ definition and the words **not** to use for it
    workflow) and listed in the handoff; ask before merging. Promoting
    `dev` up the chain (`homolog`/`staging`, then `main`/`master`) needs
    its own explicit request.
-8. **Finish with a handoff line**: what was written, what's still open,
-   and the next stage to run.
+8. **Pushed means watched.** After every push, merge to a pushed branch
+   or promotion, the stage that made it follows the CI runs it started
+   with `devsecops:watch` until they finish, chained runs included: done
+   means green in CI, not only locally. On a red run:
+   - **this change's fault** (code, a test, a pipeline file it touched):
+     fix it on the same work branch, run the failing check locally, and
+     commit it like any other task; then **ask before pushing the fix** —
+     unless the user gave explicit permission beforehand to carry out the
+     project on its own (`git:workflow`), in which case push it and watch
+     again;
+   - **flaky, runner or outage**: report it; re-run the failed jobs only
+     when asked or covered by that permission, never a job that deploys,
+     publishes or tags;
+   - **already red** on the default branch before this change: report it,
+     don't fix it unasked.
+   Three fix rounds that leave CI red end the loop: report what was tried
+   and ask. A feature whose CI is red is not Implemented or Verified —
+   move it back (rule 6) until it's green.
+9. **Finish with a handoff line**: what was written, what's still open,
+   CI's state for anything pushed, and the next stage to run.
 
 ## Spec Kit
 

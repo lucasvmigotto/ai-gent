@@ -89,6 +89,10 @@ only after the last checkpoint passes.
 
 ## Handoff
 
+After any push of this work, follow its CI with `devsecops:watch`
+(pipeline rule 8 in `../../references/pipeline.md`): a red run caused by
+the change is fixed here before the feature counts as done.
+
 The commands and screens built, the stack and its ADR, test and tape
 results, the release artifacts, and what's open. `qa:e2e` covers
 cross-stack terminal journeys; `project:docs` publishes the CLI reference

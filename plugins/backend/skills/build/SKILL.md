@@ -169,6 +169,10 @@ to go green.
 
 ## Handoff
 
+After any push of this work, follow its CI with `devsecops:watch`
+(pipeline rule 8 in `../../references/pipeline.md`): a red run caused by
+the change is fixed here before the feature counts as done.
+
 Per feature: which step of the Spec Kit flow it reached, whether
 converge converged or what's left, what's Implemented, what's still
 Planned, contract changes (and whether the frontend was told), upstream

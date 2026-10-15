@@ -86,7 +86,9 @@ description: Write and run cross-stack end-to-end journeys, Playwright by defaul
 
 When a feature's journeys pass in CI (and `qa:load` passed where the
 feature has load targets), set its status to **Verified** in
-`specs/README.md` and note the run. If they fail, file the defect with
+`specs/README.md` and note the run. "Pass in CI" means the run that
+`devsecops:watch` followed to the end (pipeline rule 8 in
+`../../references/pipeline.md`), not a local run. If they fail, file the defect with
 the trace, keep the status Implemented, and tell the owning build stage.
 
 ## Handoff

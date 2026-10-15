@@ -21,6 +21,20 @@ changes.
   (`az pipelines`, `az devops invoke`), Bitbucket, Jenkins and
   Forgejo/Gitea (REST). `devsecops:pipeline` now follows the first runs of
   what it writes with it.
+- **Pushed means watched, across the product pipeline.** A new rule in
+  `shared/pipeline.md`: after every push, merge or promotion, the stage
+  that made it follows CI with `devsecops:watch`, and done means green in
+  CI. A red run caused by the change is fixed on the same branch and
+  committed; pushing the fix is asked, unless the user gave explicit
+  permission beforehand to run the project on its own. It stops after 3
+  rounds still red. Verified now requires the suites to pass in CI, and
+  red CI moves a status back. `frontend:build`, `backend:build`,
+  `frontend:tui`, `qa:e2e`, `agents:orchestrate` and `project:status`
+  (which now reports CI on the default branches) follow it.
+- **`git:workflow`'s autonomous-run exception.** Explicit up-front
+  permission to carry out a project on its own covers pushing work
+  branches, `dev` and CI fixes; never force-pushes, remote deletions or
+  promotions it doesn't name. The guard hooks still ask on every push.
 
 ### Fixed
 

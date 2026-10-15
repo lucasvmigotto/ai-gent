@@ -38,7 +38,7 @@ against the repository rather than trusting the table:
 | Planned | `spec.md` exists with no open `[NEEDS CLARIFICATION]`, plus `plan.md` and `tasks.md` |
 | In progress | some tasks checked in the matching `## Frontend` / `## Backend` section of `tasks.md` |
 | Implemented | all of that side's tasks checked, code and tests for them present, and no unchecked `## Phase N: Convergence` phase |
-| Verified | `qa.md` journeys exist as tests under `tests/e2e/` (and `tests/load/` where the feature has load targets), and CI runs them |
+| Verified | `qa.md` journeys exist as tests under `tests/e2e/` (and `tests/load/` where the feature has load targets), and CI runs them and passed on the last run |
 
 A claim without its evidence is a **contradiction**. Report it, and name
 the stage that should move the status back (pipeline rule 6). Two that
@@ -47,6 +47,11 @@ has unchecked tasks (the build stage hasn't closed its loop), and a
 feature whose `spec.md` still carries an open `[NEEDS CLARIFICATION]`
 marker — that one blocks `plan`, so everything downstream of it is
 stalled.
+
+Read CI's latest result on `dev`/`develop` and `main`/`master` with the
+platform commands in `devsecops:watch` (read-only: list and view, never
+re-run). A red default branch is an open item, and a feature claimed
+Verified while its suites fail there is a contradiction.
 
 Also flag features whose dependencies are less advanced than they are,
 and features with a `ui.md` or `backend.md` missing although the other
@@ -94,6 +99,7 @@ A short report in the chat, in this order:
 Pipeline — <product name>
 Artifacts   brief ✓ · architecture ✓ (stale: brief changed 2026-05-02) · specs ✓ · ux-vision ✗ · …
 Features    table: NNN name | priority | frontend | backend | QA | notes
+CI          dev ✓ · main ✗ <workflow> — the failing job, if any
 Open items  N gaps, N clarifications, N assumptions — the ones that matter, with file:line
 Contradictions  each with its evidence and the owning stage
 Next        /<stage> — why; alternatives in parallel

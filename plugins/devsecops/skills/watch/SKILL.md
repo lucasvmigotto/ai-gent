@@ -110,6 +110,12 @@ Only when the user asks, and with what it will do said first:
   get.
 - A fix to the pipeline itself goes through `devsecops:pipeline` and
   `git:workflow` like any other change.
+- **Inside the product pipeline**, the stage that pushed owns the fix
+  (pipeline rule 8 in `../../references/pipeline.md`): this skill
+  explains the failure, the build stage fixes and commits it, and the
+  push of the fix is asked — unless the user gave explicit permission
+  beforehand to run the project on its own (`git:workflow`). Three rounds
+  still red: stop and report.
 
 ## Report
 

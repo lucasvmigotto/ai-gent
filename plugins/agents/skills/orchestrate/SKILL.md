@@ -76,9 +76,16 @@ When a card reports:
 
 Report to the user per branch: the commits, their count, the merge type —
 `--ff-only` under 4 commits, `--no-ff` from 4 (`git:workflow`) — and the
-checks. **Ask before every merge, push, promotion or release.** After a
-merge, delete the branch with `git branch -d` (never `-D`) and remove its
-worktree.
+checks. **Ask before every merge, push, promotion or release** — unless
+the user gave explicit permission beforehand to run the project on its own
+(`git:workflow`). After a merge, delete the branch with `git branch -d`
+(never `-D`) and remove its worktree.
+
+After every push, follow CI with `devsecops:watch` (pipeline rule 8). A
+red run caused by the work becomes a card like any other: the fast model
+fixes it on the same branch, the strong model reviews the fix, and the
+push of the fix is asked (or covered by that permission). Three rounds
+still red: stop and report.
 
 ## Token economy
 
