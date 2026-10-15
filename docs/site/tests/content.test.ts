@@ -5,6 +5,7 @@ import {
 	searchSkills,
 	skillById,
 	skills,
+	sourceUrl,
 	triggers,
 } from "../src/content";
 
@@ -27,6 +28,17 @@ describe("generated content", () => {
 	it("finds a skill by the words of a task", () => {
 		const results = searchSkills("load test");
 		expect(results.some((s) => s.id === "qa-load")).toBe(true);
+	});
+
+	it("finds a skill by its Claude Code command", () => {
+		expect(searchSkills("qa:load")[0]?.id).toBe("qa-load");
+	});
+
+	it("links sources to the ref the site was built from, not main", () => {
+		const skill = skillById("qa-load");
+		if (!skill) throw new Error("missing qa-load skill");
+		expect(skill.sourceUrl).not.toContain("/blob/main/");
+		expect(skill.sourceUrl).toBe(sourceUrl("plugins/qa/skills/load/SKILL.md"));
 	});
 
 	it("returns nothing for an empty query", () => {

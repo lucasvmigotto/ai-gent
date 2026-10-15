@@ -59,7 +59,9 @@ export interface Messages {
 		lede: string;
 		choose: string;
 		claude: string;
-		opencode: string;
+		claudeBody: string;
+		others: string;
+		othersBody: string;
 		verify: string;
 		updates: string;
 		updatesBody: string;
@@ -99,7 +101,8 @@ export interface Messages {
 
 export const enUS: Messages = {
 	meta: {
-		title: "ai-gent docs — skills and plugins for Claude Code and opencode",
+		title:
+			"ai-gent docs — skills and plugins for Claude Code and other coding agents",
 		description:
 			"Install ai-gent, find the right skill among 36, and contribute.",
 	},
@@ -121,7 +124,7 @@ export const enUS: Messages = {
 	},
 	landing: {
 		title: "Find the skill for the task.",
-		lede: "ai-gent is 9 plugins and 36 skills for Claude Code and opencode. Type what you are trying to do.",
+		lede: "ai-gent is 9 plugins and 36 skills for Claude Code and other coding agents. Type what you are trying to do.",
 		placeholder: "What are you trying to do?",
 		counts: (plugins, skills) =>
 			`${skills} skills · ${plugins} plugins · ${LOCALES.join(" + ")}`,
@@ -156,10 +159,14 @@ export const enUS: Messages = {
 	},
 	install: {
 		title: "Install ai-gent",
-		lede: "One command per tool. Re-run it to update.",
-		choose: "Choose your tool",
-		claude: "Claude Code",
-		opencode: "opencode",
+		lede: "One command. On a terminal it asks which agents to install for, with Claude Code preselected. Re-run it to update.",
+		choose: "Choose your agents",
+		claude: "Claude Code (default)",
+		claudeBody:
+			"Without a terminal, or with --skip-prompt, it installs your previous choice, or Claude Code alone the first time.",
+		others: "Other agents",
+		othersBody:
+			"opencode, Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Gemini CLI, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the git and db guards; elsewhere they are instructions.",
 		verify: "Verify",
 		updates: "Updates",
 		updatesBody:
@@ -207,7 +214,7 @@ export const enUS: Messages = {
 	footer: {
 		license: "GPL-3.0-or-later",
 		source: "Source on GitHub",
-		version: "ai-gent version",
+		version: "Versions",
 	},
 };
 

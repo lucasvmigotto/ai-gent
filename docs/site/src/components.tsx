@@ -9,12 +9,14 @@ import {
 } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import {
+	command,
 	counts,
 	plugins,
 	type SkillInfo,
 	searchSkills,
 	skills,
 	version,
+	versions,
 } from "./content";
 import { LOCALES, type Locale, useI18n } from "./i18n";
 
@@ -198,7 +200,7 @@ export function SkillRow({ skill }: { skill: SkillInfo }) {
 				to={`/use/skills/${skill.id}`}
 				className="flex flex-col gap-1 px-1 py-3 hover:bg-surface"
 			>
-				<span className="font-code text-sm text-signal">{`/${skill.id}`}</span>
+				<span className="font-code text-sm text-signal">{command(skill)}</span>
 				<span className="text-sm text-muted">
 					{skill.description.split(". ")[0]}
 				</span>
@@ -312,8 +314,23 @@ export function Layout({ children }: { children: ReactNode }) {
 			</main>
 			<footer className="border-t border-muted/20 px-4 py-6 text-sm text-muted">
 				<div className="mx-auto flex max-w-6xl flex-wrap gap-4">
-					<span>
-						{t.footer.version} {version}
+					<span title={t.footer.version} className="font-code">
+						{versions.map((v, i) => (
+							<span key={v.name}>
+								{i > 0 && " · "}
+								{v.href ? (
+									<a
+										href={v.href}
+										rel="noreferrer"
+										className="hover:text-signal"
+									>
+										{v.label}
+									</a>
+								) : (
+									v.label
+								)}
+							</span>
+						))}
 					</span>
 					<span>{t.footer.license}</span>
 					<a

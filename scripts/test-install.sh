@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Tests setup.sh and install.sh in a throwaway HOME: install, idempotent
-# re-run, dry run, pruning, the opencode symlink replacement, uninstall, and
-# that directories the scripts didn't create are left alone. Called by
+# re-run, dry run, pruning, the opencode symlink replacement, the agent choice
+# (Claude Code by default, the rest opt-in and remembered), the generated
+# entries for agents without plugin namespaces, uninstall, and that
+# directories the scripts didn't create are left alone. Called by
 # scripts/check.sh.
 
 set -euo pipefail
@@ -14,6 +16,11 @@ export HOME="$SANDBOX/home"
 export CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
 export OPENCODE_SKILLS_DIR="$HOME/.config/opencode/skills"
 export OPENCODE_COMMANDS_DIR="$HOME/.config/opencode/commands"
+export AGENTS_SKILLS_DIR="$HOME/.agents/skills"
+export KIRO_SKILLS_DIR="$HOME/.kiro/skills"
+export WINDSURF_SKILLS_DIR="$HOME/.codeium/windsurf/skills"
+export XDG_STATE_HOME="$HOME/.local/state"
+targets_state="$XDG_STATE_HOME/ai-gent/targets"
 unset XDG_DATA_HOME AI_GENT_DIR AI_GENT_REPO AI_GENT_BRANCH
 
 failures=0
@@ -51,7 +58,8 @@ setup --dry-run
 check "changes nothing" test "$before" == "$(snapshot)"
 
 echo "      -- install"
-setup
+setup --target claude,opencode
+check "the choice is remembered" test "$(cat "$targets_state")" == "claude opencode"
 check "claude: one link per skill and plugin" test "$(links_into "$CLAUDE_SKILLS_DIR" "$REPO_DIR")" -eq $((skills + plugins))
 check "opencode: skills dir is now a real directory" test ! -L "$OPENCODE_SKILLS_DIR" -a -d "$OPENCODE_SKILLS_DIR"
 check "opencode: one link per personal skill" test "$(links_into "$OPENCODE_SKILLS_DIR" "$REPO_DIR")" -eq "$skills"
@@ -75,10 +83,10 @@ check "no colors without a terminal" bash -c '! grep -q $'"'"'\e'"'"' "$1"' _ "$
 setup --verbose
 check "--verbose: one line per item" grep -Eq "^ok +qa\$" "$SANDBOX/out"
 if script --version 2>/dev/null | grep -q util-linux; then # a terminal, via util-linux script
-  TERM=xterm-256color script -qec "$REPO_DIR/setup.sh --no-config-edits" /dev/null >"$SANDBOX/out" 2>&1
+  TERM=xterm-256color script -qec "$REPO_DIR/setup.sh --skip-prompt --no-config-edits" /dev/null >"$SANDBOX/out" 2>&1
   check "terminal: progress rewritten in place" grep -q $'\r\e\[K' "$SANDBOX/out"
   check "terminal: colored statuses" grep -q $'\e\[32m\[ok\]' "$SANDBOX/out"
-  NO_COLOR=1 TERM=xterm-256color script -qec "$REPO_DIR/setup.sh --no-config-edits" /dev/null >"$SANDBOX/out" 2>&1
+  NO_COLOR=1 TERM=xterm-256color script -qec "$REPO_DIR/setup.sh --skip-prompt --no-config-edits" /dev/null >"$SANDBOX/out" 2>&1
   check "terminal: NO_COLOR turns colors off" bash -c '! grep -q $'"'"'\e\[3[0-9]m'"'"' "$1"' _ "$SANDBOX/out"
 fi
 
@@ -103,6 +111,43 @@ setup --force
 check "--force backs it up and links" bash -c 'test -L "$1/qa" && compgen -G "$1/qa.bak-*" >/dev/null' _ "$CLAUDE_SKILLS_DIR"
 rm -rf "$CLAUDE_SKILLS_DIR"/qa.bak-*
 
+echo "      -- other agents"
+gen_count() { find "$1" -mindepth 2 -maxdepth 2 -name .ai-gent-generated 2>/dev/null | wc -l; }
+setup --target claude,codex,cursor,kiro
+check "codex and cursor: one shared entry per skill and plugin skill" test "$(gen_count "$AGENTS_SKILLS_DIR")" -eq $((skills + plugin_skills))
+check "shared entries are files, not symlinks" test "$(find "$AGENTS_SKILLS_DIR" -maxdepth 1 -type l | wc -l)" -eq 0
+check "one section for the agents sharing ~/.agents/skills" grep -q "^== Codex, Cursor:" "$SANDBOX/out"
+check "kiro: its own entries" test "$(gen_count "$KIRO_SKILLS_DIR")" -eq $((skills + plugin_skills))
+check "windsurf: untouched when not chosen" test ! -e "$WINDSURF_SKILLS_DIR"
+check "the guard gap is noted" grep -q "guards are instructions only" "$SANDBOX/out"
+check "entries say which agent, not opencode" bash -c '! grep -q "opencode" "$1"/db-inspect/SKILL.md' _ "$AGENTS_SKILLS_DIR"
+check "the new choice is remembered" test "$(cat "$targets_state")" == "claude codex cursor kiro"
+setup --skip-prompt
+check "--skip-prompt: the remembered choice, unchanged" bash -c '! grep -Eq "^\[(link|generate)\] " "$1" && grep -q "^== Kiro:" "$1"' _ "$SANDBOX/out"
+setup --uninstall --target kiro
+check "--uninstall --target: only that agent" test "$(gen_count "$KIRO_SKILLS_DIR")" -eq 0 -a "$(gen_count "$AGENTS_SKILLS_DIR")" -gt 0
+check "--uninstall --target: forgotten" test "$(cat "$targets_state")" == "claude codex cursor"
+check "an unknown agent is refused" bash -c '! "$1/setup.sh" --target nope >/dev/null 2>&1' _ "$REPO_DIR"
+setup --target claude,opencode
+
+echo "      -- default (first run, no terminal)"
+d="$SANDBOX/first"
+mkdir -p "$d"
+env HOME="$d" XDG_STATE_HOME="$d/state" CLAUDE_SKILLS_DIR="$d/.claude/skills" \
+  OPENCODE_SKILLS_DIR="$d/.config/opencode/skills" OPENCODE_COMMANDS_DIR="$d/.config/opencode/commands" \
+  AGENTS_SKILLS_DIR="$d/.agents/skills" "$REPO_DIR/setup.sh" >"$SANDBOX/out" 2>&1
+check "Claude Code only" bash -c 'test -L "$1/.claude/skills/qa" && test ! -e "$1/.agents" && test ! -e "$1/.config/opencode/skills"' _ "$d"
+# An entry generated by an earlier setup.sh, which installed opencode by default.
+mkdir -p "$d/.config/opencode/skills/project-init"
+printf -- '---\nname: project-init\nmetadata:\n  source: "%s"\n---\n' "$REPO_DIR/plugins/project/skills/init/SKILL.md" \
+  >"$d/.config/opencode/skills/project-init/SKILL.md"
+touch "$d/.config/opencode/skills/project-init/.ai-gent-generated"
+rm -rf "$d/state"
+env HOME="$d" XDG_STATE_HOME="$d/state" CLAUDE_SKILLS_DIR="$d/.claude/skills" \
+  OPENCODE_SKILLS_DIR="$d/.config/opencode/skills" OPENCODE_COMMANDS_DIR="$d/.config/opencode/commands" \
+  "$REPO_DIR/setup.sh" --skip-prompt --no-config-edits >"$SANDBOX/out" 2>&1
+check "an earlier opencode install stays chosen" test "$(cat "$d/state/ai-gent/targets")" == "claude opencode"
+
 echo "      -- uninstall"
 setup --uninstall
 check "claude: no links into the repo" test "$(links_into "$CLAUDE_SKILLS_DIR" "$REPO_DIR")" -eq 0
@@ -110,6 +155,8 @@ check "opencode: no links, entries or commands left" bash -c '
   ! find "$1" -maxdepth 1 -type l -lname "$3/*" | grep -q . &&
   ! compgen -G "$1/*/.ai-gent-generated" >/dev/null &&
   ! grep -lq "Generated by ai-gent/setup.sh" "$2"/*.md 2>/dev/null' _ "$OPENCODE_SKILLS_DIR" "$OPENCODE_COMMANDS_DIR" "$REPO_DIR"
+check "every agent: no entries left" test "$(gen_count "$AGENTS_SKILLS_DIR")" -eq 0
+check "uninstall forgets the choice" test ! -e "$targets_state"
 check "user's own files kept" test -f "$CLAUDE_SKILLS_DIR/mine/SKILL.md" -a -d "$CLAUDE_SKILLS_DIR/synced/one" -a -f "$OPENCODE_COMMANDS_DIR/mine.md"
 
 # opencode config: the V2 permission rules, the guard plugin and the skill
@@ -120,7 +167,7 @@ oc_run() { # oc_run <home> <setup.sh args...>
   env HOME="$home" XDG_STATE_HOME="$home/.local/state" \
     CLAUDE_SKILLS_DIR="$home/.claude/skills" \
     OPENCODE_SKILLS_DIR="$home/.config/opencode/skills" OPENCODE_COMMANDS_DIR="$home/.config/opencode/commands" \
-    "$REPO_DIR/setup.sh" "$@" >"$SANDBOX/out" 2>&1
+    "$REPO_DIR/setup.sh" --target opencode "$@" >"$SANDBOX/out" 2>&1
 }
 json_get() { python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps(eval(sys.argv[2], {"d": d})))' "$@"; }
 

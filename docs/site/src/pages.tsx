@@ -9,11 +9,13 @@ import {
 } from "./components";
 import {
 	changelog as changelogText,
+	command,
 	pluginOf,
 	plugins,
 	skillById,
 	skills,
 	skillsOf,
+	sourceUrl,
 	triggers,
 	version,
 } from "./content";
@@ -120,15 +122,15 @@ export function SkillPage() {
 		<article>
 			<nav aria-label="Breadcrumb" className="text-sm text-muted">
 				<Link to="/use/skills">{t.skills.title}</Link> /{" "}
-				<span>/{skill.id}</span>
+				<span>{command(skill)}</span>
 			</nav>
 			<h1 className="mt-2 font-display text-3xl">{skill.name}</h1>
 			<p className="mt-2 max-w-3xl text-muted">{skill.description}</p>
 
 			<h2 className="mt-6 font-display text-xl">{t.skill.invoke}</h2>
 			<CodeBlock
-				label="claude code · opencode"
-				code={`/${skill.plugin}:${skill.skill}   # Claude Code\n/${skill.id}   # opencode`}
+				label="claude code · other agents"
+				code={`${command(skill)}   # Claude Code\n/${skill.id}   # opencode, Cursor; $${skill.id} in Codex; by name elsewhere`}
 			/>
 
 			{when.length > 0 && (
@@ -182,13 +184,15 @@ export function InstallPage() {
 			<h3 className="mt-4 font-medium">{t.install.claude}</h3>
 			<CodeBlock
 				label="shell"
-				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude`}
+				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh`}
 			/>
-			<h3 className="mt-4 font-medium">{t.install.opencode}</h3>
+			<p className="mt-2 max-w-2xl text-muted">{t.install.claudeBody}</p>
+			<h3 className="mt-4 font-medium">{t.install.others}</h3>
 			<CodeBlock
 				label="shell"
-				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target opencode`}
+				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,opencode,codex,cursor`}
 			/>
+			<p className="mt-2 max-w-2xl text-muted">{t.install.othersBody}</p>
 			<h2 className="mt-6 font-display text-xl">{t.install.verify}</h2>
 			<CodeBlock
 				label="shell"
@@ -304,7 +308,7 @@ export function ReferencePage() {
 							{e.path && (
 								<a
 									className="ml-1 text-signal underline"
-									href={`https://github.com/lucasvmigotto/ai-gent/blob/main/${e.path}`}
+									href={sourceUrl(e.path)}
 									rel="noreferrer"
 								>
 									{e.path}

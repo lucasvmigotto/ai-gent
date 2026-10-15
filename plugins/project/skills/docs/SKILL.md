@@ -86,8 +86,15 @@ React Router **`HashRouter`** (static hosts provide no SPA fallback, so
 hash routing keeps deep links working) · Biome (not ESLint). No runtime
 backend, no heavy doc framework.
 
-- Version injected at build time from the host's source of truth
+- Versions injected at build time from the host's sources of truth
   (e.g. read `Cargo.toml` in `vite.config.ts`), never hand-maintained.
+  The footer names every versioned part and then the site itself —
+  `<project>@v<version> · docs@v<docs version>` (`app@v1.2.0 · api@v1.2.0
+  · docs@v1.0.0` for a multi-part repo) — each linked to the repository
+  tree at its release tag, or at the commit (`v1.2.0+abc1234`) for a build
+  past it. The docs version is `docs/site/package.json`'s, raised by the
+  release flow when the site changes. Read
+  `references/version-footer.md` when building or fixing the footer.
 - Page metadata + Open Graph + favicon + `index.html`; distinct project
   branding (dark-first tokens adapted per project, restrained motifs).
 - **Visual identity.** If `docs/product/ux-vision.md` exists, derive the
@@ -183,7 +190,10 @@ error states) before calling anything done.
   `.github/workflows/<site>.yml` with a `verify` job (checkout → setup Bun
   pinned → install → lint → typecheck → test → build → upload `dist/`) and
   a `deploy` job (`needs: verify`) that publishes on the default branch
-  only. `devsecops:pipeline` still owns the supply-chain baseline (action
+  only. When a release workflow tags the default branch after the push,
+  deploy on its completion instead (`workflow_run`), or the footer
+  shows the previous version (`references/version-footer.md`).
+  `devsecops:pipeline` still owns the supply-chain baseline (action
   pinning, SBOM, signing) and reviews/hardens this file; it does not invent
   its shape.
 - **Register the deployment.** The publishing job must declare a GitHub

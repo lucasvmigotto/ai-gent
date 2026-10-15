@@ -4,6 +4,48 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **BREAKING: `setup.sh` installs for Claude Code alone by default.**
+  On a terminal it asks which agents to install for: an fzf selector, or a
+  numbered prompt without fzf. Claude Code and the previous choice are
+  preselected. Without a terminal, or with the new `--skip-prompt`, it
+  installs the previous choice, or Claude Code alone the first time. opencode
+  is no longer installed just because it is present, but an existing install
+  that generated opencode entries keeps opencode chosen. `--target` now takes
+  a comma-separated list, and `all` means every agent found on the machine.
+  The choice is kept in `~/.local/state/ai-gent/targets`.
+- **The docs site shows skills as Claude Code commands** (`/qa:load`). The
+  `plugin-skill` name stays for opencode, Codex, Cursor and the others, and
+  in the page URLs.
+
+### Added
+
+- **Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf**, all
+  opt-in. Each skill gets a generated `<plugin>-<skill>` entry file. The first
+  five share `~/.agents/skills`, so the entries are installed once and no
+  skill is listed twice. Kiro uses `~/.kiro/skills` and Windsurf
+  `~/.codeium/windsurf/skills`. These agents don't enforce the git and db
+  guards; for them the guards are instructions only.
+
+### Fixed
+
+- **`project:docs` version footer.** The footer now lists each versioned
+  part of the project and then the site itself, as
+  `<project>@v<version> · docs@v<docs version>`. Each entry links to the
+  repository tree at its release tag, or at the commit for a build past
+  the tag. The deploy runs after the release workflow, so it shows the new
+  version instead of the previous one. The details are in the new
+  `references/version-footer.md`. ai-gent's own site follows the rule
+  (`ai-gent@v… · docs@v0.1.0`).
+- **Docs site source links** point at the tag the site was built from (or
+  the commit), not `main`, and `project:docs` now asks for the same.
+- **`scripts/release.py`** now bumps the manifests listed in `release.json`
+  (here `docs/site/package.json`) alongside the plugins. Before, a
+  `release.json` replaced the plugins instead.
+
 ## 1.12.0 — 2026-10-11
 
 ### Added

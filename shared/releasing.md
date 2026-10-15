@@ -57,7 +57,10 @@ what a release changes:
   `version` of each sub-package whose files changed since the tag, and
   — critically — follows symlinks, so a change to a shared file
   (`shared/pipeline.md`) bumps every package that links it. A package
-  new since the tag, or already bumped by hand, is left alone.
+  new since the tag, or already bumped by hand, is left alone. Other
+  versioned parts — a docs site's `docs/site/package.json` — are listed
+  in `release.json` (`{"manifests": [{"file": "…"}]}`) and bumped the same
+  way, alongside the plugins.
 - **Single product** (dottod): there is nothing to bump — the tag and
   the CHANGELOG section are the whole release.
 

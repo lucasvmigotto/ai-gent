@@ -19,11 +19,32 @@ export interface SkillInfo {
 	sourceUrl: string;
 }
 
+// One per versioned part, then the docs site: `ai-gent@v1.12.0 · docs@v0.1.0`,
+// each linked to the tree it was built from (href is null without git).
+export interface VersionInfo {
+	name: string;
+	version: string;
+	label: string;
+	href: string | null;
+}
+
 export const version: string = generated.version;
+export const versions: VersionInfo[] = generated.versions as VersionInfo[];
+
+// A repository file at the ref this site was built from (tag, else commit).
+export function sourceUrl(path: string): string {
+	return `${generated.sourceBase}/${path}`;
+}
 export const plugins: PluginInfo[] = generated.plugins as PluginInfo[];
 export const skills: SkillInfo[] = generated.skills as SkillInfo[];
 export const counts = generated.counts;
 export const changelog: string = generated.changelog;
+
+// How a skill is shown: Claude Code's `/plugin:skill`, the default agent.
+// The `plugin-skill` id stays the URL slug and the other agents' name.
+export function command(skill: Pick<SkillInfo, "plugin" | "skill">): string {
+	return `/${skill.plugin}:${skill.skill}`;
+}
 
 const byId = new Map(skills.map((s) => [s.id, s]));
 const pluginByName = new Map(plugins.map((p) => [p.name, p]));
@@ -49,7 +70,7 @@ export function searchSkills(query: string): SkillInfo[] {
 	return skills
 		.map((s) => {
 			const haystack =
-				`${s.id} ${s.name} ${s.plugin} ${s.description}`.toLowerCase();
+				`${command(s)} ${s.id} ${s.name} ${s.plugin} ${s.description}`.toLowerCase();
 			const score = terms.reduce(
 				(acc, term) => (haystack.includes(term) ? acc + 1 : acc),
 				0,

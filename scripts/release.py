@@ -13,6 +13,9 @@ Merge-commit subjects and "chore(release): ..." commits are ignored (the
 commits a merge brings in are counted on their own).
 
 It then bumps, in place:
+  - "version" in each manifest listed in release.json
+    ({"manifests": [{"file": "docs/site/package.json"}]}) whose directory
+    (or extra "paths") changed since the tag, under the same rules;
   - "version" in each plugins/<name>/.claude-plugin/plugin.json whose files
     (or files its symlinks point to, such as shared/pipeline.md) changed
     since the tag, by the bump of the commits touching those paths; a plugin
@@ -158,7 +161,7 @@ def version_in(text):
 
 
 def load_manifest_config(root):
-    """Manifests listed in release.json, or None to use the plugins/ layout."""
+    """Manifests listed in release.json, bumped alongside any plugins/; None without it."""
     path = os.path.join(root, MANIFEST_CONFIG)
     if not os.path.isfile(path):
         return None
@@ -314,7 +317,7 @@ def main(argv):
     version = bump_version(tag, bump) if tag else args.initial
     date = args.date or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     config = load_manifest_config(root)
-    plans = plan_manifests(root, tag, config) if config is not None else plan_plugins(root, tag)
+    plans = plan_plugins(root, tag) + (plan_manifests(root, tag, config) if config is not None else [])
 
     text = open(changelog).read() if os.path.exists(changelog) else ""
     new_changelog, how = updated_changelog(text, version, date, items)

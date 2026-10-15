@@ -47,12 +47,16 @@ describe("pages", () => {
 		expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
 			/load/i,
 		);
-		expect(screen.getByText(/\/qa:load/)).toBeInTheDocument();
+		// Shown as Claude Code's command; the opencode id stays in the invoke block.
+		expect(
+			screen.getByRole("navigation", { name: "Breadcrumb" }),
+		).toHaveTextContent("/qa:load");
+		expect(document.body.textContent).toContain("/qa-load   # opencode");
 	});
 
 	it("has no accessibility violations on a skill page", async () => {
 		const { container } = renderSkill("qa-load");
-		await screen.findByText(/\/qa:load/);
+		await screen.findByRole("navigation", { name: "Breadcrumb" });
 		const results = await axe(container);
 		expect(results.violations).toEqual([]);
 	});
