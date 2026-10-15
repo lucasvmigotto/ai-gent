@@ -48,6 +48,13 @@ tag, `git describe --tags --abbrev=0 --match '<pattern>'` for the last one,
 (`app-[0-9]*`) so one part's tag never labels another. Every lookup falls
 back quietly; a build never fails for lack of git.
 
+**Every other source link follows the same ref.** "View source" or "edit
+on GitHub" links and links to files the docs cite use
+`<repo>/blob/<ref>/<path>` with the footer's ref (tag, else commit), never
+`blob/main`. A page built from a release must show that release's file, not
+whatever `main` holds later. Fall back to the default branch only without
+git.
+
 Keep the resolution in one small pure function (git facts in, entries
 out) with a unit test per row of the table, plus a render test that the
 footer shows each entry and links it.
