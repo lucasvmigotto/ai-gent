@@ -4,6 +4,29 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **`devsecops:watch`, a new skill.** It follows CI/CD runs to the end and
+  explains failures. It finds the runs a commit started (and the ones they
+  chain to), watches them in the background, reads only the failed steps'
+  logs, and classifies the cause with evidence: code or test, flaky,
+  runner, permissions, a secret missing by name, a dependency that moved,
+  a missing tool, an outage. It checks secrets (names only), variables,
+  environments and token permissions when they explain a failure, and
+  re-runs or cancels only when asked, never a deploy or publish without a
+  go-ahead. Each platform reference in `devsecops` gains an "Observe a run"
+  section: GitHub Actions (`gh`), GitLab CI (`glab`), Azure Pipelines
+  (`az pipelines`, `az devops invoke`), Bitbucket, Jenkins and
+  Forgejo/Gitea (REST). `devsecops:pipeline` now follows the first runs of
+  what it writes with it.
+
+### Fixed
+
+- The docs site's landing text and link preview no longer hardcode the
+  plugin and skill counts, which had gone stale; the live counts stay.
+
 ## 2.1.0 — 2026-10-15
 
 ### Fixed

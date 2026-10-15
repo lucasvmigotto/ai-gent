@@ -171,6 +171,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `iac` — infrastructure as code (OpenTofu/Terraform by default) for the environments the architecture chose
   - `audit` — security and reliability review of existing pipelines
   - `migrate` — move pipelines between platforms
+  - `watch` — follow CI/CD runs to the end, explain failures from their logs, and check secrets (names only), variables, environments and permissions
 - `plugins/db/` — safe database access for PostgreSQL, MySQL/MariaDB, SQL Server, Oracle and SQLite (see [Databases](#databases))
   - `connect` — list, test and classify connection profiles, never showing credentials
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD

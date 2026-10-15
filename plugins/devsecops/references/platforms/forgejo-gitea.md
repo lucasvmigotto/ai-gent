@@ -52,3 +52,21 @@ any feature beyond the basics.
 - `actionlint` works for most syntax (ignore GitHub-only checks);
   `zizmor` catches the shared injection patterns. Exercise workflows on a
   branch (push only with the user's go-ahead).
+
+## Observe a run
+
+Used by `devsecops:watch`. Use the REST API with the user's token
+(`curl -H "Authorization: token <t>"`); `tea` covers repos and PRs, with
+limited Actions support depending on version.
+
+| Need | Endpoint (under `<host>/api/v1/repos/{owner}/{repo}`) |
+| --- | --- |
+| Runs | `GET /actions/runs` (filter by event, status, ref, workflow) |
+| One run | `GET /actions/runs/{run_id}` |
+| Its jobs | `GET /actions/runs/{run_id}/jobs` (recent versions) |
+| Secret and variable names | `GET /actions/secrets`, `GET /actions/variables` |
+
+- Actions endpoints arrived across versions, and the job-log endpoint
+  differs between them (some take a task ID, not a job ID). Check the
+  instance's `/api/swagger` before relying on one; the web UI's log
+  download works everywhere.

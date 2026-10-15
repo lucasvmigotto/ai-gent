@@ -2,7 +2,7 @@
   "name": "devsecops",
   "version": "1.5.1",
   "license": "GPL-3.0-or-later",
-  "description": "CI/CD, infrastructure as code and software supply-chain security across GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins and Forgejo/Gitea: pipeline, supply-chain, iac, audit, migrate",
+  "description": "CI/CD, infrastructure as code and software supply-chain security across GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins and Forgejo/Gitea: pipeline, supply-chain, iac, audit, migrate, watch",
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"

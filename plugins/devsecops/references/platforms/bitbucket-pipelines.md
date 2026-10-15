@@ -88,3 +88,20 @@ pipelines:
   `custom:` pipeline on a branch to exercise changes (push only with the
   user's go-ahead). No mainstream security linter exists — apply the
   checklist above manually.
+
+## Observe a run
+
+Used by `devsecops:watch`. No official CLI: use the REST API with an API
+token or app password the user already has (`curl -u <user>:<token>`).
+
+| Need | Endpoint (under `https://api.bitbucket.org/2.0/repositories/<ws>/<repo>`) |
+| --- | --- |
+| Pipelines | `GET /pipelines/?sort=-created_on` (filter the commit client-side) |
+| One pipeline | `GET /pipelines/{uuid}` |
+| Its steps | `GET /pipelines/{uuid}/steps/` |
+| A step's log | `GET /pipelines/{uuid}/steps/{step_uuid}/log` (supports `Range` for large logs) |
+| Repository variables | `GET /pipelines_config/variables/` (secured ones come back without a value) |
+| Deployment environments | `GET /environments/` |
+
+- UUIDs include their braces; percent-encode them (`%7B…%7D`) in the path
+  or the API answers that the value is not a valid UUID.

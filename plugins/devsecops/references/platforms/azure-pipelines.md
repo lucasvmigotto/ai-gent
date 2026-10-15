@@ -96,3 +96,22 @@ stages:
 - Validate via "Validate" in the editor or a preview run
   (`az pipelines run --branch <b>`), `poutine` for security posture.
   Pushing a branch needs the user's go-ahead.
+
+## Observe a run
+
+Used by `devsecops:watch`. Needs `az` with the `azure-devops` extension,
+signed in, with the organization and project set (`az devops configure
+--defaults organization=<url> project=<name>`).
+
+| Need | Command |
+| --- | --- |
+| Runs for a commit | `az pipelines runs list --branch <b> --query "[?sourceVersion=='<sha>']"` (no commit filter of its own) |
+| One run | `az pipelines runs show --id <id>` (`status`, `result`) |
+| Which step failed | `az devops invoke --area build --resource timeline --route-parameters project=<p> buildId=<id>` — records with `result: failed` carry a `log.id` |
+| A step's log | `az devops invoke --area build --resource logs --route-parameters project=<p> buildId=<id> logId=<n>` |
+| Artifacts | `az pipelines runs artifact list --run-id <id>`, `... download` |
+| Variables | `az pipelines variable list --pipeline-id <id>`, `az pipelines variable-group list` (secret values come back empty) |
+| Queue or cancel (when asked) | `az pipelines run --id <id> --branch <b>`, `az pipelines build cancel --build-id <id>` |
+
+- A run waiting on an environment's approvals and checks shows as in
+  progress; read the timeline's checkpoint records before calling it stuck.

@@ -129,7 +129,7 @@ export const enUS: Messages = {
 	},
 	landing: {
 		title: "Find the skill for the task.",
-		lede: "ai-gent is 9 plugins and 36 skills for Claude Code and other coding agents. Type what you are trying to do.",
+		lede: "ai-gent is a set of plugins and skills for Claude Code and other coding agents. Type what you are trying to do.",
 		placeholder: "What are you trying to do?",
 		counts: (plugins, skills) =>
 			`${skills} skills · ${plugins} plugins · ${LOCALES.join(" + ")}`,

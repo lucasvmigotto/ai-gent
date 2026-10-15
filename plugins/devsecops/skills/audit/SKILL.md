@@ -76,5 +76,6 @@ afterwards.
 
 ## Handoff
 
-Top risks in one line each, what needs settings access or a decision
+A finding about a failing run, not the configuration, belongs to
+`devsecops:watch`. Top risks in one line each, what needs settings access or a decision
 from the user, and the remediation plan. Commits follow `git:workflow`.

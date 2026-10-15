@@ -79,3 +79,19 @@ pipeline {
 - Declarative linter (`/pipeline-model-converter/validate` endpoint or the
   CLI), a replay/test on a branch job; no mainstream security linter —
   apply the checklist above manually.
+
+## Observe a run
+
+Used by `devsecops:watch`. Use the REST API with the user's API token
+(`curl -u <user>:<token>`); POSTs may also need a CSRF crumb.
+
+| Need | Endpoint (under `<jenkins>/job/<name>/` — nested folders repeat `job/<folder>/`) |
+| --- | --- |
+| A build's status | `lastBuild/api/json?tree=number,result,building,duration` (`result` is null while it runs) |
+| Its console log | `<n>/consoleText` (large: fetch `logText/progressiveText?start=<offset>`) |
+| Pipeline stages | `<n>/wfapi/describe` (Pipeline REST API plugin) |
+| A stage's log | `<n>/execution/node/<id>/wfapi/log` |
+| Credentials | IDs only, in the job configuration or the credentials page; never print one |
+
+- The commit a build used is in its `actions` (Git plugin build data);
+  match it to the pushed SHA before trusting "last build".

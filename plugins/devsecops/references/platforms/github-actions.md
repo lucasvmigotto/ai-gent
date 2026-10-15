@@ -113,3 +113,29 @@ jobs:
   (security audit), `poutine` / OpenSSF Scorecard for repo-level posture.
 - `gh workflow run` / `gh run watch` to exercise a workflow on a branch
   (pushing a branch needs the user's go-ahead per `git:workflow`).
+
+## Observe a run
+
+Used by `devsecops:watch`. `gh` must be signed in (`gh auth status`).
+
+| Need | Command |
+| --- | --- |
+| Runs for a commit | `gh run list --commit <sha> --json databaseId,name,status,conclusion,event` |
+| Runs a workflow started | `gh run list --workflow <file> --event workflow_run` |
+| Follow one | `gh run watch <id> --exit-status --interval 30` (in the background) |
+| Jobs and steps | `gh run view <id> --verbose`, `--json jobs` |
+| Failed steps' logs | `gh run view <id> --log-failed`, or `--job <job-id>` for one job |
+| Re-run (when asked) | `gh run rerun <id> --failed`, `--job <job-id>`, `--debug` for step debug logs |
+| Artifacts (traces, reports) | `gh run download <id> --name <artifact>` |
+| Cancel (when asked) | `gh run cancel <id>` |
+| Secret names | `gh secret list`, `--env <environment>`, `--org <org>` (names and dates, never values) |
+| Variables | `gh variable list`, `--env <environment>` (prints values: report names unless needed) |
+| Environments and rules | `gh api repos/{owner}/{repo}/environments` |
+| Default token permissions | `gh api repos/{owner}/{repo}/actions/permissions/workflow` |
+| Rulesets and required checks | `gh api repos/{owner}/{repo}/rulesets`, `.../branches/<b>/protection` |
+| Tags a release created | `git ls-remote --tags origin` |
+
+- Pushes made with `GITHUB_TOKEN` (a release bot's commit and tag) start
+  no workflows; `workflow_run` and `workflow_dispatch` still do.
+- A run's logs and artifacts expire with the repository's retention
+  setting; download what a diagnosis needs before it does.

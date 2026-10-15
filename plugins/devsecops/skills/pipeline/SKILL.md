@@ -121,6 +121,9 @@ rendering any YAML:
 3. Exercise it: a run on a branch (pushing needs the user's go-ahead per
    `git:workflow`), confirm each gate fails when it should (e.g. a
    deliberately failing test on a throwaway branch) and passes otherwise.
+   Follow those runs, and every run the first merge and release start,
+   with `devsecops:watch` — a release or deploy step that has never run
+   before is where untested assumptions fail.
 4. Record measured durations of the PR pipeline in `delivery.md`.
 
 ## Coverage checklist

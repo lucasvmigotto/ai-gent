@@ -95,3 +95,21 @@ test:
 - CI Lint (Pipeline editor, API, or `glab ci lint`), `poutine` for
   security posture; run on a branch with `glab ci run` / `glab ci view`
   (push only with the user's go-ahead).
+
+## Observe a run
+
+Used by `devsecops:watch`. `glab` must be signed in (`glab auth status`).
+
+| Need | Command |
+| --- | --- |
+| Pipelines for a commit | `glab ci list --sha <sha> -F json` (also `--ref`, `--status`, `--source`) |
+| One pipeline and its jobs | `glab ci get --pipeline-id <id> --with-job-details -F json` (`glab ci view` is interactive) |
+| Follow one | `glab ci status --branch <b> --wait` (in the background; `--live` is the interactive form) |
+| A job's log | `glab ci trace <job-id>` |
+| Retry or cancel (when asked) | `glab ci retry <job-id>`, `glab ci cancel` |
+| Variable names | `glab variable list` (project; `-g <group>` for group variables) |
+| Anything else | `glab api projects/:id/pipelines/<id>/jobs`, `.../jobs/<id>/trace`, `.../environments`, `.../protected_branches` |
+
+- Masked variables stay masked in job logs; never unmask one to debug.
+- Downstream and child pipelines are separate pipelines: follow the
+  bridge job to them.
