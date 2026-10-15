@@ -4,7 +4,7 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
-## 1.12.0 — 2026-10-11
+## Unreleased
 
 ### Changed
 
@@ -26,6 +26,10 @@ changes.
   skill is listed twice. Kiro uses `~/.kiro/skills` and Windsurf
   `~/.codeium/windsurf/skills`. These agents don't enforce the git and db
   guards; for them the guards are instructions only.
+
+## 1.12.0 — 2026-10-11
+
+### Added
 
 - **`agents:orchestrate`, a new `agents` plugin.** Runs a spec'd feature
   or task list with role-separated agents — `thinker` plans and decides,
