@@ -30,7 +30,7 @@ function skillPages(locale: Locale): Page[] {
 			"",
 			s.description,
 			"",
-			`**${t.skill.invoke}:** \`/${s.plugin}:${s.skill}\` (Claude Code) · \`/${s.id}\` (opencode)`,
+			`**${t.skill.invoke}:** \`/${s.plugin}:${s.skill}\` (Claude Code) · \`${s.id}\` (opencode, Codex, Cursor and the other agents)`,
 			"",
 			`**${t.skill.generated(s.plugin, pluginVersion(s.plugin), generated.version)}**`,
 			"",

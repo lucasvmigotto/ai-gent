@@ -17,6 +17,9 @@ changes.
   that generated opencode entries keeps opencode chosen. `--target` now takes
   a comma-separated list, and `all` means every agent found on the machine.
   The choice is kept in `~/.local/state/ai-gent/targets`.
+- **The docs site shows skills as Claude Code commands** (`/qa:load`). The
+  `plugin-skill` name stays for opencode, Codex, Cursor and the others, and
+  in the page URLs.
 
 ### Added
 
@@ -37,6 +40,8 @@ changes.
   version instead of the previous one. The details are in the new
   `references/version-footer.md`. ai-gent's own site follows the rule
   (`ai-gent@v… · docs@v0.1.0`).
+- **Docs site source links** point at the tag the site was built from (or
+  the commit), not `main`, and `project:docs` now asks for the same.
 - **`scripts/release.py`** now bumps the manifests listed in `release.json`
   (here `docs/site/package.json`) alongside the plugins. Before, a
   `release.json` replaced the plugins instead.

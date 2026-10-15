@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import {
+	command,
 	counts,
 	plugins,
 	type SkillInfo,
@@ -199,7 +200,7 @@ export function SkillRow({ skill }: { skill: SkillInfo }) {
 				to={`/use/skills/${skill.id}`}
 				className="flex flex-col gap-1 px-1 py-3 hover:bg-surface"
 			>
-				<span className="font-code text-sm text-signal">{`/${skill.id}`}</span>
+				<span className="font-code text-sm text-signal">{command(skill)}</span>
 				<span className="text-sm text-muted">
 					{skill.description.split(". ")[0]}
 				</span>
