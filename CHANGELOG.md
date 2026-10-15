@@ -6,7 +6,26 @@ changes.
 
 ## Unreleased
 
+### Changed
+
+- **BREAKING: `setup.sh` installs for Claude Code alone by default.**
+  On a terminal it asks which agents to install for: an fzf selector, or a
+  numbered prompt without fzf. Claude Code and the previous choice are
+  preselected. Without a terminal, or with the new `--skip-prompt`, it
+  installs the previous choice, or Claude Code alone the first time. opencode
+  is no longer installed just because it is present, but an existing install
+  that generated opencode entries keeps opencode chosen. `--target` now takes
+  a comma-separated list, and `all` means every agent found on the machine.
+  The choice is kept in `~/.local/state/ai-gent/targets`.
+
 ### Added
+
+- **Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf**, all
+  opt-in. Each skill gets a generated `<plugin>-<skill>` entry file. The first
+  five share `~/.agents/skills`, so the entries are installed once and no
+  skill is listed twice. Kiro uses `~/.kiro/skills` and Windsurf
+  `~/.codeium/windsurf/skills`. These agents don't enforce the git and db
+  guards; for them the guards are instructions only.
 
 - **`agents:orchestrate`, a new `agents` plugin.** Runs a spec'd feature
   or task list with role-separated agents — `thinker` plans and decides,

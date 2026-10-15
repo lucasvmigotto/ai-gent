@@ -1,8 +1,10 @@
 # Working on ai-gent
 
-Skills and plugins for Claude Code and opencode, installed by symlink from
-this repo (`setup.sh`, `install.sh`). The README covers installing and the
-product pipeline; this file covers changing things.
+Skills and plugins for Claude Code (the default) and, opt-in, opencode,
+Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf, installed
+from this repo by symlink or generated entry files (`setup.sh`,
+`install.sh`). The README covers installing and the product pipeline; this
+file covers changing things.
 
 ## Before editing
 
@@ -21,10 +23,15 @@ product pipeline; this file covers changing things.
 
 - A plugin is `plugins/<name>/` with `.claude-plugin/plugin.json` (name,
   version, description, author, SPDX license) and `skills/<skill>/SKILL.md`.
-  It is invoked as `/<name>:<skill>`, and in opencode as `<name>-<skill>`
-  (a generated stub), so `<name>-<skill>` must be a valid opencode name:
-  lowercase letters, digits and single hyphens. OpenCode V2 takes a skill's ID
-  from its directory, not from `name:`, so the stub keeps the two equal.
+  It is invoked as `/<name>:<skill>`, and in opencode and the other agents
+  as `<name>-<skill>` (a generated stub), so `<name>-<skill>` must be a valid
+  skill name everywhere: lowercase letters, digits and single hyphens.
+  OpenCode V2 takes a skill's ID from its directory, not from `name:`, so the
+  stub keeps the two equal.
+- The agents `setup.sh` supports are listed in its `AGENT_IDS` registry;
+  adding one means its label, detection probes, skills directory (with an
+  env override) and a case in `scripts/test-install.sh`. Prefer the shared
+  `~/.agents/skills` when the agent reads it.
 - OpenCode-native code lives in `opencode/` — `opencode/guard/` is the V2 guard
   plugin, its shared rules and the parity test — and `scripts/opencode-config.py`
   edits the OpenCode V2 configuration. Neither is a `plugins/<name>/` plugin.

@@ -182,13 +182,15 @@ export function InstallPage() {
 			<h3 className="mt-4 font-medium">{t.install.claude}</h3>
 			<CodeBlock
 				label="shell"
-				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude`}
+				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh`}
 			/>
-			<h3 className="mt-4 font-medium">{t.install.opencode}</h3>
+			<p className="mt-2 max-w-2xl text-muted">{t.install.claudeBody}</p>
+			<h3 className="mt-4 font-medium">{t.install.others}</h3>
 			<CodeBlock
 				label="shell"
-				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target opencode`}
+				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,opencode,codex,cursor`}
 			/>
+			<p className="mt-2 max-w-2xl text-muted">{t.install.othersBody}</p>
 			<h2 className="mt-6 font-display text-xl">{t.install.verify}</h2>
 			<CodeBlock
 				label="shell"

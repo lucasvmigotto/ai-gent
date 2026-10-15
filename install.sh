@@ -2,7 +2,7 @@
 # ai-gent installer: clone (or update) the repo, then run setup.sh.
 #
 #   curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target opencode
+#   curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,codex
 #
 # Environment:
 #   AI_GENT_DIR     where to clone      (default: ${XDG_DATA_HOME:-$HOME/.local/share}/ai-gent)
@@ -10,7 +10,8 @@
 #   AI_GENT_BRANCH  branch or release tag to check out, e.g. 1.1.0
 #                   (default: the repository's default branch)
 #
-# Arguments are passed to setup.sh (--target, --dry-run, --force, --uninstall).
+# Arguments are passed to setup.sh (--target, --skip-prompt, --dry-run, --force,
+# --uninstall). On a terminal, setup.sh asks which agents to install for.
 #
 # Everything runs inside main(), called on the last line, so a partially
 # downloaded script never executes.

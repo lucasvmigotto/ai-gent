@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# Install this repo's skills and plugins for Claude Code and opencode, so the
-# repo stays the single place to edit.
+# Install this repo's skills and plugins for Claude Code (the default) and,
+# when chosen, other coding agents, so the repo stays the single place to edit.
+#
+# Which agents: on a terminal, an fzf selector (a numbered prompt without fzf)
+# with Claude Code and the previous choice preselected; --target <list> or
+# --skip-prompt instead. The choice is kept in
+# ${XDG_STATE_HOME:-~/.local/state}/ai-gent/targets for the next run.
 #
 # Claude Code (symlinks, read live):
 #   skills/<name>/   -> ~/.claude/skills/<name>   (personal skill, /<name>)
@@ -14,6 +19,16 @@
 #   opencode V2 also scans ~/.claude/skills, with no switch to disable it, so
 #   the config edit below denies those short, colliding IDs (spec, build, ...)
 #   with `skill` permission rules, leaving only the namespaced ones.
+#
+# Codex, Cursor, Gemini CLI, GitHub Copilot, Amp (one shared directory that
+# all five read; installing per tool would list every skill twice):
+#   skills/<name>/, plugins/<p>/skills/<s>/ -> ~/.agents/skills/<name>, <p>-<s>
+#                                              (generated entry files, not
+#                                              symlinks, which Cursor skips)
+# Kiro      the same entry files in ~/.kiro/skills
+# Windsurf  the same entry files in ~/.codeium/windsurf/skills
+#   These agents don't run the git and db guard hooks: there, the guards are
+#   instructions only.
 #
 # opencode configuration (asked, [Y/n]; --yes applies, --no-config-edits skips):
 #   ~/.config/opencode/opencode.json  OpenCode V2 `permissions` rules mirroring
@@ -34,7 +49,12 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 OPENCODE_SKILLS="${OPENCODE_SKILLS_DIR:-$HOME/.config/opencode/skills}"
 OPENCODE_COMMANDS="${OPENCODE_COMMANDS_DIR:-$HOME/.config/opencode/commands}"
+AGENTS_SKILLS="${AGENTS_SKILLS_DIR:-$HOME/.agents/skills}"
+KIRO_SKILLS="${KIRO_SKILLS_DIR:-$HOME/.kiro/skills}"
+WINDSURF_SKILLS="${WINDSURF_SKILLS_DIR:-$HOME/.codeium/windsurf/skills}"
 MARKER=".ai-gent-generated"
+AI_GENT_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ai-gent"
+TARGETS_STATE="$AI_GENT_STATE/targets"
 
 DRY_RUN=0
 FORCE=0
@@ -42,26 +62,59 @@ UNINSTALL=0
 YES=0
 NO_CONFIG_EDITS=0
 VERBOSE=0
-TARGET="all"
+SKIP_PROMPT=0
+TARGET=""
+
+# The agents, in the selector's order: an id, a label, and the commands or
+# directories that show it's installed (any one is enough).
+AGENT_IDS=(claude opencode codex cursor gemini copilot amp kiro windsurf)
+declare -A AGENT_LABEL=(
+  [claude]="Claude Code" [opencode]="opencode" [codex]="Codex" [cursor]="Cursor"
+  [gemini]="Gemini CLI" [copilot]="GitHub Copilot" [amp]="Amp" [kiro]="Kiro"
+  [windsurf]="Windsurf"
+)
+declare -A AGENT_DETECT=(
+  [claude]="claude .claude" [opencode]="opencode .config/opencode"
+  [codex]="codex .codex" [cursor]="cursor cursor-agent .cursor"
+  [gemini]="gemini .gemini" [copilot]="copilot .copilot"
+  [amp]="amp .config/amp" [kiro]="kiro kiro-cli .kiro"
+  [windsurf]="windsurf .codeium/windsurf"
+)
+# The agents that read the shared ~/.agents/skills directory.
+SHARED_AGENTS=" codex cursor gemini copilot amp "
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--target claude|opencode|all] [--dry-run] [--force] [--uninstall] [--verbose]
+Usage: $(basename "$0") [--target <agents>] [--skip-prompt] [--dry-run] [--force] [--uninstall] [--verbose]
 
-Installs skills/* and plugins/* from $REPO_DIR for:
-  claude    symlinks into $CLAUDE_DIR            (override: CLAUDE_SKILLS_DIR)
-  opencode  links and generated entry files into $OPENCODE_SKILLS
-            and commands into $OPENCODE_COMMANDS (override: OPENCODE_SKILLS_DIR,
-            OPENCODE_COMMANDS_DIR); skipped when opencode isn't installed
-  all       both (default)
+Installs skills/* and plugins/* from $REPO_DIR for the chosen coding agents.
+On a terminal, a selector (fzf, or a numbered prompt) asks which, with Claude
+Code and the previous choice preselected.
 
+  --target <agents>
+               comma-separated, instead of the selector: claude, opencode,
+               codex, cursor, gemini, copilot, amp, kiro, windsurf, or all
+               (every agent found on this machine)
+  --skip-prompt
+               no selector: the previous choice, or Claude Code alone the
+               first time (also what happens without a terminal)
   --dry-run    print what would change, change nothing
   --force      back up and replace a real directory or foreign symlink in the way
-  --uninstall  remove everything this script installed for the chosen target(s)
+  --uninstall  remove everything this script installed, or only for --target
   --yes        apply the opencode config edits without asking
   --no-config-edits
                never edit opencode.json; print what to add instead
   --verbose    one line per skill and plugin instead of a summary per status
+
+Where each agent's skills go (override with the variable in parentheses):
+  claude     $CLAUDE_DIR (CLAUDE_SKILLS_DIR), symlinks
+  opencode   $OPENCODE_SKILLS (OPENCODE_SKILLS_DIR) and
+             $OPENCODE_COMMANDS (OPENCODE_COMMANDS_DIR);
+             skipped when opencode isn't installed
+  codex, cursor, gemini, copilot, amp
+             $AGENTS_SKILLS (AGENTS_SKILLS_DIR), shared
+  kiro       $KIRO_SKILLS (KIRO_SKILLS_DIR)
+  windsurf   $WINDSURF_SKILLS (WINDSURF_SKILLS_DIR)
 
 Colors, bold and italics are used on a terminal; NO_COLOR=1 turns them off.
 EOF
@@ -74,6 +127,7 @@ while (($#)); do
     --dry-run) DRY_RUN=1 ;;
     --force) FORCE=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --skip-prompt) SKIP_PROMPT=1 ;;
     --yes | -y) YES=1 ;;
     --no-config-edits) NO_CONFIG_EDITS=1 ;;
     --verbose | -v) VERBOSE=1 ;;
@@ -82,7 +136,12 @@ while (($#)); do
   esac
   shift
 done
-case "$TARGET" in claude | opencode | all) ;; *) echo "invalid --target: $TARGET" >&2; exit 2 ;; esac
+for t in ${TARGET//,/ }; do
+  if [[ $t != all && -z ${AGENT_LABEL[$t]:-} ]]; then
+    echo "invalid --target: $t (one of: all ${AGENT_IDS[*]})" >&2
+    exit 2
+  fi
+done
 
 run() {
   if ((DRY_RUN)); then
@@ -321,17 +380,20 @@ install_claude() {
 
 # ------------------------------------------------------------------- opencode
 
-opencode_entry() { # opencode_entry <plugin> <skill> <source SKILL.md>
-  local plugin="$1" skill="$2" src="$3"
-  local name="$plugin-$skill"
+# skill_entry <skills dir> <name> <source SKILL.md> [commands dir] — a
+# generated <name>/SKILL.md that points at the source (opencode, the shared
+# ~/.agents/skills, Kiro, Windsurf), plus a /<name> command when a commands
+# dir is given (opencode).
+skill_entry() {
+  local skills_dir="$1" name="$2" src="$3" commands_dir="${4:-}"
   local desc
   desc="$(frontmatter "$src" description)"
   if ((${#desc} < 1 || ${#desc} > 1024)); then
-    item skip "$name" "description is ${#desc} chars; opencode needs 1-1024"
+    item skip "$name" "description is ${#desc} chars; agents need 1-1024"
     return
   fi
 
-  local dir="$OPENCODE_SKILLS/$name"
+  local dir="$skills_dir/$name"
   if [[ -e "$dir" && ! -f "$dir/$MARKER" ]]; then
     item skip "$name" "exists and wasn't generated by this script"
     return
@@ -358,7 +420,7 @@ While following it:
   \`frontend:spec\`) are named \`plugin-skill\` here (\`devcontainer-setup\`,
   \`frontend-spec\`); load them with the skill tool.
 - Where it mentions Claude Code tools (Read, Edit, Bash, Skill), use
-  opencode's equivalents.
+  this agent's equivalents.
 "
   local current=""
   [[ -f "$dir/SKILL.md" ]] && current="$(cat "$dir/SKILL.md")"
@@ -372,9 +434,10 @@ While following it:
   fi
 
   # /<plugin>-<skill> command
+  [[ -n $commands_dir ]] || return 0
   local summary="${desc%%. *}"
   ((${#summary} > 160)) && summary="${summary:0:157}..."
-  local cmd="$OPENCODE_COMMANDS/$name.md"
+  local cmd="$commands_dir/$name.md"
   if [[ -f "$cmd" ]] && ! grep -q 'Generated by ai-gent/setup.sh' "$cmd"; then
     warn skip "/$name (command exists and wasn't generated by this script)"
     return
@@ -396,18 +459,20 @@ Load the \`$name\` skill with the skill tool and follow it.
   write "$cmd" "$command_text"
 }
 
-prune_opencode_generated() {
-  local dir name plugin skill
-  for dir in "$OPENCODE_SKILLS"/*/; do
+# prune_generated <skills dir> [commands dir] — remove generated entries whose
+# source is gone, or all of them on --uninstall.
+prune_generated() {
+  local skills_dir="$1" commands_dir="${2:-}" dir name
+  for dir in "$skills_dir"/*/; do
     dir="${dir%/}"
     [[ -f "$dir/$MARKER" ]] || continue
     name="$(basename "$dir")"
     local src
-    src="$(sed -n 's/^  source: "\(.*\)"$/\1/p' "$dir/SKILL.md")"
+    src="$(sed -n 's/^  source: "\(.*\)"$/\1/p' "$dir/SKILL.md" 2>/dev/null || true)"
     if ((UNINSTALL)) || [[ ! -f "$src" ]]; then
       item remove "$name"
       run rm -rf "$dir"
-      [[ -f "$OPENCODE_COMMANDS/$name.md" ]] && run rm "$OPENCODE_COMMANDS/$name.md"
+      if [[ -n $commands_dir && -f "$commands_dir/$name.md" ]]; then run rm "$commands_dir/$name.md"; fi
     fi
   done
 }
@@ -415,7 +480,6 @@ prune_opencode_generated() {
 # ------------------------------------------------------ opencode config
 
 OPENCODE_CONFIG_FILE="${OPENCODE_CONFIG:-$HOME/.config/opencode/opencode.json}"
-AI_GENT_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ai-gent"
 CONFIG_STATE="$AI_GENT_STATE/opencode-config.json"
 CREATED_STATE="$AI_GENT_STATE/opencode-config-created"
 OC_PY="$REPO_DIR/scripts/opencode-config.py"
@@ -565,7 +629,7 @@ install_opencode() {
   run mkdir -p "$OPENCODE_SKILLS" "$OPENCODE_COMMANDS"
 
   prune_links "$OPENCODE_SKILLS"
-  prune_opencode_generated
+  prune_generated "$OPENCODE_SKILLS" "$OPENCODE_COMMANDS"
   if ((UNINSTALL)); then
     if [[ -L "$OPENCODE_SKILLS/synced" ]]; then
       item unlink synced
@@ -590,7 +654,7 @@ install_opencode() {
       skill="${skill%/}"
       [[ -f "$skill/SKILL.md" ]] || continue
       SKILL_NAMES="$SKILL_NAMES $(basename "$skill")"
-      opencode_entry "$(basename "$dir")" "$(basename "$skill")" "$skill/SKILL.md"
+      skill_entry "$OPENCODE_SKILLS" "$(basename "$dir")-$(basename "$skill")" "$skill/SKILL.md" "$OPENCODE_COMMANDS"
     done
   done
   section_end
@@ -598,14 +662,185 @@ install_opencode() {
   opencode_permissions
 }
 
-case "$TARGET" in
-  claude) install_claude ;;
-  opencode) install_opencode ;;
-  all) install_claude; install_opencode ;;
-esac
+# ------------------------------------------- Codex, Cursor, Gemini, Kiro, ...
+
+# install_entries <title> <skills dir> — a generated entry per personal skill
+# and per plugin skill (<plugin>-<skill>), for agents that read SKILL.md
+# folders but have no plugin namespaces and run no Claude Code hooks.
+install_entries() {
+  local title="$1" skills_dir="$2"
+  section "$title:" "$skills_dir"
+  if ((UNINSTALL)); then
+    [[ -d "$skills_dir" ]] && prune_generated "$skills_dir"
+    section_end
+    return
+  fi
+  run mkdir -p "$skills_dir"
+  prune_generated "$skills_dir"
+
+  local dir skill
+  for dir in "$REPO_DIR"/skills/*/; do
+    dir="${dir%/}"
+    [[ -f "$dir/SKILL.md" ]] && skill_entry "$skills_dir" "$(basename "$dir")" "$dir/SKILL.md"
+  done
+  for dir in "$REPO_DIR"/plugins/*/; do
+    dir="${dir%/}"
+    [[ -f "$dir/.claude-plugin/plugin.json" ]] || continue
+    for skill in "$dir"/skills/*/; do
+      skill="${skill%/}"
+      [[ -f "$skill/SKILL.md" ]] || continue
+      skill_entry "$skills_dir" "$(basename "$dir")-$(basename "$skill")" "$skill/SKILL.md"
+    done
+  done
+  section_end
+  line note "the git and db guards are instructions only here: these agents don't run Claude Code's hooks"
+}
+
+# ------------------------------------------------------------ agent selection
+
+detected() { # detected <id> — the agent's command is on PATH or its directory exists
+  local probe
+  for probe in ${AGENT_DETECT[$1]}; do
+    if [[ $probe == .* ]]; then
+      [[ -e "$HOME/$probe" ]] && return 0
+    else
+      command -v "$probe" >/dev/null 2>&1 && return 0
+    fi
+  done
+  return 1
+}
+
+# The previous choice; the first time, Claude Code, plus opencode when an
+# earlier setup.sh (which installed it by default) generated its entries.
+previous_agents() {
+  if [[ -s "$TARGETS_STATE" ]]; then
+    tr -s ' \n' ' ' <"$TARGETS_STATE"
+    return
+  fi
+  printf 'claude'
+  if compgen -G "$OPENCODE_SKILLS/*/$MARKER" >/dev/null; then printf ' opencode'; fi
+}
+
+# A terminal to ask on: stdout (checked at startup, since resolve_agents runs
+# in a command substitution) and /dev/tty, which install.sh's `curl | sh` keeps.
+has_tty() { ((OUT_TTY)) && (exec </dev/tty) 2>/dev/null; }
+
+# choose_agents <preselected ids> — asks which agents to install for; prints
+# their ids. fzf when installed, a numbered prompt otherwise.
+choose_agents() {
+  local pre=" $1 " id n=0 found
+  if command -v fzf >/dev/null 2>&1; then
+    local lines="" bind="start:"
+    for id in "${AGENT_IDS[@]}"; do
+      found="not found"
+      detected "$id" && found="found"
+      lines+="$id"$'\t'"${AGENT_LABEL[$id]}"$'\t'"($found)"$'\n'
+      n=$((n + 1))
+      [[ $pre == *" $id "* ]] && bind+="pos($n)+select+"
+    done
+    printf '%s' "$lines" | fzf --multi --delimiter=$'\t' --with-nth=2.. --height=~16 \
+      --layout=reverse --border --prompt='agents> ' --bind "${bind}first" \
+      --header=$'Tab selects, Enter installs. Claude Code is the default.\nCodex, Cursor, Gemini CLI, Copilot and Amp share ~/.agents/skills.' |
+      cut -f1
+    return
+  fi
+  local defaults=""
+  {
+    echo "Install ai-gent for which agents?"
+    for id in "${AGENT_IDS[@]}"; do
+      n=$((n + 1))
+      found=""
+      detected "$id" && found=" (found)"
+      if [[ $pre == *" $id "* ]]; then
+        printf '  %d) [x] %s%s\n' "$n" "${AGENT_LABEL[$id]}" "$found"
+        defaults+="$n "
+      else
+        printf '  %d) [ ] %s%s\n' "$n" "${AGENT_LABEL[$id]}" "$found"
+      fi
+    done
+    printf 'Numbers separated by spaces [%s]: ' "${defaults% }"
+  } >/dev/tty
+  local answer
+  read -r answer </dev/tty || return 0
+  [[ -n $answer ]] || answer="$defaults"
+  for n in ${answer//,/ }; do
+    if [[ $n =~ ^[0-9]+$ ]] && ((n >= 1 && n <= ${#AGENT_IDS[@]})); then
+      echo "${AGENT_IDS[n - 1]}"
+    else
+      echo "ignored: $n" >/dev/tty
+    fi
+  done
+}
+
+# The agents to act on, in AGENT_IDS order.
+resolve_agents() {
+  local chosen id
+  if ((UNINSTALL)) && [[ -z $TARGET ]]; then
+    chosen="${AGENT_IDS[*]}"
+  elif [[ -n $TARGET ]]; then
+    chosen="${TARGET//,/ }"
+    if [[ " $chosen " == *" all "* ]]; then
+      chosen="claude"
+      for id in "${AGENT_IDS[@]}"; do detected "$id" && chosen+=" $id"; done
+    fi
+  elif ((SKIP_PROMPT)) || ! has_tty; then
+    chosen="$(previous_agents)"
+  else
+    chosen="$(choose_agents "$(previous_agents)" | tr '\n' ' ')"
+    if [[ -z ${chosen// /} ]]; then
+      echo "no agent chosen — nothing installed" >&2
+      exit 1
+    fi
+  fi
+  for id in "${AGENT_IDS[@]}"; do
+    if [[ " $chosen " == *" $id "* ]]; then printf '%s ' "$id"; fi
+  done
+}
+
+# remember <ids> — the choice for the next run (--skip-prompt, install.sh updates)
+remember() {
+  ((DRY_RUN)) && return 0
+  local keep="$1" id
+  if ((UNINSTALL)); then
+    keep=""
+    for id in $(previous_agents); do
+      if [[ " $1 " != *" $id "* ]]; then keep+="$id "; fi
+    done
+  fi
+  mkdir -p "$AI_GENT_STATE"
+  if [[ -n ${keep// /} ]]; then
+    printf '%s\n' "${keep% }" >"$TARGETS_STATE"
+  else
+    rm -f "$TARGETS_STATE"
+  fi
+}
+
+AGENTS="$(resolve_agents)"
+SHARED_DONE=0
+labels=""
+for id in $AGENTS; do
+  labels+="${labels:+, }${AGENT_LABEL[$id]}"
+  case "$id" in
+    claude) install_claude ;;
+    opencode) install_opencode ;;
+    kiro) install_entries "Kiro" "$KIRO_SKILLS" ;;
+    windsurf) install_entries "Windsurf" "$WINDSURF_SKILLS" ;;
+    *)
+      # One pass for every chosen agent that reads ~/.agents/skills.
+      ((SHARED_DONE)) && continue
+      SHARED_DONE=1
+      shared=""
+      for s in $AGENTS; do
+        if [[ $SHARED_AGENTS == *" $s "* ]]; then shared+="${shared:+, }${AGENT_LABEL[$s]}"; fi
+      done
+      install_entries "$shared" "$AGENTS_SKILLS"
+      ;;
+  esac
+done
+remember "$AGENTS"
 
 if ((DRY_RUN)); then
   printf '%sdry run — nothing was changed.%s\n' "$I" "$R"
 elif ((!UNINSTALL)); then
-  printf '%sdone%s — start a new Claude Code / opencode session to pick up a changed set of skills.\n' "$B" "$R"
+  printf '%sdone%s — start a new %s session to pick up a changed set of skills.\n' "$B" "$R" "$labels"
 fi

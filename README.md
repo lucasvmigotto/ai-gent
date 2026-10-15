@@ -1,6 +1,6 @@
 # ai-gent
 
-Skills and plugins for [Claude Code](https://code.claude.com/docs/en/overview) and [opencode](https://opencode.ai/v2/docs), kept in one repository and linked into place, so there's one place to edit.
+Skills and plugins for [Claude Code](https://code.claude.com/docs/en/overview) — and, opt-in, [opencode](https://opencode.ai/v2/docs), Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf — kept in one repository and linked into place, so there's one place to edit.
 
 They cover the whole path of a software project, from idea to docs site, plus the tooling around it:
 
@@ -17,12 +17,13 @@ They cover the whole path of a software project, from idea to docs site, plus th
 curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh
 ```
 
-That clones the repository into `~/.local/share/ai-gent` and runs `setup.sh` for Claude Code and opencode. Run the same command again to update. It fast-forwards the clone, or leaves it alone if you have local changes, and re-links.
+That clones the repository into `~/.local/share/ai-gent` and runs `setup.sh`, which asks which agents to install for: an [fzf](https://github.com/junegunn/fzf) selector (a numbered prompt without fzf), with Claude Code and your previous choice preselected. Without a terminal, or with `--skip-prompt`, it installs your previous choice, or Claude Code alone the first time. Run the same command again to update. It fast-forwards the clone, or leaves it alone if you have local changes, and re-links.
 
 Pass `setup.sh` flags after `-s --`, and choose where the clone lives with `AI_GENT_DIR`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude
+curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,opencode,codex
+curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --skip-prompt
 curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | AI_GENT_DIR=~/codes/ai-gent sh
 ```
 
@@ -62,21 +63,22 @@ git clone https://github.com/lucasvmigotto/ai-gent.git ~/codes/ai-gent
 Re-run it after adding, renaming or removing a skill or plugin, or after changing a plugin skill's description. It's idempotent, and it prunes whatever it installed whose source is gone. Edits to skill bodies need no re-run, since everything points straight at this repository.
 
 > [!NOTE]
-> Claude Code and opencode read the set of skills and hooks when a session starts. After running `setup.sh`, start a new session.
+> Every agent reads its set of skills (and Claude Code its hooks) when a session starts. After running `setup.sh`, start a new session.
 
 | Flag | Effect |
 | --: | :-- |
-| `--target claude\|opencode\|all` | which tool to install for (default `all`; opencode is skipped when not installed) |
+| `--target <agents>` | which agents to install for, comma-separated, instead of the selector: `claude`, `opencode`, `codex`, `cursor`, `gemini`, `copilot`, `amp`, `kiro`, `windsurf`, or `all` (every agent found on this machine) |
+| `--skip-prompt` | no selector: the previous choice, or Claude Code alone the first time |
 | `--dry-run` | show what would change |
 | `--force` | back up (`<name>.bak-<timestamp>`) and replace a real directory or foreign symlink in the way |
-| `--uninstall` | remove everything the script installed for the target(s), including the opencode config edits below |
+| `--uninstall` | remove everything the script installed, or only for `--target`, including the opencode config edits below |
 | `--yes` | apply the opencode config edits without asking |
 | `--no-config-edits` | never edit `opencode.json` or a shell profile; print what to add instead |
 | `--verbose` | one line per skill and plugin instead of the summary |
 
 Each section ends with a line per status and how many items have it (`[ok] [8/9]`, then `[link] [1/9] compact`, and the reason for any skip); on a terminal the item being processed is shown on a single line as it goes, in color unless `NO_COLOR` is set.
 
-`CLAUDE_SKILLS_DIR`, `OPENCODE_SKILLS_DIR` and `OPENCODE_COMMANDS_DIR` override the target directories. `~/.claude/skills/synced/` is managed by [claude.ai](https://support.claude.com/en/collections/14445694-claude-code) skill sync and is never modified.
+The choice is kept in `${XDG_STATE_HOME:-~/.local/state}/ai-gent/targets`; an install from before the selector that had generated opencode entries keeps opencode chosen. `CLAUDE_SKILLS_DIR`, `OPENCODE_SKILLS_DIR`, `OPENCODE_COMMANDS_DIR`, `AGENTS_SKILLS_DIR`, `KIRO_SKILLS_DIR` and `WINDSURF_SKILLS_DIR` override the target directories. `~/.claude/skills/synced/` is managed by [claude.ai](https://support.claude.com/en/collections/14445694-claude-code) skill sync and is never modified.
 
 **Claude Code.** Each `plugins/<name>/` (and any `skills/<name>/`) is symlinked into `~/.claude/skills/`. A plugin directory there loads as `<name>@skills-dir`, with no marketplace, install step or plugin cache involved. Check a plugin, including its token cost, with `claude plugin details <name>@skills-dir`.
 
@@ -97,14 +99,25 @@ The rules are built by `scripts/opencode-config.py`. Your own rules always stay;
 > [!NOTE]
 > A config with comments (JSONC) is never rewritten, since that would strip them: `setup.sh` prints the rules to add instead. With no terminal to ask on (a pipe, CI), it edits nothing unless you pass `--yes`, and prints what to add. `--uninstall` removes only what it added. Your own rules always stay; when one of yours has the same pattern, yours is kept and reported.
 
+**Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro, Windsurf.** These read `SKILL.md` folders but have no plugin namespaces and run no Claude Code hooks. `setup.sh` generates the same `<plugin>-<skill>` entry files as for opencode (real files, not symlinks, which Cursor skips), plus one per personal skill:
+
+| Agent | Directory |
+| --: | :-- |
+| Codex, Cursor, Gemini CLI, GitHub Copilot, Amp | `~/.agents/skills/`, shared: all five read it, so choosing several installs it once and no skill is listed twice |
+| Kiro | `~/.kiro/skills/` |
+| Windsurf | `~/.codeium/windsurf/skills/` |
+
+> [!WARNING]
+> On these agents the [guard hooks](#guard-hooks) are instructions only, not enforced. Some of them (Cursor, for one) also read `~/.claude/skills`, where plugin skills appear under short names (`spec`, `build`, …) next to the `<plugin>-<skill>` entries; prefer the namespaced ones.
+
 ## Usage
 
 Ask for what you want and the matching skill loads: "set up CI for this repo", "model the domain", "why is this record wrong in the database". Or invoke one directly:
 
-| | Claude Code | opencode |
-| --: | :-- | :-- |
-| a plugin skill | `/project:init` | `/project-init` |
-| with arguments | `/qa:load 2000 concurrent users` | `/qa-load 2000 concurrent users` |
+| | Claude Code | opencode | other agents |
+| --: | :-- | :-- | :-- |
+| a plugin skill | `/project:init` | `/project-init` | `project-init`, the agent's own way (`$project-init` in Codex, `/project-init` in Cursor) |
+| with arguments | `/qa:load 2000 concurrent users` | `/qa-load 2000 concurrent users` | `qa-load` and the request: "2000 concurrent users" |
 
 > [!TIP]
 > Every enabled plugin's skill descriptions cost context in every session, about 5k tokens for all ten plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
