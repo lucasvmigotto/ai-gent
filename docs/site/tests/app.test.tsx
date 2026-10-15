@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/App";
 import { sourceUrl, version, versions } from "../src/content";
@@ -28,6 +28,20 @@ describe("App", () => {
 			expect.stringContaining("GPL-3.0-or-later"),
 		);
 		expect(screen.queryByText("Source on GitHub")).toBeNull();
+	});
+
+	it("switches the theme from the footer's icon buttons", async () => {
+		render(<App />);
+		const group = screen.getByRole("group", { name: "Theme" });
+		const light = within(group).getByRole("button", { name: "Light theme" });
+		const dark = within(group).getByRole("button", { name: "Dark theme" });
+		expect(dark).toHaveAttribute("aria-pressed", "true");
+		fireEvent.click(light);
+		expect(light).toHaveAttribute("aria-pressed", "true");
+		expect(document.documentElement.dataset.theme).toBe("light");
+		fireEvent.click(dark);
+		expect(document.documentElement.dataset.theme).toBe("dark");
+		expect(screen.queryByRole("button", { name: "Toggle theme" })).toBeNull();
 	});
 
 	it("shows each version in the footer, linked to its tree", () => {

@@ -31,7 +31,9 @@ export function Markdown({ children }: { children: string }) {
 	);
 }
 
-function ThemeToggle() {
+// Theme choice in the footer: two icon buttons, the current one pressed.
+// Icons only on screen; each button is named for screen readers and tooltips.
+function ThemeSwitch() {
 	const { t } = useI18n();
 	const [theme, setTheme] = useState(
 		() => document.documentElement.dataset.theme ?? "dark",
@@ -40,14 +42,60 @@ function ThemeToggle() {
 		document.documentElement.dataset.theme = theme;
 		localStorage.setItem("ai-gent-docs-theme", theme);
 	}, [theme]);
+	const options = [
+		{ value: "light", label: t.footer.light, icon: <SunIcon /> },
+		{ value: "dark", label: t.footer.dark, icon: <MoonIcon /> },
+	];
 	return (
-		<button
-			type="button"
-			className="rounded-[var(--radius-control,0.375rem)] px-2 py-1 text-sm hover:text-signal"
-			onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+		<fieldset className="inline-flex rounded-[var(--radius-control,0.375rem)] border border-muted/30">
+			<legend className="sr-only">{t.footer.theme}</legend>
+			{options.map((o) => (
+				<button
+					key={o.value}
+					type="button"
+					aria-label={o.label}
+					title={o.label}
+					aria-pressed={theme === o.value}
+					onClick={() => setTheme(o.value)}
+					className="p-1.5 hover:text-signal aria-pressed:text-signal"
+				>
+					{o.icon}
+				</button>
+			))}
+		</fieldset>
+	);
+}
+
+function SunIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 16 16"
+			className="h-4 w-4"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+			strokeLinecap="round"
 		>
-			{t.nav.theme}
-		</button>
+			<circle cx="8" cy="8" r="3" />
+			<path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1" />
+		</svg>
+	);
+}
+
+function MoonIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 16 16"
+			className="h-4 w-4"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+			strokeLinejoin="round"
+		>
+			<path d="M13.5 9.8A5.75 5.75 0 0 1 6.2 2.5a5.75 5.75 0 1 0 7.3 7.3Z" />
+		</svg>
 	);
 }
 
@@ -108,7 +156,6 @@ function TopBar() {
 						{t.nav.search}
 					</Link>
 					<LanguageSwitcher />
-					<ThemeToggle />
 					<button
 						type="button"
 						className="text-sm md:hidden"
@@ -330,7 +377,7 @@ export function Layout({ children }: { children: ReactNode }) {
 				{children}
 			</main>
 			<footer className="border-t border-muted/20 px-4 py-6 text-sm text-muted">
-				<div className="mx-auto flex max-w-6xl flex-wrap gap-4">
+				<div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-5 gap-y-3">
 					<span title={t.footer.version} className="font-code">
 						{versions.map((v, i) => (
 							<span key={v.name}>
@@ -358,6 +405,9 @@ export function Layout({ children }: { children: ReactNode }) {
 						<CopyleftIcon />
 						{t.footer.license}
 					</a>
+					<div>
+						<ThemeSwitch />
+					</div>
 				</div>
 			</footer>
 		</>

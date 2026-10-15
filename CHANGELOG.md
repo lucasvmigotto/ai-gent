@@ -13,6 +13,13 @@ changes.
   plugin and skill counts are gone, since the version links already lead
   to the repository.
 
+### Changed
+
+- **The docs site's theme switch moved to the footer**, as sun and moon
+  icon buttons with the current theme pressed, in place of the header's
+  "Toggle theme" text. `project:docs` now describes this footer (versions,
+  license, theme switch) for every site it builds.
+
 ## 2.0.1 — 2026-10-15
 
 ### Fixed

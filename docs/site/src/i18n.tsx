@@ -21,7 +21,6 @@ export interface Messages {
 		install: string;
 		search: string;
 		searchLabel: string;
-		theme: string;
 		language: string;
 		menu: string;
 		close: string;
@@ -96,7 +95,14 @@ export interface Messages {
 	};
 	changelog: { title: string; lede: string };
 	notFound: { title: string; body: string };
-	footer: { license: string; licenseTitle: string; version: string };
+	footer: {
+		license: string;
+		licenseTitle: string;
+		version: string;
+		theme: string;
+		light: string;
+		dark: string;
+	};
 }
 
 export const enUS: Messages = {
@@ -116,7 +122,6 @@ export const enUS: Messages = {
 		install: "Install",
 		search: "Search skills",
 		searchLabel: "Search skills",
-		theme: "Toggle theme",
 		language: "Language",
 		menu: "Menu",
 		close: "Close menu",
@@ -216,6 +221,9 @@ export const enUS: Messages = {
 		licenseTitle:
 			"GNU General Public License v3.0 or later (GPL-3.0-or-later): read the license",
 		version: "Versions",
+		theme: "Theme",
+		light: "Light theme",
+		dark: "Dark theme",
 	},
 };
 
