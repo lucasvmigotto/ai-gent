@@ -35,6 +35,11 @@ for p in a b; do
   echo "# $p" >"$base/plugins/$p/README.md"
 done
 echo "# contract" >"$base/shared/pipeline.md"
+# A docs site versioned on its own, listed in release.json.
+mkdir -p "$base/docs/site"
+printf '{\n  "name": "site",\n  "version": "0.1.0"\n}\n' >"$base/docs/site/package.json"
+echo "<h1>docs</h1>" >"$base/docs/site/index.html"
+printf '{ "manifests": [{ "file": "docs/site/package.json" }] }\n' >"$base/release.json"
 ln -s ../../../shared/pipeline.md "$base/plugins/a/references/pipeline.md"
 printf '# Changelog\n\nIntro.\n\n## 1.0.0 — 2026-01-01\n\nFirst.\n' >"$base/CHANGELOG.md"
 git -C "$base" init -q -b main
@@ -127,6 +132,19 @@ printf '{\n  "name": "c",\n  "version": "0.4.0"\n}\n' >"$repo/plugins/c/.claude-
 git -C "$repo" add -A && git -C "$repo" commit -q -m "feat(c): add plugin c"
 run
 check "new plugin keeps its initial version" test "$(version_of c)" == "0.4.0"
+
+echo "      -- release.json manifests"
+docs_version() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$repo/docs/site/package.json"; }
+fresh
+edit docs/site/index.html "fix(docs): footer versions"
+run
+check "a listed manifest is bumped when its directory changed" test "$(docs_version)" == "0.1.1"
+check "  plugins untouched by the commit stay" test "$(version_of a)/$(version_of b)" == "1.0.0/1.0.0"
+fresh
+edit plugins/a/README.md "feat(a): something"
+run
+check "plugins still bumped with release.json present" test "$(version_of a)" == "1.1.0"
+check "  and the untouched manifest stays" test "$(docs_version)" == "0.1.0"
 
 echo "      -- changelog"
 fresh
