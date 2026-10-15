@@ -4,7 +4,7 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
-## Unreleased
+## 2.1.0 — 2026-10-15
 
 ### Fixed
 
