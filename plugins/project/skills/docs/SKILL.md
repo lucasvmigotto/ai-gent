@@ -59,6 +59,12 @@ document — put it at the root instead, in `site/`. There is no
 If a site already exists elsewhere (`docs/` root, `website/`), ask before
 moving it.
 
+**An existing site is audited, not only extended.** Check it against the
+Phase 2 and Phase 7 rules (the version footer, source links at the build's
+tag instead of `main`, the deploy after the release) and bring what falls
+short up to them as listed changes, even when the request was only new
+content.
+
 ## Phase 1 — Discovery (no implementation yet)
 
 Audit the host project: structure, manifest (`Cargo.toml`/`package.json`),
@@ -166,6 +172,10 @@ render (never a second, hand-maintained copy):
   (`selenium/standalone-*`; WebKit only via Playwright's container, per
   the qa plugin's references/browsers.md rules, never a host driver install).
   Chromium-first in CI, full matrix locally.
+- **Versions:** a unit test of the footer's version resolution, one case
+  per row of `references/version-footer.md`'s table (on the tag, past it,
+  no tag, no git), and a render test that the footer shows every entry
+  linked to its tree.
 - **LLM output:** every page has its `.md` in every locale, every
   `llms.txt` link resolves in `dist/`, `llms-full.txt` contains every
   page, and every non-Implemented item carries its maturity label in the
@@ -174,7 +184,9 @@ render (never a second, hand-maintained copy):
 ## Phase 6 — Validation
 
 `bun install --frozen-lockfile && bun run lint && bun run typecheck
-&& bun run test && bun run build`, then inspect `dist/`. Follow with a
+&& bun run test && bun run build`, then inspect `dist/`: the footer
+shows every version (`<project>@v… · docs@v…`), and no source link
+points at `blob/main`. Follow with a
 manual keyboard-only / screen-reader pass and a genuine second
 engineering pass (dedup, links, mobile behavior, deps, versions, cache,
 error states) before calling anything done.

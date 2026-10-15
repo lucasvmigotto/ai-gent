@@ -4,6 +4,16 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Fixed
+
+- **`project:docs` applies the version footer to existing sites too.** A
+  run on a site that already exists audits it against the footer,
+  source-link and deploy-after-release rules, Phase 5 adds the version
+  tests, and Phase 6 checks the built footer and that no source link
+  points at `main`.
+
 ## 2.0.0 — 2026-10-15
 
 ### Changed
