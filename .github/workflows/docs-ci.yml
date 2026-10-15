@@ -12,6 +12,13 @@ on:
     paths:
       - "docs/site/**"
       - "docs/product/**"
+  # Deploy once release.yml has tagged main, so the footer shows the new
+  # version (ai-gent@vX.Y.Z), not the previous one. Its bot push doesn't
+  # trigger workflows; this event does.
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
@@ -22,19 +29,17 @@ concurrency:
 
 jobs:
   verify:
+    if: github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # git describe --tags for the site version
+          fetch-depth: 0 # git describe --tags: the footer's versions and links
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1"
-
-      - name: Resolve site version from the latest tag
-        run: echo "AI_GENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo dev)" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -98,8 +103,8 @@ jobs:
           if-no-files-found: error
 
   e2e:
-    # Containerized-browser smoke (no host driver). Advisory: deploy gates on
-    # verify, so a browser-image hiccup cannot block publishing.
+    # Containerized-browser smoke (no host driver). Advisory: deploy runs
+    # after the release, so a browser-image hiccup cannot block publishing.
     needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -165,8 +170,10 @@ jobs:
         run: docker rm -f ai-gent-chrome || true
 
   deploy:
-    if: github.ref == 'refs/heads/main'
-    needs: verify
+    # verify ran on the push; this run builds main as the release left it.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -187,14 +194,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # git describe --tags for the site version
+          fetch-depth: 0 # git describe --tags: the footer's versions and links
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1"
-
-      - name: Resolve site version from the latest tag
-        run: echo "AI_GENT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo dev)" >> "$GITHUB_ENV"
 
       - name: Install and build
         run: bun install --frozen-lockfile && bun run build

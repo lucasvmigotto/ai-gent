@@ -19,7 +19,17 @@ export interface SkillInfo {
 	sourceUrl: string;
 }
 
+// One per versioned part, then the docs site: `ai-gent@v1.12.0 · docs@v0.1.0`,
+// each linked to the tree it was built from (href is null without git).
+export interface VersionInfo {
+	name: string;
+	version: string;
+	label: string;
+	href: string | null;
+}
+
 export const version: string = generated.version;
+export const versions: VersionInfo[] = generated.versions as VersionInfo[];
 export const plugins: PluginInfo[] = generated.plugins as PluginInfo[];
 export const skills: SkillInfo[] = generated.skills as SkillInfo[];
 export const counts = generated.counts;

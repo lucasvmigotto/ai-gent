@@ -11,14 +11,23 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { footerVersions, gitInfo, label } from "./version.mjs";
 
 const siteDir = fileURLToPath(new URL("..", import.meta.url));
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 
-function version() {
-	// CI sets AI_GENT_VERSION from the release tag; local builds show "dev".
-	return process.env.AI_GENT_VERSION?.trim() || "dev";
-}
+const REPO_URL = "https://github.com/lucasvmigotto/ai-gent";
+
+// ai-gent's version is its release tag; the site's is docs/site/package.json,
+// raised by scripts/release.py (release.json) when docs/site changes.
+const versions = footerVersions({
+	repoUrl: REPO_URL,
+	name: "ai-gent",
+	docsVersion: JSON.parse(readFileSync(join(siteDir, "package.json"), "utf8"))
+		.version,
+	docsPath: "docs/site",
+	git: gitInfo(repo),
+}).map((v) => ({ ...v, label: label(v) }));
 
 function frontmatter(text) {
 	const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
@@ -81,7 +90,8 @@ for (const plugin of pluginDirs) {
 }
 
 const content = {
-	version: version(),
+	version: versions[0].version,
+	versions,
 	plugins,
 	skills,
 	counts: { plugins: plugins.length, skills: skills.length },

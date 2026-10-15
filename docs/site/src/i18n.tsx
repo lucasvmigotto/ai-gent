@@ -214,7 +214,7 @@ export const enUS: Messages = {
 	footer: {
 		license: "GPL-3.0-or-later",
 		source: "Source on GitHub",
-		version: "ai-gent version",
+		version: "Versions",
 	},
 };
 

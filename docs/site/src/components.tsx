@@ -15,6 +15,7 @@ import {
 	searchSkills,
 	skills,
 	version,
+	versions,
 } from "./content";
 import { LOCALES, type Locale, useI18n } from "./i18n";
 
@@ -312,8 +313,23 @@ export function Layout({ children }: { children: ReactNode }) {
 			</main>
 			<footer className="border-t border-muted/20 px-4 py-6 text-sm text-muted">
 				<div className="mx-auto flex max-w-6xl flex-wrap gap-4">
-					<span>
-						{t.footer.version} {version}
+					<span title={t.footer.version} className="font-code">
+						{versions.map((v, i) => (
+							<span key={v.name}>
+								{i > 0 && " · "}
+								{v.href ? (
+									<a
+										href={v.href}
+										rel="noreferrer"
+										className="hover:text-signal"
+									>
+										{v.label}
+									</a>
+								) : (
+									v.label
+								)}
+							</span>
+						))}
 					</span>
 					<span>{t.footer.license}</span>
 					<a
