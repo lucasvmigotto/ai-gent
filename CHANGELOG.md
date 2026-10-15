@@ -4,6 +4,15 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Fixed
+
+- **Docs site footer.** The license reads "GPL v3+" with a copyleft mark,
+  linked to `LICENSE` at the build's tag; "Source on GitHub" and the
+  plugin and skill counts are gone, since the version links already lead
+  to the repository.
+
 ## 2.0.1 — 2026-10-15
 
 ### Fixed

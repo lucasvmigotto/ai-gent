@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/App";
-import { version, versions } from "../src/content";
+import { sourceUrl, version, versions } from "../src/content";
 
 // Guards the class of bug that blanked sibling docs sites: a HashRouter with a
 // prefix basename renders nothing at "/". The app must mount and render its
@@ -17,6 +17,17 @@ describe("App", () => {
 	it("renders the site version", () => {
 		render(<App />);
 		expect(screen.getByTitle("ai-gent version")).toHaveTextContent(version);
+	});
+
+	it("shows the license as GPL v3+, linked to the LICENSE at the build's ref", () => {
+		render(<App />);
+		const license = screen.getByRole("link", { name: "GPL v3+" });
+		expect(license).toHaveAttribute("href", sourceUrl("LICENSE"));
+		expect(license).toHaveAttribute(
+			"title",
+			expect.stringContaining("GPL-3.0-or-later"),
+		);
+		expect(screen.queryByText("Source on GitHub")).toBeNull();
 	});
 
 	it("shows each version in the footer, linked to its tree", () => {

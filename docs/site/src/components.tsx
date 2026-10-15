@@ -10,11 +10,11 @@ import {
 import { Link, NavLink, useNavigate } from "react-router";
 import {
 	command,
-	counts,
 	plugins,
 	type SkillInfo,
 	searchSkills,
 	skills,
+	sourceUrl,
 	version,
 	versions,
 } from "./content";
@@ -142,6 +142,23 @@ function TopBar() {
 				</nav>
 			)}
 		</header>
+	);
+}
+
+// The copyleft mark (a mirrored ©): decorative, the link text names the license.
+function CopyleftIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 16 16"
+			className="h-3.5 w-3.5"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+		>
+			<circle cx="8" cy="8" r="6.75" />
+			<path d="M6.2 5.6a3 3 0 1 1 0 4.8" strokeLinecap="round" />
+		</svg>
 	);
 }
 
@@ -332,17 +349,15 @@ export function Layout({ children }: { children: ReactNode }) {
 							</span>
 						))}
 					</span>
-					<span>{t.footer.license}</span>
 					<a
-						href="https://github.com/lucasvmigotto/ai-gent"
-						rel="noreferrer"
-						className="hover:text-signal"
+						href={sourceUrl("LICENSE")}
+						rel="noreferrer license"
+						title={t.footer.licenseTitle}
+						className="inline-flex items-center gap-1.5 hover:text-signal"
 					>
-						{t.footer.source}
+						<CopyleftIcon />
+						{t.footer.license}
 					</a>
-					<span>
-						{counts.plugins} plugins · {counts.skills} skills
-					</span>
 				</div>
 			</footer>
 		</>

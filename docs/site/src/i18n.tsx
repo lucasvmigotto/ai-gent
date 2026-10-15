@@ -96,7 +96,7 @@ export interface Messages {
 	};
 	changelog: { title: string; lede: string };
 	notFound: { title: string; body: string };
-	footer: { license: string; source: string; version: string };
+	footer: { license: string; licenseTitle: string; version: string };
 }
 
 export const enUS: Messages = {
@@ -212,8 +212,9 @@ export const enUS: Messages = {
 		body: "Search the skills, or start from the landing page.",
 	},
 	footer: {
-		license: "GPL-3.0-or-later",
-		source: "Source on GitHub",
+		license: "GPL v3+",
+		licenseTitle:
+			"GNU General Public License v3.0 or later (GPL-3.0-or-later): read the license",
 		version: "Versions",
 	},
 };
