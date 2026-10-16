@@ -94,6 +94,7 @@ class ClassifyTest(unittest.TestCase):
 
 class Stub(http.server.BaseHTTPRequestHandler):
     seen: list = []
+    counter = 100
 
     def log_message(self, *a):
         pass
@@ -106,6 +107,20 @@ class Stub(http.server.BaseHTTPRequestHandler):
             self.send_response(401)
             self.end_headers()
             self.wfile.write(f'{{"message": "bad credentials {TOKEN}"}}'.encode())
+            return
+        if self.command == "POST" and self.path.split("?")[0].endswith("/issues"):
+            Stub.counter += 1
+            payload = {"number": Stub.counter, "id": 9000 + Stub.counter,
+                       "html_url": f"https://github.com/o/r/issues/{Stub.counter}"}
+            self.send_response(201)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(payload).encode())
+            return
+        if self.path.startswith("/fail"):
+            self.send_response(422)
+            self.end_headers()
+            self.wfile.write(b'{"message": "Validation Failed"}')
             return
         if self.path.startswith("/page1"):
             port = self.server.server_address[1]
@@ -151,6 +166,7 @@ class Sandbox(unittest.TestCase):
         self.old_cwd = os.getcwd()
         os.chdir(self.repo)
         Stub.seen.clear()
+        Stub.counter = 100
         reporun.SECRETS.clear()
 
     def tearDown(self):
@@ -235,7 +251,9 @@ class ApiTest(Sandbox):
 
     def test_jira_basic_with_email(self):
         self.entry("ai-gent/jira/token", f"{TOKEN}\nemail: me@example.com\n")
-        code, _, err = self.run_cmd("api", "jira", "POST", "/rest/api/3/search/jql", "--data", "-")
+        query = Path(self.tmp.name) / "q.json"
+        query.write_text('{"jql": "project = KEY"}')
+        code, _, err = self.run_cmd("api", "jira", "POST", "/rest/api/3/search/jql", "--data", str(query))
         self.assertEqual(code, 0, err)  # a search: a POST that only reads
         auth = Stub.seen[-1]["headers"]["Authorization"]
         self.assertEqual(auth, "Basic " + base64.b64encode(f"me@example.com:{TOKEN}".encode()).decode())
@@ -298,6 +316,95 @@ class CliTest(Sandbox):
         code, out, err = self.run_cli("github", "--write", "--", "pr", "merge", "3")
         self.assertEqual(code, 0, err)
         self.assertIn("token from the CLI's own login", err)  # no entry: gh's own login
+
+
+class BatchTest(Sandbox):
+    def plan(self, steps):
+        f = Path(self.tmp.name) / "batch.json"
+        f.write_text(json.dumps({"platform": "github", "steps": steps}))
+        return str(f)
+
+    STEPS = [
+        {"name": "feature", "api": {"method": "POST", "path": "/repos/{owner}/{repo}/issues", "data": {"title": "[012] Export"}},
+         "record": {"key": "feature", "ref": "#{{self.number}}", "id": "{{self.id}}", "url": "{{self.html_url}}", "state": "todo"}},
+        {"name": "US1", "api": {"method": "POST", "path": "/repos/{owner}/{repo}/issues", "data": {"title": "[012] US1: CSV"}},
+         "record": {"key": "US1", "ref": "#{{self.number}}", "id": "{{self.id}}", "state": "todo"}},
+        {"name": "US1-parent", "api": {"method": "POST", "path": "/repos/{owner}/{repo}/issues/{{feature.number}}/sub_issues",
+                                       "data": {"sub_issue_id": "{{US1.id}}"}}},
+    ]
+
+    def test_needs_write_once(self):
+        self.entry("ai-gent/github/pat", f"{TOKEN}\n")
+        code, _, err = self.run_cmd("batch", self.plan(self.STEPS))
+        self.assertEqual(code, reporun.EXIT_REFUSED)
+        self.assertIn("3 of 3 steps", err)
+        self.assertEqual(Stub.seen, [])
+
+    def test_dry_run_calls_nothing(self):
+        code, out, _ = self.run_cmd("batch", self.plan(self.STEPS), "--dry-run")
+        self.assertEqual(code, 0)
+        self.assertIn("US1-parent", out)
+        self.assertEqual(Stub.seen, [])
+
+    def test_references_and_records(self):
+        self.entry("ai-gent/github/pat", f"{TOKEN}\n")
+        code, out, err = self.run_cmd("batch", self.plan(self.STEPS), "--write")
+        self.assertEqual(code, 0, err)
+        report = json.loads(out)
+        self.assertTrue(report["ok"])
+        self.assertEqual(Stub.seen[-1]["path"], "/repos/o/r/issues/101/sub_issues")
+        self.assertEqual(json.loads(Stub.seen[-1]["body"]), {"sub_issue_id": 9102})  # an int stays an int
+        self.assertEqual(report["records"][0], {"key": "feature", "ref": "#101", "id": 9101,
+                                                "url": "https://github.com/o/r/issues/101", "state": "todo"})
+
+    def test_stops_at_first_failure(self):
+        self.entry("ai-gent/github/pat", f"{TOKEN}\n")
+        steps = [self.STEPS[0], {"name": "bad", "api": {"method": "POST", "path": "/fail", "data": {}}}, self.STEPS[1]]
+        code, out, _ = self.run_cmd("batch", self.plan(steps), "--write")
+        self.assertEqual(code, reporun.EXIT_ERROR)
+        report = json.loads(out)
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["skipped"], ["US1"])
+        self.assertEqual(len(report["records"]), 1)  # what was created is still recorded
+
+    def test_reads_need_no_write(self):
+        code, out, err = self.run_cmd("batch", self.plan([{"name": "list", "api": {"method": "GET", "path": "/repos/o/r/issues"}}]))
+        self.assertEqual(code, 0, err)
+
+
+class ChainTest(Sandbox):
+    def branches(self, *names):
+        subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "init"], check=True,
+                       env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                            "GIT_COMMITTER_EMAIL": "t@t"})
+        for n in names:
+            subprocess.run(["git", "branch", "-f", n], check=True)
+
+    def chain(self):
+        code, out, _ = self.run_cmd("chain", "--json")
+        self.assertEqual(code, 0)
+        return json.loads(out)
+
+    def test_full_chain(self):
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], check=True)
+        self.branches("dev", "homolog", "feat/x")
+        c = self.chain()
+        self.assertEqual((c["integration"], c["staging"], c["production"]), ("dev", "homolog", "main"))
+        self.assertEqual(c["integrated_on"], "dev")
+        self.assertFalse(c["ask"])
+
+    def test_ambiguous_asks(self):
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], check=True)
+        self.branches("dev", "develop", "master")
+        c = self.chain()
+        self.assertTrue(c["ask"])
+        self.assertIsNone(c["integration"])
+        self.assertEqual(len(c["ambiguous"]), 2)
+
+    def test_no_integration_branch(self):
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], check=True)
+        self.branches("feat/x")
+        self.assertEqual(self.chain()["integrated_on"], "main")
 
 
 if __name__ == "__main__":
