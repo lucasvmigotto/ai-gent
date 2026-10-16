@@ -4,6 +4,27 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **`devsecops:watch` runs on the small model, in its own context.** In
+  Claude Code it's forked onto Haiku (`model: haiku`, `context: fork`),
+  with its read-only `gh run` and `git` commands pre-approved: waiting
+  costs nothing, reading results and classifying a failure is triage, and
+  the session gets back only the report. It never edits, pushes, re-runs
+  or cancels from there; its report ends with `Hand back` — `none`, or
+  `fix needed` with the failing job, log lines and likely file — and the
+  stage that pushed keeps the fix on its own model (pipeline rule 8).
+- **Roles for skills, across agents.** `shared/agent-roles.md` gains a
+  table of the skills that always run as a role, and how each agent gets
+  the same, Claude Code as the reference: opencode commands
+  (`subtask: true`, and the model from `AI_GENT_OPENCODE_MODEL_SMALL`,
+  written by `setup.sh`), Codex custom agents, Cursor, Gemini CLI and Kiro
+  subagents, Copilot prompt files, Amp's built-in subagents, Windsurf
+  (the session's model). Committing, merging and pushing stay with the
+  stage doing the work.
+
 ## 2.3.1 — 2026-10-16
 
 ### Fixed
