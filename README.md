@@ -7,9 +7,12 @@ They cover the whole path of a software project, from idea to docs site, plus th
 - **A product pipeline:** brief → architecture → specs → frontend, backend and QA → docs. There are also stages for existing codebases.
 - **Container-first development environments.**
 - **CI/CD and supply-chain security.**
-- **Safe database access.**
+- **Safe database access**, with passwords kept in [pass](https://www.passwordstore.org/).
+- **Issues, work items and pull requests** on GitHub, Azure DevOps, GitLab, Bitbucket and Jira — and the specs mirrored there, kept in step as the work moves.
 - **Token-lean code reading**, verified against the original.
 - **git rules**, enforced by a hook.
+
+**Why.** It's free and open source (GPL v3+), with no product behind it: the aim is to take the busywork off developers' days and leave them the interesting parts. It's also frugal with tokens by design — one-line skill descriptions (every session loads them), details read only when a task needs them, CI watched by a small model in its own context, and code read in a compact form when it's long.
 
 ## Install / update
 
@@ -120,12 +123,14 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 | with arguments | `/qa:load 2000 concurrent users` | `/qa-load 2000 concurrent users` | `qa-load` and the request: "2000 concurrent users" |
 
 > [!TIP]
-> Every enabled plugin's skill descriptions cost context in every session, about 5k tokens for all twelve plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
+> Every enabled plugin's skill descriptions cost context in every session, about 6k tokens for all twelve plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
 >
 > ```bash
 > claude plugin disable devsecops@skills-dir --scope project   # writes .claude/settings.json
 > claude plugin disable qa@skills-dir --scope local            # .claude/settings.local.json, not committed
 > ```
+
+**Models.** Skills run on your session's model, with one exception: `devsecops:watch` runs on the small model (Haiku in Claude Code) in a context of its own, because following CI is triage, and hands any fix back to your session. `agents:orchestrate` routes its work the same way: a strong model plans and reviews, a fast one builds, a small one searches. Both use one table, `shared/agent-roles.md`, which also says how each other agent gets the same: opencode commands as subtasks (`setup.sh` writes them, on `AI_GENT_OPENCODE_MODEL_SMALL` when you set it), and custom agents or subagents in Codex, Cursor, Gemini CLI, Copilot and Kiro.
 
 ## Contents
 
@@ -171,7 +176,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `iac` — infrastructure as code (OpenTofu/Terraform by default) for the environments the architecture chose
   - `audit` — security and reliability review of existing pipelines
   - `migrate` — move pipelines between platforms
-  - `watch` — follow CI/CD runs to the end, explain failures from their logs, and check secrets (names only), variables, environments and permissions
+  - `watch` — follow CI/CD runs to the end, explain failures from their logs, and check secrets (names only), variables, environments and permissions; runs on a small model in its own context (Haiku in Claude Code) and hands any fix back
 - `plugins/db/` — safe database access for PostgreSQL, MySQL/MariaDB, SQL Server, Oracle and SQLite (see [Databases](#databases))
   - `connect` — list, test and classify connection profiles, never showing credentials
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
