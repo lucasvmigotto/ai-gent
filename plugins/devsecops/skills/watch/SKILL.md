@@ -1,6 +1,9 @@
 ---
 name: watch
 description: Follow CI/CD runs to the end and explain failures — find a commit's runs, watch them without blocking, read only the failed steps' logs, classify the cause with evidence, check secrets (names only), variables, environments and permissions — on GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket, Jenkins, Forgejo/Gitea. Use for "watch the CI", "why did the pipeline fail", "is the deploy done".
+model: haiku
+context: fork
+allowed-tools: Bash(gh run list *) Bash(gh run view *) Bash(gh run watch *) Bash(git rev-parse *) Bash(git log *) Bash(git remote get-url *)
 ---
 
 # Watch a pipeline run
@@ -10,6 +13,23 @@ run into a cause and a fix. Read-only by default: it observes, reads logs
 and settings, and acts (re-run, cancel, dispatch) only when asked.
 Designing pipelines is `devsecops:pipeline`; a security review of their
 configuration is `devsecops:audit`.
+
+## Running on its own
+
+This skill runs on the small model in a context of its own (the `scout`
+role, `../../references/agent-roles.md`): in Claude Code it's forked onto
+Haiku, and other agents map it as that file's table says. It doesn't see
+the conversation, so:
+
+- take the commit and what was pushed from the request; without them,
+  use `git rev-parse HEAD` and the branch's upstream, and say so;
+- **observe and report only** — never edit, commit, push, re-run or
+  cancel from here. A fix belongs to the stage that pushed (pipeline rule
+  8), which runs on the main model;
+- end the report with `Hand back`: `none` when everything is green or the
+  cause is outside the change (flaky, runner, outage, already red), or
+  `fix needed` with the failing job, the log lines and the likely file —
+  what the main model needs to act without reading the logs again.
 
 ## Before starting
 
@@ -103,7 +123,8 @@ Read these to explain a failure, not to audit them (that's
 
 ## Acting on a run
 
-Only when the user asks, and with what it will do said first:
+Only when the user asks, and with what it will do said first — from the
+main conversation, not from the forked watch (*Running on its own*):
 
 - **Re-run failed jobs** (`gh run rerun <id> --failed`) for a flaky or
   infrastructure failure — never for a code failure, which needs a fix.
@@ -128,6 +149,7 @@ Cause      <class>: <one line>, with the log line that shows it
 Since      new with this change | already failing on <branch> since <run>
 Fix        <what to change, where> — or the question to ask
 Next       the run to watch next (a chained deploy, the re-run)
+Hand back  none | fix needed: <job>, <log lines>, <likely file>
 ```
 
 Keep watching chained runs until the change has fully landed (released,

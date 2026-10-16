@@ -29,6 +29,7 @@ export function LandingPage() {
 			<section className="py-6">
 				<h1 className="font-display text-4xl sm:text-5xl">{t.landing.title}</h1>
 				<p className="mt-3 max-w-2xl text-muted">{t.landing.lede}</p>
+				<p className="mt-2 max-w-2xl text-sm text-muted">{t.landing.why}</p>
 				<p className="mt-2 text-sm text-muted">
 					{t.landing.counts(plugins.length, skills.length)}
 				</p>
@@ -294,6 +295,17 @@ export function ReferencePage() {
 			path: "shared/reading-code.md",
 		},
 		{ key: "spec-kit", title: t.reference.specKit, path: "shared/spec-kit.md" },
+		{ key: "secrets", title: t.reference.secrets, path: "shared/secrets.md" },
+		{
+			key: "agent-roles",
+			title: t.reference.agentRoles,
+			path: "shared/agent-roles.md",
+		},
+		{
+			key: "tracker-sync",
+			title: t.reference.trackerSync,
+			path: "plugins/repo/references/sync.md",
+		},
 	];
 	return (
 		<>

@@ -31,6 +31,7 @@ export interface Messages {
 		lede: string;
 		placeholder: string;
 		counts: (plugins: number, skills: number) => string;
+		why: string;
 		installCta: string;
 		changelogCta: string;
 		index: string;
@@ -91,6 +92,9 @@ export interface Messages {
 		guards: string;
 		readingCode: string;
 		specKit: string;
+		secrets: string;
+		agentRoles: string;
+		trackerSync: string;
 		guardsBody: string;
 	};
 	changelog: { title: string; lede: string };
@@ -110,7 +114,7 @@ export const enUS: Messages = {
 		title:
 			"ai-gent docs — skills and plugins for Claude Code and other coding agents",
 		description:
-			"Install ai-gent, find the right skill among 36, and contribute.",
+			"Install ai-gent, find the right skill for the task, and contribute.",
 	},
 	a11y: { skip: "Skip to content", external: "opens in a new tab" },
 	nav: {
@@ -133,6 +137,7 @@ export const enUS: Messages = {
 		placeholder: "What are you trying to do?",
 		counts: (plugins, skills) =>
 			`${skills} skills · ${plugins} plugins · ${LOCALES.join(" + ")}`,
+		why: "Free and open source, made to take the busywork off developers' days — and frugal with tokens: one-line skill descriptions, details read only when a task needs them, CI watched by a small model, code read in a compact form.",
 		installCta: "Install ai-gent",
 		changelogCta: "Read the changelog",
 		index: "All skills, by plugin",
@@ -171,7 +176,7 @@ export const enUS: Messages = {
 			"Without a terminal, or with --skip-prompt, it installs your previous choice, or Claude Code alone the first time.",
 		others: "Other agents",
 		othersBody:
-			"opencode, Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Gemini CLI, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the git and db guards; elsewhere they are instructions.",
+			"opencode, Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Gemini CLI, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the guards (git, db, secrets, repo); elsewhere they are instructions.",
 		verify: "Verify",
 		updates: "Updates",
 		updatesBody:
@@ -208,6 +213,9 @@ export const enUS: Messages = {
 		guards: "Guard hooks",
 		readingCode: "Reading code",
 		specKit: "Spec Kit",
+		secrets: "Secrets in pass",
+		agentRoles: "Agent roles and models",
+		trackerSync: "Specs on the tracker",
 		guardsBody:
 			"Four PreToolUse hooks enforce the git, db, secrets and repo rules in Claude Code; an OpenCode V2 plugin enforces the same rules there. The git plugin also runs a SessionStart check that prints one line when a newer ai-gent release is known.",
 	},

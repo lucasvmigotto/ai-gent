@@ -205,7 +205,10 @@ definition and the words **not** to use for it
 8. **Pushed means watched.** After every push, merge to a pushed branch
    or promotion, the stage that made it follows the CI runs it started
    with `devsecops:watch` until they finish, chained runs included: done
-   means green in CI, not only locally. On a red run:
+   means green in CI, not only locally. The watch runs as the small
+   `scout` role in its own context (`agent-roles.md`): hand it the commit
+   and what was pushed, keep working, and act on its report — the stage
+   keeps the fix, on its own model. On a red run:
    - **this change's fault** (code, a test, a pipeline file it touched):
      fix it on the same work branch, run the failing check locally, and
      commit it like any other task; then **ask before pushing the fix** —
