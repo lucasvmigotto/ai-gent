@@ -740,15 +740,21 @@ has_tty() { ((OUT_TTY)) && (exec </dev/tty) 2>/dev/null; }
 choose_agents() {
   local pre=" $1 " id n=0 found
   if command -v fzf >/dev/null 2>&1; then
-    local lines="" bind="start:"
+    local lines="" bind="start:" width=0 label
+    for id in "${AGENT_IDS[@]}"; do
+      ((${#AGENT_LABEL[$id]} > width)) && width=${#AGENT_LABEL[$id]}
+    done
     for id in "${AGENT_IDS[@]}"; do
       found="not found"
       detected "$id" && found="found"
-      lines+="$id"$'\t'"${AGENT_LABEL[$id]}"$'\t'"($found)"$'\n'
+      # Spaces, not a tab, before the status: fzf renders tabs at tab stops,
+      # which leaves the column ragged.
+      printf -v label '%-*s  (%s)' "$width" "${AGENT_LABEL[$id]}" "$found"
+      lines+="$id"$'\t'"$label"$'\n'
       n=$((n + 1))
       [[ $pre == *" $id "* ]] && bind+="pos($n)+select+"
     done
-    printf '%s' "$lines" | fzf --multi --delimiter=$'\t' --with-nth=2.. --height=~16 \
+    printf '%s' "$lines" | fzf --multi --delimiter=$'\t' --with-nth=2 --height=~16 \
       --layout=reverse --border --prompt='agents> ' --bind "${bind}first" \
       --header=$'Tab selects, Enter installs. Claude Code is the default.\nCodex, Cursor, Gemini CLI, Copilot and Amp share ~/.agents/skills.' |
       cut -f1
