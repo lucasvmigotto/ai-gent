@@ -18,7 +18,7 @@ import sys
 
 SCHEMA = "https://opencode.ai/config.json"
 
-# The rules mirroring plugins/git/hooks/guard.sh and plugins/db/hooks/guard.sh.
+# The rules mirroring plugins/{git,db,secrets,repo}/hooks/guard.sh.
 # The guard plugin (opencode/guard/) enforces the parts a pattern cannot.
 GUARD_RULES: list[dict[str, str]] = [
     {"action": "shell", "resource": "git push*", "effect": "ask"},
@@ -35,6 +35,11 @@ GUARD_RULES: list[dict[str, str]] = [
     {"action": "shell", "resource": "*connections.env*", "effect": "deny"},
     {"action": "read", "resource": "~/.config/ai-gent/*", "effect": "deny"},
     {"action": "edit", "resource": "~/.config/ai-gent/*", "effect": "deny"},
+    {"action": "shell", "resource": "pass show*", "effect": "deny"},
+    {"action": "shell", "resource": "pass insert*", "effect": "deny"},
+    {"action": "shell", "resource": "pass edit*", "effect": "deny"},
+    {"action": "shell", "resource": "pass -c*", "effect": "deny"},
+    {"action": "shell", "resource": "*reporun*--write*", "effect": "ask"},
 ]
 
 

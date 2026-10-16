@@ -20,8 +20,8 @@ SHOP_DEV_HOST=db-dev.internal.example
 SHOP_DEV_PORT=5432
 SHOP_DEV_DATABASE=shop
 SHOP_DEV_USER=shop_readonly
-SHOP_DEV_PASSWORD=<set by the user>
 SHOP_DEV_PROJECT=shop
+# no _PASSWORD: it lives in pass, as ai-gent/db/shop-dev
 ```
 
 | Key | Meaning |
@@ -31,14 +31,38 @@ SHOP_DEV_PROJECT=shop
 | `_HOST`, `_PORT` | server address (remote profiles) |
 | `_DATABASE` | database name (PostgreSQL, MySQL/MariaDB, SQL Server) |
 | `_SERVICE` | Oracle service name |
-| `_USER`, `_PASSWORD` | credentials — preferably a read-only account |
+| `_USER` | the account — preferably a read-only one |
+| `_PASSWORD` | `pass:<entry>` to name a pass entry; left out, `ai-gent/db/<profile>` is used when it exists; a plain value only as the last resort (see below) |
 | `_PATH` | SQLite file |
 | `_CONTAINER` | for a local profile: the database container's name |
 | `_PROJECT` | optional: the repository the profile belongs to; `dbrun` lists it first inside that repository |
 
-The file is the user's: the agent may create it with placeholder keys
-(`<set by the user>`) and mode 600, but never writes a real credential
-into it, and never asks the user to paste one into the conversation.
+The file is the user's: the agent may create it with the non-secret keys
+and mode 600, but never writes a credential into it, and never asks the
+user to paste one into the conversation.
+
+## Passwords: pass first
+
+A profile's password comes from the first of these that applies
+(`secrets.md`, from the `secrets` plugin, has the rules for every secret):
+
+1. `_PASSWORD=pass:<entry>` — that pass entry (an existing store layout,
+   such as `pass:work/db/shop`).
+2. No `_PASSWORD` line — the pass entry `ai-gent/db/<profile>`, the
+   profile name lowercased with `_` → `-` (`SHOP_DEV` →
+   `ai-gent/db/shop-dev`), when it exists. `AI_GENT_PASS_PREFIX` replaces
+   `ai-gent`.
+3. `_PASSWORD=<value>` — a plain value in this file: the **last resort**,
+   for a machine without pass. `dbrun profiles` flags it, and
+   `dbrun secrets migrate <PROFILE>` moves it into `ai-gent/db/<profile>`
+   without showing it, then removes the line.
+
+`dbrun` decrypts the entry only to connect (`test`, `query`, `plan`,
+`apply`, `restore`), never to list or classify, and redacts it like any
+password. The user adds it in their own terminal —
+`pass insert ai-gent/db/shop-dev` prompts without echo. If the store is
+locked and can't prompt, `dbrun` stops with the command that unlocks it;
+the user runs it, then the agent retries.
 
 ## Auto-discovered local profiles
 
@@ -75,8 +99,9 @@ a finding (`db:review`), not a credential to use.
 
 ## Providers (later)
 
-A private plugin with its own credential store (such as a work-specific
-one) could plug in as a **provider**: a descriptor pointing at its
+pass is the first credential store behind profiles. Another private
+plugin with its own store (such as a work-specific one) could plug in as
+a **provider**: a descriptor pointing at its
 profiles file, a mapping from its naming scheme to profiles and classes,
 and its own rules file. Provider rules may only tighten `safety.md`,
 never loosen it; its classes follow the same "missing = production" rule.

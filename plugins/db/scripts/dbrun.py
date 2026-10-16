@@ -161,12 +161,77 @@ def user_profiles() -> dict[str, dict]:
                     profiles.setdefault(name, {"name": name, "source": str(path)})[suffix.lower()] = value
                 break
     for p in profiles.values():
+        secret_source(p)
         p.setdefault("class", "production")  # unclassified = production
         p["class"] = p["class"].lower()
         if p["class"] not in REMOTE_CLASSES + ("local",):
             p["class"] = "production"
         p["engine"] = p.get("engine", "").lower()
     return profiles
+
+
+# ------------------------------------------------------------ pass secrets
+# A profile's password comes from pass first (shared/secrets.md): an explicit
+# `_PASSWORD=pass:<entry>`, else the entry ai-gent/db/<profile> when it exists;
+# a plain value in the profiles file is the last resort. Entries are decrypted
+# only when dbrun connects, never to list or classify.
+
+PASS_ENTRY_RE = re.compile(r"[A-Za-z0-9_@+][A-Za-z0-9._@+-]*(/[A-Za-z0-9_@+][A-Za-z0-9._@+-]*)*")
+
+
+def pass_prefix() -> str:
+    return (os.environ.get("AI_GENT_PASS_PREFIX") or "ai-gent").strip("/")
+
+
+def pass_entry(name: str) -> str:
+    return f"{pass_prefix()}/db/{name.lower().replace('_', '-')}"
+
+
+def pass_store() -> Path:
+    return Path(os.environ.get("PASSWORD_STORE_DIR") or Path.home() / ".password-store")
+
+
+def pass_has(entry: str) -> bool:
+    """Whether the store holds the entry: a file check, nothing decrypted."""
+    return (pass_store() / f"{entry}.gpg").is_file()
+
+
+def check_entry(entry: str) -> str:
+    if not PASS_ENTRY_RE.fullmatch(entry) or ".." in entry.split("/"):
+        raise Failed(f"{entry!r} isn't a pass entry name (no leading - or /, no ..)")
+    return entry
+
+
+def secret_source(p: dict) -> None:
+    """Record where the password comes from; never reads it."""
+    value = p.get("password", "")
+    if value.startswith("pass:"):
+        p.pop("password")
+        p["pass"], p["secret"] = value[5:].strip(), "pass"
+    elif value:
+        p["secret"] = "file"
+    elif pass_has(pass_entry(p["name"])):
+        p["pass"], p["secret"] = pass_entry(p["name"]), "pass"
+    else:
+        p["secret"] = "none"
+
+
+def read_pass(entry: str, timeout: float = 90) -> str:
+    """The entry's first line (pass's convention), never printed or logged."""
+    check_entry(entry)
+    if not shutil.which("pass"):
+        raise Failed(f"the password is in pass ({entry}) but pass isn't installed")
+    try:
+        out = subprocess.run(["pass", "show", entry], stdin=subprocess.DEVNULL, capture_output=True,
+                             text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        out = subprocess.CompletedProcess([], 124, "", "timed out waiting for the passphrase")
+    value = out.stdout.split("\n", 1)[0].strip() if out.returncode == 0 else ""
+    if not value:
+        why = "it's empty" if out.returncode == 0 else (out.stderr.strip().splitlines() or ["locked or missing"])[-1][:200]
+        raise Failed(f"couldn't read {entry} from pass ({why}). If the store is locked, unlock it in your own "
+                     f"terminal (`pass show {entry} >/dev/null`) and retry")
+    return value
 
 
 PROXY_IMAGES = re.compile(r"pgbouncer|pgpool|cloud-sql-proxy|cloudsql|socat|haproxy|envoy|proxysql|odyssey|nginx|traefik", re.I)
@@ -244,7 +309,7 @@ def local_profiles(root: Path) -> dict[str, dict]:
             continue
         service = c["labels"].get("com.docker.compose.service") or c["name"]
         p = {"name": f"local:{service}", "source": "running container", "engine": eng, "class": "local",
-             "container": c["name"], "port": str(DEFAULT_PORTS[eng]), "host": "127.0.0.1"}
+             "container": c["name"], "port": str(DEFAULT_PORTS[eng]), "host": "127.0.0.1", "secret": "container"}
         p.update(credentials_from_env(eng, container_env(engine, c["name"])))
         profiles[p["name"]] = p
     return profiles
@@ -259,12 +324,15 @@ def all_profiles() -> dict[str, dict]:
     return profiles
 
 
-def get_profile(name: str) -> dict:
+def get_profile(name: str, secret: bool = True) -> dict:
+    """The named profile; with `secret`, its password read (from pass if it lives there)."""
     profiles = all_profiles()
     if name not in profiles:
         known = ", ".join(sorted(profiles)) or "none"
         raise Failed(f"no profile {name!r} (known: {known}); see `dbrun profiles`")
     p = dict(profiles[name])
+    if secret and p.get("pass"):
+        p["password"] = read_pass(p["pass"])
     remember_secrets(p)
     if p.get("engine") not in ENGINES:
         raise Failed(f"profile {name}: engine {p.get('engine')!r} isn't one of {', '.join(ENGINES)}")
@@ -964,20 +1032,25 @@ def print_table(columns: list[str], rows: list[list], width: int = 120) -> None:
 
 def cmd_profiles(args) -> int:
     profiles = all_profiles()
-    rows = [{"name": n, "engine": p.get("engine", "?"), "class": p.get("class"), "source": p.get("source")}
+    rows = [{"name": n, "engine": p.get("engine", "?"), "class": p.get("class"), "source": p.get("source"),
+             "password": p.get("pass", p.get("secret")) if p.get("secret") == "pass" else p.get("secret")}
             for n, p in sorted(profiles.items())]
     if args.json:
         print(json.dumps(rows, indent=2))
     elif rows:
-        print_table(["name", "engine", "declared class", "source"], [list(r.values()) for r in rows])
+        print_table(["name", "engine", "declared class", "source", "password"], [list(r.values()) for r in rows])
         print("\n(declared class; `dbrun classify <profile>` proves what it really is)")
+        plain = [r["name"] for r in rows if r["password"] == "file"]
+        if plain:
+            print(f"warning: plain-text password in the profiles file for {', '.join(plain)}; "
+                  f"move it into pass with `dbrun secrets migrate <profile>`")
     else:
         print(f"no profiles: none in {config_dir() / 'connections.env'} and no database containers of this repository running")
     return EXIT_OK
 
 
 def cmd_classify(args) -> int:
-    p = get_profile(args.profile)
+    p = get_profile(args.profile, secret=False)
     cls = classify(p)
     if args.json:
         print(json.dumps(cls, indent=2))
@@ -1315,7 +1388,7 @@ def cmd_restore(args) -> int:
 
 
 def cmd_script(args) -> int:
-    p = get_profile(args.profile)
+    p = get_profile(args.profile, secret=False)
     cls = classify(p)
     statements = split_statements(read_sql(args.sql), p["engine"])
     if not statements:
@@ -1365,7 +1438,7 @@ def cmd_script(args) -> int:
 
 
 def cmd_session(args) -> int:
-    p = get_profile(args.profile)
+    p = get_profile(args.profile, secret=False)
     cls = classify(p)
     engine = engine_cmd()
     name = session_name(p)
@@ -1392,6 +1465,37 @@ def cmd_session(args) -> int:
         raise Failed(f"couldn't start the session container: {out.stderr.strip()[-300:]}")
     log_result(log_start("session start", p, cls, args.reason or "investigation", []), f"started {name}")
     print(f"started {name}; queries for {p['name']} now reuse it. Stop it with: dbrun session stop {p['name']}")
+    return EXIT_OK
+
+
+def cmd_secrets(args) -> int:
+    """Move a profile's plain-text password into pass without showing it."""
+    profiles = user_profiles()
+    if args.profile not in profiles:
+        raise Failed(f"no profile {args.profile!r} in the profiles file")
+    p = profiles[args.profile]
+    remember_secrets(p)
+    if p["secret"] != "file":
+        print(f"{p['name']}: nothing to migrate (password source: {p.get('pass') or p['secret']})")
+        return EXIT_OK
+    entry = check_entry(pass_entry(p["name"]))
+    if not shutil.which("pass"):
+        raise Failed("pass isn't installed; see secrets:pass")
+    if pass_has(entry):
+        raise Failed(f"{entry} already exists in pass; remove the {p['name']}_PASSWORD line yourself once it's right")
+    out = run(["pass", "insert", "--multiline", entry], input=p["password"] + "\n", timeout=60)
+    if out.returncode != 0 or not pass_has(entry):
+        raise Failed(f"pass insert {entry} failed: {redact(out.stderr.strip())[-300:]}")
+    path = config_dir() / "connections.env"
+    key = re.compile(rf"^\s*(export\s+)?{re.escape(p['name'])}_PASSWORD\s*=")
+    lines = [ln for ln in path.read_text().splitlines(keepends=True) if not key.match(ln)]
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text("".join(lines))
+    tmp.chmod(0o600)
+    tmp.replace(path)
+    log_result(log_start("secrets migrate", p, {"class": p["class"], "writable": False, "via": "profiles file",
+                                             "evidence": ["no connection made"]}, "move password into pass", []), f"moved to {entry}")
+    print(f"{p['name']}: password moved to pass ({entry}); its line is gone from the profiles file")
     return EXIT_OK
 
 
@@ -1474,6 +1578,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("profile")
     s.add_argument("--reason", default="")
     s.set_defaults(func=cmd_session)
+
+    s = sub.add_parser("secrets", help="move a profile's plain-text password into pass (never shown)")
+    s.add_argument("action", choices=("migrate",))
+    s.add_argument("profile")
+    s.set_defaults(func=cmd_secrets)
 
     s = sub.add_parser("log", help="show the command log")
     s.add_argument("--tail", type=int, default=5)

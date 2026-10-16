@@ -300,6 +300,102 @@ class ProfilesTest(Sandbox):
         self.assertFalse(cls["writable"])
 
 
+FAKE_PASS = """#!/bin/sh
+# A stand-in for pass: entries are plain files named <entry>.gpg in the store.
+store="$PASSWORD_STORE_DIR"
+case "$1" in
+  show) [ -f "$store/$2.gpg" ] || { echo "Error: $2 is not in the password store." >&2; exit 1; }
+        cat "$store/$2.gpg" ;;
+  insert) e="$3"; mkdir -p "$(dirname "$store/$e")"; cat > "$store/$e.gpg" ;;
+  *) exit 2 ;;
+esac
+"""
+
+
+class PassTest(Sandbox):
+    """Passwords from pass first, the profiles file last (shared/secrets.md)."""
+
+    def setUp(self):
+        super().setUp()
+        base = Path(self.tmp.name)
+        self.store = base / "store"
+        (self.store / "ai-gent" / "db").mkdir(parents=True)
+        bin_dir = base / "bin"
+        bin_dir.mkdir()
+        fake = bin_dir / "pass"
+        fake.write_text(FAKE_PASS)
+        fake.chmod(0o755)
+        for k, v in (("PASSWORD_STORE_DIR", str(self.store)), ("PATH", f"{bin_dir}:{os.environ['PATH']}"),
+                     ("AI_GENT_PASS_PREFIX", None)):
+            self.old_env.setdefault(k, os.environ.get(k))
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        dbrun.REDACT.clear()
+
+    def entry(self, name, text):
+        f = self.store / f"{name}.gpg"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(text)
+
+    def test_sources_in_order(self):
+        self.entry("ai-gent/db/shop-dev", "from-default-entry\nnotes line\n")
+        self.entry("work/db-pw", "from-explicit-entry\n")
+        self.write_profiles("SHOP_DEV_ENGINE=postgresql\nSHOP_DEV_HOST=db.internal\n"
+                            "EXPLICIT_ENGINE=postgresql\nEXPLICIT_PASSWORD=pass:work/db-pw\n"
+                            "PLAIN_ENGINE=postgresql\nPLAIN_PASSWORD=plain-value\n"
+                            "NONE_ENGINE=postgresql\n")
+        profiles = dbrun.user_profiles()
+        self.assertEqual((profiles["SHOP_DEV"]["secret"], profiles["SHOP_DEV"]["pass"]), ("pass", "ai-gent/db/shop-dev"))
+        self.assertEqual((profiles["EXPLICIT"]["secret"], profiles["EXPLICIT"]["pass"]), ("pass", "work/db-pw"))
+        self.assertNotIn("password", profiles["EXPLICIT"])
+        self.assertEqual(profiles["PLAIN"]["secret"], "file")
+        self.assertEqual(profiles["NONE"]["secret"], "none")
+        # Read only when connecting; the first line only.
+        self.assertNotIn("password", dbrun.get_profile("SHOP_DEV", secret=False))
+        self.assertEqual(dbrun.get_profile("SHOP_DEV")["password"], "from-default-entry")
+        self.assertEqual(dbrun.get_profile("EXPLICIT")["password"], "from-explicit-entry")
+        self.assertEqual(dbrun.redact("auth failed (from-default-entry)"), "auth failed (<password>)")
+
+    def test_prefix_override(self):
+        os.environ["AI_GENT_PASS_PREFIX"] = "me"
+        self.entry("me/db/x", "v\n")
+        self.write_profiles("X_ENGINE=postgresql\n")
+        self.assertEqual(dbrun.user_profiles()["X"]["pass"], "me/db/x")
+
+    def test_listing_shows_source_never_value(self):
+        self.entry("ai-gent/db/shop-dev", "never-shown\n")
+        self.write_profiles("SHOP_DEV_ENGINE=postgresql\nPLAIN_ENGINE=postgresql\nPLAIN_PASSWORD=plain-value\n")
+        code, out, _ = self.dbrun("profiles")
+        self.assertEqual(code, 0)
+        self.assertIn("ai-gent/db/shop-dev", out)
+        self.assertIn("dbrun secrets migrate", out)
+        self.assertNotIn("never-shown", out)
+        self.assertNotIn("plain-value", out)
+
+    def test_bad_or_unreadable_entry(self):
+        self.write_profiles("A_ENGINE=postgresql\nA_PASSWORD=pass:../escape\n"
+                            "B_ENGINE=postgresql\nB_PASSWORD=pass:ai-gent/db/missing\n")
+        with self.assertRaisesRegex(dbrun.Failed, "isn't a pass entry"):
+            dbrun.get_profile("A")
+        with self.assertRaisesRegex(dbrun.Failed, "couldn't read ai-gent/db/missing"):
+            dbrun.get_profile("B")
+
+    def test_migrate(self):
+        self.write_profiles("SHOP_DEV_ENGINE=postgresql\nSHOP_DEV_PASSWORD='s3cr3t value'\nSHOP_DEV_USER=app\n")
+        code, out, err = self.dbrun("secrets", "migrate", "SHOP_DEV")
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("s3cr3t", out + err)
+        self.assertEqual((self.store / "ai-gent/db/shop-dev.gpg").read_text(), "s3cr3t value\n")
+        path = next(dbrun.config_dir().iterdir())
+        self.assertNotIn("PASSWORD", path.read_text())
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(dbrun.user_profiles()["SHOP_DEV"]["secret"], "pass")
+        code, out, _ = self.dbrun("secrets", "migrate", "SHOP_DEV")
+        self.assertIn("nothing to migrate", out)
+
+
 class SqliteEndToEndTest(Sandbox):
     def test_read_masks_and_logs(self):
         code, out, err = self.dbrun("query", "LOCALDB", "--sql", self.sql("SELECT id, nome, email FROM customer ORDER BY id"),

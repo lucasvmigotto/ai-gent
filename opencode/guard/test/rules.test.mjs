@@ -2,16 +2,18 @@ import { execFileSync } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, dbGuard, dbCredsGuard, evaluate } from "../rules.mjs"
+import { gitGuard, dbGuard, dbCredsGuard, secretsGuard, repoGuard, evaluate } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
-// guards (plugins/git/hooks/guard.sh, plugins/db/hooks/guard.sh) decide for
+// guards (plugins/{git,db,secrets,repo}/hooks/guard.sh) decide for
 // the same vectors. guard.sh is the oracle; the shell test suites and this
 // one share the same expectations, so the two implementations cannot drift.
 
 const REPO = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const GIT_GUARD = join(REPO, "plugins/git/hooks/guard.sh")
 const DB_GUARD = join(REPO, "plugins/db/hooks/guard.sh")
+const SECRETS_GUARD = join(REPO, "plugins/secrets/hooks/guard.sh")
+const REPO_GUARD = join(REPO, "plugins/repo/hooks/guard.sh")
 
 const sandbox = mkdtempSync(join(tmpdir(), "ai-gent-guard-"))
 process.on("exit", () => rmSync(sandbox, { recursive: true, force: true }))
@@ -169,6 +171,80 @@ for (const [want, tool, input] of toolVectors) {
   check(`shell ${tool}`, want, shellDecision(DB_GUARD, tool, "/tmp", input))
 }
 
+// ------------------------------------------------------------ secrets
+
+const secretsVectors = [
+  ["deny", "pass show ai-gent/db/shop-dev"],
+  ["deny", "pass ai-gent/github/pat"],
+  ["deny", "pass -c ai-gent/github/pat"],
+  ["deny", "pass show --clip=2 ai-gent/github/pat"],
+  ["deny", "pass show -q work/vpn"],
+  ["deny", "pass edit ai-gent/azure-devops/pat"],
+  ["deny", "pass grep token"],
+  ["deny", "pass generate ai-gent/x/y 32"],
+  ["deny", "pass otp ai-gent/x/totp"],
+  ["deny", "PASSWORD_STORE_DIR=/tmp/s pass show x | head -1"],
+  ["deny", "echo ok && pass show \"ai-gent/db/shop dev\""],
+  ["deny", "sudo -u me pass show x"],
+  ["deny", "gpg -d ~/.password-store/ai-gent/github/pat.gpg"],
+  ["deny", "cat \"$PASSWORD_STORE_DIR/x.gpg\" | gpg --decrypt"],
+  ["deny", "pass insert ai-gent/db/shop-dev"],
+  ["deny", "printf \"%s\\n\" \"$TOKEN\" | pass insert -m ai-gent/github/pat"],
+  ["ask", "pass rm ai-gent/db/old"],
+  ["ask", "pass mv ai-gent/db/a ai-gent/db/b"],
+  ["ask", "pass git push"],
+  ["ask", "pass init 0xDEADBEEF"],
+  ["deny", "pass-run PGPASSWORD=ai-gent/db/shop-dev -- psql -h db -l"],
+  ["deny", "pass-run GH_TOKEN=ai-gent/github/pat -- env"],
+  ["deny", "pass-run GH_TOKEN=ai-gent/github/pat -- sh -c \"echo $GH_TOKEN\""],
+  ["deny", "pass-run X=ai-gent/github/pat -- /usr/bin/printenv X"],
+  ["none", "pass-run GH_TOKEN=ai-gent/github/pat -- gh pr list"],
+  ["none", "pass-run GH_TOKEN=ai-gent/github/pat -- gh api -- repos/x/y"],
+  ["none", "pass"],
+  ["none", "pass ls"],
+  ["none", "pass ls ai-gent"],
+  ["none", "pass find github"],
+  ["none", "pass --version"],
+  ["none", "command -v pass"],
+  ["none", "which pass gpg"],
+  ["none", "git commit -m \"docs: pass show prints the secret\""],
+  ["none", "echo \"use pass show\" > notes.txt"],
+  ["none", "grep -rn \"pass show\" docs/"],
+  ["none", "gpg --list-secret-keys"],
+  ["none", "python3 /x/plugins/db/scripts/dbrun.py test SHOP_DEV --reason check"],
+  ["none", "bypass --flag"],
+  ["none", "ls -la"],
+]
+
+console.log("    secrets: TypeScript rules vs plugins/secrets/hooks/guard.sh")
+for (const [want, cmd] of secretsVectors) {
+  check(cmd.replace(/\n/g, "⏎"), want, secretsGuard(cmd).decision)
+  check(`shell ${cmd.replace(/\n/g, "⏎")}`, want, shellDecision(SECRETS_GUARD, "Bash", "/tmp", { command: cmd }))
+}
+
+// --------------------------------------------------------------- repo
+
+const repoVectors = [
+  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash"],
+  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write"],
+  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done"],
+  ["ask", "cd /x && python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json"],
+  ["ask", "reporun cli gitlab --write -- mr note 4 -m ok"],
+  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect"],
+  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list"],
+  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate"],
+  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query 'q=--write'"],
+  ["none", "git commit -m \"docs: reporun --write asks first\""],
+  ["none", "echo reporun --write"],
+  ["none", "ls -la"],
+]
+
+console.log("    repo: TypeScript rules vs plugins/repo/hooks/guard.sh")
+for (const [want, cmd] of repoVectors) {
+  check(cmd, want, repoGuard(cmd).decision)
+  check(`shell ${cmd}`, want, shellDecision(REPO_GUARD, "Bash", "/tmp", { command: cmd }))
+}
+
 // ------------------------------------------------------------- adapter
 
 console.log("    evaluate(): OpenCode permission event adapter")
@@ -177,6 +253,9 @@ const adapterCases = [
   [{ action: "shell", resources: ["git commit --no-verify -m x"] }, "deny"],
   [{ action: "shell", resources: ["psql -c 'DELETE FROM t'"] }, "deny"],
   [{ action: "shell", resources: ["ls -la"] }, "none"],
+  [{ action: "shell", resources: ["pass show ai-gent/github/pat"] }, "deny"],
+  [{ action: "shell", resources: ["pass rm ai-gent/db/old"] }, "ask"],
+  [{ action: "shell", resources: ["reporun cli github --write -- pr merge 3"] }, "ask"],
   [{ action: "read", resources: ["/home/me/.config/ai-gent/db/connections.env"] }, "deny"],
   [{ action: "read", resources: ["/home/me/project/readme.md"] }, "none"],
   [{ action: "edit", resources: ["/home/me/.config/ai-gent/db/connections.env"] }, "deny"],

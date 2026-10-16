@@ -14,7 +14,7 @@ Do this only when the user asks ("this closes #12", "link the issue", "find the 
 3. **Earlier commits on the branch** that already reference an id (`git log <parent>..HEAD --grep='#[0-9]'`).
 4. **Look it up on the remote**, if the user wants a search:
    - detect the platform from `git remote get-url origin` — `github.com` → GitHub, `gitlab` → GitLab, `dev.azure.com`/`visualstudio.com` → Azure DevOps, `bitbucket.org` → Bitbucket, another host → possibly Forgejo/Gitea (confirm);
-   - use its CLI if installed and authenticated (`gh issue list --search`, `glab issue list --search`, `tea issues`, `az boards query`), otherwise its REST API with `curl` **only** with a token already present in the environment (`GH_TOKEN`/`GITHUB_TOKEN`, `GITLAB_TOKEN`, …) — public repositories may not need one;
+   - search through `repo:issues` (its runner, `reporun`, uses the platform's CLI when installed and the REST API otherwise, with the token from pass — GitHub, Azure Boards, GitLab, Bitbucket, Jira); Forgejo/Gitea through `tea issues` when it's signed in — public repositories may not need a token;
    - **never ask the user to paste a token into the chat**; with no access, ask the user for the id instead.
 5. Show the candidates (id, title, state) and ask which ones this change **closes** and which it only **relates to**.
 

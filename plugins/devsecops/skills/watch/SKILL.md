@@ -19,9 +19,11 @@ configuration is `devsecops:audit`.
    section of its file in `../../references/platforms/` — the commands
    differ per platform. A repo can have more than one.
 2. Check the CLI is signed in (`gh auth status`, `glab auth status`,
-   `az account show` plus `az devops configure --list`). Without a CLI,
-   use the REST API with a token the user already has; never ask for a
-   token to be pasted into the chat.
+   `az account show` plus `az devops configure --list`). When it isn't,
+   or isn't installed, go through `reporun` from `repo:pr` (`reporun
+   cli|api <platform>`, token from pass): it reads the run, check and log
+   endpoints the same way. Never ask for a token to be pasted into the
+   chat.
 
 ## Find the right run
 
