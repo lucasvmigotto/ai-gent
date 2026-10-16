@@ -56,7 +56,12 @@ file covers changing things.
 - `shared/pipeline.md` is the product pipeline's contract (artifact paths,
   owners, statuses). Change it deliberately and update every stage that
   depends on what changed.
-- Hook scripts are POSIX `sh`, tested by `scripts/test-guard.sh`.
+- `shared/secrets.md` is the contract for credentials: pass first
+  (`ai-gent/<area>/<name>`), a plain-text file last, and only a runner
+  ever reads a value. A skill that needs a secret follows it, and the
+  `secrets` guard keeps values out of the agent's reach.
+- Hook scripts are POSIX `sh`, tested by `scripts/test-guard.sh` (git),
+  `scripts/test-db-guard.sh` and `scripts/test-secrets-guard.sh`.
 
 ## Releases
 
