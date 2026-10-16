@@ -4,6 +4,12 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## 2.3.1 — 2026-10-16
+
+### Fixed
+
+- **db:** reach local databases in podman-compose pods
+
 ## 2.3.0 — 2026-10-16
 
 ### Added
