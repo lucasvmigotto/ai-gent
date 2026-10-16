@@ -209,7 +209,7 @@ export const enUS: Messages = {
 		readingCode: "Reading code",
 		specKit: "Spec Kit",
 		guardsBody:
-			"Two PreToolUse hooks enforce the git and db rules in Claude Code; an OpenCode V2 plugin enforces the same rules there. The git plugin also runs a SessionStart check that prints one line when a newer ai-gent release is known.",
+			"Four PreToolUse hooks enforce the git, db, secrets and repo rules in Claude Code; an OpenCode V2 plugin enforces the same rules there. The git plugin also runs a SessionStart check that prints one line when a newer ai-gent release is known.",
 	},
 	changelog: { title: "Changelog", lede: "Releases and what changed." },
 	notFound: {

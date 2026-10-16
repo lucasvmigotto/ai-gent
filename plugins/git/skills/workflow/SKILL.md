@@ -129,6 +129,13 @@ syntax, and when closing actually happens. The rules that always hold:
 - never close, comment on, label or assign an issue through a CLI or API
   unless asked for that specific action.
 
+**Tracked specs are the standing request.** When a feature has a
+`specs/NNN-*/tracker.md` (`repo:sync`, pipeline rule 10), the user asked
+for its stories to be tracked: stages name a story's branch with its ref
+and add `Refs <ref>` footers from that file without asking again, and the
+promotion PR to production lists `Closes <ref>`. Items still change only
+through `repo:sync`'s confirmed batches.
+
 ## Tags and releases
 
 - Tag only when asked, with an annotated tag on the commit being released:

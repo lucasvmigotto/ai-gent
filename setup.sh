@@ -27,12 +27,12 @@
 #                                              symlinks, which Cursor skips)
 # Kiro      the same entry files in ~/.kiro/skills
 # Windsurf  the same entry files in ~/.codeium/windsurf/skills
-#   These agents don't run the git and db guard hooks: there, the guards are
+#   These agents don't run the guard hooks (git, db, secrets, repo): there, they are
 #   instructions only.
 #
 # opencode configuration (asked, [Y/n]; --yes applies, --no-config-edits skips):
 #   ~/.config/opencode/opencode.json  OpenCode V2 `permissions` rules mirroring
-#                                     the git and db guard hooks, the `plugins`
+#                                     the git, db, secrets and repo guard hooks, the `plugins`
 #                                     entry that loads opencode/guard, and
 #                                     `skill` denies that hide the short,
 #                                     colliding IDs OpenCode finds in
@@ -693,7 +693,7 @@ install_entries() {
     done
   done
   section_end
-  line note "the git and db guards are instructions only here: these agents don't run Claude Code's hooks"
+  line note "the git, db, secrets and repo guards are instructions only here: these agents don't run Claude Code's hooks"
 }
 
 # ------------------------------------------------------------ agent selection

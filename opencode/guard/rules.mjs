@@ -1,7 +1,8 @@
-// ai-gent guard rules — the OpenCode side of the git and db guards.
+// ai-gent guard rules — the OpenCode side of the git, db, secrets and repo guards.
 //
-// These are a faithful TypeScript/JavaScript port of plugins/git/hooks/guard.sh
-// and plugins/db/hooks/guard.sh, which stay the Claude Code enforcement. The
+// These are a faithful TypeScript/JavaScript port of plugins/git/hooks/guard.sh,
+// plugins/db/hooks/guard.sh, plugins/secrets/hooks/guard.sh and
+// plugins/repo/hooks/guard.sh, which stay the Claude Code enforcement. The
 // two are kept from drifting by opencode/guard/test/rules.test.mjs, which runs
 // both against the same vectors and asserts identical decisions.
 //
@@ -164,6 +165,81 @@ export function dbGuard(cmd) {
   );
 }
 
+// -------------------------------------------------------------- secrets
+
+const SECRETS_PREFIX = DB_PREFIX;
+const SECRETS_GPG_RE = new RegExp(SECRETS_PREFIX + "([^ \\t]*/)?gpg2?([ \\t]|$)");
+const SECRETS_RUNNER_RE = new RegExp(SECRETS_PREFIX + "([^ \\t]*/)?pass-run([ \\t]|$)");
+const SECRETS_PASS_RE = new RegExp(SECRETS_PREFIX + "([^ \\t]*/)?pass([ \\t]|$)");
+const SECRETS_PRINTERS = new Set([
+  "env", "printenv", "set", "export", "declare", "typeset", "echo", "printf", "cat",
+  "sh", "bash", "dash", "zsh", "ksh", "fish", "node", "perl", "ruby", "eval",
+]);
+const SECRETS_DENY = (reason) => ({ decision: "deny", reason: `secrets guard: ${reason}` });
+const SECRETS_ASK = (reason) => ({ decision: "ask", reason: `secrets guard: ${reason}` });
+
+// Secret values in pass never reach the agent (shared/secrets.md).
+export function secretsGuard(cmd) {
+  const segments = dbSegments(cmd);
+
+  if (segments.some((s) => SECRETS_GPG_RE.test(s)) && /\.password-store|PASSWORD_STORE_DIR/.test(cmd)) {
+    return SECRETS_DENY("decrypting the password store directly shows secret values; the runner that needs a secret reads it");
+  }
+
+  const runner = segments.find((s) => SECRETS_RUNNER_RE.test(s));
+  if (runner !== undefined) {
+    if (/(^|[=: \t])([A-Za-z0-9_.@+-]+\/)?ai-gent\/db\//.test(cmd)) {
+      return SECRETS_DENY("ai-gent/db/ entries are read only by dbrun; use dbrun test / query");
+    }
+    const words = runner.trim().split(/[ \t]+/);
+    const i = words.indexOf("--");
+    const after = i >= 0 && i < words.length - 1 ? words[i + 1].split("/").pop() : "";
+    if (SECRETS_PRINTERS.has(after) || after.startsWith("python")) {
+      return SECRETS_DENY("that hands the secret to a command that can print it; run the tool that needs it after --");
+    }
+  }
+
+  const hit = segments.find((s) => SECRETS_PASS_RE.test(s));
+  if (hit === undefined) return { decision: "none" };
+  const rest = hit.replace(SECRETS_PASS_RE, "");
+  let sub = "";
+  for (const arg of rest.split(/[ \t]+/).filter(Boolean)) {
+    if (/^(-c|--clip|-c[0-9].*|--clip=.*|-q|--qrcode|-q[0-9].*|--qrcode=.*)$/.test(arg)) {
+      return SECRETS_DENY("pass -c/-q exposes a secret value; the agent never reads one — the runner that needs it does");
+    }
+    if (arg.startsWith("-")) continue;
+    if (!sub) sub = arg;
+  }
+  if (["", "ls", "list", "find", "search", "help", "--help", "version", "--version"].includes(sub)) {
+    return { decision: "none" };
+  }
+  if (sub === "insert" || sub === "add") {
+    return SECRETS_DENY("the agent never writes a credential; ask the user to run `pass insert <entry>` in their own terminal");
+  }
+  if (["rm", "remove", "delete", "mv", "rename", "cp", "copy", "init", "git"].includes(sub)) {
+    return SECRETS_ASK(`pass ${sub} changes the password store; the user decides`);
+  }
+  return SECRETS_DENY(
+    "that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it",
+  );
+}
+
+// ----------------------------------------------------------------- repo
+
+const REPO_RUNNER_RE =
+  /^[ \t]*([A-Za-z_][A-Za-z0-9_]*=[^ \t]*[ \t]+)*((python3?|uv[ \t]+run([ \t]+python3?)?)[ \t]+)?([^ \t]*\/)?reporun(\.py)?[ \t]/;
+
+// Every change reporun makes on a platform is confirmed by the user.
+export function repoGuard(cmd) {
+  const hit = dbSegments(cmd).some((s) => REPO_RUNNER_RE.test(s) && /[ \t]--write([ \t]|$)/.test(s));
+  if (!hit) return { decision: "none" };
+  return {
+    decision: "ask",
+    reason:
+      "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+  };
+}
+
 // ----------------------------------------------------------- adapter
 
 // Map one OpenCode permission evaluation to a guard decision. The strictest
@@ -177,6 +253,8 @@ export function evaluate(event, { cwd = ".", branchOf = () => "" } = {}) {
       candidates.push(gitGuard(cmd, { branchOf, cwd }));
       candidates.push(dbGuard(cmd));
       candidates.push(dbCredsGuard(cmd));
+      candidates.push(secretsGuard(cmd));
+      candidates.push(repoGuard(cmd));
     }
   } else if (event.action === "read" || event.action === "edit") {
     for (const r of resources) candidates.push(dbCredsGuard(r));

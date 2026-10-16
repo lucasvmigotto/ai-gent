@@ -4,6 +4,91 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **A `secrets` plugin: credentials in pass, never in the agent's reach.**
+  `shared/secrets.md` sets the rules for every secret ai-gent uses: pass
+  (the standard Unix password manager) first, under
+  `ai-gent/<area>/<name>` (`AI_GENT_PASS_PREFIX` replaces `ai-gent`); a
+  plain-text file only as the last resort; only the runner that needs a
+  secret decrypts it, when it uses it, and redacts it everywhere. The new
+  skill `secrets:pass` checks pass and gpg-agent are ready, lists entries
+  by name, gives the exact `pass insert` to run in your own terminal, and
+  moves plain-text secrets into pass.
+- **A `repo` plugin: issues, work items and pull requests on GitHub,
+  Azure DevOps, GitLab, Bitbucket and Jira.** Its runner, `reporun`, uses
+  the platform's own CLI when it's installed (`gh`, `az` with the
+  `azure-devops` extension, `glab`, `jira`) and the REST API otherwise
+  (always for Bitbucket), with the token from pass
+  (`ai-gent/github/pat`, `ai-gent/azure-devops/pat`, `ai-gent/gitlab/pat`,
+  `ai-gent/bitbucket/token`, `ai-gent/jira/token`) handed to that one
+  process or built into the auth header, never on a command line, and
+  redacted from all output. `reporun detect` reads the platform and
+  coordinates from the git remote (GitHub and Enterprise, `dev.azure.com`,
+  `visualstudio.com` and SSH, gitlab.com and self-managed, Bitbucket
+  Cloud) and says which CLI and token are there. Reads run freely; every
+  change needs `--write`, and unknown commands count as changes. It
+  refuses CLI commands that print a token or run arbitrary code
+  (`gh auth`, `alias`, `extension`, `--debug`, …) and any URL off the
+  platform's API host. Non-secret settings live in git config
+  (`ai-gent.jira.url`, `ai-gent.azure-devops.org`, `ai-gent.platform`).
+  - `repo:issues` finds, reads, creates and updates issues and work items:
+    Azure Boards WIQL, states and links; Jira JQL and transitions; GitHub,
+    GitLab and Bitbucket issues. It follows the project's templates and
+    required fields, and changes only what you asked for.
+  - `repo:pr` reads pull and merge requests with their checks, diffs and
+    review threads, opens one with the project's template and linked
+    items into the branch `git:workflow` says, and comments, approves and
+    merges only when asked, never past red checks or branch protection.
+- **A `repo` guard hook** (and its OpenCode port): every
+  `reporun … --write` is a question for you.
+- **`repo:sync`: the specs on the tracker, kept in step.** It mirrors each
+  Spec Kit feature as an item (a GitHub issue, Azure Boards Feature or
+  Epic, GitLab issue, Jira Epic) and each user story as a child item
+  (sub-issue, User Story/PBI with a parent link, linked issue, Story),
+  with the story's tasks as a checklist, and records them in
+  `specs/NNN-*/tracker.md`. `specsync` derives every state from the
+  repository: a story is to-do, in progress when a task is checked, in
+  review when all are, and done when the feature is Verified; Azure
+  states map by category and Jira by transition. Items close at Verified
+  only once the work is on the integration branch, which
+  `reporun chain` finds from the branches that exist (work branches →
+  `dev`/`develop` → [`staging`/`homolog`] → `main`/`master`, asking when
+  it's ambiguous); the promotion PR lists `Closes` lines as a backstop.
+  Every sync is a `reporun batch`: one confirmation for the whole set,
+  steps that reference earlier results, stopping at the first failure
+  with what was created still recorded.
+- **Pipeline rule 10, tracked features stay in step.** For a feature with
+  a `tracker.md`, `project:spec`, the build stages and `qa:e2e` sync at
+  their hand-off, story branches carry the ref, commits say `Refs <ref>`,
+  and `project:status` reports features out of step with the tracker.
+  `git:workflow` treats a tracked feature's refs as confirmed.
+- **A `secrets` guard hook**, with the same rules in the OpenCode guard
+  plugin (parity-tested) and new OpenCode `permissions` rules. It denies
+  anything that would show a secret value — `pass show`, a bare
+  `pass <entry>`, `-c`, `-q`, `edit`, `grep`, `generate`, `otp`, `gpg` on
+  the store — as well as `pass insert` by the agent, and `pass-run` with an
+  `ai-gent/db/` entry or with a command that can print its environment. It
+  asks before `pass rm`, `mv`, `cp`, `init` and `git`.
+
+### Changed
+
+- **Database passwords come from pass first.** `dbrun` reads a profile's
+  password from `_PASSWORD=pass:<entry>`, else from `ai-gent/db/<profile>`
+  when that entry exists, and only then from a plain value in the profiles
+  file. It decrypts only to connect, never to list or classify, and stops
+  with the unlock command when the store is locked. `dbrun profiles` shows
+  where each password comes from (never the value) and flags plain-text
+  ones; the new `dbrun secrets migrate <PROFILE>` moves one into pass
+  without showing it and removes its line. `db:connect` now adds profiles
+  without a password line and has you run `pass insert`.
+- `devsecops:watch` reads runs through `reporun` when the platform's CLI
+  isn't installed or signed in, and `git:workflow`'s issue linking
+  searches through `repo:issues` instead of `curl` with a token from the
+  environment.
+
 ## 2.2.0 — 2026-10-15
 
 ### Added

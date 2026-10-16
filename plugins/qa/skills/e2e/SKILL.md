@@ -91,6 +91,10 @@ feature has load targets), set its status to **Verified** in
 `../../references/pipeline.md`), not a local run. If they fail, file the defect with
 the trace, keep the status Implemented, and tell the owning build stage.
 
+A Verified feature with a `tracker.md` is synced with `repo:sync`
+(pipeline rule 10): its items close once the work is on the integration
+branch.
+
 ## Handoff
 
 Journeys covered per feature, pass/flake results, defects filed with

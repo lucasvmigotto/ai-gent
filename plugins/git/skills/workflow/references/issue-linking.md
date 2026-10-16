@@ -11,12 +11,13 @@ Do this only when the user asks ("this closes #12", "link the issue", "find the 
    - forms that are usually ids: a leading number segment (`feat/123-login` → `123`), `#123`, `gh-123`/`issue-123`, Jira-style keys (`PROJ-123`), Azure Boards `AB#123`;
    - forms that usually aren't: numbers inside words or versions (`oauth2`, `v2`, `http2`, `k8s`, `s3`), dates (`2026-09`), port-like or long numbers.
    Then **ask**: *"The branch `feat/123-login` has `123` — is that the issue/work item this closes?"* Use it only after the user confirms.
-3. **Earlier commits on the branch** that already reference an id (`git log <parent>..HEAD --grep='#[0-9]'`).
-4. **Look it up on the remote**, if the user wants a search:
+3. **The feature's `specs/NNN-*/tracker.md`**, when the project tracks its specs (`repo:sync`): the refs there were confirmed when the items were created, so a story's ref can be used without asking again.
+4. **Earlier commits on the branch** that already reference an id (`git log <parent>..HEAD --grep='#[0-9]'`).
+5. **Look it up on the remote**, if the user wants a search:
    - detect the platform from `git remote get-url origin` — `github.com` → GitHub, `gitlab` → GitLab, `dev.azure.com`/`visualstudio.com` → Azure DevOps, `bitbucket.org` → Bitbucket, another host → possibly Forgejo/Gitea (confirm);
-   - use its CLI if installed and authenticated (`gh issue list --search`, `glab issue list --search`, `tea issues`, `az boards query`), otherwise its REST API with `curl` **only** with a token already present in the environment (`GH_TOKEN`/`GITHUB_TOKEN`, `GITLAB_TOKEN`, …) — public repositories may not need one;
+   - search through `repo:issues` (its runner, `reporun`, uses the platform's CLI when installed and the REST API otherwise, with the token from pass — GitHub, Azure Boards, GitLab, Bitbucket, Jira); Forgejo/Gitea through `tea issues` when it's signed in — public repositories may not need a token;
    - **never ask the user to paste a token into the chat**; with no access, ask the user for the id instead.
-5. Show the candidates (id, title, state) and ask which ones this change **closes** and which it only **relates to**.
+6. Show the candidates (id, title, state) and ask which ones this change **closes** and which it only **relates to**.
 
 ## 2. Write the reference
 

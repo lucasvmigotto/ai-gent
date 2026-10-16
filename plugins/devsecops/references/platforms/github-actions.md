@@ -49,7 +49,7 @@ jobs:
   cloud's login action (`aws-actions/configure-aws-credentials`,
   `azure/login`, `google-github-actions/auth`). Restrict the cloud-side
   trust to the repo **and** the environment or ref (`sub` claim, e.g.
-  `repo:org/repo:environment:production`) — never the whole org.
+  `repo:<org>/<repo>:environment:production`) — never the whole org.
 - `GITHUB_TOKEN`: set the repo/org default to read-only; grant scopes per
   job (`contents: write` only for release jobs, `packages: write` only for
   publishing, `pull-requests: write` only for commenting bots).
