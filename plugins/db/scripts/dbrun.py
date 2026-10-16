@@ -413,7 +413,18 @@ def classify(p: dict) -> dict:
         return remote(f"container {container} wasn't started by this repository's compose project")
     evidence.append(f"container {container} ({image}) running, compose project in {Path(wd).relative_to(root) if Path(wd) != root else '.'}")
     evidence.append("reached through the container's own network namespace")
-    return {"class": "local", "writable": True, "evidence": evidence, "via": "container", "container_id": info.get("Id")}
+    return {"class": "local", "writable": True, "evidence": evidence, "via": "container", "container_id": info.get("Id"),
+            "pod": info.get("Pod") or "", "pid": (info.get("State") or {}).get("Pid") or 0}
+
+
+def network_args(cls: dict) -> list[str]:
+    """Join the database container's network namespace. Podman refuses
+    `--network container:` for a container in a pod (podman-compose's default),
+    and those pods share no namespaces, so then the client joins the
+    container's namespace by its path."""
+    if cls.get("pod") and cls.get("pid"):
+        return ["--network", f"ns:/proc/{cls['pid']}/ns/net"]
+    return ["--network", f"container:{cls['container_id']}"]
 
 
 # -------------------------------------------------------- statement classes
@@ -974,7 +985,7 @@ def driver_process(p: dict, cls: dict, req: dict) -> dict:
         if engine and run([engine, "inspect", "--format", "{{.State.Running}}", sess], timeout=20).stdout.strip() == "true":
             cmd = [engine, "exec", "-i", sess] + inner
         else:
-            cmd = [engine, "run", "--rm", "-i", "--network", f"container:{cls['container_id']}",
+            cmd = [engine, "run", "--rm", "-i", *network_args(cls),
                    "-v", f"{SCRIPT.parent}:/opt/dbrun:{ro_mount()}", "-v", "ai-gent-dbrun-uv-cache:/root/.cache/uv",
                    CLIENT_IMAGE] + inner
     elif shutil.which("uv"):
@@ -1298,7 +1309,7 @@ def sqlserver_autocommit(p: dict, cls: dict, req: dict) -> dict:
             "except Exception as e:\n print(json.dumps({'ok':False,'error':str(e)}))")
     engine = engine_cmd()
     req["conn"].update(host="127.0.0.1", port=str(DEFAULT_PORTS["sqlserver"]))
-    cmd = [engine, "run", "--rm", "-i", "--network", f"container:{cls['container_id']}",
+    cmd = [engine, "run", "--rm", "-i", *network_args(cls),
            "-v", "ai-gent-dbrun-uv-cache:/root/.cache/uv", CLIENT_IMAGE,
            "uv", "run", "--no-project", "--quiet", "--with", "pymssql", "python", "-c", code]
     out = run(cmd, input=json.dumps(req), timeout=1800)
@@ -1458,7 +1469,7 @@ def cmd_session(args) -> int:
     if not engine:
         print("no container engine; queries run through uv on the host, which caches the driver — no session needed")
         return EXIT_OK
-    network = ["--network", f"container:{cls['container_id']}"] if cls["via"] == "container" else []
+    network = network_args(cls) if cls["via"] == "container" else []
     out = run([engine, "run", "-d", "--name", name, *network, "-v", f"{SCRIPT.parent}:/opt/dbrun:{ro_mount()}",
                "-v", "ai-gent-dbrun-uv-cache:/root/.cache/uv", CLIENT_IMAGE, "sleep", "infinity"], timeout=300)
     if out.returncode != 0:

@@ -208,6 +208,14 @@ class RedactTest(unittest.TestCase):
         self.assertEqual(dbrun.redact("user app on 127.0.0.1 in application"), "user <user> on 127.0.0.1 in application")
 
 
+class NetworkTest(unittest.TestCase):
+    def test_container_or_pod(self):
+        self.assertEqual(dbrun.network_args({"container_id": "abc", "pod": ""}), ["--network", "container:abc"])
+        self.assertEqual(dbrun.network_args({"container_id": "abc"}), ["--network", "container:abc"])
+        self.assertEqual(dbrun.network_args({"container_id": "abc", "pod": "p1", "pid": 4242}),
+                         ["--network", "ns:/proc/4242/ns/net"])
+
+
 class Sandbox(unittest.TestCase):
     """A throwaway git repository with its own config and state directories."""
 
