@@ -87,6 +87,7 @@ is the remote-tracking refs, through `git fetch`.
 | `specs/NNN-<feature>/ui.md` | `frontend:spec` | frontend:build | screens, components, states, tokens used |
 | `specs/NNN-<feature>/tui.md` | `frontend:spec`, only when the user asked for a terminal interface | frontend:tui, qa:e2e | screens in cells, keymap, focus, states, CLI equivalents |
 | `specs/NNN-<feature>/backend.md` | `backend:spec` | backend:build | endpoints, authz, errors, persistence, jobs |
+| `specs/NNN-<feature>/tracker.md` | `repo:sync` (through `specsync record`) | build stages, qa:*, git:workflow, project:status | the tracker items mirroring the feature and its stories: refs for branches, commits and PRs; only when the project tracks its specs (rule 10) |
 | `specs/000-design-system/` | `frontend:spec` | frontend:build | the one feature `frontend:spec` may create itself |
 | `contracts/openapi.yaml` (+ `asyncapi.yaml` if events leave the service) | skeleton by `project:spec`, canonical by `backend:spec` | frontend:*, backend:* | the frontend/backend seam |
 | `docs/product/test-strategy.md` | `qa:strategy` | build stages, qa:*, devsecops:pipeline | test layers, risks, environments, test data, gates |
@@ -221,6 +222,24 @@ definition and the words **not** to use for it
    move it back (rule 6) until it's green.
 9. **Finish with a handoff line**: what was written, what's still open,
    CI's state for anything pushed, and the next stage to run.
+10. **Tracked features stay in step.** When the user wants the specs on
+   the tracker (GitHub, Azure Boards, GitLab, Jira, Bitbucket),
+   `repo:sync` mirrors each feature as an item and each user story as a
+   child item, and records them in the feature's `tracker.md`. From then
+   on, for a feature with a `tracker.md`:
+   - a stage that ticks tasks or moves a status (the build stages,
+     `qa:e2e`, `qa:load`, `project:spec` after changing stories) runs
+     `repo:sync` for it at its hand-off — the item states follow
+     `tasks.md` and `specs/README.md`, never the other way round;
+   - a story's work goes on a branch named with its ref
+     (`feat/121-export-timesheet`), and its commits and PRs into the
+     integration branch carry `Refs <ref>` (`git:workflow`);
+   - items close at **Verified**, once the work is on the integration
+     branch (`reporun chain`: `dev`/`develop`, else production); the
+     promotion PR to production lists `Closes <ref>` as a backstop.
+   Tracker writes are remote changes: one confirmation per sync batch,
+   covered by the user's up-front permission to run the project on its
+   own. Without a `tracker.md`, nothing here applies.
 
 ## Spec Kit
 

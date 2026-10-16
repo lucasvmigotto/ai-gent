@@ -53,6 +53,13 @@ platform commands in `devsecops:watch` (read-only: list and view, never
 re-run). A red default branch is an open item, and a feature claimed
 Verified while its suites fail there is a contradiction.
 
+**Tracker.** For features with a `tracker.md` (pipeline rule 10),
+`specsync features` from `repo:sync` says which are out of step with the
+tracker (pending creates, updates or state moves) — an open item that
+`repo:sync` clears. Reading the items' remote state is optional and
+read-only; an item closed there while the specs say otherwise is drift
+to report.
+
 Also flag features whose dependencies are less advanced than they are,
 and features with a `ui.md` or `backend.md` missing although the other
 side has one.

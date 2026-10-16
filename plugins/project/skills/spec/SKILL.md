@@ -177,6 +177,14 @@ step belongs to the build stages; do not write code here.
 - [ ] each feature has a layer-pointer task per layer, so `implement` has an entry point
 - [ ] `/speckit-analyze` run per feature; findings fixed or reported
 
+## Tracker (only when the user wants it)
+
+If the user wants the specs on the project's tracker, or a feature already
+has a `tracker.md`, run `repo:sync` for the features written or changed
+(pipeline rule 10) once their `tasks.md` exists: a feature item and a
+child item per story. Then the story branches use the refs it records.
+Don't create tracker items unasked.
+
 ## Handoff
 
 Summarize features (MVP first), key technical decisions, open risks, and
