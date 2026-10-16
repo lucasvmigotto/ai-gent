@@ -158,6 +158,18 @@ class SpecsyncTest(unittest.TestCase):
         self.assertTrue(plan["retired"])
         self.assertEqual(plan["items"], [])
 
+    def test_introspec_story_list(self):
+        (self.feature / "spec.md").write_text(
+            "# 012 — Export\n\n## Stories\n\n1. **CSV download**: a manager downloads the month.\n"
+            "   - Accept: a CSV with the contract's columns.\n2. **Scheduled export** — every Monday.\n\n## Planned\n\n- later\n")
+        (self.feature / "tasks.md").unlink()
+        items = self.items()
+        self.assertEqual(items["feature"]["title"], "[012] Export")
+        self.assertEqual(items["US1"]["title"], "[012] US1: CSV download")
+        self.assertIn("Accept: a CSV", items["US1"]["body"])
+        self.assertEqual(items["US2"]["title"], "[012] US2: Scheduled export")
+        self.assertNotIn("later", items["US2"]["body"])
+
     def test_status_with_notes_after_it(self):
         self.readme("Implemented (pending a real host)", "Implemented")
         self.assertEqual(self.items()["feature"]["state"], "review")

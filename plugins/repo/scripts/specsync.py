@@ -80,7 +80,37 @@ def parse_spec(path: Path) -> tuple[str, list[dict]]:
                 cur["text"].append(line)
     for s in stories:
         s["text"] = "\n".join(s["text"]).strip()
+    if not stories:
+        stories = listed_stories(path.read_text())
     return title, stories
+
+
+LISTED_RE = re.compile(r"^(\d+)\.\s+\*\*(.+?)\*\*\s*[:—–-]?\s*(.*)$")
+
+
+def listed_stories(text: str) -> list[dict]:
+    """`project:introspec`'s shape: a numbered list under `## Stories`
+    (`1. **Google login**: as a user …`, details indented below)."""
+    stories, cur, inside = [], None, False
+    for line in text.splitlines():
+        if line.startswith("## "):
+            inside = line[3:].strip().lower().startswith(("stories", "user stories"))
+            cur = None
+            continue
+        if not inside:
+            continue
+        m = LISTED_RE.match(line)
+        if m:
+            cur = {"n": int(m.group(1)), "title": m.group(2).strip().rstrip(":"), "priority": "",
+                   "text": [m.group(3).strip()] if m.group(3).strip() else []}
+            stories.append(cur)
+        elif cur is not None and (line.startswith((" ", "\t")) or not line.strip()):
+            cur["text"].append(line[3:] if line.startswith("   ") else line.strip())
+        elif line.strip():
+            cur = None
+    for s in stories:
+        s["text"] = "\n".join(s["text"]).strip()
+    return stories
 
 
 def parse_tasks(path: Path) -> list[dict]:

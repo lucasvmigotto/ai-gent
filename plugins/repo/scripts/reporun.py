@@ -622,7 +622,8 @@ def cmd_batch(args) -> int:
     if args.dry_run:
         for s in steps:
             print(f"{s['name']:<16} {'write' if s['name'] in writes else 'read ':<5} "
-                  + (f"{s['api'].get('method', 'GET')} {s['api'].get('path')}" if "api" in s else " ".join(s["cli"])))
+                  + (f"{s['api'].get('method', 'GET')} {s['api'].get('path')}" if "api" in s else
+                     " ".join(w.replace("\n", " ")[:48] + ("…" if len(w) > 48 else "") for w in s["cli"])))
         return EXIT_OK
 
     results: dict = {}
@@ -636,7 +637,11 @@ def cmd_batch(args) -> int:
                 data = api_call(platform, a.get("method", "GET"), a["path"], body, a.get("query"),
                                 args.entry, args.write, a.get("paginate", False), a.get("max_pages", 10), args.timeout)
             else:
-                data = {"stdout": run_cli_capture(platform, resolve(list(s["cli"]), results), args.entry, args.write)}
+                text = run_cli_capture(platform, resolve(list(s["cli"]), results), args.entry, args.write)
+                try:  # `gh api`, `glab api`, `az … -o json` print JSON: keep it structured
+                    data = json.loads(text) if text else {}
+                except json.JSONDecodeError:
+                    data = {"stdout": text}
             results[name] = data if data is not None else {}
             results["self"] = results[name]
             if s.get("record"):
