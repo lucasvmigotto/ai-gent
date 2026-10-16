@@ -185,6 +185,16 @@ def plan_id(out: str) -> str:
     return next((line.split()[1] for line in out.splitlines() if line.startswith("Plan ")), "00000000-000000-0000")
 
 
+def container_name(engine: str, name: str) -> str:
+    """The service's container, found by its compose labels: Docker Compose
+    names it dbrun-e2e-<name>-<name>-1, podman-compose dbrun-e2e-<name>_<name>_1."""
+    out = subprocess.run([engine, "ps", "--filter", f"label=com.docker.compose.project=dbrun-e2e-{name}",
+                          "--filter", f"label=com.docker.compose.service={name}", "--format", "{{.Names}}"],
+                         capture_output=True, text=True)
+    names = out.stdout.split()
+    return names[0] if names else f"dbrun-e2e-{name}-{name}-1"
+
+
 def run_engine(name: str, spec: dict, rep: Report, engine: str, compose: list[str], host_port: int, keep: bool) -> None:
     print(f"  -- {name} ({spec['image']}, capped at {spec['mem']})")
     root = Path(tempfile.mkdtemp(prefix=f"dbrun-e2e-{name}-"))
@@ -197,6 +207,7 @@ def run_engine(name: str, spec: dict, rep: Report, engine: str, compose: list[st
         up = subprocess.run(compose + ["up", "-d"], capture_output=True, text=True)
         if not rep.check("container started", up.returncode == 0, up.stderr):
             return
+        container = container_name(engine, name)
         local = f"local:{name}"
         seeded = f"SELECT id FROM {t} WHERE id = 1"
         if name == "sqlserver":
@@ -274,9 +285,9 @@ def run_engine(name: str, spec: dict, rep: Report, engine: str, compose: list[st
             shutil.rmtree(root, ignore_errors=True)
 
 
-def profiles_for(name: str, spec: dict, host_port: int) -> dict[str, dict]:
+def profiles_for(name: str, spec: dict, host_port: int, engine: str) -> dict[str, dict]:
     """In-memory profiles: the remote view of the container, and local ones naming a database."""
-    container = f"dbrun-e2e-{name}-{name}-1"
+    container = container_name(engine, name)
     local = {"engine": name, "class": "local", "container": container, "host": "127.0.0.1", "port": str(spec["port"]),
              "password": PASSWORD, "source": "test", **spec["remote"]}
     out = {"REMOTE": {**local, "class": "development", "port": str(host_port), "container": None}}
@@ -309,7 +320,7 @@ def main() -> int:
     print(f"dbrun end to end · {os.path.basename(engine)} · one engine at a time")
     for name in args.engine or list(ENGINES):
         spec = ENGINES[name]
-        dbrun.user_profiles = lambda n=name, s=spec: profiles_for(n, s, args.port)
+        dbrun.user_profiles = lambda n=name, s=spec: profiles_for(n, s, args.port, engine)
         started = time.monotonic()
         run_engine(name, spec, rep, engine, compose, args.port, args.keep)
         print(f"      ({time.monotonic() - started:.0f} s)")
