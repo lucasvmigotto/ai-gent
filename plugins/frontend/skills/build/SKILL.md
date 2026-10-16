@@ -84,7 +84,9 @@ Order: `000-design-system` phases, then features in priority order
 For each phase:
 
 1. Branch per `git:workflow` (`feat/<feature>-<phase>` off the working
-   branch).
+   branch). When the feature has a `tracker.md` (pipeline rule 10), a
+   story phase's branch carries its ref (`feat/121-export-timesheet`) and
+   its commits say `Refs <ref>`.
 2. Implement the phase's tasks. Tick each `- [ ]` → `- [x]` in
    `tasks.md` as it's actually done, not in advance.
 3. Verify the phase's **Checkpoint** (below) — a phase isn't done until
@@ -182,6 +184,10 @@ values in components.
 After any push of this work, follow its CI with `devsecops:watch`
 (pipeline rule 8 in `../../references/pipeline.md`): a red run caused by
 the change is fixed here before the feature counts as done.
+
+For a feature with a `tracker.md`, run `repo:sync` for it once the
+phase's tasks are ticked and its status updated (pipeline rule 10), so
+its items move with it.
 
 Per feature: which step of the Spec Kit flow it reached, whether
 converge converged or what's left, what's Implemented, what's still

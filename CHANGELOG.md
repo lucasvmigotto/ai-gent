@@ -44,6 +44,27 @@ changes.
     merges only when asked, never past red checks or branch protection.
 - **A `repo` guard hook** (and its OpenCode port): every
   `reporun … --write` is a question for you.
+- **`repo:sync`: the specs on the tracker, kept in step.** It mirrors each
+  Spec Kit feature as an item (a GitHub issue, Azure Boards Feature or
+  Epic, GitLab issue, Jira Epic) and each user story as a child item
+  (sub-issue, User Story/PBI with a parent link, linked issue, Story),
+  with the story's tasks as a checklist, and records them in
+  `specs/NNN-*/tracker.md`. `specsync` derives every state from the
+  repository: a story is to-do, in progress when a task is checked, in
+  review when all are, and done when the feature is Verified; Azure
+  states map by category and Jira by transition. Items close at Verified
+  only once the work is on the integration branch, which
+  `reporun chain` finds from the branches that exist (work branches →
+  `dev`/`develop` → [`staging`/`homolog`] → `main`/`master`, asking when
+  it's ambiguous); the promotion PR lists `Closes` lines as a backstop.
+  Every sync is a `reporun batch`: one confirmation for the whole set,
+  steps that reference earlier results, stopping at the first failure
+  with what was created still recorded.
+- **Pipeline rule 10, tracked features stay in step.** For a feature with
+  a `tracker.md`, `project:spec`, the build stages and `qa:e2e` sync at
+  their hand-off, story branches carry the ref, commits say `Refs <ref>`,
+  and `project:status` reports features out of step with the tracker.
+  `git:workflow` treats a tracked feature's refs as confirmed.
 - **A `secrets` guard hook**, with the same rules in the OpenCode guard
   plugin (parity-tested) and new OpenCode `permissions` rules. It denies
   anything that would show a secret value — `pass show`, a bare

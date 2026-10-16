@@ -180,6 +180,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 - `plugins/repo/` — issues, work items and pull requests on GitHub, Azure DevOps, GitLab, Bitbucket and Jira (see [Platforms and secrets](#platforms-and-secrets))
   - `issues` — find, read, create and update issues and work items (Azure Boards WIQL, Jira JQL and transitions), every change asked first
   - `pr` — pull and merge requests: read them with checks, diffs and review threads; open one with the template and linked issues; comment, approve, merge
+  - `sync` — mirror Spec Kit features into the tracker (an item per feature, a child item per user story with its tasks as a checklist) and keep their states in step with `tasks.md` and `specs/README.md`, closing at Verified on the integration branch
 - `plugins/secrets/` — credentials in [pass](https://www.passwordstore.org/), never shown to the agent (see [Platforms and secrets](#platforms-and-secrets))
   - `pass` — check pass is ready, list entries by name, give the exact `pass insert` for a database password or a platform token under `ai-gent/<area>/<name>`, and move plain-text secrets into pass
 - `plugins/agents/`
@@ -313,6 +314,7 @@ Credentials live in [pass](https://www.passwordstore.org/), the standard Unix pa
 
 - **pass first, a plain-text file last.** Database passwords come from `ai-gent/db/<profile>`; platform tokens from `ai-gent/github/pat`, `ai-gent/azure-devops/pat`, `ai-gent/gitlab/pat`, `ai-gent/bitbucket/token` and `ai-gent/jira/token`.
 - **The agent sees names only.** You add a secret in your own terminal (`pass insert ai-gent/db/shop-dev` prompts without echo); only the runner that needs it (`dbrun`, `reporun`) decrypts it, when it uses it, and redacts it from every message and log.
+- **Specs on the tracker.** On request, `repo:sync` mirrors each Spec Kit feature as an item and each user story as a child item, recorded in `specs/NNN-*/tracker.md`. From then on the pipeline keeps them in step (rule 10 in `shared/pipeline.md`): stages sync at their hand-off, story branches and `Refs` footers use the recorded refs, and items close at Verified once the work is on the integration branch (`reporun chain` finds it: `dev`/`develop`, else `main`/`master`). Every sync is one batch, confirmed once.
 - **CLI first, REST as the fallback.** `repo:*` skills reach the platforms through `plugins/repo/scripts/reporun.py`: the platform's own CLI (`gh`, `az` with the `azure-devops` extension, `glab`, `jira`) when it's installed, with the token in that process's environment only; its REST API otherwise (always for Bitbucket). Reads run freely; every change (create, comment, transition, approve, merge) needs `--write`, which the `repo` guard turns into a question.
 - **The `secrets` guard hook** denies anything that would show a value (`pass show`, `pass -c`, `gpg` on the store, …) and `pass insert` by the agent ([Guard hooks](#guard-hooks)).
 

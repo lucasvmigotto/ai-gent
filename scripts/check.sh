@@ -218,11 +218,12 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-repoguard.out"
 
-if python3 -m unittest plugins/repo/scripts/test_reporun.py >"${TMPDIR:-/tmp}/ai-gent-reporun.out" 2>&1; then
-  pass "reporun ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-reporun.out"))"
+if python3 -m unittest plugins/repo/scripts/test_reporun.py plugins/repo/scripts/test_specsync.py \
+  </dev/null >"${TMPDIR:-/tmp}/ai-gent-reporun.out" 2>&1; then
+  pass "reporun, specsync ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-reporun.out"))"
 else
   cat "${TMPDIR:-/tmp}/ai-gent-reporun.out"
-  fail "reporun unit tests"
+  fail "reporun and specsync unit tests"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-reporun.out"
 

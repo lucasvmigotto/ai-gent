@@ -12,6 +12,8 @@ redacted). Writes need --write, which the guard turns into a question.
   reporun cli <platform> [--write] -- <cli args...>
   reporun api <platform> METHOD PATH [--data FILE|-] [--query k=v ...] [--write]
                                      [--paginate] [--max-pages N]
+  reporun batch FILE [--write] [--dry-run] [--out FILE]
+  reporun chain [--json]
 
 See plugins/repo/references/runner.md. Python 3.9+ stdlib only.
 """
@@ -311,22 +313,11 @@ def cli_is_write(cli: str, words: list[str]) -> bool:
     return not any(w in READ_VERBS for w in positional[:4])
 
 
-def cmd_cli(args) -> int:
-    platform = args.platform
+def prepare_cli(platform: str, words: list[str], entry_arg: str | None, write: bool) -> tuple[list[str], dict]:
+    """The checked command line and its environment (token from pass, or the CLI's own login)."""
     cli = PLATFORMS[platform]["cli"]
     if not cli:
         raise Failed(f"{platform} has no CLI; use `reporun api {platform} ...`", EXIT_USAGE)
-    words = list(args.args)
-    # reporun's own options may come after the platform, before `--`.
-    while words and words[0] != "--" and words[0] in ("--write", "--entry"):
-        if words[0] == "--write":
-            args.write, words = True, words[1:]
-        elif len(words) > 1:
-            args.entry, words = words[1], words[2:]
-        else:
-            raise Failed("--entry needs a value", EXIT_USAGE)
-    if words and words[0] == "--":
-        words = words[1:]
     if words and words[0] in (cli, Path(cli).name):
         words = words[1:]
     if not shutil.which(cli):
@@ -336,13 +327,12 @@ def cmd_cli(args) -> int:
         raise Refused(f"`{cli} {positional[0]}` can print a token, run arbitrary code or change the CLI's own login; not through reporun")
     if any(w in BLOCKED_FLAGS or w.startswith("--debug") for w in words):
         raise Refused("debug and token-printing flags can log the auth header; drop them")
-    write = cli_is_write(cli, words)
-    if write and not args.write:
+    if cli_is_write(cli, words) and not write:
         raise Refused(f"`{cli} {' '.join(words[:3])}` changes something on {platform}; only when the user asked for "
                       f"this specific change, re-run with --write")
 
     env = {k: v for k, v in os.environ.items() if k not in ("GH_DEBUG", "GLAB_DEBUG", "DEBUG")}
-    entry = check_entry(args.entry) if args.entry else default_entry(platform)
+    entry = check_entry(entry_arg) if entry_arg else default_entry(platform)
     source = "the CLI's own login"
     if pass_has(entry):
         secret, notes = read_entry(entry)
@@ -354,11 +344,35 @@ def cmd_cli(args) -> int:
         if platform == "gitlab" and repo.get("host") and repo["host"] != "gitlab.com":
             env.setdefault("GITLAB_HOST", repo["host"])
         source = f"pass ({entry})"
-    elif args.entry:
+    elif entry_arg:
         raise Failed(f"{entry} isn't in pass; add it in your own terminal: pass insert -m {entry}")
     print(f"reporun: {cli} {' '.join(words[:3])} · token from {source}", file=sys.stderr)
+    return [cli, *words], env
 
-    proc = subprocess.Popen([cli, *words], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+
+def run_cli_capture(platform: str, words: list[str], entry_arg: str | None, write: bool) -> str:
+    argv, env = prepare_cli(platform, words, entry_arg, write)
+    out = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env, timeout=300)
+    text = redact(out.stdout + out.stderr)
+    if out.returncode != 0:
+        raise Failed(f"{argv[0]} exited {out.returncode}: {text.strip()[-2000:]}")
+    return redact(out.stdout).strip()
+
+
+def cmd_cli(args) -> int:
+    words = list(args.args)
+    # reporun's own options may come after the platform, before `--`.
+    while words and words[0] != "--" and words[0] in ("--write", "--entry"):
+        if words[0] == "--write":
+            args.write, words = True, words[1:]
+        elif len(words) > 1:
+            args.entry, words = words[1], words[2:]
+        else:
+            raise Failed("--entry needs a value", EXIT_USAGE)
+    if words and words[0] == "--":
+        words = words[1:]
+    argv, env = prepare_cli(args.platform, words, args.entry, args.write)
+    proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, text=True, env=env, bufsize=1)
     assert proc.stdout is not None
     for line in proc.stdout:
@@ -447,32 +461,38 @@ def next_link(platform: str, headers: dict, data) -> str:
     return ""
 
 
-def cmd_api(args) -> int:
-    platform, method = args.platform, args.method.upper()
+class HttpError(Failed):
+    def __init__(self, status: int, text: str):
+        super().__init__(f"HTTP {status}: {text[:4000]}")
+        self.status = status
+
+
+def api_call(platform: str, method: str, path: str, body: bytes | None = None, query: dict | None = None,
+             entry_arg: str | None = None, write: bool = False, paginate: bool = False, max_pages: int = 10,
+             timeout: float = 30):
+    """One REST request (or a paginated series) with the token from pass; the parsed JSON."""
+    method = method.upper()
     if method not in ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"):
         raise Failed(f"method {method} isn't supported", EXIT_USAGE)
-    body = None
-    if args.data:
-        body = (sys.stdin.read() if args.data == "-" else Path(args.data).read_text()).encode()
-    if api_is_write(platform, method, args.path, body) and not args.write:
-        raise Refused(f"{method} {args.path} changes something on {platform}; only when the user asked for this "
+    if api_is_write(platform, method, path, body) and not write:
+        raise Refused(f"{method} {path} changes something on {platform}; only when the user asked for this "
                       f"specific change, re-run with --write")
 
-    entry = check_entry(args.entry) if args.entry else default_entry(platform)
+    entry = check_entry(entry_arg) if entry_arg else default_entry(platform)
     secret, notes = ("", {})
     if pass_has(entry):
         secret, notes = read_entry(entry)
-    elif platform != "github" or args.entry:
+    elif platform != "github" or entry_arg:
         raise Failed(f"{entry} isn't in pass; add it in your own terminal: pass insert -m {entry}")
     base, facts = api_base(platform, notes)
-    path = fill(args.path, facts)
+    path = fill(path, facts)
     if path.startswith(("http://", "https://")):
         if urllib.parse.urlparse(path).netloc != urllib.parse.urlparse(base).netloc:
             raise Refused(f"{urllib.parse.urlparse(path).netloc} isn't {platform}'s API host; the token goes nowhere else")
         url = path
     else:
         url = base.rstrip("/") + "/" + path.lstrip("/")
-    query = dict(q.split("=", 1) for q in args.query or [] if "=" in q)
+    query = dict(query or {})
     if platform == "azure-devops" and "api-version" not in url and "api-version" not in query:
         query["api-version"] = "7.1"
     if query:
@@ -486,48 +506,202 @@ def cmd_api(args) -> int:
         headers["Authorization"] = auth_header(platform, secret, notes)
     if body is not None:
         headers["Content-Type"] = ("application/json-patch+json"
-                                   if platform == "azure-devops" and method == "PATCH" and "/wit/workitems" in url
+                                   if platform == "azure-devops" and method == "PATCH" and "/wit/workitems" in url.lower()
+                                   or platform == "azure-devops" and method == "POST" and "/wit/workitems/$" in urllib.parse.unquote(url).lower()
                                    else "application/json")
     print(f"reporun: {method} {redact(url)} · token from {'pass (' + entry + ')' if secret else 'none (public)'}",
           file=sys.stderr)
 
     pages, results = 0, []
-    while url and pages < args.max_pages:
-        status, rh, raw = request(method, url, headers, body, args.timeout)
+    while url and pages < max_pages:
+        status, rh, raw = request(method, url, headers, body, timeout)
         pages += 1
         text = redact(raw.decode("utf-8", "replace"))
         if status >= 400:
-            print(f"HTTP {status}", file=sys.stderr)
-            print(text[:4000], file=sys.stderr)
-            return EXIT_ERROR
+            raise HttpError(status, text)
         try:
             data = json.loads(text) if text.strip() else None
         except json.JSONDecodeError:
             data = text
-        if not args.paginate:
-            results = data
-            break
+        if not paginate:
+            return data
         results.append(data)
         nxt = next_link(platform, rh, data)
         if nxt and urllib.parse.urlparse(nxt).netloc != urllib.parse.urlparse(url).netloc:
             break
         url = nxt
-    if args.paginate:
-        merged: list = []
-        for page in results:
-            if isinstance(page, list):
-                merged.extend(page)
-            elif isinstance(page, dict) and isinstance(page.get("values"), list):
-                merged.extend(page["values"])
-            elif isinstance(page, dict) and isinstance(page.get("value"), list):
-                merged.extend(page["value"])
+    merged: list = []
+    for page in results:
+        if isinstance(page, list):
+            merged.extend(page)
+        elif isinstance(page, dict) and isinstance(page.get("values"), list):
+            merged.extend(page["values"])
+        elif isinstance(page, dict) and isinstance(page.get("value"), list):
+            merged.extend(page["value"])
+        else:
+            merged.append(page)
+    if url and pages >= max_pages:
+        print(f"reporun: stopped after {pages} pages (--max-pages)", file=sys.stderr)
+    return merged
+
+
+def cmd_api(args) -> int:
+    body = None
+    if args.data:
+        body = (sys.stdin.read() if args.data == "-" else Path(args.data).read_text()).encode()
+    query = dict(q.split("=", 1) for q in args.query or [] if "=" in q)
+    try:
+        data = api_call(args.platform, args.method, args.path, body, query, args.entry, args.write,
+                        args.paginate, args.max_pages, args.timeout)
+    except HttpError as e:
+        print(redact(str(e)), file=sys.stderr)
+        return EXIT_ERROR
+    if data is not None:
+        print(json.dumps(data, indent=2, ensure_ascii=False) if not isinstance(data, str) else data)
+    return EXIT_OK
+
+
+# --------------------------------------------------------------------- batch
+
+REF_RE = re.compile(r"\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}")
+
+
+def lookup(results: dict, dotted: str):
+    name, _, rest = dotted.partition(".")
+    if name not in results:
+        raise Failed(f"{{{{{dotted}}}}}: no earlier step named {name!r}")
+    value = results[name]
+    for part in rest.split(".") if rest else []:
+        if isinstance(value, list) and part.isdigit():
+            value = value[int(part)]
+        elif isinstance(value, dict) and part in value:
+            value = value[part]
+        else:
+            raise Failed(f"{{{{{dotted}}}}}: {part!r} isn't in that step's result")
+    return value
+
+
+def resolve(value, results: dict):
+    """Fill {{step.field}} from earlier results; a string that is only a reference keeps its type."""
+    if isinstance(value, str):
+        m = REF_RE.fullmatch(value.strip())
+        if m:
+            return lookup(results, m.group(1))
+        return REF_RE.sub(lambda m: str(lookup(results, m.group(1))), value)
+    if isinstance(value, list):
+        return [resolve(v, results) for v in value]
+    if isinstance(value, dict):
+        return {k: resolve(v, results) for k, v in value.items()}
+    return value
+
+
+def step_is_write(platform: str, step: dict) -> bool:
+    if "api" in step:
+        a = step["api"]
+        body = json.dumps(a["data"]).encode() if "data" in a else None
+        return api_is_write(platform, a.get("method", "GET").upper(), a.get("path", ""), body)
+    if "cli" in step:
+        return cli_is_write(PLATFORMS[platform]["cli"] or "", list(step["cli"]))
+    raise Failed(f"step {step.get('name')!r} has neither api nor cli")
+
+
+def cmd_batch(args) -> int:
+    """Several calls, one confirmation: steps run in order and stop at the first failure."""
+    plan = json.loads(Path(args.file).read_text())
+    platform = plan.get("platform", "")
+    if platform not in PLATFORMS:
+        raise Failed(f"the batch's platform {platform!r} isn't one of {', '.join(PLATFORMS)}", EXIT_USAGE)
+    steps = plan.get("steps") or []
+    names = [s.get("name") for s in steps]
+    if any(not n for n in names) or len(set(names)) != len(names):
+        raise Failed("every step needs a unique name", EXIT_USAGE)
+    writes = [s["name"] for s in steps if step_is_write(platform, s)]
+    if writes and not args.write and not args.dry_run:
+        raise Refused(f"{len(writes)} of {len(steps)} steps change something on {platform} ({', '.join(writes[:8])}"
+                      f"{'…' if len(writes) > 8 else ''}); after the user confirmed this batch, re-run with --write")
+    if args.dry_run:
+        for s in steps:
+            print(f"{s['name']:<16} {'write' if s['name'] in writes else 'read ':<5} "
+                  + (f"{s['api'].get('method', 'GET')} {s['api'].get('path')}" if "api" in s else
+                     " ".join(w.replace("\n", " ")[:48] + ("…" if len(w) > 48 else "") for w in s["cli"])))
+        return EXIT_OK
+
+    results: dict = {}
+    report: dict = {"platform": platform, "ok": True, "steps": [], "records": []}
+    for s in steps:
+        name = s["name"]
+        try:
+            if "api" in s:
+                a = resolve(s["api"], results)
+                body = json.dumps(a["data"]).encode() if "data" in a else None
+                data = api_call(platform, a.get("method", "GET"), a["path"], body, a.get("query"),
+                                args.entry, args.write, a.get("paginate", False), a.get("max_pages", 10), args.timeout)
             else:
-                merged.append(page)
-        results = merged
-        if url and pages >= args.max_pages:
-            print(f"reporun: stopped after {pages} pages (--max-pages)", file=sys.stderr)
-    if results is not None:
-        print(json.dumps(results, indent=2, ensure_ascii=False) if not isinstance(results, str) else results)
+                text = run_cli_capture(platform, resolve(list(s["cli"]), results), args.entry, args.write)
+                try:  # `gh api`, `glab api`, `az … -o json` print JSON: keep it structured
+                    data = json.loads(text) if text else {}
+                except json.JSONDecodeError:
+                    data = {"stdout": text}
+            results[name] = data if data is not None else {}
+            results["self"] = results[name]
+            if s.get("record"):
+                report["records"].append(resolve(s["record"], results))
+            report["steps"].append({"name": name, "ok": True})
+        except Failed as e:
+            report["ok"] = False
+            report["steps"].append({"name": name, "ok": False, "error": redact(str(e))[:2000]})
+            break
+        finally:
+            results.pop("self", None)
+    done = len([x for x in report["steps"] if x["ok"]])
+    report["skipped"] = [s["name"] for s in steps[len(report["steps"]):]]
+    out = json.dumps(report, indent=2, ensure_ascii=False)
+    if args.out:
+        Path(args.out).write_text(out + "\n")
+    print(out)
+    print(f"reporun: {done}/{len(steps)} steps done" + ("" if report["ok"] else f"; stopped at {report['steps'][-1]['name']}"),
+          file=sys.stderr)
+    return EXIT_OK if report["ok"] else EXIT_ERROR
+
+
+# --------------------------------------------------------------------- chain
+
+LEVELS = {"integration": ("dev", "develop"), "staging": ("staging", "homolog", "homologation", "hml"),
+          "production": ("main", "master")}
+
+
+def cmd_chain(args) -> int:
+    """The branch chain from the branches that exist: work → integration → [staging] → production."""
+    remote = os.environ.get("AI_GENT_REPO_REMOTE", "origin")
+    local = set(git("for-each-ref", "--format=%(refname:short)", "refs/heads").split())
+    remote_names = {r.split("/", 1)[1] for r in git("for-each-ref", "--format=%(refname:short)", f"refs/remotes/{remote}").split()
+                    if "/" in r and not r.endswith("/HEAD")}
+    names = local | remote_names
+    default = git("symbolic-ref", "--short", f"refs/remotes/{remote}/HEAD").removeprefix(f"{remote}/")
+    chain: dict = {"default": default or None, "ambiguous": []}
+    for level, candidates in LEVELS.items():
+        found = [c for c in candidates if c in names]
+        chain[level] = found[0] if len(found) == 1 else None
+        if len(found) > 1:
+            chain["ambiguous"].append(f"{level}: {' and '.join(found)} both exist")
+    if not chain["production"] and not any(c in names for c in LEVELS["production"]):
+        chain["production"] = default or None
+        if not default:
+            chain["ambiguous"].append("production: no main/master and no remote default branch")
+    chain["order"] = [x for x in ("work branches", chain["integration"], chain["staging"], chain["production"]) if x]
+    # Where a story's work counts as integrated, and where closing keywords act.
+    chain["integrated_on"] = chain["integration"] or chain["production"]
+    chain["keywords_close_on"] = default or chain["production"]
+    chain["ask"] = bool(chain["ambiguous"])
+    if args.json:
+        print(json.dumps(chain, indent=2))
+        return EXIT_OK
+    print("chain     " + " → ".join(chain["order"]))
+    print(f"default   {chain['default'] or '(unknown — no remote HEAD)'}")
+    print(f"integrated on   {chain['integrated_on'] or '?'}   (where a story's work lands; repo:sync closes items at Verified there)")
+    print(f"keywords close  {chain['keywords_close_on'] or '?'}   (Closes #N acts only when merged here)")
+    for a in chain["ambiguous"]:
+        print(f"ASK       {a} — ask the user which one the flow uses")
     return EXIT_OK
 
 
@@ -548,6 +722,19 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--entry", help="another pass entry under the prefix (default ai-gent/<platform>/...)")
     s.add_argument("args", nargs=argparse.REMAINDER)
     s.set_defaults(func=cmd_cli)
+
+    s = sub.add_parser("batch", help="several calls from a JSON plan, one confirmation (references/sync.md)")
+    s.add_argument("file")
+    s.add_argument("--write", action="store_true", help="the user confirmed this batch")
+    s.add_argument("--dry-run", action="store_true", help="list the steps, call nothing")
+    s.add_argument("--entry")
+    s.add_argument("--out", help="also write the result JSON here")
+    s.add_argument("--timeout", type=float, default=30)
+    s.set_defaults(func=cmd_batch)
+
+    s = sub.add_parser("chain", help="the branch chain: work → integration → [staging] → production")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(func=cmd_chain)
 
     s = sub.add_parser("api", help="call the platform's REST API with the token from pass")
     s.add_argument("platform", choices=list(PLATFORMS))
