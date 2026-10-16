@@ -19,7 +19,7 @@ DBRUN="python3 <plugin>/scripts/dbrun.py"     # <plugin> = this plugin's directo
 
 | Command | What it does | Allowed on |
 |---|---|---|
-| `profiles [--json]` | list connection profiles: name, engine, class, source — never credentials | — |
+| `profiles [--json]` | list connection profiles: name, engine, class, source, and where the password comes from (its pass entry, `file`, `container` or `none`) — never credentials; flags plain-text passwords | — |
 | `classify PROFILE [--json]` | run the local proof and print the class with its evidence (a SQLite file is local only inside this repository) | any |
 | `test PROFILE` | connect and run the engine's trivial query; prints SUCCESS or FAILED and the reason | any |
 | `query PROFILE --sql FILE\|- --reason TEXT [--max-rows N] [--timeout S] [--reveal] [--format table\|csv\|json] [--explain] [--allow-full-count]` | run read-only statements; on remote targets it also refuses `SELECT *` and unfiltered `COUNT` on user tables (`--allow-full-count` only when the user asked for an exact full count) | any |
@@ -28,6 +28,7 @@ DBRUN="python3 <plugin>/scripts/dbrun.py"     # <plugin> = this plugin's directo
 | `restore PROFILE PLAN_ID --confirmed` | restore the backup taken by `apply` — the whole database is recreated, so objects the plan created go too; no restore where no backup was taken (Oracle) | proven local only |
 | `script PROFILE --sql FILE --reason TEXT --out PATH` | write a reviewed change script (header, statements, verification and rollback sections) for **a person** to run — never executes it; refuses an existing `--out` file | any (the way to change a remote database) |
 | `session start\|stop\|status PROFILE` | keep a warm client container for an investigation, so repeated queries start fast | any |
+| `secrets migrate PROFILE` | move the profile's plain-text password into pass (`ai-gent/db/<profile>`) without showing it, then remove its line from the profiles file; refuses when the entry already exists | — |
 | `log [--tail N]` | print the command log's path and its last entries | — |
 
 `--reason` is mandatory for everything that touches a database; it goes

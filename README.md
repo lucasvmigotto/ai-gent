@@ -91,7 +91,7 @@ opencode V2 also scans `~/.claude/skills`, where plugin skills appear under shor
 | Edit | What it does |
 | --: | :-- |
 | the native V2 `permissions` rules | the rules from [Guard hooks](#guard-hooks), with `shell` in place of the legacy `bash`, only the ones you don't already have, appended after yours so they win |
-| a `plugins` entry for `opencode/guard` | registers the OpenCode V2 guard plugin, which enforces the same git and db guards mechanically (opencode runs no Claude hooks) |
+| a `plugins` entry for `opencode/guard` | registers the OpenCode V2 guard plugin, which enforces the same git, db and secrets guards mechanically (opencode runs no Claude hooks) |
 | one `skill` deny per plugin skill's short name | hides the colliding IDs opencode finds in `~/.claude/skills`, leaving only the namespaced `<plugin>-<skill>` skills |
 
 The rules are built by `scripts/opencode-config.py`. Your own rules always stay; a rule of yours with the same action and resource is reported and kept. Check the result with `opencode debug config`, and list the active plugins with `opencode plugin list`.
@@ -120,7 +120,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 | with arguments | `/qa:load 2000 concurrent users` | `/qa-load 2000 concurrent users` | `qa-load` and the request: "2000 concurrent users" |
 
 > [!TIP]
-> Every enabled plugin's skill descriptions cost context in every session, about 5k tokens for all ten plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
+> Every enabled plugin's skill descriptions cost context in every session, about 5k tokens for all eleven plugins together (`project` alone about 1.3k; `claude plugin details <name>@skills-dir` shows one plugin's cost). Turn off the plugins a project doesn't need, for that project only:
 >
 > ```bash
 > claude plugin disable devsecops@skills-dir --scope project   # writes .claude/settings.json
@@ -177,6 +177,8 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
   - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
   - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
+- `plugins/secrets/` — credentials in [pass](https://www.passwordstore.org/), never shown to the agent (see [Secrets](#secrets))
+  - `pass` — check pass is ready, list entries by name, give the exact `pass insert` for a database password or a platform token under `ai-gent/<area>/<name>`, and move plain-text secrets into pass
 - `plugins/agents/`
   - `orchestrate` — run a spec'd feature with role-separated agents: a strong model plans and reviews, a fast model builds, a small one searches; self-contained cards, a worktree per parallel branch, merges asked first, routed for token-efficient use. Agent-agnostic, Claude by default; roles in `shared/agent-roles.md`
 - `plugins/compact/`
@@ -300,19 +302,28 @@ Every `db:*` skill reaches a database only through `plugins/db/scripts/dbrun.py`
 > [!CAUTION]
 > A local container restored from a production or staging dump is writable, but its rows are still real personal data. Masking and the logging rules apply exactly as for the source.
 
-Connection profiles live in `~/.config/ai-gent/db/connections.env`: mode 600, format in `plugins/db/references/connections.md`. A running database container of the current project is discovered automatically as `local:<service>`.
+Connection profiles live in `~/.config/ai-gent/db/connections.env`: mode 600, format in `plugins/db/references/connections.md`. They hold no passwords by default: `dbrun` reads each one from pass (`ai-gent/db/<profile>`, or `_PASSWORD=pass:<entry>`), and a plain-text password in the file is the last resort, flagged by `dbrun profiles` and moved into pass by `dbrun secrets migrate <PROFILE>`. A running database container of the current project is discovered automatically as `local:<service>`.
+
+## Secrets
+
+Credentials live in [pass](https://www.passwordstore.org/), the standard Unix password manager, under `ai-gent/<area>/<name>` (`AI_GENT_PASS_PREFIX` replaces `ai-gent`). The rules are in `shared/secrets.md`, shared by the `secrets` and `db` plugins.
+
+- **pass first, a plain-text file last.** Database passwords come from `ai-gent/db/<profile>`; tokens for GitHub, Azure DevOps, GitLab and Bitbucket get their names there too.
+- **The agent sees names only.** You add a secret in your own terminal (`pass insert ai-gent/db/shop-dev` prompts without echo); only the runner that needs it (`dbrun`) decrypts it, when it connects, and redacts it from every message and log.
+- **The `secrets` guard hook** denies anything that would show a value (`pass show`, `pass -c`, `gpg` on the store, …) and `pass insert` by the agent ([Guard hooks](#guard-hooks)).
 
 ## Guard hooks
 
-Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules mechanically, not just as instructions. They load in a new session after `setup.sh`.
+Three plugins install `PreToolUse` hooks in Claude Code. They enforce their rules mechanically, not just as instructions. They load in a new session after `setup.sh`.
 
 | Hook | Blocks | Asks first |
 | --: | :-- | :-- |
 | `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master` or `homolog`/`staging`; commits on `dev`/`develop` (merges into it pass); `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
 | `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool reading or editing the credentials file | any other direct client use |
+| `secrets` (`plugins/secrets/hooks/guard.sh`) | a `pass` command that shows, copies or searches a value (`show`, a bare `pass <entry>`, `-c`, `-q`, `edit`, `grep`, `generate`, `otp`), `pass insert`, `gpg` on the password store, `pass-run` with an `ai-gent/db/` entry or with a command that prints its environment | `pass rm`, `mv`, `cp`, `init`, `git` |
 
 > [!NOTE]
-> opencode doesn't run Claude Code hooks. `setup.sh` offers to add native V2 `permissions` rules **and** an OpenCode V2 guard plugin (`opencode/guard/`) that enforces the same git and db guards — including `ask` decisions and the current-branch check, which a shell pattern cannot express. A parity test keeps the plugin's rules identical to the shell guards'. The rules are appended after your own, so they win; the last matching rule counts:
+> opencode doesn't run Claude Code hooks. `setup.sh` offers to add native V2 `permissions` rules **and** an OpenCode V2 guard plugin (`opencode/guard/`) that enforces the same git, db and secrets guards — including `ask` decisions and the current-branch check, which a shell pattern cannot express. A parity test keeps the plugin's rules identical to the shell guards'. The rules are appended after your own, so they win; the last matching rule counts:
 
 > ```jsonc
 > "permissions": [
@@ -329,7 +340,11 @@ Two plugins install `PreToolUse` hooks in Claude Code. They enforce their rules 
 >   { "action": "shell", "resource": "pg_restore*", "effect": "deny" },
 >   { "action": "shell", "resource": "*connections.env*", "effect": "deny" },
 >   { "action": "read", "resource": "~/.config/ai-gent/*", "effect": "deny" },
->   { "action": "edit", "resource": "~/.config/ai-gent/*", "effect": "deny" }
+>   { "action": "edit", "resource": "~/.config/ai-gent/*", "effect": "deny" },
+>   { "action": "shell", "resource": "pass show*", "effect": "deny" },
+>   { "action": "shell", "resource": "pass insert*", "effect": "deny" },
+>   { "action": "shell", "resource": "pass edit*", "effect": "deny" },
+>   { "action": "shell", "resource": "pass -c*", "effect": "deny" }
 > ]
 > ```
 > Plus a `plugins` entry for the guard plugin and one `skill` deny per plugin skill's short name.
@@ -360,7 +375,7 @@ Conventions for editing skills and plugins are in `AGENTS.md` (also available as
 - **Metadata:** skill names and description budgets (400 characters, since every session loads them), and plugin manifests.
 - **References:** `plugin:skill` references, relative paths and symlinks.
 - **Scripts:** shell scripts through shellcheck.
-- **Tests:** the git and db guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the project scripts (`sessions.py`, `repo_state.py`), `compact:code` (with a pinned Pygments, `PYGMENTS_VERSION`, fetched through `uv`), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
+- **Tests:** the git, db and secrets guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), the project scripts (`sessions.py`, `repo_state.py`), `compact:code` (with a pinned Pygments, `PYGMENTS_VERSION`, fetched through `uv`), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
 - **Options:** `--quick` skips the installer tests. Shellcheck runs at a pinned version (`SHELLCHECK_VERSION`) through `uvx` or `pipx`, so a local run and CI agree.
 
 **Database engines.** Before pushing a change to `dbrun`, run `scripts/test-dbrun-engines.py` (`--engine <name>` for one). It tests `dbrun` end to end against real PostgreSQL, MySQL, MariaDB, SQL Server and Oracle containers, one at a time, capped at 2 GB of RAM; the images (about 5.5 GB) are pulled once. It isn't part of CI.

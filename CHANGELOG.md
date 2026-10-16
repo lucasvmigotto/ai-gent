@@ -4,6 +4,40 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **A `secrets` plugin: credentials in pass, never in the agent's reach.**
+  `shared/secrets.md` sets the rules for every secret ai-gent uses: pass
+  (the standard Unix password manager) first, under
+  `ai-gent/<area>/<name>` (`AI_GENT_PASS_PREFIX` replaces `ai-gent`); a
+  plain-text file only as the last resort; only the runner that needs a
+  secret decrypts it, when it uses it, and redacts it everywhere. The new
+  skill `secrets:pass` checks pass and gpg-agent are ready, lists entries
+  by name, gives the exact `pass insert` to run in your own terminal, and
+  moves plain-text secrets into pass. Names for GitHub, Azure DevOps,
+  GitLab and Bitbucket tokens are reserved for the platform work next.
+- **A `secrets` guard hook**, with the same rules in the OpenCode guard
+  plugin (parity-tested) and new OpenCode `permissions` rules. It denies
+  anything that would show a secret value — `pass show`, a bare
+  `pass <entry>`, `-c`, `-q`, `edit`, `grep`, `generate`, `otp`, `gpg` on
+  the store — as well as `pass insert` by the agent, and `pass-run` with an
+  `ai-gent/db/` entry or with a command that can print its environment. It
+  asks before `pass rm`, `mv`, `cp`, `init` and `git`.
+
+### Changed
+
+- **Database passwords come from pass first.** `dbrun` reads a profile's
+  password from `_PASSWORD=pass:<entry>`, else from `ai-gent/db/<profile>`
+  when that entry exists, and only then from a plain value in the profiles
+  file. It decrypts only to connect, never to list or classify, and stops
+  with the unlock command when the store is locked. `dbrun profiles` shows
+  where each password comes from (never the value) and flags plain-text
+  ones; the new `dbrun secrets migrate <PROFILE>` moves one into pass
+  without showing it and removes its line. `db:connect` now adds profiles
+  without a password line and has you run `pass insert`.
+
 ## 2.2.0 — 2026-10-15
 
 ### Added

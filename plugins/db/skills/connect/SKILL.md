@@ -27,13 +27,28 @@ read-only account (if the test could tell).
 ## Add a profile
 
 - Explain the format (`connections.md`) and which keys the engine needs.
-- If the file doesn't exist, create it with placeholder values
-  (`<set by the user>`) and `chmod 600`, and tell the user to fill in the
-  secret values themselves. Never write a real credential, never ask the
-  user to paste one into the conversation, and never set `_CLASS=local`
-  for something that isn't a container of this project.
+- Write only the non-secret keys (engine, class, host, port, database,
+  user, project) — creating the file with `chmod 600` if it doesn't
+  exist — and **no `_PASSWORD` line**: the password goes into pass.
+  Never set `_CLASS=local` for something that isn't a container of this
+  project.
+- Give the user the command for their own terminal:
+  `pass insert ai-gent/db/<profile>` (lowercase, `_` → `-`). If pass
+  isn't set up, `secrets:pass` gets it ready; only without pass does the
+  password go into the file, as the last resort, typed by the user.
+- Never write a credential, and never ask the user to paste one into the
+  conversation.
 - Suggest a read-only account for every non-local profile.
-- After the user fills it in: `classify`, then `test`.
+- Then `dbrun profiles` (the password column shows the pass entry),
+  `classify`, and `test`.
+
+## Plain-text passwords
+
+When `dbrun profiles` flags a password still in the file, offer
+`dbrun secrets migrate <PROFILE>`: it moves the value into pass without
+showing it and removes the line. If `test` then fails because the store
+is locked, ask the user to unlock it in their terminal (the command
+`dbrun` prints) and retry.
 
 ## Local databases
 

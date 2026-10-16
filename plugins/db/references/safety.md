@@ -192,6 +192,9 @@ strings.
   The guard hook denies any tool that touches the file (Bash, Read, Grep,
   Glob, Edit, Write), and `dbrun` redacts the profile's host, user and
   password from every message and log entry.
+- Read a password from pass yourself (`pass show`, `pass-run` with an
+  `ai-gent/db/` entry, `gpg` on the store) — only `dbrun` reads those
+  entries; the `secrets` guard hook denies the rest (`secrets.md`).
 - Run unbounded or locking queries, `EXPLAIN ANALYZE`, or a full count of
   a large production table the user didn't ask for.
 - Put unmasked personal data in an artifact, a commit or a log.
