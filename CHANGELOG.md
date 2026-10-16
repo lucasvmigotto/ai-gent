@@ -16,8 +16,34 @@ changes.
   secret decrypts it, when it uses it, and redacts it everywhere. The new
   skill `secrets:pass` checks pass and gpg-agent are ready, lists entries
   by name, gives the exact `pass insert` to run in your own terminal, and
-  moves plain-text secrets into pass. Names for GitHub, Azure DevOps,
-  GitLab and Bitbucket tokens are reserved for the platform work next.
+  moves plain-text secrets into pass.
+- **A `repo` plugin: issues, work items and pull requests on GitHub,
+  Azure DevOps, GitLab, Bitbucket and Jira.** Its runner, `reporun`, uses
+  the platform's own CLI when it's installed (`gh`, `az` with the
+  `azure-devops` extension, `glab`, `jira`) and the REST API otherwise
+  (always for Bitbucket), with the token from pass
+  (`ai-gent/github/pat`, `ai-gent/azure-devops/pat`, `ai-gent/gitlab/pat`,
+  `ai-gent/bitbucket/token`, `ai-gent/jira/token`) handed to that one
+  process or built into the auth header, never on a command line, and
+  redacted from all output. `reporun detect` reads the platform and
+  coordinates from the git remote (GitHub and Enterprise, `dev.azure.com`,
+  `visualstudio.com` and SSH, gitlab.com and self-managed, Bitbucket
+  Cloud) and says which CLI and token are there. Reads run freely; every
+  change needs `--write`, and unknown commands count as changes. It
+  refuses CLI commands that print a token or run arbitrary code
+  (`gh auth`, `alias`, `extension`, `--debug`, …) and any URL off the
+  platform's API host. Non-secret settings live in git config
+  (`ai-gent.jira.url`, `ai-gent.azure-devops.org`, `ai-gent.platform`).
+  - `repo:issues` finds, reads, creates and updates issues and work items:
+    Azure Boards WIQL, states and links; Jira JQL and transitions; GitHub,
+    GitLab and Bitbucket issues. It follows the project's templates and
+    required fields, and changes only what you asked for.
+  - `repo:pr` reads pull and merge requests with their checks, diffs and
+    review threads, opens one with the project's template and linked
+    items into the branch `git:workflow` says, and comments, approves and
+    merges only when asked, never past red checks or branch protection.
+- **A `repo` guard hook** (and its OpenCode port): every
+  `reporun … --write` is a question for you.
 - **A `secrets` guard hook**, with the same rules in the OpenCode guard
   plugin (parity-tested) and new OpenCode `permissions` rules. It denies
   anything that would show a secret value — `pass show`, a bare
@@ -37,6 +63,10 @@ changes.
   ones; the new `dbrun secrets migrate <PROFILE>` moves one into pass
   without showing it and removes its line. `db:connect` now adds profiles
   without a password line and has you run `pass insert`.
+- `devsecops:watch` reads runs through `reporun` when the platform's CLI
+  isn't installed or signed in, and `git:workflow`'s issue linking
+  searches through `repo:issues` instead of `curl` with a token from the
+  environment.
 
 ## 2.2.0 — 2026-10-15
 

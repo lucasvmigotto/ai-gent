@@ -1,8 +1,8 @@
-// ai-gent guard rules — the OpenCode side of the git, db and secrets guards.
+// ai-gent guard rules — the OpenCode side of the git, db, secrets and repo guards.
 //
 // These are a faithful TypeScript/JavaScript port of plugins/git/hooks/guard.sh,
-// plugins/db/hooks/guard.sh and plugins/secrets/hooks/guard.sh, which stay the
-// Claude Code enforcement. The
+// plugins/db/hooks/guard.sh, plugins/secrets/hooks/guard.sh and
+// plugins/repo/hooks/guard.sh, which stay the Claude Code enforcement. The
 // two are kept from drifting by opencode/guard/test/rules.test.mjs, which runs
 // both against the same vectors and asserts identical decisions.
 //
@@ -224,6 +224,22 @@ export function secretsGuard(cmd) {
   );
 }
 
+// ----------------------------------------------------------------- repo
+
+const REPO_RUNNER_RE =
+  /^[ \t]*([A-Za-z_][A-Za-z0-9_]*=[^ \t]*[ \t]+)*((python3?|uv[ \t]+run([ \t]+python3?)?)[ \t]+)?([^ \t]*\/)?reporun(\.py)?[ \t]/;
+
+// Every change reporun makes on a platform is confirmed by the user.
+export function repoGuard(cmd) {
+  const hit = dbSegments(cmd).some((s) => REPO_RUNNER_RE.test(s) && /[ \t]--write([ \t]|$)/.test(s));
+  if (!hit) return { decision: "none" };
+  return {
+    decision: "ask",
+    reason:
+      "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+  };
+}
+
 // ----------------------------------------------------------- adapter
 
 // Map one OpenCode permission evaluation to a guard decision. The strictest
@@ -238,6 +254,7 @@ export function evaluate(event, { cwd = ".", branchOf = () => "" } = {}) {
       candidates.push(dbGuard(cmd));
       candidates.push(dbCredsGuard(cmd));
       candidates.push(secretsGuard(cmd));
+      candidates.push(repoGuard(cmd));
     }
   } else if (event.action === "read" || event.action === "edit") {
     for (const r of resources) candidates.push(dbCredsGuard(r));

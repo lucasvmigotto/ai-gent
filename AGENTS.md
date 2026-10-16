@@ -61,7 +61,8 @@ file covers changing things.
   ever reads a value. A skill that needs a secret follows it, and the
   `secrets` guard keeps values out of the agent's reach.
 - Hook scripts are POSIX `sh`, tested by `scripts/test-guard.sh` (git),
-  `scripts/test-db-guard.sh` and `scripts/test-secrets-guard.sh`.
+  `scripts/test-db-guard.sh`, `scripts/test-secrets-guard.sh` and
+  `scripts/test-repo-guard.sh`.
 
 ## Releases
 

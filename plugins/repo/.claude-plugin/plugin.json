@@ -1,0 +1,10 @@
+{
+  "name": "repo",
+  "version": "1.0.0",
+  "license": "GPL-3.0-or-later",
+  "description": "Issues, work items and pull requests on GitHub, Azure DevOps, GitLab, Bitbucket and Jira through one runner — the platform's CLI when it's installed, its REST API otherwise — with tokens from pass, never shown, and every change asked first",
+  "author": {
+    "name": "lucasvmigotto",
+    "email": "lvmigotto1@gmail.com"
+  }
+}

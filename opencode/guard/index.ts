@@ -1,9 +1,9 @@
-// ai-gent guard — the OpenCode V2 side of the git, db and secrets guards.
+// ai-gent guard — the OpenCode V2 side of the git, db, secrets and repo guards.
 //
 // OpenCode does not run Claude Code's PreToolUse hooks, so this plugin
 // enforces the same rules through the V2 permission API: for every shell,
 // read or edit permission evaluation it ports the decision from
-// plugins/{git,db,secrets}/hooks/guard.sh (via ./rules.mjs,
+// plugins/{git,db,secrets,repo}/hooks/guard.sh (via ./rules.mjs,
 // kept in parity with them by test/rules.test.mjs) and can raise `ask` or
 // `deny`.
 //

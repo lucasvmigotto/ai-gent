@@ -28,21 +28,25 @@ other setups).
 | Entry | Holds | Read by |
 |---|---|---|
 | `ai-gent/db/<profile>` | a database profile's password; the profile name lowercased, `_` → `-` (`SHOP_DEV` → `ai-gent/db/shop-dev`) | `dbrun` only |
-| `ai-gent/github/pat` | a GitHub fine-grained token | planned: the platform runner |
-| `ai-gent/azure-devops/pat` | an Azure DevOps PAT | planned: the platform runner |
-| `ai-gent/gitlab/pat` | a GitLab personal or project access token | planned: the platform runner |
-| `ai-gent/bitbucket/token` | a Bitbucket access token | planned: the platform runner |
+| `ai-gent/github/pat` | a GitHub fine-grained token | `reporun` (`repo:*`) |
+| `ai-gent/azure-devops/pat` | an Azure DevOps PAT | `reporun` |
+| `ai-gent/gitlab/pat` | a GitLab project or personal access token | `reporun` |
+| `ai-gent/bitbucket/token` | a Bitbucket access token, or an Atlassian API token with an `email:` line | `reporun` |
+| `ai-gent/jira/token` | a Jira API token (Cloud, with `email:` and `url:` lines) or PAT (Server/Data Center) | `reporun` |
 
 A tool may also take an explicit reference, `pass:<entry>`, wherever its
 configuration names a secret (`SHOP_DEV_PASSWORD=pass:work/db/shop`), so
 an existing store layout keeps working.
 
 **The first line is the secret** (pass's own convention); later lines are
-free notes — the account, the scopes, the expiry date — that tools ignore.
+notes. `key: value` notes a runner documents are read with the secret
+(`email:` and `url:` for Atlassian, `org:` for Azure DevOps); anything
+else — the scopes, the expiry date — is for you.
 
 ## Rules for tools that read a secret
 
-- **Only the runner reads it** — `dbrun` for databases — by running
+- **Only the runner reads it** — `dbrun` for databases, `reporun` for
+  code platforms and trackers — by running
   `pass show <entry>` itself, keeping the first line, and handing it to
   the one client or API call that needs it (stdin, a mode-600 file, or
   that process's environment; never argv, where `ps` shows it).

@@ -2,10 +2,10 @@ import { execFileSync } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, dbGuard, dbCredsGuard, secretsGuard, evaluate } from "../rules.mjs"
+import { gitGuard, dbGuard, dbCredsGuard, secretsGuard, repoGuard, evaluate } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
-// guards (plugins/{git,db,secrets}/hooks/guard.sh) decide for
+// guards (plugins/{git,db,secrets,repo}/hooks/guard.sh) decide for
 // the same vectors. guard.sh is the oracle; the shell test suites and this
 // one share the same expectations, so the two implementations cannot drift.
 
@@ -13,6 +13,7 @@ const REPO = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const GIT_GUARD = join(REPO, "plugins/git/hooks/guard.sh")
 const DB_GUARD = join(REPO, "plugins/db/hooks/guard.sh")
 const SECRETS_GUARD = join(REPO, "plugins/secrets/hooks/guard.sh")
+const REPO_GUARD = join(REPO, "plugins/repo/hooks/guard.sh")
 
 const sandbox = mkdtempSync(join(tmpdir(), "ai-gent-guard-"))
 process.on("exit", () => rmSync(sandbox, { recursive: true, force: true }))
@@ -221,6 +222,29 @@ for (const [want, cmd] of secretsVectors) {
   check(`shell ${cmd.replace(/\n/g, "⏎")}`, want, shellDecision(SECRETS_GUARD, "Bash", "/tmp", { command: cmd }))
 }
 
+// --------------------------------------------------------------- repo
+
+const repoVectors = [
+  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash"],
+  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write"],
+  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done"],
+  ["ask", "cd /x && python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json"],
+  ["ask", "reporun cli gitlab --write -- mr note 4 -m ok"],
+  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect"],
+  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list"],
+  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate"],
+  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query 'q=--write'"],
+  ["none", "git commit -m \"docs: reporun --write asks first\""],
+  ["none", "echo reporun --write"],
+  ["none", "ls -la"],
+]
+
+console.log("    repo: TypeScript rules vs plugins/repo/hooks/guard.sh")
+for (const [want, cmd] of repoVectors) {
+  check(cmd, want, repoGuard(cmd).decision)
+  check(`shell ${cmd}`, want, shellDecision(REPO_GUARD, "Bash", "/tmp", { command: cmd }))
+}
+
 // ------------------------------------------------------------- adapter
 
 console.log("    evaluate(): OpenCode permission event adapter")
@@ -231,6 +255,7 @@ const adapterCases = [
   [{ action: "shell", resources: ["ls -la"] }, "none"],
   [{ action: "shell", resources: ["pass show ai-gent/github/pat"] }, "deny"],
   [{ action: "shell", resources: ["pass rm ai-gent/db/old"] }, "ask"],
+  [{ action: "shell", resources: ["reporun cli github --write -- pr merge 3"] }, "ask"],
   [{ action: "read", resources: ["/home/me/.config/ai-gent/db/connections.env"] }, "deny"],
   [{ action: "read", resources: ["/home/me/project/readme.md"] }, "none"],
   [{ action: "edit", resources: ["/home/me/.config/ai-gent/db/connections.env"] }, "deny"],

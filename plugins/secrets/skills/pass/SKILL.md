@@ -22,7 +22,9 @@ Check, without decrypting anything:
    the user creates a key (`gpg --full-generate-key`) and runs
    `pass init <key-id>` themselves — both are theirs to run, in their
    own terminal.
-3. `pass ls ai-gent` — which ai-gent entries exist (names only).
+3. `pass ls ai-gent` — which ai-gent entries exist (names only). For the
+   current repository, `reporun detect` (`repo:issues`, `repo:pr`) says
+   which platform token it needs and whether it's there.
 
 Report what's there and what's missing. Never check a value by reading
 it; a runner's own test (`dbrun test <PROFILE>`) proves an entry works.

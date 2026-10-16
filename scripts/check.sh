@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git, db and secrets guard hooks, dbrun, the project scripts,
-# compact:code, the release script, and installer tests in a throwaway HOME.
+# shell scripts, the git, db, secrets and repo guard hooks, dbrun, reporun,
+# the project scripts, compact:code, the release script, and installer tests
+# in a throwaway HOME.
 # Run before every commit; CI runs the same script.
 #
 #   scripts/check.sh                 everything
@@ -208,6 +209,22 @@ else
   fail "secrets guard hook"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-secretsguard.out"
+
+if scripts/test-repo-guard.sh >"${TMPDIR:-/tmp}/ai-gent-repoguard.out" 2>&1; then
+  pass "repo guard hook ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-repoguard.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-repoguard.out"
+  fail "repo guard hook"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-repoguard.out"
+
+if python3 -m unittest plugins/repo/scripts/test_reporun.py >"${TMPDIR:-/tmp}/ai-gent-reporun.out" 2>&1; then
+  pass "reporun ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-reporun.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-reporun.out"
+  fail "reporun unit tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-reporun.out"
 
 if python3 -m unittest plugins/db/scripts/test_dbrun.py >"${TMPDIR:-/tmp}/ai-gent-dbrun.out" 2>&1; then
   pass "dbrun ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-dbrun.out"))"
