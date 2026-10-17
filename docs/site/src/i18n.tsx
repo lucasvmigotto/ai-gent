@@ -45,7 +45,6 @@ export interface Messages {
 		why: string;
 		installCta: string;
 		flowCta: string;
-		changelogCta: string;
 		index: string;
 	};
 	search: {
@@ -168,7 +167,6 @@ export const enUS: Messages = {
 		why: "Free and open source, made to take the busywork off developers' days — and frugal with tokens: one-line skill descriptions, details read only when a task needs them, CI watched by a small model, code read in a compact form.",
 		installCta: "Install ai-gent",
 		flowCta: "See the autonomous flow",
-		changelogCta: "Read the changelog",
 		index: "All skills, by plugin",
 	},
 	search: {

@@ -56,7 +56,9 @@ async function main() {
 		const notFound = await driver.findElement(By.css("h1")).getText();
 		assert(/in the index/i.test(notFound), `404 h1 was: ${notFound}`);
 
-		console.log("e2e smoke ok: landing, autonomous flow, skill page and not-found");
+		console.log(
+			"e2e smoke ok: landing, autonomous flow, skill page and not-found",
+		);
 	} finally {
 		await driver.quit();
 	}

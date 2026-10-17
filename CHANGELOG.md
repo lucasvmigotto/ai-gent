@@ -15,9 +15,10 @@ changes.
   build stages, containers), land, watch CI with its fix loop, verify,
   close, release, document — with every skill linked, what asks you,
   what an up-front permission covers, and the skills alongside every
-  step. It's plain HTML and CSS (no diagram library), follows the theme,
-  reads at phone width, and is in `llms.txt` too. The README gains the
-  same flow as a Mermaid diagram.
+  step. It's plain HTML and CSS (no diagram library) with Lucide icons
+  for each step, follows the theme, reads at phone width, and is in
+  `llms.txt` too. The landing page keeps two actions — install, and the
+  flow — and the README gains the same flow as a Mermaid diagram.
 
 ## 2.6.0 — 2026-10-17
 

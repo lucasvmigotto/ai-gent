@@ -16,6 +16,7 @@
 		"e2e": "bun tests/e2e/smoke.mjs"
 	},
 	"dependencies": {
+		"lucide-react": "1.50.0",
 		"react": "19.3.0",
 		"react-dom": "19.3.0",
 		"react-markdown": "10.1.0",

@@ -1,3 +1,29 @@
+import {
+	Activity,
+	BadgeCheck,
+	BookOpen,
+	Boxes,
+	CircleCheck,
+	Compass,
+	Container,
+	Database,
+	Download,
+	GitBranch,
+	GitMerge,
+	GitPullRequest,
+	Hammer,
+	Hand,
+	KeyRound,
+	Lightbulb,
+	ListChecks,
+	type LucideIcon,
+	PenTool,
+	RefreshCw,
+	Rocket,
+	ShieldCheck,
+	Ticket,
+	Workflow,
+} from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import {
@@ -39,21 +65,17 @@ export function LandingPage() {
 				<div className="mt-6 flex flex-wrap gap-3">
 					<Link
 						to="/use/install"
-						className="rounded-[0.375rem] bg-signal px-4 py-2 font-medium text-on-signal"
+						className="inline-flex items-center gap-2 rounded-[0.375rem] bg-signal px-4 py-2 font-medium text-on-signal"
 					>
+						<Download size={18} aria-hidden="true" />
 						{t.landing.installCta}
 					</Link>
 					<Link
 						to="/use/flow"
-						className="rounded-[0.375rem] border border-muted/40 px-4 py-2"
+						className="inline-flex items-center gap-2 rounded-[0.375rem] border border-muted/40 px-4 py-2"
 					>
+						<Workflow size={18} aria-hidden="true" />
 						{t.landing.flowCta}
-					</Link>
-					<Link
-						to="/changelog"
-						className="rounded-[0.375rem] border border-muted/40 px-4 py-2"
-					>
-						{t.landing.changelogCta}
 					</Link>
 				</div>
 			</section>
@@ -364,6 +386,35 @@ function SkillChips({ ids }: { ids: string[] }) {
 	);
 }
 
+// Icons are presentation, not copy: keyed by step, track position and the
+// support item's first skill, so every locale shares them.
+const STEP_ICONS: Record<string, LucideIcon> = {
+	start: Lightbulb,
+	design: PenTool,
+	specify: ListChecks,
+	track: Ticket,
+	develop: GitBranch,
+	land: GitMerge,
+	watch: Activity,
+	verify: BadgeCheck,
+	close: CircleCheck,
+	release: Rocket,
+	document: BookOpen,
+};
+const TRACK_ICONS: LucideIcon[] = [Workflow, Hammer, Container];
+const SUPPORT_ICONS: Record<string, LucideIcon> = {
+	secrets: KeyRound,
+	db: Database,
+	devcontainer: Boxes,
+	devsecops: ShieldCheck,
+	repo: GitPullRequest,
+	project: Compass,
+};
+
+function supportIcon(skills: string[]): LucideIcon {
+	return SUPPORT_ICONS[skills[0]?.split("-")[0] ?? ""] ?? Compass;
+}
+
 function FlowStepItem({ step, n }: { step: FlowStep; n: number }) {
 	const { t } = useI18n();
 	return (
@@ -373,15 +424,21 @@ function FlowStepItem({ step, n }: { step: FlowStep; n: number }) {
 		>
 			<span
 				aria-hidden="true"
-				className="absolute top-0 left-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-signal bg-bg font-display text-sm"
+				className="absolute top-0 left-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-signal bg-bg text-signal"
 			>
-				{n}
+				{(() => {
+					const Icon = STEP_ICONS[step.key] ?? CircleCheck;
+					return <Icon size={16} />;
+				})()}
 			</span>
 			<h3 className="flex flex-wrap items-baseline gap-2 font-display text-xl">
-				<span className="sr-only">{n}. </span>
+				<span className="font-code text-sm text-muted">
+					{String(n).padStart(2, "0")}
+				</span>
 				{step.title}
 				{step.asks && (
-					<span className="rounded-full border border-signal px-2 text-xs font-body text-signal">
+					<span className="inline-flex items-center gap-1 self-center rounded-full border border-signal px-2 font-body text-xs text-signal">
+						<Hand size={12} aria-hidden="true" />
 						{t.flow.asks}
 					</span>
 				)}
@@ -392,21 +449,33 @@ function FlowStepItem({ step, n }: { step: FlowStep; n: number }) {
 				<div className="mt-4 rounded-[0.375rem] border border-muted/30 bg-surface p-4">
 					<h4 className="text-sm font-medium">{t.flow.inEachTrack}</h4>
 					<ol className="mt-2 space-y-3">
-						{step.track.map((x) => (
-							<li key={x.title} className="border-l-2 border-muted/30 pl-3">
-								<p className="text-sm">{x.title}</p>
-								<SkillChips ids={x.skills} />
-								<p className="mt-1 text-sm text-muted">{x.body}</p>
-							</li>
-						))}
+						{step.track.map((x, i) => {
+							const Icon = TRACK_ICONS[i] ?? Workflow;
+							return (
+								<li key={x.title} className="border-l-2 border-muted/30 pl-3">
+									<p className="flex items-center gap-2 text-sm">
+										<Icon
+											size={14}
+											aria-hidden="true"
+											className="text-signal"
+										/>
+										{x.title}
+									</p>
+									<SkillChips ids={x.skills} />
+									<p className="mt-1 text-sm text-muted">{x.body}</p>
+								</li>
+							);
+						})}
 					</ol>
 				</div>
 			)}
 			{step.loop && (
 				<div className="mt-4 flex gap-3 rounded-[0.375rem] border border-danger/50 p-4">
-					<span aria-hidden="true" className="text-danger text-lg leading-none">
-						↺
-					</span>
+					<RefreshCw
+						size={18}
+						aria-hidden="true"
+						className="shrink-0 text-danger"
+					/>
 					<p className="text-sm">
 						<span className="font-medium">{t.flow.whenRed}: </span>
 						<span className="text-muted">{step.loop}</span>
@@ -437,10 +506,26 @@ export function FlowPage() {
 								onClick={() =>
 									document.getElementById(`flow-${s.key}`)?.scrollIntoView()
 								}
-								className={`rounded-full border px-3 py-1 ${s.loop ? "border-danger/60" : "border-muted/40"} hover:bg-surface`}
+								className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 ${s.loop ? "border-danger/60" : "border-muted/40"} hover:bg-surface`}
 							>
+								{(() => {
+									const Icon = STEP_ICONS[s.key] ?? CircleCheck;
+									return (
+										<Icon
+											size={14}
+											aria-hidden="true"
+											className="text-signal"
+										/>
+									);
+								})()}
 								{s.title}
-								{s.loop && <span aria-hidden="true"> ↺</span>}
+								{s.loop && (
+									<RefreshCw
+										size={12}
+										aria-hidden="true"
+										className="text-danger"
+									/>
+								)}
 							</button>
 							{i < f.steps.length - 1 && (
 								<span aria-hidden="true" className="text-muted">
@@ -475,15 +560,25 @@ export function FlowPage() {
 					{f.supportTitle}
 				</h2>
 				<ul className="mt-4 grid gap-4 sm:grid-cols-2">
-					{f.support.map((x) => (
-						<li
-							key={x.skills.join()}
-							className="rounded-[0.375rem] border border-muted/30 p-4"
-						>
-							<SkillChips ids={x.skills} />
-							<p className="mt-2 text-sm text-muted">{x.body}</p>
-						</li>
-					))}
+					{f.support.map((x) => {
+						const Icon = supportIcon(x.skills);
+						return (
+							<li
+								key={x.skills.join()}
+								className="flex gap-3 rounded-[0.375rem] border border-muted/30 p-4"
+							>
+								<Icon
+									size={20}
+									aria-hidden="true"
+									className="mt-1 shrink-0 text-signal"
+								/>
+								<div>
+									<SkillChips ids={x.skills} />
+									<p className="mt-2 text-sm text-muted">{x.body}</p>
+								</div>
+							</li>
+						);
+					})}
 				</ul>
 				<p className="mt-4 max-w-2xl text-sm text-muted">{f.guards}</p>
 			</section>
