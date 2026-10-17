@@ -235,6 +235,14 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-dbrun.out"
 
+if python3 -m unittest plugins/agents/scripts/test_wt.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-wt.out" 2>&1; then
+  pass "agents wt.py ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-wt.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-wt.out"
+  fail "agents wt.py unit tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-wt.out"
+
 if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
   pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
 else

@@ -11,7 +11,9 @@ Roles and their mapping to models live in
 `../../references/agent-roles.md` (a project may override it in
 `.ai-gent/orchestrate.yaml`); this skill never names a model on its own.
 
-You, the session running this skill, are the `thinker`.
+You, the session running this skill, are the `thinker`. Several
+features or tracks at once, each in its own worktree, is
+`agents:parallel`, which may hand a feature to this skill.
 
 ## 1. Plan the work
 
