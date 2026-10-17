@@ -350,7 +350,7 @@ export const enUS: Messages = {
 		],
 		autonomyTitle: "How autonomous",
 		autonomy:
-			"Questions come first: the stages that shape the product ask theirs before writing — at most five at a time, as choices with a recommendation — and the answers carry into the next round. Then give permission up front — “build it end to end, you can push” — and the loop runs without stopping: commits, pushes of work branches and dev, tracker batches and CI fixes. Promoting to main and releasing still ask unless that permission names them; force pushes and deletions always do. The guard hooks ask on every push, so a hands-off run also needs pushes allowed in your agent's permission settings.",
+			"Questions come first: the stages that shape the product ask theirs before writing — five at a time, as choices with a recommendation, in as many rounds as it takes; whatever you decline to answer, the agent decides and records. Then give permission up front — “build it end to end, you can push” — and the loop runs without stopping: commits, pushes of work branches and dev, tracker batches and CI fixes. Promoting to main and releasing still ask unless that permission names them; force pushes and deletions always do. The guard hooks ask on every push, so a hands-off run also needs pushes allowed in your agent's permission settings.",
 		supportTitle: "Alongside every step",
 		support: [
 			{

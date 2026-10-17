@@ -104,11 +104,13 @@ each other's feature.
    here they are not. Fill `Feature Branch` with the `git:workflow`
    branch name.
 2. `/speckit-clarify` — [gate: `spec.md` written] resolve every
-   `[NEEDS CLARIFICATION]` marker with the user — up to five per feature,
-   asked together in one prompt as options with a recommendation
-   (pipeline rule 2) — and write the answers back into `spec.md`. The step is not done while a marker is open; if the
-   user can't answer one now, stop and leave it open — a feature with an
-   open marker is not planned.
+   `[NEEDS CLARIFICATION]` marker with the user — at most five per prompt,
+   as options with a recommendation, in as many rounds as it takes
+   (pipeline rule 2; re-run `/speckit-clarify`, which asks five per
+   session) — and write the answers back into `spec.md`. A question the
+   user declines ("you decide", "skip") is yours to decide: decide it and
+   record `[DECIDED: … — delegated by the user]` with the reason. The step
+   is done when no marker is open.
 3. `/speckit-plan` — [gate: **no open `[NEEDS CLARIFICATION]`**] technical
    context, constitution check, project structure, `research.md`,
    `data-model.md`, `contracts/`, `quickstart.md`. Decisions:

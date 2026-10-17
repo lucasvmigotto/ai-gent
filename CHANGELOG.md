@@ -8,17 +8,20 @@ changes.
 
 ### Changed
 
-- **Ask first, at most five at a time, as choices (pipeline rule 2).**
+- **Ask first, five at a time, as choices, until nothing is open (pipeline rule 2).**
   The stages that shape the product — `project:init`,
   `project:architecture`, `frontend:uiux`, `backend:domain`,
   `project:spec`'s clarify step and `qa:strategy` — ask their questions
   before writing, also when the user gave permission to run the project on
   its own: that permission covers doing the work, not deciding the
-  product. At most five questions per prompt, in rounds that build on the
-  answers so far, each with 2–4 options and a recommendation; free text
-  only when choices can't be listed. Once the specs are clarified, the
-  build stages run without new questions. Spec Kit's clarify keeps its
-  five per feature, asked in one prompt.
+  product. At most five questions per prompt but no limit on rounds:
+  each round builds on the answers so far, each question with 2–4 options
+  and a recommendation (free text only when choices can't be listed),
+  until nothing that changes the output is open. When the user declines
+  to answer, the agent decides and records it as
+  `[DECIDED: … — delegated by the user]`, listed in the handoff. Once the
+  specs are clarified, the build stages run without new questions. Spec
+  Kit's clarify is re-run until every marker is answered or delegated.
 
 ## 2.7.0 — 2026-10-17
 
