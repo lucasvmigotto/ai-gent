@@ -41,6 +41,13 @@ changes.
   on WSL when no pinentry can show. Both runners share one store module,
   `shared/passstore.py`.
 
+- **A new repository starts with one README line (`git:workflow`,
+  `project:init`).** The first commit is a single-line `README.md`
+  (`# <Project name>`) committed alone as `chore: initial commit`; `dev`
+  (or `develop`) branches from it and all work goes on branches off that.
+  A spec, requirements file or references the user handed in are inputs,
+  never committed unless the user says so.
+
 ### Fixed
 
 - **The db guard blocked text that merely named the credentials file.**
