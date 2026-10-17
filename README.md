@@ -350,7 +350,6 @@ Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 >   { "action": "shell", "resource": "sqlplus*", "effect": "ask" },
 >   { "action": "shell", "resource": "sqlite3*", "effect": "ask" },
 >   { "action": "shell", "resource": "pg_restore*", "effect": "deny" },
->   { "action": "shell", "resource": "*connections.env*", "effect": "deny" },
 >   { "action": "read", "resource": "~/.config/ai-gent/*", "effect": "deny" },
 >   { "action": "edit", "resource": "~/.config/ai-gent/*", "effect": "deny" },
 >   { "action": "shell", "resource": "pass show*", "effect": "deny" },

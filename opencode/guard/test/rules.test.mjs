@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, dbGuard, dbCredsGuard, secretsGuard, repoGuard, evaluate } from "../rules.mjs"
+import { gitGuard, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, evaluate } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
 // guards (plugins/{git,db,secrets,repo}/hooks/guard.sh) decide for
@@ -146,11 +146,18 @@ const dbVectors = [
   ["deny", 'python3 /x/plugins/db/scripts/dbrun.py profiles && cat connections.env'],
   ["deny", 'python3 /x/plugins/db/scripts/dbrun.py profiles; psql -c "DELETE FROM orders"'],
   ["ask", 'python3 /x/plugins/db/scripts/dbrun.py profiles && psql -l'],
+  ["none", "grep -E \"^FAIL|passed\" out.log; git commit -m \"fix: a tool's AI_GENT_DB_CONNECTIONS note, and a Glob's path\""],
+  ["deny", "cat ~/.config/ai-gent/db/connections.toml"],
+  ["deny", "cp connections.toml /tmp/x"],
+  ["deny", "echo $AI_GENT_DB_CONNECTIONS"],
+  ["none", "cat connections.env.example"],
+  ["none", "git commit -m \"docs: explain the connections.env format\""],
+  ["none", "echo 'profiles live in connections.env' > notes.md"],
 ]
 
 console.log("    db: TypeScript rules vs plugins/db/hooks/guard.sh")
 for (const [want, cmd] of dbVectors) {
-  const creds = dbCredsGuard(cmd)
+  const creds = dbCredsShell(cmd)
   const ocDecision = creds.decision !== "none" ? creds.decision : dbGuard(cmd).decision
   check(cmd.replace(/\n/g, "⏎"), want, ocDecision)
   check(`shell ${cmd.replace(/\n/g, "⏎")}`, want, shellDecision(DB_GUARD, "Bash", "/tmp", { command: cmd }))
@@ -163,10 +170,16 @@ const toolVectors = [
   ["deny", "Edit", { file_path: "/home/me/.config/ai-gent/db/connections.env", old_string: "a", new_string: "b" }],
   ["none", "Read", { file_path: "/home/me/project/.env.example" }],
   ["none", "Grep", { pattern: "DATABASE_URL", path: "src/" }],
+  ["none", "Write", {"file_path": "docs/product/brief.md", "content": "Profiles live in ~/.config/ai-gent/db/connections.env"}],
+  ["none", "Edit", {"file_path": "src/app.py", "old_string": "a", "new_string": "AI_GENT_DB_CONFIG"}],
+  ["deny", "Read", {"file_path": "/home/me/.config/ai-gent/db/connections.toml"}],
+  ["none", "Read", {"file_path": "/home/me/project/connections.env.example"}],
+  ["none", "Grep", {"pattern": "connections.env", "path": "docs/"}],
+  ["deny", "Glob", {"pattern": "**/connections.toml"}],
 ]
 console.log("    db: credentials file, non-shell tools")
 for (const [want, tool, input] of toolVectors) {
-  const ocDecision = dbCredsGuard(JSON.stringify(input)).decision
+  const ocDecision = dbCredsTool(tool, input).decision
   check(`${tool} ${JSON.stringify(input)}`, want, ocDecision)
   check(`shell ${tool}`, want, shellDecision(DB_GUARD, tool, "/tmp", input))
 }
