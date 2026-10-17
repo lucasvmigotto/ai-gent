@@ -19,7 +19,7 @@ import {
 	triggers,
 	version,
 } from "./content";
-import { useI18n } from "./i18n";
+import { type FlowStep, useI18n } from "./i18n";
 
 export function LandingPage() {
 	const { t } = useI18n();
@@ -42,6 +42,12 @@ export function LandingPage() {
 						className="rounded-[0.375rem] bg-signal px-4 py-2 font-medium text-on-signal"
 					>
 						{t.landing.installCta}
+					</Link>
+					<Link
+						to="/use/flow"
+						className="rounded-[0.375rem] border border-muted/40 px-4 py-2"
+					>
+						{t.landing.flowCta}
 					</Link>
 					<Link
 						to="/changelog"
@@ -330,6 +336,157 @@ export function ReferencePage() {
 					</div>
 				))}
 			</dl>
+		</>
+	);
+}
+
+function SkillChips({ ids }: { ids: string[] }) {
+	return (
+		<ul className="mt-2 flex flex-wrap gap-2">
+			{ids.map((id) => {
+				const s = skillById(id);
+				return (
+					<li key={id}>
+						{s ? (
+							<Link
+								to={`/use/skills/${id}`}
+								className="rounded-[0.375rem] border border-muted/30 px-2 py-0.5 font-code text-xs text-signal hover:bg-surface"
+							>
+								{command(s)}
+							</Link>
+						) : (
+							<span className="font-code text-xs text-muted">{id}</span>
+						)}
+					</li>
+				);
+			})}
+		</ul>
+	);
+}
+
+function FlowStepItem({ step, n }: { step: FlowStep; n: number }) {
+	const { t } = useI18n();
+	return (
+		<li
+			id={`flow-${step.key}`}
+			className="relative scroll-mt-20 pb-8 pl-12 last:pb-0"
+		>
+			<span
+				aria-hidden="true"
+				className="absolute top-0 left-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-signal bg-bg font-display text-sm"
+			>
+				{n}
+			</span>
+			<h3 className="flex flex-wrap items-baseline gap-2 font-display text-xl">
+				<span className="sr-only">{n}. </span>
+				{step.title}
+				{step.asks && (
+					<span className="rounded-full border border-signal px-2 text-xs font-body text-signal">
+						{t.flow.asks}
+					</span>
+				)}
+			</h3>
+			<SkillChips ids={step.skills} />
+			<p className="mt-2 max-w-2xl text-sm text-muted">{step.body}</p>
+			{step.track && (
+				<div className="mt-4 rounded-[0.375rem] border border-muted/30 bg-surface p-4">
+					<h4 className="text-sm font-medium">{t.flow.inEachTrack}</h4>
+					<ol className="mt-2 space-y-3">
+						{step.track.map((x) => (
+							<li key={x.title} className="border-l-2 border-muted/30 pl-3">
+								<p className="text-sm">{x.title}</p>
+								<SkillChips ids={x.skills} />
+								<p className="mt-1 text-sm text-muted">{x.body}</p>
+							</li>
+						))}
+					</ol>
+				</div>
+			)}
+			{step.loop && (
+				<div className="mt-4 flex gap-3 rounded-[0.375rem] border border-danger/50 p-4">
+					<span aria-hidden="true" className="text-danger text-lg leading-none">
+						↺
+					</span>
+					<p className="text-sm">
+						<span className="font-medium">{t.flow.whenRed}: </span>
+						<span className="text-muted">{step.loop}</span>
+					</p>
+				</div>
+			)}
+		</li>
+	);
+}
+
+export function FlowPage() {
+	const { t } = useI18n();
+	const f = t.flow;
+	return (
+		<>
+			<h1 className="font-display text-3xl">{f.title}</h1>
+			<p className="mt-2 max-w-2xl text-muted">{f.lede}</p>
+
+			<section aria-labelledby="glance" className="mt-6">
+				<h2 id="glance" className="sr-only">
+					{f.glance}
+				</h2>
+				<ol className="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
+					{f.steps.map((s, i) => (
+						<li key={s.key} className="flex items-center gap-1">
+							<button
+								type="button"
+								onClick={() =>
+									document.getElementById(`flow-${s.key}`)?.scrollIntoView()
+								}
+								className={`rounded-full border px-3 py-1 ${s.loop ? "border-danger/60" : "border-muted/40"} hover:bg-surface`}
+							>
+								{s.title}
+								{s.loop && <span aria-hidden="true"> ↺</span>}
+							</button>
+							{i < f.steps.length - 1 && (
+								<span aria-hidden="true" className="text-muted">
+									→
+								</span>
+							)}
+						</li>
+					))}
+				</ol>
+			</section>
+
+			<section aria-labelledby="loop" className="mt-8">
+				<h2 id="loop" className="font-display text-2xl">
+					{f.loop}
+				</h2>
+				<ol className="relative mt-6 before:absolute before:top-2 before:bottom-2 before:left-4 before:w-px before:bg-muted/30">
+					{f.steps.map((s, i) => (
+						<FlowStepItem key={s.key} step={s} n={i + 1} />
+					))}
+				</ol>
+			</section>
+
+			<section aria-labelledby="autonomy" className="mt-10 max-w-2xl">
+				<h2 id="autonomy" className="font-display text-2xl">
+					{f.autonomyTitle}
+				</h2>
+				<p className="mt-2 text-sm text-muted">{f.autonomy}</p>
+			</section>
+
+			<section aria-labelledby="support" className="mt-10">
+				<h2 id="support" className="font-display text-2xl">
+					{f.supportTitle}
+				</h2>
+				<ul className="mt-4 grid gap-4 sm:grid-cols-2">
+					{f.support.map((x) => (
+						<li
+							key={x.skills.join()}
+							className="rounded-[0.375rem] border border-muted/30 p-4"
+						>
+							<SkillChips ids={x.skills} />
+							<p className="mt-2 text-sm text-muted">{x.body}</p>
+						</li>
+					))}
+				</ul>
+				<p className="mt-4 max-w-2xl text-sm text-muted">{f.guards}</p>
+			</section>
 		</>
 	);
 }

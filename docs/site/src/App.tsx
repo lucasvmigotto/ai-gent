@@ -4,6 +4,7 @@ import { I18nProvider } from "./i18n";
 import {
 	ChangelogPage,
 	ContributePage,
+	FlowPage,
 	InstallPage,
 	LandingPage,
 	NotFoundPage,
@@ -22,6 +23,7 @@ export function App() {
 						<Route path="/use/install" element={<InstallPage />} />
 						<Route path="/use/skills" element={<SkillsPage />} />
 						<Route path="/use/skills/:id" element={<SkillPage />} />
+						<Route path="/use/flow" element={<FlowPage />} />
 						<Route path="/contribute" element={<ContributePage />} />
 						<Route path="/reference" element={<ReferencePage />} />
 						<Route path="/changelog" element={<ChangelogPage />} />

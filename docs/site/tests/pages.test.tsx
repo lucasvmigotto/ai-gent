@@ -2,8 +2,9 @@ import { render, screen } from "@testing-library/react";
 import { axe } from "jest-axe";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
+import { skillById } from "../src/content";
 import { enUS, I18nProvider } from "../src/i18n";
-import { LandingPage, SkillPage } from "../src/pages";
+import { FlowPage, LandingPage, SkillPage } from "../src/pages";
 
 function renderPage(node: React.ReactNode) {
 	return render(
@@ -38,6 +39,36 @@ describe("pages", () => {
 
 	it("has no accessibility violations on the landing page", async () => {
 		const { container } = renderPage(<LandingPage />);
+		const results = await axe(container);
+		expect(results.violations).toEqual([]);
+	});
+
+	it("renders the autonomous flow with every step and a link per skill", () => {
+		renderPage(<FlowPage />);
+		expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+			enUS.flow.title,
+		);
+		for (const s of enUS.flow.steps) {
+			expect(
+				screen.getByRole("heading", { level: 3, name: new RegExp(s.title) }),
+			).toBeInTheDocument();
+		}
+		expect(document.body.textContent).toContain(enUS.flow.whenRed);
+	});
+
+	it("names only skills that exist on the flow page", () => {
+		const ids = [
+			...enUS.flow.steps.flatMap((s) => [
+				...s.skills,
+				...(s.track ?? []).flatMap((x) => x.skills),
+			]),
+			...enUS.flow.support.flatMap((x) => x.skills),
+		];
+		expect(ids.filter((id) => !skillById(id))).toEqual([]);
+	});
+
+	it("has no accessibility violations on the flow page", async () => {
+		const { container } = renderPage(<FlowPage />);
 		const results = await axe(container);
 		expect(results.violations).toEqual([]);
 	});

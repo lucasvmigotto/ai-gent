@@ -4,6 +4,21 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Docs site 1.0.0: the autonomous flow.** A new page, *Flow*
+  (`#/use/flow`, in the nav and on the landing page), shows the whole
+  loop from an idea to a released, documented product — start, design,
+  specify, track, develop in parallel (orchestrate, compact:code, the
+  build stages, containers), land, watch CI with its fix loop, verify,
+  close, release, document — with every skill linked, what asks you,
+  what an up-front permission covers, and the skills alongside every
+  step. It's plain HTML and CSS (no diagram library), follows the theme,
+  reads at phone width, and is in `llms.txt` too. The README gains the
+  same flow as a Mermaid diagram.
+
 ## 2.6.0 — 2026-10-17
 
 ### Added

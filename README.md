@@ -280,6 +280,45 @@ stateDiagram-v2
 > [!NOTE]
 > `frontend:tui` and every terminal section of the vision and specs appear only when you ask for a terminal interface. No stage adds one on its own.
 
+### The autonomous flow
+
+Given permission up front ("build it end to end, you can push"), the whole loop runs on its own: issues, parallel development, CI watching and fixes, closing, versioning, release and docs. Promotion to `main` and releasing still ask unless that permission names them. The same flow, with every skill linked, is on the [docs site](https://docs.lucasvmigotto.me/ai-gent/#/use/flow).
+
+```mermaid
+flowchart TD
+    classDef asks stroke-width:3px
+    classDef loop stroke-dasharray: 5 5
+
+    init["<b>Start</b> · project:init<br/>brief; one-line README as the initial commit, dev branch"]
+    design["<b>Design</b> · project:architecture, backend:domain, frontend:uiux"]
+    specify["<b>Specify</b> · project:spec, frontend:spec, backend:spec, qa:strategy<br/>Spec Kit features, the OpenAPI contract"]
+    track["<b>Track</b> · repo:sync<br/>an issue per feature, a child per story — one confirmed batch"]
+    init --> design --> specify --> track
+
+    subgraph parallel ["Develop in parallel · agents:parallel — a branch and worktree per track"]
+        direction TB
+        orchestrate["agents:orchestrate · compact:code<br/>strong model plans and reviews, fast builds, small searches"]
+        build["frontend:build · backend:build<br/>tests first; each commit refs its issue"]
+        run["devcontainer:workflow<br/>run it like CI"]
+        orchestrate --> build --> run
+    end
+    track --> parallel
+
+    land["<b>Land</b> · git:workflow<br/>one branch at a time into dev, checks after each"]:::asks
+    watch["<b>Watch CI</b> · devsecops:watch<br/>small model, its own context"]
+    fix["fix on the branch, push again<br/>at most 3 rounds"]:::loop
+    verify["<b>Verify</b> · qa:e2e, qa:load"]
+    close["<b>Close</b> · repo:sync<br/>items close once on dev"]
+    release["<b>Release</b> · promotion to main<br/>version, changelog, tag from Conventional Commits"]:::asks
+    docs["<b>Document</b> · project:docs<br/>site and llms.txt deployed"]
+
+    parallel --> land --> watch
+    watch -- red --> fix --> watch
+    watch -- green --> verify --> close --> release --> docs
+```
+
+Alongside every step: `secrets:pass` (tokens and passwords never shown), `db:*` (one audited runner), `devcontainer:*`, `devsecops:*`, `repo:issues` and `repo:pr`, `project:status` and `project:recap`, and the guard hooks. Thick borders ask you (unless your up-front permission covers them).
+
 ## Containers
 
 The rules are in `shared/containers.md` and are shared by the devcontainer, devsecops and project plugins.

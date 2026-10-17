@@ -9,6 +9,16 @@ import {
 export const LOCALES = ["en-US"] as const;
 export type Locale = (typeof LOCALES)[number];
 
+export interface FlowStep {
+	key: string;
+	title: string;
+	skills: string[];
+	body: string;
+	asks?: boolean;
+	track?: { title: string; skills: string[]; body: string }[];
+	loop?: string;
+}
+
 export interface Messages {
 	meta: { title: string; description: string };
 	a11y: { skip: string; external: string };
@@ -18,6 +28,7 @@ export interface Messages {
 		contribute: string;
 		reference: string;
 		changelog: string;
+		flow: string;
 		install: string;
 		search: string;
 		searchLabel: string;
@@ -33,6 +44,7 @@ export interface Messages {
 		counts: (plugins: number, skills: number) => string;
 		why: string;
 		installCta: string;
+		flowCta: string;
 		changelogCta: string;
 		index: string;
 	};
@@ -98,6 +110,21 @@ export interface Messages {
 		guardsBody: string;
 	};
 	changelog: { title: string; lede: string };
+	flow: {
+		title: string;
+		lede: string;
+		glance: string;
+		loop: string;
+		asks: string;
+		inEachTrack: string;
+		whenRed: string;
+		steps: FlowStep[];
+		autonomyTitle: string;
+		autonomy: string;
+		supportTitle: string;
+		support: { skills: string[]; body: string }[];
+		guards: string;
+	};
 	notFound: { title: string; body: string };
 	footer: {
 		license: string;
@@ -123,6 +150,7 @@ export const enUS: Messages = {
 		contribute: "Contribute",
 		reference: "Reference",
 		changelog: "Changelog",
+		flow: "Flow",
 		install: "Install",
 		search: "Search skills",
 		searchLabel: "Search skills",
@@ -139,6 +167,7 @@ export const enUS: Messages = {
 			`${skills} skills · ${plugins} plugins · ${LOCALES.join(" + ")}`,
 		why: "Free and open source, made to take the busywork off developers' days — and frugal with tokens: one-line skill descriptions, details read only when a task needs them, CI watched by a small model, code read in a compact form.",
 		installCta: "Install ai-gent",
+		flowCta: "See the autonomous flow",
 		changelogCta: "Read the changelog",
 		index: "All skills, by plugin",
 	},
@@ -220,6 +249,140 @@ export const enUS: Messages = {
 			"Four PreToolUse hooks enforce the git, db, secrets and repo rules in Claude Code; an OpenCode V2 plugin enforces the same rules there. The git plugin also runs a SessionStart check that prints one line when a newer ai-gent release is known.",
 	},
 	changelog: { title: "Changelog", lede: "Releases and what changed." },
+	flow: {
+		title: "The autonomous flow",
+		lede: "From an idea to a released, documented product: what runs on its own, what asks you, and the skills that do each part.",
+		glance: "At a glance",
+		loop: "The loop, step by step",
+		asks: "asks you",
+		inEachTrack: "In each track",
+		whenRed: "When CI is red",
+		steps: [
+			{
+				key: "start",
+				title: "Start",
+				skills: ["project-init"],
+				body: "A product brief from your idea or references. A new repository gets a one-line README as its initial commit and a dev branch; the files you handed in stay uncommitted.",
+			},
+			{
+				key: "design",
+				title: "Design",
+				skills: ["project-architecture", "backend-domain", "frontend-uiux"],
+				body: "Architecture and stack, the domain model and the UX vision — each a document you accept before the next stage builds on it.",
+			},
+			{
+				key: "specify",
+				title: "Specify",
+				skills: [
+					"project-spec",
+					"frontend-spec",
+					"backend-spec",
+					"qa-strategy",
+				],
+				body: "Spec Kit features with stories and tasks, the OpenAPI contract between frontend and backend, and the test strategy.",
+			},
+			{
+				key: "track",
+				title: "Track",
+				skills: ["repo-sync"],
+				body: "An issue, work item or epic per feature and a child per story — GitHub, Azure Boards, GitLab, Jira or Bitbucket — created in one confirmed batch.",
+			},
+			{
+				key: "develop",
+				title: "Develop in parallel",
+				skills: ["agents-parallel"],
+				body: "Independent features, or a feature's frontend, backend and QA tracks, each on its own branch in a git worktree, with its own containers and ports.",
+				track: [
+					{
+						title: "Plan and build with the right model",
+						skills: ["agents-orchestrate", "compact-code"],
+						body: "A strong model plans and reviews, a fast one builds, a small one searches; long code is read in a compact form.",
+					},
+					{
+						title: "Implement, tests first",
+						skills: ["frontend-build", "backend-build", "frontend-tui"],
+						body: "Phase by phase, converged before Implemented; each commit references its story (Refs #121).",
+					},
+					{
+						title: "Run it like CI",
+						skills: ["devcontainer-workflow"],
+						body: "Tests and builds run in the project's containers, the same ones CI uses.",
+					},
+				],
+			},
+			{
+				key: "land",
+				title: "Land",
+				skills: ["git-workflow"],
+				body: "Branches merge into dev one at a time, in dependency order, with the checks run after each.",
+				asks: true,
+			},
+			{
+				key: "watch",
+				title: "Watch CI",
+				skills: ["devsecops-watch"],
+				body: "Every push is followed to the end by a small model in its own context, which reports back.",
+				loop: "Red because of the change: the build stage fixes it on the same branch and pushes again — at most three rounds, then it stops and reports.",
+			},
+			{
+				key: "verify",
+				title: "Verify",
+				skills: ["qa-e2e", "qa-load"],
+				body: "Cross-stack journeys, and load tests where there are targets, pass in CI: the feature is Verified.",
+			},
+			{
+				key: "close",
+				title: "Close",
+				skills: ["repo-sync"],
+				body: "The feature's items close once its work is on the integration branch; the promotion lists Closes lines as a backstop.",
+			},
+			{
+				key: "release",
+				title: "Release",
+				skills: ["git-workflow", "devsecops-pipeline"],
+				body: "dev is promoted to main; the release workflow picks the version from the Conventional Commits, writes the changelog, tags and publishes.",
+				asks: true,
+			},
+			{
+				key: "document",
+				title: "Document",
+				skills: ["project-docs"],
+				body: "The documentation site and llms.txt regenerate from the code and the specs, and deploy with the release.",
+			},
+		],
+		autonomyTitle: "How autonomous",
+		autonomy:
+			"Give permission up front — “build it end to end, you can push” — and the loop runs without stopping: commits, pushes of work branches and dev, tracker batches and CI fixes. Promoting to main and releasing still ask unless that permission names them; force pushes and deletions always do. The guard hooks ask on every push, so a hands-off run also needs pushes allowed in your agent's permission settings.",
+		supportTitle: "Alongside every step",
+		support: [
+			{
+				skills: ["secrets-pass"],
+				body: "Tokens and database passwords in pass, read only by the runner that needs them — never shown to the agent.",
+			},
+			{
+				skills: ["db-connect", "db-inspect", "db-investigate"],
+				body: "Databases through one audited runner: masked results, writes only on proven local containers.",
+			},
+			{
+				skills: ["devcontainer-setup", "devcontainer-infra"],
+				body: "Container-first environments and simulated infrastructure.",
+			},
+			{
+				skills: ["devsecops-supply-chain", "devsecops-audit"],
+				body: "Pinned dependencies, scanning, SBOMs and pipeline reviews.",
+			},
+			{
+				skills: ["repo-issues", "repo-pr"],
+				body: "Issues, work items and pull requests on any of the platforms.",
+			},
+			{
+				skills: ["project-status", "project-recap"],
+				body: "Where things stand and what's next; back after a pause.",
+			},
+		],
+		guards:
+			"Guard hooks keep the rules mechanical: no direct database writes, no secret values in the conversation, no force pushes, and a question before every merge, push or change to an issue.",
+	},
 	notFound: {
 		title: "This page isn’t in the index.",
 		body: "Search the skills, or start from the landing page.",

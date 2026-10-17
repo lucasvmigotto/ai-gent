@@ -29,6 +29,12 @@ async function main() {
 		const landing = await driver.findElement(By.css("h1")).getText();
 		assert(/find the skill/i.test(landing), `landing h1 was: ${landing}`);
 
+		// The autonomous flow page renders its steps.
+		await driver.get(`${base}#/use/flow`);
+		await driver.wait(until.elementLocated(By.css("h1")), 10_000);
+		const flow = await driver.findElement(By.css("h1")).getText();
+		assert(/autonomous flow/i.test(flow), `flow h1 was: ${flow}`);
+
 		// A skill page renders its invoke commands.
 		await driver.get(`${base}#/use/skills/qa-load`);
 		await driver.wait(until.elementLocated(By.css("h1")), 10_000);
@@ -50,7 +56,7 @@ async function main() {
 		const notFound = await driver.findElement(By.css("h1")).getText();
 		assert(/in the index/i.test(notFound), `404 h1 was: ${notFound}`);
 
-		console.log("e2e smoke ok: landing, skill page and not-found");
+		console.log("e2e smoke ok: landing, autonomous flow, skill page and not-found");
 	} finally {
 		await driver.quit();
 	}

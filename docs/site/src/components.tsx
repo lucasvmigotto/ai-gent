@@ -141,6 +141,9 @@ function TopBar() {
 					<NavLink to="/use/skills" className={navClass}>
 						{t.nav.skills}
 					</NavLink>
+					<NavLink to="/use/flow" className={navClass}>
+						{t.nav.flow}
+					</NavLink>
 					<NavLink to="/contribute" className={navClass}>
 						{t.nav.contribute}
 					</NavLink>
@@ -176,6 +179,9 @@ function TopBar() {
 					</Link>
 					<Link to="/use/skills" onClick={() => setOpen(false)}>
 						{t.nav.skills}
+					</Link>
+					<Link to="/use/flow" onClick={() => setOpen(false)}>
+						{t.nav.flow}
 					</Link>
 					<Link to="/contribute" onClick={() => setOpen(false)}>
 						{t.nav.contribute}
