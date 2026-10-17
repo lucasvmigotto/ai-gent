@@ -415,7 +415,7 @@ port = 5432
 [families.shop]
 host = "db.internal"
 user = "shop_ro"
-password = "pass:team/db/shop"
+password = "pass:work/db/shop"
 
 [profiles.SHOP_DEV]
 family = "shop"
@@ -453,7 +453,7 @@ class TomlTest(PassTest):
         self.assertEqual(profiles["SHOP_DEV"]["host"], "db.internal")      # from the family
         self.assertEqual(profiles["SHOP_QA"]["host"], "qa.internal")       # the profile wins
         self.assertEqual(profiles["SHOP_DEV"]["port"], "5432")             # defaults, an integer
-        self.assertEqual(profiles["SHOP_DEV"]["pass"], "team/db/shop")     # one password per family
+        self.assertEqual(profiles["SHOP_DEV"]["pass"], "work/db/shop")     # one password per family
         self.assertEqual(profiles["LEGACY"]["port"], "1522")
         self.assertEqual(profiles["LEGACY"]["class"], "development")
 
@@ -518,7 +518,7 @@ class TomlTest(PassTest):
         self.assertEqual(code, 0, err)
         text = out.read_text()
         self.assertEqual(out.stat().st_mode & 0o777, 0o600)
-        self.assertIn("SHOP_DEV_PASSWORD=pass:team/db/shop", text)
+        self.assertIn("SHOP_DEV_PASSWORD=pass:work/db/shop", text)
         self.assertIn("LEGACY_SID=ORCL", text)
         self.assertNotIn("s3cr3t-plain", text + stdout + err)
         self.assertIn("PLAIN", stdout)
@@ -550,89 +550,6 @@ class MigrateAllTest(PassTest):
         self.assertIn("6 profile(s) now reference 5 new pass entries", out)
         self.assertIn("hygiene: different accounts share one password: A, B, C", out)
         self.assertEqual({p["secret"] for p in dbrun.user_profiles().values()}, {"pass"})
-
-
-class PassStoreTest(unittest.TestCase):
-    """shared/passstore.py: mounts, recipients, the gpg fallback, sync."""
-
-    def setUp(self):
-        import passstore
-        self.ps = passstore
-        self.tmp = tempfile.TemporaryDirectory()
-        base = Path(self.tmp.name)
-        self.personal, self.team = base / "personal", base / "team"
-        for d in (self.personal, self.team):
-            d.mkdir()
-        self.saved = {k: os.environ.get(k) for k in ("PASSWORD_STORE_DIR", "AI_GENT_PASS_MOUNTS", "PATH",
-                                                     "AI_GENT_PASS_FRESHNESS")}
-        os.environ["PASSWORD_STORE_DIR"] = str(self.personal)
-        os.environ["AI_GENT_PASS_MOUNTS"] = f"team={self.team}"
-
-    def tearDown(self):
-        for k, v in self.saved.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
-        self.tmp.cleanup()
-
-    def test_mounts_resolve(self):
-        self.assertEqual(self.ps.resolve("team/db/shop"), (self.team, "db/shop"))
-        self.assertEqual(self.ps.resolve("ai-gent/db/x"), (self.personal, "ai-gent/db/x"))
-        self.assertEqual(self.ps.resolve("team"), (self.personal, "team"))  # a bare name isn't a mount path
-        os.environ["AI_GENT_PASS_MOUNTS"] = "Bad Name=/x"
-        with self.assertRaises(self.ps.StoreError):
-            self.ps.resolve("x/y")
-
-    def test_nearest_gpg_id(self):
-        (self.team / ".gpg-id").write_text("AAAA\nBBBB\n")
-        (self.team / "db" / "restricted").mkdir(parents=True)
-        (self.team / "db" / "restricted" / ".gpg-id").write_text("AAAA\n")
-        self.assertEqual(self.ps.recipients("team/db/shop"), ["AAAA", "BBBB"])
-        self.assertEqual(self.ps.recipients("team/db/restricted/core"), ["AAAA"])
-
-    def test_gpg_fallback_without_pass(self):
-        fake = Path(self.tmp.name) / "bin"
-        fake.mkdir()
-        gpg = fake / "gpg"
-        # Decrypt prints the file as is; encrypt copies stdin to --output (stand-ins for real crypto).
-        gpg.write_text('#!/bin/sh\nout=""; prev=""\nfor a in "$@"; do [ "$prev" = --output ] && out="$a"; prev="$a"; done\n'
-                       'case " $* " in *" --decrypt "*) for a in "$@"; do f="$a"; done; cat "$f" ;; '
-                       '*" --encrypt "*) cat > "$out" ;; esac\n')
-        gpg.chmod(0o755)
-        (fake / "cat").symlink_to(shutil.which("cat"))
-        os.environ["PATH"] = str(fake)  # no pass on PATH: the fallback path
-        (self.team / ".gpg-id").write_text("AAAA\n")
-        self.assertEqual(self.ps.write("team/db/shop", "v4lue"), "")
-        self.assertEqual(self.ps.read("team/db/shop"), ("v4lue", []))
-        with self.assertRaisesRegex(self.ps.StoreError, "already exists"):
-            self.ps.write("team/db/shop", "other")
-
-    def test_freshen_fast_forwards_a_synced_store(self):
-        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
-               "GIT_COMMITTER_EMAIL": "t@t", "GIT_CONFIG_GLOBAL": "/dev/null"}
-        base = Path(self.tmp.name)
-        run = lambda *a, cwd=None: subprocess.run(a, cwd=cwd, env=env, check=True, capture_output=True)  # noqa: E731
-        run("git", "init", "-q", "--bare", "-b", "main", str(base / "remote.git"))
-        run("git", "clone", "-q", str(base / "remote.git"), str(base / "other"))
-        (base / "other" / "seed").write_text("x")
-        run("git", "add", ".", cwd=base / "other")
-        run("git", "commit", "-q", "-m", "seed", cwd=base / "other")
-        run("git", "push", "-q", "origin", "HEAD:main", cwd=base / "other")
-        self.team.rmdir()
-        run("git", "clone", "-q", str(base / "remote.git"), str(self.team))
-        (base / "other" / "db").mkdir()
-        (base / "other" / "db" / "new.gpg").write_text("x")
-        run("git", "add", ".", cwd=base / "other")
-        run("git", "commit", "-q", "-m", "add", cwd=base / "other")
-        run("git", "push", "-q", "origin", "HEAD:main", cwd=base / "other")
-        self.assertFalse(self.ps.has("team/db/new"))
-        os.environ["AI_GENT_PASS_FRESHNESS"] = "300"
-        self.assertEqual(self.ps.freshen(self.team), "")                   # never fetched: stale, so it pulls
-        self.assertTrue(self.ps.has("team/db/new"))
-        os.environ["AI_GENT_PASS_FRESHNESS"] = "0"
-        self.assertEqual(self.ps.freshen(self.team), "")                   # 0 turns reads' sync off
-
 
 
 class SqliteEndToEndTest(Sandbox):

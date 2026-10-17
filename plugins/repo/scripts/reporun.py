@@ -84,8 +84,7 @@ READ_POSTS = {
 # ----------------------------------------------------------------------- pass
 
 def _store():
-    """shared/passstore.py, linked next to this script: stores, mounts, sync and
-    the gpg fallback for systems without pass."""
+    """shared/passstore.py, linked next to this script."""
     import passstore  # noqa: PLC0415
     return passstore
 
@@ -99,10 +98,9 @@ def default_entry(platform: str) -> str:
 
 
 def check_entry(entry: str) -> str:
-    """A platform token entry: under the prefix (in the personal store or a
-    mounted one), never a db/ entry, which is dbrun's."""
+    """A platform token entry: under the prefix, never a db/ entry, which is dbrun's."""
     try:
-        _, name = _store().resolve(entry)
+        name = _store().check(entry)
     except _store().StoreError as e:
         raise Failed(str(e)) from None
     if not name.startswith(pass_prefix() + "/") or name.startswith(f"{pass_prefix()}/db/"):

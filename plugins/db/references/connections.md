@@ -26,7 +26,7 @@ engine = "postgresql"
 host = "db-dev.internal.example"
 port = 5432                 # a string or an integer
 user = "shop_readonly"
-password = "pass:team/db/shop"
+password = "pass:work/db/shop"
 
 [profiles.SHOP_DEV]
 family = "shop"
@@ -107,8 +107,8 @@ the user to paste one into the conversation.
 A profile's password comes from the first of these that applies
 (`secrets.md`, from the `secrets` plugin, has the rules for every secret):
 
-1. `pass:<entry>` — that pass entry, in the personal store or a mounted
-   one (`pass:team/db/shop`, `pass:work/db/shop`).
+1. `pass:<entry>` — that pass entry (an existing store layout, such as
+   `pass:work/db/shop`).
 2. No password — the entry `ai-gent/db/<family>` for a profile in a
    family, else `ai-gent/db/<profile>` (lowercased, `_` → `-`:
    `SHOP_DEV` → `ai-gent/db/shop-dev`), when it exists.
@@ -135,8 +135,7 @@ write `password = "pass:<entry>"`.
 password. The user adds it in their own terminal —
 `pass insert ai-gent/db/shop-dev` prompts without echo. If the key is
 locked and can't prompt, `dbrun` stops with the command that unlocks it;
-the user runs it, then the agent retries. A team store is fetched before
-reads when it's stale (`secrets.md` → *Team stores*).
+the user runs it, then the agent retries.
 
 ## Auto-discovered local profiles
 
@@ -173,8 +172,7 @@ a finding (`db:review`), not a credential to use.
 
 ## Providers (later)
 
-pass is the credential store behind profiles, including shared team
-stores. Another private plugin with its own store could plug in as a
+pass is the credential store behind profiles. Another private plugin with its own store could plug in as a
 **provider**: a descriptor pointing at its profiles file, a mapping from
 its naming scheme to profiles and classes, and its own rules file.
 Provider rules may only tighten `safety.md`, never loosen it; its classes

@@ -26,21 +26,6 @@ changes.
   reference — one entry per shared account, else one per profile —
   reporting names and counts only, and flagging a password reused by
   different accounts.
-- **Team stores and mounts (`secrets`).** More stores mount next to the
-  personal one (`AI_GENT_PASS_MOUNTS="team=/path"`, entries
-  `pass:team/…`). A store that is a git repository with a remote is
-  fetched and fast-forwarded before reads when stale
-  (`AI_GENT_PASS_FRESHNESS`, default 300 s) and before writes, and pushed
-  after them; `.gpg` files are never merged. `secrets:pass` documents
-  setting one up, joining after an out-of-band fingerprint check,
-  removal, and the rotation checklist removal requires. The secrets guard
-  now lets `pass git pull`, `fetch`, `status`, `log` and `diff` run;
-  `push` still asks.
-- **Windows without pass.** The runners decrypt with `gpg` (Gpg4win) on
-  the same store files when pass isn't installed, and stop within seconds
-  on WSL when no pinentry can show. Both runners share one store module,
-  `shared/passstore.py`.
-
 - **A new repository starts with one README line (`git:workflow`,
   `project:init`).** The first commit is a single-line `README.md`
   (`# <Project name>`) committed alone as `chore: initial commit`; `dev`

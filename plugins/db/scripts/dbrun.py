@@ -1619,9 +1619,9 @@ def cmd_session(args) -> int:
     return EXIT_OK
 
 
-def store_write(entry: str, value: str) -> str:
+def store_write(entry: str, value: str) -> None:
     try:
-        return _store().write(entry, value, f"dbrun: add {entry}")
+        _store().write(entry, value)
     except _store().StoreError as e:
         raise Failed(redact(str(e))) from None
 
@@ -1660,9 +1660,7 @@ def migrate_all(profiles: dict[str, dict]) -> int:
         if pass_has(entry):
             kept.append(entry)
             continue
-        warning = store_write(entry, pw)
-        if warning:
-            print(f"warn: {entry}: {warning}", file=sys.stderr)
+        store_write(entry, pw)
         written.append(entry)
         for n in names:
             refs[n] = entry
@@ -1710,7 +1708,7 @@ def cmd_secrets(args) -> int:
     entry = check_entry(pass_entry(p["name"]))
     if pass_has(entry):
         raise Failed(f"{entry} already exists in pass; remove the {p['name']}_PASSWORD line yourself once it's right")
-    warning = store_write(entry, p["password"])
+    store_write(entry, p["password"])
     path = Path(p["source"])
     key = re.compile(rf"^\s*(export\s+)?{re.escape(p['name'])}_PASSWORD\s*=")
     lines = [ln for ln in path.read_text().splitlines(keepends=True) if not key.match(ln)]
@@ -1720,8 +1718,7 @@ def cmd_secrets(args) -> int:
     tmp.replace(path)
     log_result(log_start("secrets migrate", p, {"class": p["class"], "writable": False, "via": "profiles file",
                                              "evidence": ["no connection made"]}, "move password into pass", []), f"moved to {entry}")
-    print(f"{p['name']}: password moved to pass ({entry}); its line is gone from the profiles file"
-          + (f"\nwarn: {warning}" if warning else ""))
+    print(f"{p['name']}: password moved to pass ({entry}); its line is gone from the profiles file")
     return EXIT_OK
 
 

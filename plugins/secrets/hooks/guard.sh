@@ -6,8 +6,7 @@
 #   deny  a pass command that prints or copies a value: show, a bare
 #         `pass <entry>`, -c/--clip, -q/--qrcode, edit, grep, generate, otp
 #   deny  pass insert/add: the agent never writes a credential
-#   ask   pass rm/mv/cp/init and pass git (but pull, fetch, status, log and
-#         diff, which a team store's sync runs routinely): the user decides
+#   ask   pass rm/mv/cp/init/git: changes the store, the user decides
 #   deny  gpg on the password store (decrypting it directly)
 #   deny  pass-run with an ai-gent/db/ entry (only dbrun reads those), or
 #         handing a secret to a command that can print its environment
@@ -65,14 +64,13 @@ set -f
 set -- $rest
 set +f
 sub=""
-sub2=""
 for arg in "$@"; do
   case "$arg" in
     -c | --clip | -c[0-9]* | --clip=* | -q | --qrcode | -q[0-9]* | --qrcode=*)
       decide deny "pass -c/-q exposes a secret value; the agent never reads one — the runner that needs it does"
       ;;
     -*) ;;
-    *) if [ -z "$sub" ]; then sub="$arg"; elif [ -z "$sub2" ]; then sub2="$arg"; fi ;;
+    *) [ -n "$sub" ] || sub="$arg" ;;
   esac
 done
 
@@ -81,15 +79,7 @@ case "$sub" in
   insert | add)
     decide deny "the agent never writes a credential; ask the user to run \`pass insert <entry>\` in their own terminal"
     ;;
-  git)
-    # A team store syncs through git: reading its state and fast-forwarding
-    # are routine; publishing (push) and anything else stay the user's call.
-    case "$sub2" in
-      pull | fetch | status | log | diff) exit 0 ;;
-      *) decide ask "pass git ${sub2:-} changes or publishes the password store; the user decides" ;;
-    esac
-    ;;
-  rm | remove | delete | mv | rename | cp | copy | init)
+  rm | remove | delete | mv | rename | cp | copy | init | git)
     decide ask "pass $sub changes the password store; the user decides"
     ;;
   *)

@@ -223,14 +223,12 @@ export function secretsGuard(cmd) {
   if (hit === undefined) return { decision: "none" };
   const rest = hit.replace(SECRETS_PASS_RE, "");
   let sub = "";
-  let sub2 = "";
   for (const arg of rest.split(/[ \t]+/).filter(Boolean)) {
     if (/^(-c|--clip|-c[0-9].*|--clip=.*|-q|--qrcode|-q[0-9].*|--qrcode=.*)$/.test(arg)) {
       return SECRETS_DENY("pass -c/-q exposes a secret value; the agent never reads one — the runner that needs it does");
     }
     if (arg.startsWith("-")) continue;
     if (!sub) sub = arg;
-    else if (!sub2) sub2 = arg;
   }
   if (["", "ls", "list", "find", "search", "help", "--help", "version", "--version"].includes(sub)) {
     return { decision: "none" };
@@ -238,12 +236,7 @@ export function secretsGuard(cmd) {
   if (sub === "insert" || sub === "add") {
     return SECRETS_DENY("the agent never writes a credential; ask the user to run `pass insert <entry>` in their own terminal");
   }
-  if (sub === "git") {
-    // A team store syncs through git: reading and fast-forwarding are routine.
-    if (["pull", "fetch", "status", "log", "diff"].includes(sub2)) return { decision: "none" };
-    return SECRETS_ASK(`pass git ${sub2} changes or publishes the password store; the user decides`);
-  }
-  if (["rm", "remove", "delete", "mv", "rename", "cp", "copy", "init"].includes(sub)) {
+  if (["rm", "remove", "delete", "mv", "rename", "cp", "copy", "init", "git"].includes(sub)) {
     return SECRETS_ASK(`pass ${sub} changes the password store; the user decides`);
   }
   return SECRETS_DENY(

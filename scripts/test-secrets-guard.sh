@@ -43,6 +43,7 @@ expect deny 'printf "%s\n" "$TOKEN" | pass insert -m ai-gent/github/pat'
 # Store changes: the user decides.
 expect ask 'pass rm ai-gent/db/old'
 expect ask 'pass mv ai-gent/db/a ai-gent/db/b'
+expect ask 'pass git push'
 expect ask 'pass init 0xDEADBEEF'
 # pass-run: db entries belong to dbrun; no printing the environment.
 expect deny 'pass-run PGPASSWORD=ai-gent/db/shop-dev -- psql -h db -l'
@@ -67,13 +68,5 @@ expect none 'python3 /x/plugins/db/scripts/dbrun.py test SHOP_DEV --reason check
 expect none 'bypass --flag'
 expect none 'ls -la'
 
-# Team stores sync through git: reads and fast-forwards are routine.
-expect none 'pass git pull'
-expect none 'pass git fetch origin'
-expect none 'pass git status'
-expect none 'PASSWORD_STORE_DIR=/srv/team pass git log --oneline -5'
-expect ask 'pass git push'
-expect ask 'pass git reset --hard origin/main'
-expect ask 'pass init -p db/team AAAA BBBB'
 
 exit $((failures > 0))
