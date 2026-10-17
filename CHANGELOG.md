@@ -4,6 +4,51 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **TOML profiles with families (`db`).** `connections.toml` is read
+  before `connections.env`: `[defaults]`, `[families.<name>]` and
+  `[profiles.<NAME>]`, where a profile's keys win over its family's,
+  which win over the defaults. A family carries one password for every
+  profile on one account (`password = "pass:…"`, or the entry
+  `ai-gent/db/<family>`). Unknown tables and keys are errors that name the
+  key, never a value or the path; `AI_GENT_DB_CONNECTIONS` names one file
+  instead. It needs Python 3.11+ (`tomllib`), no extra package.
+  `dbrun profiles --export-env --out FILE` writes the profiles as a `.env`
+  for tools that read only that, with passwords as `pass:` references.
+- **Oracle SID (`db`).** A profile without a service name can give `SID`;
+  `dbrun` connects with a descriptor, since Easy Connect can't name a SID.
+  Before connecting, it names the keys a profile is missing.
+- **`dbrun secrets migrate --all`.** Every plain password in the `.env`
+  file goes into pass and its line is replaced in place by the
+  reference — one entry per shared account, else one per profile —
+  reporting names and counts only, and flagging a password reused by
+  different accounts.
+- **Team stores and mounts (`secrets`).** More stores mount next to the
+  personal one (`AI_GENT_PASS_MOUNTS="team=/path"`, entries
+  `pass:team/…`). A store that is a git repository with a remote is
+  fetched and fast-forwarded before reads when stale
+  (`AI_GENT_PASS_FRESHNESS`, default 300 s) and before writes, and pushed
+  after them; `.gpg` files are never merged. `secrets:pass` documents
+  setting one up, joining after an out-of-band fingerprint check,
+  removal, and the rotation checklist removal requires. The secrets guard
+  now lets `pass git pull`, `fetch`, `status`, `log` and `diff` run;
+  `push` still asks.
+- **Windows without pass.** The runners decrypt with `gpg` (Gpg4win) on
+  the same store files when pass isn't installed, and stop within seconds
+  on WSL when no pinentry can show. Both runners share one store module,
+  `shared/passstore.py`.
+
+### Fixed
+
+- **The db guard blocked text that merely named the credentials file.**
+  It now denies only a tool or command whose target is the file (`.env`
+  or `.toml`), its directory or its variables — not a document or commit
+  message that names it, nor an `.example` file — in Claude Code and the
+  OpenCode guard alike.
+
 ## 2.4.0 — 2026-10-16
 
 ### Changed
