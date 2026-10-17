@@ -9,8 +9,9 @@
 #         tool (pg_restore, impdp, ...)
 #   ask   any other direct client use — the user decides (other plugins,
 #         such as a private one, may still rely on a client)
-#   deny  any tool touching the credentials file (connections.env or the
-#         ai-gent config directory): only dbrun reads it
+#   deny  any tool whose target is a credentials file (connections.env or
+#         .toml, the ai-gent db config directory, its variables): only dbrun
+#         reads them. Text that merely names them is fine
 #
 # Pattern matching on the raw command: it catches the commands an agent
 # writes, not every possible obfuscation; dbrun's own checks are the
@@ -25,14 +26,50 @@ decide() { # decide deny|ask <reason>
   exit 0
 }
 
-# The credentials file: nothing but dbrun reads it, with any tool.
-creds='connections\.env|\.config/ai-gent|XDG_CONFIG_HOME\}?/ai-gent|AI_GENT_DB_CONFIG'
-if printf '%s' "$input" | grep -Eq "$creds"; then
-  decide deny "that's the db credentials file; only dbrun reads it — use dbrun profiles / classify / test"
+# The credentials files: nothing but dbrun reads them, with any tool. Only a
+# path is checked — a tool's target, or a word on a command line — never the
+# text a Write or Edit puts into a file, so a document may name them; and a
+# name with more after it (an .example file) isn't the real file.
+creds='(^|[^A-Za-z0-9_.-])connections\.(env|toml)($|[^A-Za-z0-9_.-])|\.config/ai-gent($|[^A-Za-z0-9_.-])|XDG_CONFIG_HOME\}?/ai-gent($|[^A-Za-z0-9_.-])|AI_GENT_DB_(CONFIG|CONNECTIONS)'
+creds_reason="that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test"
+tool="$(printf '%s' "$input" | sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p')"
+if [ "$tool" != Bash ]; then
+  keys='file_path|notebook_path|path|glob'
+  [ "$tool" = Glob ] && keys="$keys|pattern"
+  if printf '%s' "$input" | grep -oE "\"($keys)\"[[:space:]]*:[[:space:]]*\"([^\"\\\\]|\\\\.)*\"" | grep -Eq "$creds"; then
+    decide deny "$creds_reason"
+  fi
+  exit 0
 fi
 
 cmd="$(printf '%s' "$input" | sed -nE 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
 [ -n "$cmd" ] || exit 0
+
+# Quoted text with spaces in it (a commit message, an echo) is prose, not a
+# path: blank it, scanning quotes left to right so each pairs with its own
+# closer; a quoted word without spaces keeps its text.
+words="$(printf '%s\n' "$cmd" | awk '{
+  out = ""; n = length($0); i = 1
+  while (i <= n) {
+    c = substr($0, i, 1)
+    if (c == "\\" && substr($0, i + 1, 1) == "\"") {
+      j = i + 2; t = ""
+      while (j <= n && !(substr($0, j, 1) == "\\" && substr($0, j + 1, 1) == "\"")) {
+        if (substr($0, j, 1) == "\\") { t = t substr($0, j, 2); j += 2 } else { t = t substr($0, j, 1); j++ }
+      }
+      out = out (t ~ /[[:space:]]/ ? "\"\"" : t); i = j + 2; continue
+    }
+    if (c == "\047") {
+      j = i + 1; t = ""
+      while (j <= n && substr($0, j, 1) != "\047") { t = t substr($0, j, 1); j++ }
+      out = out (t ~ /[[:space:]]/ ? "\047\047" : t); i = j + 1; continue
+    }
+    out = out c; i++
+  }
+  print out }')"
+if printf '%s' "$words" | grep -Eq "$creds"; then
+  decide deny "$creds_reason"
+fi
 
 clients='psql|pg_dump|pg_dumpall|pg_restore|pgcli|mysql|mariadb|mysqldump|mariadb-dump|mysqladmin|mycli|sqlcmd|mssql-cli|bcp|osql|isql|sqlplus|sql|sqlcl|rman|impdp|expdp|imp|exp|mongosh|mongo|mongodump|mongorestore|mongoimport|sqlite3|litecli|usql|cqlsh|clickhouse-client'
 restore_tools='pg_restore|impdp|imp|mongorestore|mongoimport'

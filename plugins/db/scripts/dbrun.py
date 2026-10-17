@@ -119,7 +119,10 @@ def run(cmd: list[str], *, input: str | bytes | None = None, timeout: float = 60
 
 # --------------------------------------------------------------- profiles
 
-SUFFIXES = ("ENGINE", "CLASS", "HOST", "PORT", "DATABASE", "SERVICE", "USER", "PASSWORD", "PATH", "CONTAINER", "PROJECT")
+SUFFIXES = ("ENGINE", "CLASS", "HOST", "PORT", "DATABASE", "SERVICE", "SID", "USER", "PASSWORD", "PATH", "CONTAINER",
+            "PROJECT")
+PROFILE_KEYS = tuple(k.lower() for k in SUFFIXES)
+ENV_NAME, TOML_NAME = "connections" + ".env", "connections" + ".toml"
 SECRET_FIELDS = ("password",)
 
 
@@ -135,7 +138,7 @@ def parse_env_file(path: Path) -> dict[str, str]:
         key, sep, value = line.partition("=")
         key = key.strip()
         if not sep or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
-            raise Failed(f"{path}:{lineno}: not a KEY=VALUE line")
+            raise Failed(f"{path.name}:{lineno}: not a KEY=VALUE line")
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]
@@ -145,13 +148,19 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return values
 
 
-def user_profiles() -> dict[str, dict]:
-    path = config_dir() / "connections.env"
-    if not path.exists():
-        return {}
-    mode = path.stat().st_mode & 0o777
-    if mode & 0o077:
-        print(f"warn: {path} is mode {mode:o}; it holds credentials — chmod 600 it", file=sys.stderr)
+def profile_files() -> list[Path]:
+    """The profiles files to read: AI_GENT_DB_CONNECTIONS (one file, parsed by its
+    extension), else the TOML file then the .env file in the config directory."""
+    explicit = os.environ.get("AI_GENT_DB_CONNECTIONS")
+    if explicit:
+        path = Path(explicit).expanduser()
+        if path.suffix not in (".toml", ".env"):
+            raise Failed("AI_GENT_DB_CONNECTIONS must name a .toml or .env file")
+        return [path] if path.exists() else []
+    return [f for f in (config_dir() / TOML_NAME, config_dir() / ENV_NAME) if f.exists()]
+
+
+def env_profiles(path: Path) -> dict[str, dict]:
     profiles: dict[str, dict] = {}
     for key, value in parse_env_file(path).items():
         for suffix in SUFFIXES:
@@ -160,6 +169,80 @@ def user_profiles() -> dict[str, dict]:
                 if re.fullmatch(r"[A-Z][A-Z0-9_]*", name):
                     profiles.setdefault(name, {"name": name, "source": str(path)})[suffix.lower()] = value
                 break
+    return profiles
+
+
+def toml_profiles(path: Path) -> dict[str, dict]:
+    """[defaults], [families.<name>], [profiles.<NAME>]; a profile's keys win over
+    its family's, which win over the defaults. Errors name a table or key, never a value."""
+    try:
+        import tomllib  # noqa: PLC0415 — standard library from Python 3.11
+    except ModuleNotFoundError:
+        raise Failed(f"{path.name}: reading TOML needs Python 3.11 or later; use the .env format") from None
+    try:
+        data = tomllib.loads(path.read_text())
+    except tomllib.TOMLDecodeError as e:
+        raise Failed(f"{path.name}: {e}") from None
+
+    def fields(table, where: str, family_ok: bool = False) -> dict:
+        if not isinstance(table, dict):
+            raise Failed(f"{path.name}: [{where}] must be a table")
+        out = {}
+        for k, v in table.items():
+            if k == "family" and family_ok:
+                if not isinstance(v, str):
+                    raise Failed(f"{path.name}: [{where}] family must be a string")
+                out[k] = v
+                continue
+            if k not in PROFILE_KEYS:
+                raise Failed(f"{path.name}: unknown key {k!r} in [{where}]")
+            if k == "port" and isinstance(v, int) and not isinstance(v, bool):
+                v = str(v)
+            if not isinstance(v, str):
+                raise Failed(f"{path.name}: [{where}] {k} must be a string" + (" or an integer" if k == "port" else ""))
+            out[k] = v
+        return out
+
+    for top in data:
+        if top not in ("defaults", "families", "profiles"):
+            raise Failed(f"{path.name}: unknown table [{top}]")
+    defaults = fields(data.get("defaults", {}), "defaults")
+    families = {}
+    for name, table in fields_tables(path, data.get("families", {}), "families").items():
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name):
+            raise Failed(f"{path.name}: family {name!r} must be lowercase letters, digits, - or _")
+        families[name] = fields(table, f"families.{name}")
+    profiles = {}
+    for name, table in fields_tables(path, data.get("profiles", {}), "profiles").items():
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", name):
+            raise Failed(f"{path.name}: profile {name!r} must be [A-Z][A-Z0-9_]*")
+        own = fields(table, f"profiles.{name}", family_ok=True)
+        family = own.pop("family", "")
+        if family and family not in families:
+            raise Failed(f"{path.name}: [profiles.{name}] names family {family!r}, which isn't defined")
+        profiles[name] = {"name": name, "source": str(path), **defaults, **families.get(family, {}), **own}
+        if family:
+            profiles[name]["family"] = family
+    return profiles
+
+
+def fields_tables(path: Path, value, where: str) -> dict:
+    if not isinstance(value, dict) or any(not isinstance(v, dict) for v in value.values()):
+        raise Failed(f"{path.name}: [{where}] must hold tables ([{where}.<name>])")
+    return value
+
+
+def user_profiles() -> dict[str, dict]:
+    profiles: dict[str, dict] = {}
+    for path in profile_files():
+        mode = path.stat().st_mode & 0o777
+        if mode & 0o077:
+            print(f"warn: {path.name} is mode {mode:o}; it holds credentials — chmod 600 it", file=sys.stderr)
+        found = toml_profiles(path) if path.suffix == ".toml" else env_profiles(path)
+        for name in found:
+            if name in profiles:
+                raise Failed(f"profile {name} is defined in both {Path(profiles[name]['source']).name} and {path.name}")
+        profiles.update(found)
     for p in profiles.values():
         secret_source(p)
         p.setdefault("class", "production")  # unclassified = production
@@ -170,68 +253,92 @@ def user_profiles() -> dict[str, dict]:
     return profiles
 
 
+def missing_keys(p: dict) -> list[str]:
+    """What a profile needs before it can connect, by key name."""
+    if p.get("source") == "running container":
+        return []
+    if p.get("engine") == "sqlite":
+        return [] if p.get("path") else ["PATH"]
+    need = []
+    if not p.get("host") and not p.get("container"):
+        need.append("HOST")
+    if not p.get("user"):
+        need.append("USER")
+    if p.get("engine") == "oracle" and not (p.get("service") or p.get("database") or p.get("sid")):
+        need.append("SERVICE|SID")
+    return need
+
+
+def oracle_dsn(c: dict) -> str:
+    """Easy Connect for a service name (SERVICE, else DATABASE); a connect
+    descriptor for a SID, which Easy Connect can't name."""
+    host, port = c.get("host"), c.get("port") or 1521
+    service = c.get("service") or c.get("database")
+    if service:
+        return f"{host}:{port}/{service}"
+    return f"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={host})(PORT={port}))(CONNECT_DATA=(SID={c.get('sid')})))"
+
+
 # ------------------------------------------------------------ pass secrets
 # A profile's password comes from pass first (shared/secrets.md): an explicit
 # `_PASSWORD=pass:<entry>`, else the entry ai-gent/db/<profile> when it exists;
 # a plain value in the profiles file is the last resort. Entries are decrypted
 # only when dbrun connects, never to list or classify.
 
-PASS_ENTRY_RE = re.compile(r"[A-Za-z0-9_@+][A-Za-z0-9._@+-]*(/[A-Za-z0-9_@+][A-Za-z0-9._@+-]*)*")
+def _store():
+    """shared/passstore.py, linked next to this script: host side only (the
+    client container never reads secrets)."""
+    import passstore  # noqa: PLC0415
+    return passstore
 
 
 def pass_prefix() -> str:
-    return (os.environ.get("AI_GENT_PASS_PREFIX") or "ai-gent").strip("/")
+    return _store().prefix()
 
 
 def pass_entry(name: str) -> str:
     return f"{pass_prefix()}/db/{name.lower().replace('_', '-')}"
 
 
-def pass_store() -> Path:
-    return Path(os.environ.get("PASSWORD_STORE_DIR") or Path.home() / ".password-store")
-
-
 def pass_has(entry: str) -> bool:
     """Whether the store holds the entry: a file check, nothing decrypted."""
-    return (pass_store() / f"{entry}.gpg").is_file()
+    try:
+        return _store().has(entry)
+    except _store().StoreError:
+        return False
 
 
 def check_entry(entry: str) -> str:
-    if not PASS_ENTRY_RE.fullmatch(entry) or ".." in entry.split("/"):
-        raise Failed(f"{entry!r} isn't a pass entry name (no leading - or /, no ..)")
-    return entry
+    try:
+        return _store().check(entry)
+    except _store().StoreError as e:
+        raise Failed(str(e)) from None
 
 
 def secret_source(p: dict) -> None:
-    """Record where the password comes from; never reads it."""
+    """Record where the password comes from; never reads it. Without a value,
+    the family's entry (db/<family>) comes before the profile's (db/<profile>)."""
     value = p.get("password", "")
     if value.startswith("pass:"):
         p.pop("password")
         p["pass"], p["secret"] = value[5:].strip(), "pass"
-    elif value:
+        return
+    if value:
         p["secret"] = "file"
-    elif pass_has(pass_entry(p["name"])):
-        p["pass"], p["secret"] = pass_entry(p["name"]), "pass"
-    else:
-        p["secret"] = "none"
+        return
+    for entry in ([pass_entry(p["family"])] if p.get("family") else []) + [pass_entry(p["name"])]:
+        if pass_has(entry):
+            p["pass"], p["secret"] = entry, "pass"
+            return
+    p["secret"] = "none"
 
 
 def read_pass(entry: str, timeout: float = 90) -> str:
     """The entry's first line (pass's convention), never printed or logged."""
-    check_entry(entry)
-    if not shutil.which("pass"):
-        raise Failed(f"the password is in pass ({entry}) but pass isn't installed")
     try:
-        out = subprocess.run(["pass", "show", entry], stdin=subprocess.DEVNULL, capture_output=True,
-                             text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        out = subprocess.CompletedProcess([], 124, "", "timed out waiting for the passphrase")
-    value = out.stdout.split("\n", 1)[0].strip() if out.returncode == 0 else ""
-    if not value:
-        why = "it's empty" if out.returncode == 0 else (out.stderr.strip().splitlines() or ["locked or missing"])[-1][:200]
-        raise Failed(f"couldn't read {entry} from pass ({why}). If the store is locked, unlock it in your own "
-                     f"terminal (`pass show {entry} >/dev/null`) and retry")
-    return value
+        return _store().read(entry, timeout)[0]
+    except _store().StoreError as e:
+        raise Failed(str(e)) from None
 
 
 PROXY_IMAGES = re.compile(r"pgbouncer|pgpool|cloud-sql-proxy|cloudsql|socat|haproxy|envoy|proxysql|odyssey|nginx|traefik", re.I)
@@ -331,6 +438,8 @@ def get_profile(name: str, secret: bool = True) -> dict:
         known = ", ".join(sorted(profiles)) or "none"
         raise Failed(f"no profile {name!r} (known: {known}); see `dbrun profiles`")
     p = dict(profiles[name])
+    if secret and missing_keys(p):
+        raise Failed(f"profile {name} is missing {', '.join(missing_keys(p))}; see connections.md")
     if secret and p.get("pass"):
         p["password"] = read_pass(p["pass"])
     remember_secrets(p)
@@ -836,7 +945,7 @@ def connect(req: dict):
         import oracledb  # noqa: PLC0415
 
         params = dict(user=c.get("user"), password=c.get("password"),
-                      dsn=f"{c.get('host')}:{c.get('port') or 1521}/{c.get('service') or c.get('database')}",
+                      dsn=oracle_dsn(c),
                       tcp_connect_timeout=10)
         try:
             conn = oracledb.connect(**params)  # thin mode: the default, always tried first
@@ -1018,7 +1127,7 @@ def driver_process(p: dict, cls: dict, req: dict) -> dict:
 
 
 def conn_of(p: dict) -> dict:
-    return {k: p.get(k) for k in ("host", "port", "database", "service", "user", "password", "path")}
+    return {k: p.get(k) for k in ("host", "port", "database", "service", "sid", "user", "password", "path")}
 
 
 # ---------------------------------------------------------------- commands
@@ -1041,7 +1150,37 @@ def print_table(columns: list[str], rows: list[list], width: int = 120) -> None:
         print(" | ".join(v.ljust(w) for v, w in zip(r, widths)))
 
 
+def export_env(out_arg: str | None) -> int:
+    """The file profiles as a .env, passwords as pass: references only, for
+    tools that read only .env. Written to a new mode-600 file; nothing printed."""
+    if not out_arg:
+        raise Failed("--export-env needs --out FILE (written with mode 600; nothing is printed)")
+    out = Path(out_arg).expanduser()
+    if out.exists():
+        raise Failed(f"{out.name} exists; choose another --out")
+    profiles = user_profiles()
+    lines, skipped = ["# Exported by dbrun profiles --export-env: passwords are pass: references only"], []
+    for name, p in sorted(profiles.items()):
+        lines.append("")
+        for key in PROFILE_KEYS:
+            if key != "password" and p.get(key):
+                value = p[key]
+                lines.append(f"{name}_{key.upper()}=" + (f'"{value}"' if re.search(r"[\s#]", value) else value))
+        if p.get("pass"):
+            lines.append(f"{name}_PASSWORD=pass:{p['pass']}")
+        elif p.get("secret") == "file":
+            skipped.append(name)
+            lines.append(f"# {name}_PASSWORD: a plain value isn't exported — move it into pass first")
+    out.write_text("\n".join(lines) + "\n")
+    out.chmod(0o600)
+    print(f"wrote {out.name}: {len(profiles)} profile(s)"
+          + (f"; plain passwords left out for {', '.join(skipped)}" if skipped else ""))
+    return EXIT_OK
+
+
 def cmd_profiles(args) -> int:
+    if args.export_env:
+        return export_env(args.out)
     profiles = all_profiles()
     rows = [{"name": n, "engine": p.get("engine", "?"), "class": p.get("class"), "source": p.get("source"),
              "password": p.get("pass", p.get("secret")) if p.get("secret") == "pass" else p.get("secret")}
@@ -1054,9 +1193,10 @@ def cmd_profiles(args) -> int:
         plain = [r["name"] for r in rows if r["password"] == "file"]
         if plain:
             print(f"warning: plain-text password in the profiles file for {', '.join(plain)}; "
-                  f"move it into pass with `dbrun secrets migrate <profile>`")
+                  f"move it into pass with `dbrun secrets migrate <profile>` (or --all)")
     else:
-        print(f"no profiles: none in {config_dir() / 'connections.env'} and no database containers of this repository running")
+        print(f"no profiles: no {TOML_NAME} or {ENV_NAME} in the config directory, and no database containers of "
+              f"this repository running")
     return EXIT_OK
 
 
@@ -1479,9 +1619,82 @@ def cmd_session(args) -> int:
     return EXIT_OK
 
 
+def store_write(entry: str, value: str) -> None:
+    try:
+        _store().write(entry, value)
+    except _store().StoreError as e:
+        raise Failed(redact(str(e))) from None
+
+
+def replace_password_lines(path: Path, refs: dict[str, str]) -> None:
+    """NAME_PASSWORD=<value> → NAME_PASSWORD=pass:<entry>, in place, mode 600."""
+    lines = []
+    for ln in path.read_text().splitlines(keepends=True):
+        m = re.match(r"^(\s*(?:export\s+)?)([A-Z][A-Z0-9_]*)_PASSWORD(\s*=)", ln)
+        if m and m.group(2) in refs:
+            ln = f"{m.group(1)}{m.group(2)}_PASSWORD{m.group(3)}pass:{refs[m.group(2)]}\n"
+        lines.append(ln)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text("".join(lines))
+    tmp.chmod(0o600)
+    tmp.replace(path)
+
+
+def migrate_all(profiles: dict[str, dict]) -> int:
+    """Every plain password in the .env file into pass, replaced by a reference.
+    One entry per shared account (profiles with the same USER and password →
+    db/<user>); otherwise one per profile. Reports names and counts only."""
+    plain = {n: p for n, p in profiles.items() if p["secret"] == "file"}
+    toml = sorted(n for n, p in plain.items() if p["source"].endswith(".toml"))
+    plain = {n: p for n, p in plain.items() if not p["source"].endswith(".toml")}
+    for p in plain.values():
+        remember_secrets(p)
+    groups: dict[tuple[str, str], list[str]] = {}
+    for n, p in sorted(plain.items()):
+        groups.setdefault((p.get("user", ""), p["password"]), []).append(n)
+    users = [u for u, _ in groups]
+    refs, written, kept = {}, [], []
+    for (user, pw), names in groups.items():
+        shared = len(names) > 1 and user and users.count(user) == 1
+        entry = check_entry(pass_entry(user) if shared else pass_entry(names[0]))
+        if pass_has(entry):
+            kept.append(entry)
+            continue
+        store_write(entry, pw)
+        written.append(entry)
+        for n in names:
+            refs[n] = entry
+    by_path: dict[str, dict[str, str]] = {}
+    for n, entry in refs.items():
+        by_path.setdefault(plain[n]["source"], {})[n] = entry
+    for path, part in by_path.items():
+        replace_password_lines(Path(path), part)
+    accounts: dict[str, list[tuple[str, str]]] = {}
+    for (user, pw), names in groups.items():
+        accounts.setdefault(pw, []).extend((n, user) for n in names)
+    reused = [v for v in accounts.values() if len({u for _, u in v}) > 1]
+    print(f"{len(refs)} profile(s) now reference {len(written)} new pass entr{'y' if len(written) == 1 else 'ies'}"
+          + (f": {', '.join(sorted(refs))}" if refs else ""))
+    if kept:
+        print(f"left as they are, the entry already exists: {', '.join(kept)}")
+    if toml:
+        print("in the TOML file, set password = \"pass:<entry>\" yourself (dbrun doesn't rewrite TOML): "
+              + ", ".join(toml))
+    for v in reused:
+        print("hygiene: different accounts share one password: " + ", ".join(n for n, _ in v) + "; rotate one of them")
+    log_result(log_start("secrets migrate --all", {"name": "all", "engine": "-"},
+                         {"class": "-", "writable": False, "via": "profiles file", "evidence": ["no connection made"]},
+                         "move passwords into pass", []), f"{len(refs)} profiles, {len(written)} entries")
+    return EXIT_OK
+
+
 def cmd_secrets(args) -> int:
-    """Move a profile's plain-text password into pass without showing it."""
+    """Move plain-text passwords into pass without showing them."""
     profiles = user_profiles()
+    if args.all:
+        return migrate_all(profiles)
+    if not args.profile:
+        raise Failed("name a profile, or pass --all")
     if args.profile not in profiles:
         raise Failed(f"no profile {args.profile!r} in the profiles file")
     p = profiles[args.profile]
@@ -1489,15 +1702,14 @@ def cmd_secrets(args) -> int:
     if p["secret"] != "file":
         print(f"{p['name']}: nothing to migrate (password source: {p.get('pass') or p['secret']})")
         return EXIT_OK
+    if p["source"].endswith(".toml"):
+        raise Failed(f"{p['name']} is in {TOML_NAME}, which dbrun doesn't rewrite: put the value in pass yourself "
+                     f"(pass insert {pass_entry(p.get('family') or p['name'])}) and set password = \"pass:<entry>\"")
     entry = check_entry(pass_entry(p["name"]))
-    if not shutil.which("pass"):
-        raise Failed("pass isn't installed; see secrets:pass")
     if pass_has(entry):
         raise Failed(f"{entry} already exists in pass; remove the {p['name']}_PASSWORD line yourself once it's right")
-    out = run(["pass", "insert", "--multiline", entry], input=p["password"] + "\n", timeout=60)
-    if out.returncode != 0 or not pass_has(entry):
-        raise Failed(f"pass insert {entry} failed: {redact(out.stderr.strip())[-300:]}")
-    path = config_dir() / "connections.env"
+    store_write(entry, p["password"])
+    path = Path(p["source"])
     key = re.compile(rf"^\s*(export\s+)?{re.escape(p['name'])}_PASSWORD\s*=")
     lines = [ln for ln in path.read_text().splitlines(keepends=True) if not key.match(ln)]
     tmp = path.with_suffix(".tmp")
@@ -1532,6 +1744,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("profiles", help="list connection profiles (never credentials)")
     s.add_argument("--json", action="store_true")
+    s.add_argument("--export-env", action="store_true", help="write the file profiles as a .env, passwords as pass: references")
+    s.add_argument("--out", help="with --export-env: the new file to write (mode 600)")
     s.set_defaults(func=cmd_profiles)
 
     s = sub.add_parser("classify", help="prove what a profile really is")
@@ -1592,7 +1806,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("secrets", help="move a profile's plain-text password into pass (never shown)")
     s.add_argument("action", choices=("migrate",))
-    s.add_argument("profile")
+    s.add_argument("profile", nargs="?")
+    s.add_argument("--all", action="store_true", help="every plain password in the .env file, replaced by references")
     s.set_defaults(func=cmd_secrets)
 
     s = sub.add_parser("log", help="show the command log")

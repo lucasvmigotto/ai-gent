@@ -6,6 +6,8 @@ is [pass](https://www.passwordstore.org/), the standard Unix password
 manager: one GPG-encrypted file per entry under `~/.password-store`
 (`PASSWORD_STORE_DIR` moves it). `secrets:pass` sets it up and adds
 entries; this file is the contract every skill that uses a secret follows.
+The runners share one implementation of it, `passstore.py` (in `shared/`,
+linked next to each runner).
 
 ## Order of sources
 
@@ -28,6 +30,7 @@ other setups).
 | Entry | Holds | Read by |
 |---|---|---|
 | `ai-gent/db/<profile>` | a database profile's password; the profile name lowercased, `_` → `-` (`SHOP_DEV` → `ai-gent/db/shop-dev`) | `dbrun` only |
+| `ai-gent/db/<family>` | the password of a family of profiles that share one **account** (a TOML family) — keyed by the account, never by matching values | `dbrun` only |
 | `ai-gent/github/pat` | a GitHub fine-grained token | `reporun` (`repo:*`) |
 | `ai-gent/azure-devops/pat` | an Azure DevOps PAT | `reporun` |
 | `ai-gent/gitlab/pat` | a GitLab project or personal access token | `reporun` |
@@ -46,10 +49,10 @@ else — the scopes, the expiry date — is for you.
 ## Rules for tools that read a secret
 
 - **Only the runner reads it** — `dbrun` for databases, `reporun` for
-  code platforms and trackers — by running
-  `pass show <entry>` itself, keeping the first line, and handing it to
-  the one client or API call that needs it (stdin, a mode-600 file, or
-  that process's environment; never argv, where `ps` shows it).
+  code platforms and trackers — by running `pass show <entry>` itself,
+  keeping the first line, and handing it to the one client or API call
+  that needs it (stdin, a mode-600 file, or that process's environment;
+  never argv, where `ps` shows it).
 - **Decrypt late.** Listing, classifying or planning never decrypts;
   only connecting does. Whether an entry exists is a file check
   (`<store>/<entry>.gpg`), no passphrase needed.
@@ -72,15 +75,16 @@ else — the scopes, the expiry date — is for you.
   `pass insert ai-gent/<area>/<name>` (or `pass edit` to rotate), run in
   **their own terminal**: pass prompts without echo, so the value never
   enters the conversation.
-- Move a plain-text secret into pass through the runner's migration
-  command (`dbrun secrets migrate <profile>`), which pipes the value
-  without showing it.
+- Move plain-text secrets into pass through the runner's migration
+  command (`dbrun secrets migrate <profile>` or `--all`), which pipes the
+  values without showing them.
 
 Never: `pass show`, a bare `pass <entry>`, `pass -c`, `pass edit`,
 `pass grep`, `pass generate`, `pass otp`, `pass insert`, `gpg` on the
 store, or a runner such as `pass-run` handing a secret to a command that
-can print it (`env`, a shell, `echo`). The `secrets` guard hook denies
-these in Claude Code, and the OpenCode guard plugin does the same there;
+can print it (`env`, a shell, `echo`). Store changes (`rm`, `mv`, `cp`,
+`init`, `git`) are the user's call. The `secrets` guard hook enforces
+this in Claude Code, and the OpenCode guard plugin does the same there;
 in other agents the rules are instructions only.
 
 ## Narrow and short-lived

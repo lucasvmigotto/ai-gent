@@ -110,7 +110,8 @@ const DB_CLIENTS = [
 ];
 const DB_RESTORE = ["pg_restore", "impdp", "imp", "mongorestore", "mongoimport"];
 const DB_CLIENTS_RE = DB_CLIENTS.join("|");
-const DB_CREDS_RE = /connections\.env|\.config\/ai-gent|XDG_CONFIG_HOME\}?\/ai-gent|AI_GENT_DB_CONFIG/;
+const DB_CREDS_RE =
+  /(^|[^A-Za-z0-9_.-])connections\.(env|toml)($|[^A-Za-z0-9_.-])|\.config\/ai-gent($|[^A-Za-z0-9_.-])|XDG_CONFIG_HOME\}?\/ai-gent($|[^A-Za-z0-9_.-])|AI_GENT_DB_(CONFIG|CONNECTIONS)/;
 const DB_SQL_WRITE_RE =
   /(^|[^A-Za-z_])(INSERT|UPDATE|DELETE|MERGE|UPSERT|TRUNCATE|DROP|ALTER|CREATE|GRANT|REVOKE|RENAME|REPLACE[ \t]+INTO)([^A-Za-z_]|$)/i;
 
@@ -134,12 +135,31 @@ const DB_TOOL_RE = new RegExp("(^|[ \\t/])(" + DB_CLIENTS_RE + ")([ \\t]|$)");
 const DB_DENY = (reason) => ({ decision: "deny", reason: `db guard: ${reason}` });
 const DB_ASK = (reason) => ({ decision: "ask", reason: `db guard: ${reason}` });
 
-// Anything (any tool) touching the credentials file is denied.
-export function dbCredsGuard(text) {
-  if (DB_CREDS_RE.test(text)) {
-    return DB_DENY("that's the db credentials file; only dbrun reads it — use dbrun profiles / classify / test");
-  }
-  return { decision: "none" };
+// A credentials file as a tool's target or a word on a command line is
+// denied; text that merely names one (a document, a commit message) is not.
+const DB_CREDS_DENY = () =>
+  DB_DENY("that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test");
+
+export function dbCredsShell(cmd) {
+  // Quoted text with spaces in it (a commit message, an echo) is prose, not a
+  // path: blank it, pairing each quote with its own closer; a quoted word
+  // without spaces keeps its text.
+  const words = cmd.replace(/"((?:[^"\\]|\\.)*)"|'([^']*)'/g, (m, dq, sq) => {
+    const t = dq ?? sq;
+    return /\s/.test(t) ? (dq !== undefined ? '""' : "''") : t;
+  });
+  return DB_CREDS_RE.test(words) ? DB_CREDS_DENY() : { decision: "none" };
+}
+
+export function dbCredsPath(path) {
+  return typeof path === "string" && DB_CREDS_RE.test(path) ? DB_CREDS_DENY() : { decision: "none" };
+}
+
+// Claude Code's non-shell tools, as the shell guard reads them: only the target fields.
+export function dbCredsTool(tool, input) {
+  const keys = ["file_path", "notebook_path", "path", "glob", ...(tool === "Glob" ? ["pattern"] : [])];
+  const hit = keys.some((k) => dbCredsPath(input?.[k]).decision === "deny");
+  return hit ? DB_CREDS_DENY() : { decision: "none" };
 }
 
 export function dbGuard(cmd) {
@@ -252,12 +272,12 @@ export function evaluate(event, { cwd = ".", branchOf = () => "" } = {}) {
     for (const cmd of resources) {
       candidates.push(gitGuard(cmd, { branchOf, cwd }));
       candidates.push(dbGuard(cmd));
-      candidates.push(dbCredsGuard(cmd));
+      candidates.push(dbCredsShell(cmd));
       candidates.push(secretsGuard(cmd));
       candidates.push(repoGuard(cmd));
     }
   } else if (event.action === "read" || event.action === "edit") {
-    for (const r of resources) candidates.push(dbCredsGuard(r));
+    for (const r of resources) candidates.push(dbCredsPath(r));
   }
 
   if (candidates.some((c) => c.decision === "deny")) {
