@@ -46,6 +46,25 @@ Applies to committing, branching, and merging in any git repo this user works in
   - Use a **flat suffix**, not a nested path: git keeps branches as files under `refs/heads/`, so `feat/user-auth/db-schema` cannot be created while `feat/user-auth` exists (`fatal: cannot lock ref ... exists`).
 - **When the trunk is off-limits** — the user works on a long-lived integration branch because `main`/`master`/`develop` are protected — that integration branch *is* the parent working branch here: branch the contexts off it, and merge them back into it.
 
+### A new repository — one README line first
+
+A repository with no commits starts the same way every time, before any
+work is committed:
+
+1. `git init -b main` (or the production branch name the user's flow
+   uses), then a **single-line `README.md`**: `# <Project name>`.
+2. Commit only that file: `chore: initial commit`. The guard asks, as
+   for any commit on `main`; this is the one commit made there directly.
+3. Create the chain's bottom from it — `dev`, or `develop` when that's
+   the user's or team's flow — and do all work on branches off it
+   (`feat/…`, `docs/…`), merged back as usual.
+
+**Input documents stay out unless asked.** A spec, requirements file,
+brief or references the user handed in (`spec.md`, `requirements.docx`,
+a `references/` folder) are inputs, not project files: never stage or
+commit them — not in the initial commit, not later — unless the user
+says to. Leave them untracked and say so in the handoff.
+
 ### The branch chain — work lands on `dev`, then moves up
 
 Long-lived branches rank, highest first:
@@ -180,6 +199,7 @@ Opening a PR publishes the branch; do it only on an explicit request (it implies
 
 ## Quick decision checklist
 
+0. No commits yet? → single-line `README.md` (`# <Project name>`) as `chore: initial commit`, then `dev` from it; input files the user handed in stay uncommitted unless asked.
 1. On `main`/`master` or a staging branch? → get `dev` ready and branch off it first (ask for the name/type if unclear).
 2. About to stage? → review the whole tree, ask about changes you didn't make, never stage secrets.
 3. About to run `git commit`? → inside an approved development workflow, commit as each task or phase finishes and list the commits at the end; otherwise ask first, showing each commit's message and its files, unless it's one of the commits in a plan the user just approved.

@@ -68,4 +68,5 @@ expect none 'python3 /x/plugins/db/scripts/dbrun.py test SHOP_DEV --reason check
 expect none 'bypass --flag'
 expect none 'ls -la'
 
+
 exit $((failures > 0))

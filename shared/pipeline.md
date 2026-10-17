@@ -201,7 +201,13 @@ definition and the words **not** to use for it
    stopping to ask (a stage the user started is an approved development
    workflow) and listed in the handoff; ask before merging. Promoting
    `dev` up the chain (`homolog`/`staging`, then `main`/`master`) needs
-   its own explicit request.
+   its own explicit request. A **new repository** starts the same way
+   every time (`project:init` does it, per `git:workflow`): a single-line
+   `README.md` (`# <Project name>`) committed alone as
+   `chore: initial commit`, then `dev`/`develop` from it, and every
+   stage's work on branches off that. Input documents the user hands in
+   — a spec, requirements, references — are never committed unless they
+   say so.
 8. **Pushed means watched.** After every push, merge to a pushed branch
    or promotion, the stage that made it follows the CI runs it started
    with `devsecops:watch` until they finish, chained runs included: done

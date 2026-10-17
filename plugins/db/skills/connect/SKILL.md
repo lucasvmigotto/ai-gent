@@ -27,6 +27,10 @@ read-only account (if the test could tell).
 ## Add a profile
 
 - Explain the format (`connections.md`) and which keys the engine needs.
+  Several profiles on one account (dev and QA databases behind one user,
+  say) fit the TOML file best: one `[families.<account>]` with the shared
+  host, user and `password = "pass:…"`, and a short `[profiles.<NAME>]`
+  per database. An Oracle instance without a service name takes `SID`.
 - Write only the non-secret keys (engine, class, host, port, database,
   user, project) — creating the file with `chmod 600` if it doesn't
   exist — and **no `_PASSWORD` line**: the password goes into pass.

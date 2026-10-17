@@ -311,7 +311,7 @@ Every `db:*` skill reaches a database only through `plugins/db/scripts/dbrun.py`
 > [!CAUTION]
 > A local container restored from a production or staging dump is writable, but its rows are still real personal data. Masking and the logging rules apply exactly as for the source.
 
-Connection profiles live in `~/.config/ai-gent/db/connections.env`: mode 600, format in `plugins/db/references/connections.md`. They hold no passwords by default: `dbrun` reads each one from pass (`ai-gent/db/<profile>`, or `_PASSWORD=pass:<entry>`), and a plain-text password in the file is the last resort, flagged by `dbrun profiles` and moved into pass by `dbrun secrets migrate <PROFILE>`. A running database container of the current project is discovered automatically as `local:<service>`.
+Connection profiles live in `~/.config/ai-gent/db/`, mode 600: `connections.toml` (profiles grouped in families that share an account and its password) and/or `connections.env`, format in `plugins/db/references/connections.md`. They hold no passwords by default: `dbrun` reads each one from pass (`ai-gent/db/<family>` or `<profile>`, or `pass:<entry>`), and a plain-text password is the last resort, flagged by `dbrun profiles` and moved into pass by `dbrun secrets migrate <PROFILE>` or `--all`. Oracle profiles take a service name or a SID. A running database container of the current project is discovered automatically as `local:<service>`.
 
 ## Platforms and secrets
 
@@ -330,7 +330,7 @@ Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 | Hook | Blocks | Asks first |
 | --: | :-- | :-- |
 | `git` (`plugins/git/hooks/guard.sh`) | `--no-verify`, `Co-Authored-By` trailers, `push --force` without a lease | pushes; commits or merges on `main`/`master` or `homolog`/`staging`; commits on `dev`/`develop` (merges into it pass); `branch -D`, `reset --hard`, `clean -f`, `commit --amend`, history rewrites, `gh pr create` |
-| `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool reading or editing the credentials file | any other direct client use |
+| `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool or command whose target is a credentials file (text that merely names one is fine) | any other direct client use |
 | `secrets` (`plugins/secrets/hooks/guard.sh`) | a `pass` command that shows, copies or searches a value (`show`, a bare `pass <entry>`, `-c`, `-q`, `edit`, `grep`, `generate`, `otp`), `pass insert`, `gpg` on the password store, `pass-run` with an `ai-gent/db/` entry or with a command that prints its environment | `pass rm`, `mv`, `cp`, `init`, `git` |
 | `repo` (`plugins/repo/hooks/guard.sh`) | — (`reporun` itself refuses token-printing CLI commands, other hosts and writes without `--write`) | every `reporun … --write`: a change to an issue, work item or pull request |
 
@@ -350,7 +350,6 @@ Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 >   { "action": "shell", "resource": "sqlplus*", "effect": "ask" },
 >   { "action": "shell", "resource": "sqlite3*", "effect": "ask" },
 >   { "action": "shell", "resource": "pg_restore*", "effect": "deny" },
->   { "action": "shell", "resource": "*connections.env*", "effect": "deny" },
 >   { "action": "read", "resource": "~/.config/ai-gent/*", "effect": "deny" },
 >   { "action": "edit", "resource": "~/.config/ai-gent/*", "effect": "deny" },
 >   { "action": "shell", "resource": "pass show*", "effect": "deny" },

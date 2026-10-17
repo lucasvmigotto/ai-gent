@@ -77,4 +77,20 @@ expect_tool none Grep '{"pattern": "DATABASE_URL", "path": "src/"}'
 expect deny 'python3 /x/plugins/db/scripts/dbrun.py profiles; psql -c "DELETE FROM orders"'
 expect ask 'python3 /x/plugins/db/scripts/dbrun.py profiles && psql -l'
 
+# Only targets count: text that names a credentials file, and .example files, pass.
+expect deny 'cat ~/.config/ai-gent/db/connections.toml'
+expect deny 'cp connections.toml /tmp/x'
+expect deny 'echo $AI_GENT_DB_CONNECTIONS'
+expect none 'cat connections.env.example'
+expect none 'git commit -m "docs: explain the connections.env format"'
+expect none 'echo '\''profiles live in connections.env'\'' > notes.md'
+expect_tool none Write '{"file_path": "docs/product/brief.md", "content": "Profiles live in ~/.config/ai-gent/db/connections.env"}'
+expect_tool none Edit '{"file_path": "src/app.py", "old_string": "a", "new_string": "AI_GENT_DB_CONFIG"}'
+expect_tool deny Read '{"file_path": "/home/me/.config/ai-gent/db/connections.toml"}'
+expect_tool none Read '{"file_path": "/home/me/project/connections.env.example"}'
+expect_tool none Grep '{"pattern": "connections.env", "path": "docs/"}'
+expect_tool deny Glob '{"pattern": "**/connections.toml"}'
+
+expect none 'grep -E "^FAIL|passed" out.log; git commit -m "fix: a tool'\''s AI_GENT_DB_CONNECTIONS note, and a Glob'\''s path"'
+
 exit $((failures > 0))

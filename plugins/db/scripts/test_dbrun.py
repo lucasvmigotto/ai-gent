@@ -10,6 +10,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -350,8 +351,8 @@ class PassTest(Sandbox):
     def test_sources_in_order(self):
         self.entry("ai-gent/db/shop-dev", "from-default-entry\nnotes line\n")
         self.entry("work/db-pw", "from-explicit-entry\n")
-        self.write_profiles("SHOP_DEV_ENGINE=postgresql\nSHOP_DEV_HOST=db.internal\n"
-                            "EXPLICIT_ENGINE=postgresql\nEXPLICIT_PASSWORD=pass:work/db-pw\n"
+        self.write_profiles("SHOP_DEV_ENGINE=postgresql\nSHOP_DEV_HOST=db.internal\nSHOP_DEV_USER=app\n"
+                            "EXPLICIT_ENGINE=postgresql\nEXPLICIT_HOST=db\nEXPLICIT_USER=app\nEXPLICIT_PASSWORD=pass:work/db-pw\n"
                             "PLAIN_ENGINE=postgresql\nPLAIN_PASSWORD=plain-value\n"
                             "NONE_ENGINE=postgresql\n")
         profiles = dbrun.user_profiles()
@@ -383,8 +384,8 @@ class PassTest(Sandbox):
         self.assertNotIn("plain-value", out)
 
     def test_bad_or_unreadable_entry(self):
-        self.write_profiles("A_ENGINE=postgresql\nA_PASSWORD=pass:../escape\n"
-                            "B_ENGINE=postgresql\nB_PASSWORD=pass:ai-gent/db/missing\n")
+        self.write_profiles("A_ENGINE=postgresql\nA_HOST=db\nA_USER=app\nA_PASSWORD=pass:../escape\n"
+                            "B_ENGINE=postgresql\nB_HOST=db\nB_USER=app\nB_PASSWORD=pass:ai-gent/db/missing\n")
         with self.assertRaisesRegex(dbrun.Failed, "isn't a pass entry"):
             dbrun.get_profile("A")
         with self.assertRaisesRegex(dbrun.Failed, "couldn't read ai-gent/db/missing"):
@@ -402,6 +403,153 @@ class PassTest(Sandbox):
         self.assertEqual(dbrun.user_profiles()["SHOP_DEV"]["secret"], "pass")
         code, out, _ = self.dbrun("secrets", "migrate", "SHOP_DEV")
         self.assertIn("nothing to migrate", out)
+
+
+
+TOML = """
+[defaults]
+engine = "postgresql"
+class = "development"
+port = 5432
+
+[families.shop]
+host = "db.internal"
+user = "shop_ro"
+password = "pass:work/db/shop"
+
+[profiles.SHOP_DEV]
+family = "shop"
+database = "shop_dev"
+
+[profiles.SHOP_QA]
+family = "shop"
+database = "shop_qa"
+host = "qa.internal"
+
+[profiles.LEGACY]
+engine = "oracle"
+host = "ora.internal"
+user = "app"
+sid = "ORCL"
+port = 1522
+"""
+
+
+class TomlTest(PassTest):
+    def write_toml(self, text):
+        path = dbrun.config_dir() / ("connections" + ".toml")
+        path.write_text(text)
+        path.chmod(0o600)
+        return path
+
+    def setUp(self):
+        super().setUp()
+        self.write_profiles("")
+
+    def test_families_and_precedence(self):
+        self.write_toml(TOML)
+        profiles = dbrun.user_profiles()
+        self.assertEqual(set(profiles), {"SHOP_DEV", "SHOP_QA", "LEGACY"})
+        self.assertEqual(profiles["SHOP_DEV"]["host"], "db.internal")      # from the family
+        self.assertEqual(profiles["SHOP_QA"]["host"], "qa.internal")       # the profile wins
+        self.assertEqual(profiles["SHOP_DEV"]["port"], "5432")             # defaults, an integer
+        self.assertEqual(profiles["SHOP_DEV"]["pass"], "work/db/shop")     # one password per family
+        self.assertEqual(profiles["LEGACY"]["port"], "1522")
+        self.assertEqual(profiles["LEGACY"]["class"], "development")
+
+    def test_family_default_entry(self):
+        self.entry("ai-gent/db/orders", "v\n")
+        self.write_toml('[families.orders]\nengine = "postgresql"\nuser = "o"\nhost = "h"\n'
+                        '[profiles.ORDERS_DEV]\nfamily = "orders"\n[profiles.ORDERS_QA]\nfamily = "orders"\n')
+        profiles = dbrun.user_profiles()
+        self.assertEqual(profiles["ORDERS_DEV"]["pass"], "ai-gent/db/orders")
+        self.assertEqual(profiles["ORDERS_QA"]["pass"], "ai-gent/db/orders")
+
+    def test_errors_name_keys_never_values(self):
+        for text, want in [
+            ('[profiles.X]\nengine = "postgresql"\npasword = "s3cr3t-typo"\n', "unknown key 'pasword' in [profiles.X]"),
+            ('[profiles.X]\nfamily = "nope"\n', "names family 'nope'"),
+            ('[secrets]\nx = "s3cr3t-typo"\n', "unknown table [secrets]"),
+            ('[profiles.x]\nengine = "postgresql"\n', "must be [A-Z]"),
+            ('[profiles.X]\nport = true\n', "port must be a string or an integer"),
+            ('[profiles.X]\nhost = "s3cr3t-typo\n', "line 2"),
+        ]:
+            with self.subTest(want=want):
+                self.write_toml(text)
+                with self.assertRaises(dbrun.Failed) as ctx:
+                    dbrun.user_profiles()
+                self.assertIn(want, str(ctx.exception))
+                self.assertNotIn("s3cr3t-typo", str(ctx.exception))
+                self.assertNotIn(str(self.tmp.name), str(ctx.exception))
+
+    def test_toml_before_env_and_no_duplicates(self):
+        self.write_toml(TOML)
+        self.write_profiles("OTHER_ENGINE=postgresql\n")
+        self.assertIn("OTHER", dbrun.user_profiles())
+        self.write_profiles("LEGACY_ENGINE=postgresql\n")
+        with self.assertRaisesRegex(dbrun.Failed, "LEGACY is defined in both"):
+            dbrun.user_profiles()
+
+    def test_explicit_file(self):
+        f = Path(self.tmp.name) / "team.toml"
+        f.write_text(TOML)
+        os.environ["AI_GENT_DB_CONNECTIONS"] = str(f)
+        try:
+            self.assertIn("SHOP_DEV", dbrun.user_profiles())
+        finally:
+            del os.environ["AI_GENT_DB_CONNECTIONS"]
+
+    def test_oracle_sid_and_missing_keys(self):
+        self.assertEqual(dbrun.oracle_dsn({"host": "h", "port": "1522", "service": "SVC"}), "h:1522/SVC")
+        self.assertEqual(dbrun.oracle_dsn({"host": "h", "database": "PDB1"}), "h:1521/PDB1")
+        self.assertEqual(dbrun.oracle_dsn({"host": "h", "port": "1522", "sid": "ORCL"}),
+                         "(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=h)(PORT=1522))(CONNECT_DATA=(SID=ORCL)))")
+        self.assertEqual(dbrun.missing_keys({"engine": "oracle", "host": "h", "user": "u", "sid": "S"}), [])
+        self.assertEqual(dbrun.missing_keys({"engine": "oracle", "host": "h", "user": "u"}), ["SERVICE|SID"])
+        self.assertEqual(dbrun.missing_keys({"engine": "sqlite"}), ["PATH"])
+        self.write_toml('[profiles.ORA]\nengine = "oracle"\nhost = "h"\n')
+        with self.assertRaisesRegex(dbrun.Failed, "missing USER, SERVICE\\|SID"):
+            dbrun.get_profile("ORA")
+
+    def test_export_env(self):
+        self.write_toml(TOML + '[profiles.PLAIN]\nengine = "postgresql"\nhost = "h"\nuser = "u"\npassword = "s3cr3t-plain"\n')
+        out = Path(self.tmp.name) / "exported.env"
+        code, stdout, err = self.dbrun("profiles", "--export-env", "--out", str(out))
+        self.assertEqual(code, 0, err)
+        text = out.read_text()
+        self.assertEqual(out.stat().st_mode & 0o777, 0o600)
+        self.assertIn("SHOP_DEV_PASSWORD=pass:work/db/shop", text)
+        self.assertIn("LEGACY_SID=ORCL", text)
+        self.assertNotIn("s3cr3t-plain", text + stdout + err)
+        self.assertIn("PLAIN", stdout)
+        self.assertNotIn("db.internal", stdout)
+        code, _, err = self.dbrun("profiles", "--export-env", "--out", str(out))
+        self.assertNotEqual(code, 0)                                         # never overwrites
+
+
+class MigrateAllTest(PassTest):
+    def test_accounts_and_reuse(self):
+        self.write_profiles(
+            "A_ENGINE=postgresql\nA_HOST=h1\nA_USER=app\nA_PASSWORD=shared-one\n"
+            "B_ENGINE=postgresql\nB_HOST=h2\nB_USER=app\nexport B_PASSWORD='shared-one'\n"
+            "C_ENGINE=postgresql\nC_HOST=h3\nC_USER=report\nC_PASSWORD=shared-one\n"
+            "D_ENGINE=postgresql\nD_HOST=h4\nD_USER=solo\nD_PASSWORD=only-d\n"
+            "E_ENGINE=postgresql\nE_HOST=h5\nE_USER=dup\nE_PASSWORD=pw-e1\n"
+            "F_ENGINE=postgresql\nF_HOST=h6\nF_USER=dup\nF_PASSWORD=pw-f2\n")
+        code, out, err = self.dbrun("secrets", "migrate", "--all")
+        self.assertEqual(code, 0, err)
+        for value in ("shared-one", "only-d", "pw-e1", "pw-f2"):
+            self.assertNotIn(value, out + err)
+        text = (dbrun.config_dir() / ("connections" + ".env")).read_text()
+        self.assertIn("A_PASSWORD=pass:ai-gent/db/app", text)               # one entry per shared account
+        self.assertIn("export B_PASSWORD=pass:ai-gent/db/app", text)
+        self.assertIn("C_PASSWORD=pass:ai-gent/db/c", text)                 # another account: its own entry
+        self.assertIn("E_PASSWORD=pass:ai-gent/db/e", text)                 # same user, different passwords
+        self.assertIn("F_PASSWORD=pass:ai-gent/db/f", text)
+        self.assertEqual((self.store / "ai-gent/db/app.gpg").read_text(), "shared-one\n")
+        self.assertIn("6 profile(s) now reference 5 new pass entries", out)
+        self.assertIn("hygiene: different accounts share one password: A, B, C", out)
+        self.assertEqual({p["secret"] for p in dbrun.user_profiles().values()}, {"pass"})
 
 
 class SqliteEndToEndTest(Sandbox):

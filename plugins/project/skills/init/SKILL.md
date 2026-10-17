@@ -24,6 +24,12 @@ vague prose.
 3. If the repo already has code, inventory what exists (stack, modules,
    data stores, integrations) — the brief describes the product, but
    must not contradict what's already built without saying so.
+4. If there's no repository yet, or it has no commits, start it as
+   `git:workflow` says (*A new repository*): a single-line `README.md`
+   (`# <Project name>`) committed alone as `chore: initial commit`, then
+   `dev` (or `develop`) from it, and the brief on a branch off that
+   (`docs/product-brief`). A spec or requirements file the user handed
+   in is an input: never commit it unless they say so.
 
 ## Inputs: text or references
 
@@ -110,4 +116,4 @@ Mark the brief `Status: Draft` (`Accepted` once the user agrees).
 
 Summarize scope (MVP in one line), the biggest risks, the open
 questions, and the next stage: `project:architecture`. Commits follow
-`git:workflow`.
+`git:workflow`; name any input files left uncommitted on purpose.

@@ -56,6 +56,10 @@ granted.
   snapshot with the container stopped, or Data Pump) that the user
   confirms first.
 - Common local image: `gvenzl/oracle-free` (service `FREEPDB1`).
+- Profiles name a service (`SERVICE`, or `DATABASE`) for Easy Connect
+  (`host:port/service`), or a `SID` for older instances without one —
+  `dbrun` then connects with a descriptor:
+  `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=h)(PORT=p))(CONNECT_DATA=(SID=s)))`.
 
 ## Gotchas
 
