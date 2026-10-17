@@ -486,6 +486,56 @@ function FlowStepItem({ step, n }: { step: FlowStep; n: number }) {
 	);
 }
 
+// The steps at a glance: one line of icons joined by a stretching line,
+// the name in a tooltip on hover or focus (and as the button's name).
+function Glance({ steps }: { steps: FlowStep[] }) {
+	return (
+		<ol className="flex items-center">
+			{steps.map((s, i) => {
+				const Icon = STEP_ICONS[s.key] ?? CircleCheck;
+				return (
+					<li
+						key={s.key}
+						className={`flex items-center ${i > 0 ? "flex-1" : ""}`}
+					>
+						{i > 0 && (
+							<span
+								aria-hidden="true"
+								className="h-px min-w-1 flex-1 bg-muted/40"
+							/>
+						)}
+						<span className="group relative">
+							<button
+								type="button"
+								aria-label={s.title}
+								onClick={() =>
+									document.getElementById(`flow-${s.key}`)?.scrollIntoView()
+								}
+								className={`flex h-8 w-8 items-center justify-center rounded-full border-2 bg-bg hover:bg-surface sm:h-10 sm:w-10 ${s.loop ? "border-danger" : "border-signal"}`}
+							>
+								<Icon size={16} aria-hidden="true" className="text-signal" />
+							</button>
+							{s.loop && (
+								<RefreshCw
+									size={12}
+									aria-hidden="true"
+									className="absolute -top-1 -right-1 rounded-full bg-bg text-danger"
+								/>
+							)}
+							<span
+								aria-hidden="true"
+								className="pointer-events-none absolute top-full left-1/2 z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-[0.375rem] border border-muted/30 bg-surface px-2 py-1 text-xs opacity-0 shadow transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+							>
+								{s.title}
+							</span>
+						</span>
+					</li>
+				);
+			})}
+		</ol>
+	);
+}
+
 export function FlowPage() {
 	const { t } = useI18n();
 	const f = t.flow;
@@ -498,43 +548,7 @@ export function FlowPage() {
 				<h2 id="glance" className="sr-only">
 					{f.glance}
 				</h2>
-				<ol className="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
-					{f.steps.map((s, i) => (
-						<li key={s.key} className="flex items-center gap-1">
-							<button
-								type="button"
-								onClick={() =>
-									document.getElementById(`flow-${s.key}`)?.scrollIntoView()
-								}
-								className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 ${s.loop ? "border-danger/60" : "border-muted/40"} hover:bg-surface`}
-							>
-								{(() => {
-									const Icon = STEP_ICONS[s.key] ?? CircleCheck;
-									return (
-										<Icon
-											size={14}
-											aria-hidden="true"
-											className="text-signal"
-										/>
-									);
-								})()}
-								{s.title}
-								{s.loop && (
-									<RefreshCw
-										size={12}
-										aria-hidden="true"
-										className="text-danger"
-									/>
-								)}
-							</button>
-							{i < f.steps.length - 1 && (
-								<span aria-hidden="true" className="text-muted">
-									→
-								</span>
-							)}
-						</li>
-					))}
-				</ol>
+				<Glance steps={f.steps} />
 			</section>
 
 			<section aria-labelledby="loop" className="mt-8">
