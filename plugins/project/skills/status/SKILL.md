@@ -96,7 +96,8 @@ Pick from the chain in `pipeline.md`, in this order:
    cloud environments with no infrastructure code.
 
 Give one primary recommendation and at most two alternatives that could
-run in parallel (the frontend, backend and QA branches can).
+run in parallel (the frontend, backend and QA branches can; when several
+are ready, `agents:parallel` runs them side by side in worktrees).
 
 ## Output
 

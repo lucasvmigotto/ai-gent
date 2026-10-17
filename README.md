@@ -190,6 +190,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `pass` — check pass is ready, list entries by name, give the exact `pass insert` for a database password or a platform token under `ai-gent/<area>/<name>`, and move plain-text secrets into pass
 - `plugins/agents/`
   - `orchestrate` — run a spec'd feature with role-separated agents: a strong model plans and reviews, a fast model builds, a small one searches; self-contained cards, a worktree per parallel branch, merges asked first, routed for token-efficient use. Agent-agnostic, Claude by default; roles in `shared/agent-roles.md`
+  - `parallel` — several features, or a feature's frontend, backend and QA tracks, at once: each on its own branch in a git worktree under `.worktrees/` (kept out of git locally), only where dependencies and file ownership allow, with its own compose project and ports; branches land on `dev` one at a time in dependency order, checks after each, merges asked first
 - `plugins/compact/`
   - `code` — read source code token-lean: a verified compact view (no indentation, newlines or optional spaces; strings and comments kept) and an outline with original line numbers. Read-only. In testing, 29–39% fewer tokens than a line-numbered Read
 - `plugins/git/`

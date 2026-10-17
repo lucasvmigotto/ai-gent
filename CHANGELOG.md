@@ -4,6 +4,24 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **`agents:parallel`, a new skill: parallel development in worktrees.**
+  It runs several features, or a feature's frontend, backend and QA
+  tracks, at the same time — each on its own branch in a git worktree
+  under `.worktrees/`, kept out of git through `.git/info/exclude` — only
+  where `specs/README.md`'s dependencies and file ownership make it safe:
+  hot spots (lockfiles, migrations, the contract, the changelog, status
+  columns) get one owner. Each track has its own compose project and port
+  offset, runs its stage skill (or `agents:orchestrate`) from a card, and
+  commits on its branch; branches land on `dev` one at a time in
+  dependency order, with the checks run after each, conflicts handed back
+  to the track, and merges asked first. `scripts/wt.py` does the
+  mechanics: `plan` (features ready to start), `add`, `list` and
+  `remove` (only a merged, clean worktree). At most 3 tracks by default.
+
 ## 2.5.0 — 2026-10-17
 
 ### Added

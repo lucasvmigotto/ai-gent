@@ -62,7 +62,9 @@ After that, the normal chain applies: `project:architecture` (review
 mode), `project:spec` for changed features, and the build and QA stages.
 
 The frontend, backend and QA branches run in parallel once `project:spec`
-has produced features and a contract skeleton. Frontend and backend meet
+has produced features and a contract skeleton — `agents:parallel` runs
+them, and features with no dependency between them, each in its own
+worktree, landing on `dev` one at a time. Frontend and backend meet
 only at the contract and the glossary. `devsecops:audit` and
 `devsecops:migrate` run whenever needed. `project:status` reads everything
 and writes nothing. So do `project:survey`, run before `project:introspec`
