@@ -187,6 +187,13 @@ for (const [want, tool, input] of toolVectors) {
 // ------------------------------------------------------------ secrets
 
 const secretsVectors = [
+  ["none", "pass git pull"],
+  ["none", "pass git fetch origin"],
+  ["none", "pass git status"],
+  ["none", "PASSWORD_STORE_DIR=/srv/team pass git log --oneline -5"],
+  ["ask", "pass git push"],
+  ["ask", "pass git reset --hard origin/main"],
+  ["ask", "pass init -p db/team AAAA BBBB"],
   ["deny", "pass show ai-gent/db/shop-dev"],
   ["deny", "pass ai-gent/github/pat"],
   ["deny", "pass -c ai-gent/github/pat"],
@@ -205,7 +212,6 @@ const secretsVectors = [
   ["deny", "printf \"%s\\n\" \"$TOKEN\" | pass insert -m ai-gent/github/pat"],
   ["ask", "pass rm ai-gent/db/old"],
   ["ask", "pass mv ai-gent/db/a ai-gent/db/b"],
-  ["ask", "pass git push"],
   ["ask", "pass init 0xDEADBEEF"],
   ["deny", "pass-run PGPASSWORD=ai-gent/db/shop-dev -- psql -h db -l"],
   ["deny", "pass-run GH_TOKEN=ai-gent/github/pat -- env"],

@@ -62,6 +62,18 @@ in the conversation's history and should be rotated.
   which file holds it and the `pass insert` to run; removing it from the
   old place is theirs to do once the new one works.
 
+## Team stores and Windows
+
+- **A shared store** (one git repository, encrypted to every member's
+  key, mounted with `AI_GENT_PASS_MOUNTS`): read
+  `references/team-store.md` for setting it up, joining with an
+  out-of-band fingerprint check, removing someone, and the **rotation
+  checklist** that removal requires. Explain the steps; the user runs
+  every command that writes, re-encrypts or pushes.
+- **Native Windows** has no pass: the runners decrypt with Gpg4win's
+  `gpg` on the same files. Check `gpg --version` instead of pass, and the
+  gpg-agent cache settings in `secrets.md` (*Without pass*).
+
 ## Locked store
 
 If a runner reports it couldn't read an entry because the store is

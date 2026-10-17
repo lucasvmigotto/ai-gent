@@ -83,15 +83,15 @@ READ_POSTS = {
 
 # ----------------------------------------------------------------------- pass
 
-ENTRY_RE = re.compile(r"[A-Za-z0-9_@+][A-Za-z0-9._@+-]*(/[A-Za-z0-9_@+][A-Za-z0-9._@+-]*)*")
+def _store():
+    """shared/passstore.py, linked next to this script: stores, mounts, sync and
+    the gpg fallback for systems without pass."""
+    import passstore  # noqa: PLC0415
+    return passstore
 
 
 def pass_prefix() -> str:
-    return (os.environ.get("AI_GENT_PASS_PREFIX") or "ai-gent").strip("/")
-
-
-def pass_store() -> Path:
-    return Path(os.environ.get("PASSWORD_STORE_DIR") or Path.home() / ".password-store")
+    return _store().prefix()
 
 
 def default_entry(platform: str) -> str:
@@ -99,36 +99,34 @@ def default_entry(platform: str) -> str:
 
 
 def check_entry(entry: str) -> str:
-    if not ENTRY_RE.fullmatch(entry) or ".." in entry.split("/"):
-        raise Failed(f"{entry!r} isn't a pass entry name (no leading - or /, no ..)")
-    if not entry.startswith(pass_prefix() + "/") or entry.startswith(f"{pass_prefix()}/db/"):
+    """A platform token entry: under the prefix (in the personal store or a
+    mounted one), never a db/ entry, which is dbrun's."""
+    try:
+        _, name = _store().resolve(entry)
+    except _store().StoreError as e:
+        raise Failed(str(e)) from None
+    if not name.startswith(pass_prefix() + "/") or name.startswith(f"{pass_prefix()}/db/"):
         raise Refused(f"{entry} isn't a platform token entry: use one under {pass_prefix()}/<platform>/ (db/ is dbrun's)")
     return entry
 
 
 def pass_has(entry: str) -> bool:
     """Whether the store holds the entry: a file check, nothing decrypted."""
-    return (pass_store() / f"{entry}.gpg").is_file()
+    try:
+        return _store().has(entry)
+    except _store().StoreError:
+        return False
 
 
 def read_entry(entry: str, timeout: float = 90) -> tuple[str, dict[str, str]]:
     """The secret (first line) and `key: value` notes from later lines."""
     check_entry(entry)
-    if not shutil.which("pass"):
-        raise Failed(f"the token is meant to be in pass ({entry}) but pass isn't installed; see secrets:pass")
     try:
-        out = subprocess.run(["pass", "show", entry], stdin=subprocess.DEVNULL, capture_output=True,
-                             text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        out = subprocess.CompletedProcess([], 124, "", "timed out waiting for the passphrase")
-    lines = out.stdout.splitlines() if out.returncode == 0 else []
-    secret = lines[0].strip() if lines else ""
-    if not secret:
-        why = "it's empty" if out.returncode == 0 else (out.stderr.strip().splitlines() or ["locked or missing"])[-1][:200]
-        raise Failed(f"couldn't read {entry} from pass ({why}). If the store is locked, unlock it in your own "
-                     f"terminal (`pass show {entry} >/dev/null`) and retry")
+        secret, rest = _store().read(entry, timeout)
+    except _store().StoreError as e:
+        raise Failed(f"{e}; see secrets:pass") from None
     notes = {}
-    for line in lines[1:]:
+    for line in rest:
         key, sep, value = line.partition(":")
         if sep and re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", key.strip()):
             notes[key.strip().lower()] = value.strip()
