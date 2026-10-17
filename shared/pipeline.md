@@ -164,11 +164,27 @@ definition and the words **not** to use for it
 1. **Read before writing.** Load this file, then every upstream artifact
    that exists. Run standalone only when they don't — and then say which
    inputs were missing and what you assumed instead.
-2. **Clarify first, briefly.** Ask 3–5 questions that would change the
-   output (audience, scope boundary, a hard constraint), in one round.
-   Don't ask what the inputs already answer. Inside a Spec Kit step,
-   `/speckit-clarify`'s own flow applies instead (one question at a time,
-   at most five per feature).
+2. **Ask first.** Before writing, ask the questions whose answers would
+   change the output — the audience, a scope boundary, a hard
+   constraint, a rule — and none the inputs already answer.
+   - **At most 5 questions per prompt.** Answers often decide what to ask
+     next, so ask in rounds: each round builds on what the last one
+     settled, until nothing that would change the output is open.
+   - **Options first.** Give each question 2–4 concrete choices, the
+     recommended one first with its reason in a line (Claude Code's
+     question tool; elsewhere a numbered list answered by number). Free
+     text only when the choices can't be listed.
+   - **Autonomy doesn't answer questions.** Permission to run the project
+     on its own covers doing the work, not deciding the product. The
+     stages that shape it — `project:init`, `project:architecture`,
+     `frontend:uiux`, `backend:domain`, `project:spec` (its clarify step),
+     `qa:strategy` — ask their rounds before they write, also under that
+     permission; once the specs are clarified, the build stages run
+     without new questions, and a gap they find becomes an
+     `[UPSTREAM GAP: …]` note. An answer the user can't give yet is
+     marked (rule 3) and listed in the handoff — never guessed silently.
+   - Inside a Spec Kit step, `/speckit-clarify` keeps its limit of five
+     questions per feature, asked in one prompt, as options.
 3. **Never invent silently.** Mark every assumption `[ASSUMPTION: …]` and
    every open question `[NEEDS CLARIFICATION: …]` (Spec Kit's marker)
    inline. A reader must be able to tell a decision from a guess.

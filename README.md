@@ -282,7 +282,7 @@ stateDiagram-v2
 
 ### The autonomous flow
 
-Given permission up front ("build it end to end, you can push"), the whole loop runs on its own: issues, parallel development, CI watching and fixes, closing, versioning, release and docs. Promotion to `main` and releasing still ask unless that permission names them. The same flow, with every skill linked, is on the [docs site](https://docs.lucasvmigotto.me/ai-gent/#/use/flow).
+Questions come first: the stages that shape the product (brief, architecture, UX, domain, specs) ask theirs before writing, at most five per prompt and as choices, in rounds that build on earlier answers. Then, given permission up front ("build it end to end, you can push"), the whole loop runs on its own: issues, parallel development, CI watching and fixes, closing, versioning, release and docs. Promotion to `main` and releasing still ask unless that permission names them. The same flow, with every skill linked, is on the [docs site](https://docs.lucasvmigotto.me/ai-gent/#/use/flow).
 
 ```mermaid
 flowchart TD

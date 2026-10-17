@@ -4,6 +4,22 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **Ask first, at most five at a time, as choices (pipeline rule 2).**
+  The stages that shape the product — `project:init`,
+  `project:architecture`, `frontend:uiux`, `backend:domain`,
+  `project:spec`'s clarify step and `qa:strategy` — ask their questions
+  before writing, also when the user gave permission to run the project on
+  its own: that permission covers doing the work, not deciding the
+  product. At most five questions per prompt, in rounds that build on the
+  answers so far, each with 2–4 options and a recommendation; free text
+  only when choices can't be listed. Once the specs are clarified, the
+  build stages run without new questions. Spec Kit's clarify keeps its
+  five per feature, asked in one prompt.
+
 ## 2.7.0 — 2026-10-17
 
 ### Added

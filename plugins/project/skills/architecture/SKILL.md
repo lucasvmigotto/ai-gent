@@ -42,8 +42,9 @@ opinionated, but every opinion is traceable to a driver or a number.
 ## Interview — only for what's missing
 
 Extract every driver from the inputs first and show the user what you
-found. Then ask for the gaps, in at most two rounds, grouped, most
-decision-changing first:
+found. Then ask for the gaps, most decision-changing first, in rounds of
+at most 5 questions with options (pipeline rule 2) — a range to pick
+("under 1k / 1k–50k / over 50k daily users") beats a blank to fill:
 
 | Driver | What to pin down |
 |---|---|

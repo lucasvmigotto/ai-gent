@@ -41,8 +41,9 @@ gate: **the step does not start until the previous one has cleared it.**
 Notes:
 
 - **clarify is a step, not a footnote.** It resolves every
-  `[NEEDS CLARIFICATION]` with the user — one question at a time, at most
-  five per feature — and writes the answers into `spec.md`. A feature with
+  `[NEEDS CLARIFICATION]` with the user — at most five per feature, asked
+  together in one prompt, as options with a recommendation
+  (`pipeline.md` rule 2) — and writes the answers into `spec.md`. A feature with
   an open marker is *not* planned; `project:status` reports it and
   recommends resolving it first.
 - **The `tasks` step runs twice.** `project:spec` writes the layer-neutral

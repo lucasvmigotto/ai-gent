@@ -51,8 +51,9 @@ the brief's goal is explicitly conversion on that surface.
   References are evidence of taste and expectations, not templates —
   never reproduce a competitor's layout or copy wholesale.
 
-Then ask **3–5 clarifying questions** in one round, only ones whose answer
-changes the vision (primary device, brand constraints that already exist,
+Then ask clarifying questions (pipeline rule 2: at most 5 per prompt, as
+options with a recommendation, another round only when the answers open
+one), only ones whose answer changes the vision (primary device, brand constraints that already exist,
 the single most important task, accessibility or language requirements,
 audiences that must not be alienated).
 

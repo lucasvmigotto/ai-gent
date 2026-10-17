@@ -40,7 +40,9 @@ vague prose.
   each in one line: what it tells us about users, scope, constraints or
   expectations.
 
-Then clarify (pipeline rule 2), choosing the questions whose answer
+Then ask (pipeline rule 2: at most 5 questions per prompt, as options with
+a recommendation, more rounds only when answers open new questions —
+and before an autonomous run too), choosing the questions whose answer
 changes scope or architecture: who is the primary user, what is
 the one job that must work in v1, hard constraints (deadline, hosting,
 mandated tech, budget, team size), regulated data (personal, payment,
