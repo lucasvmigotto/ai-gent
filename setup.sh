@@ -774,7 +774,8 @@ has_tty() { ((OUT_TTY)) && (exec </dev/tty) 2>/dev/null; }
 # their ids. fzf when installed, a numbered prompt otherwise.
 choose_agents() {
   local pre=" $1 " id n=0 found
-  if command -v fzf >/dev/null 2>&1; then
+  # AI_GENT_NO_FZF=1 asks with the numbered prompt even when fzf is installed.
+  if [[ -z ${AI_GENT_NO_FZF:-} ]] && command -v fzf >/dev/null 2>&1; then
     local lines="" bind="start:" width=0 label
     for id in "${AGENT_IDS[@]}"; do
       ((${#AGENT_LABEL[$id]} > width)) && width=${#AGENT_LABEL[$id]}
