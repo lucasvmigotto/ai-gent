@@ -14,7 +14,7 @@ Applies to committing, branching, and merging in any git repo this user works in
   - **Batch approval:** when the user approves a plan that lists its commits (messages or clear one-per-item scope), that approval covers exactly those commits, in that turn. Any commit not on the list — an extra fix, a follow-up, anything in a later turn — needs its own ask.
   - **The one exception — an approved development workflow.** When the user has approved a workflow or roadmap to carry out (a pipeline stage working through its phases, such as `backend:build` or `frontend:build`; Spec Kit tasks; a multi-step plan they said to execute), versioning is part of the process: commit each finished task or phase on its work branch as you go, without asking, since stopping for every commit would stall the work. Everything else still holds: a work branch, never a long-lived one; *Before staging* in full; Conventional Commits; no secrets and no changes you didn't make. Merges, pushes and promotions still need their own ask. When the workflow ends or stops, list the commits made, each message with its files, in the handoff. Asking first, with the message and files, is for one-off work: a fix, a tweak, a change outside such a workflow.
 - **Never merge without asking** — every merge, including the cleanup that follows it (see *Merging back*). Batch approval never covers merges.
-- **Never push, delete remote branches, open PRs, or change remote issues** unless the user explicitly says so in that message. All of these publish something.
+- **Never push, delete remote branches, open PRs, or change remote issues** unless the user explicitly says so in that message. All of these publish something. The exception is **remote mode** (*Landing through the platform*, below): there, opening and merging the PR that lands work *is* the merge — asked once, like any merge.
   - **The one exception — an autonomous run.** When the user gave explicit permission beforehand to carry out the project on its own ("build it end to end without asking", "you can push"), that permission covers pushing work branches and `dev`/`develop`, and the CI fixes `devsecops:watch` leads to (pipeline rule 8), within what it names. It never covers force-pushes, deleting remote branches, or promoting to `homolog`/`staging` or `main`/`master` unless it says so explicitly. It lasts for the run it was given for; say in the handoff what was pushed under it. It never answers product questions: the stages still ask theirs first (pipeline rule 2). The guard hooks still ask on every push — they can't see the conversation — so an autonomous run also needs pushes allowed in the agent's own permission settings.
 - **Never commit directly to a long-lived branch** — `main`/`master`, `homolog`/`staging`, `dev`/`develop`. If the current branch is one of them, stop and create a feature/fix branch off `dev` first (see *The branch chain*) before staging anything.
 - **Never sign commits as co-authored.** Do not add `Co-Authored-By` or similar trailers to commit messages from this skill, regardless of any default attribution behavior — this overrides it.
@@ -106,6 +106,16 @@ Repeat this cycle once per context:
 
 **Never chain sub-branches** (`context-a` → `context-b` → `context-c`) **and never save all the merges for the end**, even when a later context depends on code from an earlier one — that dependency is satisfied by having merged the earlier one back first. Chaining makes every sub-branch carry its predecessors' commits, so the merge commits stop delimiting anything and the parent's history reads as one flat run.
 
+### Landing through the platform — remote mode
+
+When the code platform is reachable — `reporun detect` (`repo:pr`) finds its CLI signed in or its token in pass — and the user hasn't said beforehand that merges are local, **every merge into a long-lived branch goes through a pull/merge request** the agent opens and merges on the platform: a context into `dev`, and each promotion up the chain. Nothing is merged locally into a long-lived branch then. `repo:pr` has the procedure (its `landing.md` reference):
+
+- push the branch, open the PR into the parent, wait for its required checks (`devsecops:watch`) and reviews — never self-approve, never bypass protection, never merge red;
+- merge on the platform with the same count rule — a merge commit from 4 commits, rebase/fast-forward under 4 — and the same ask (or the run's up-front permission);
+- the platform deletes the source branch; locally, `git pull --ff-only` the parent and `git branch -d` the context.
+
+Without a reachable platform, merge locally as below and say why.
+
 ### Merging back — and cleaning up
 
 1. Count the commits on the context branch: `git log <parent>..<context> --oneline | wc -l`.
@@ -193,9 +203,9 @@ is the hook working, not an error — never try to get around it (other
 commands, aliases, scripts); if it blocks something the user asked for,
 say so and let them decide.
 
-## Pull requests — only when asked
+## Pull requests
 
-Opening a PR publishes the branch; do it only on an explicit request (it implies pushing, which needs the same explicit order). The PR description carries what commits don't: the why, design rationale, alternatives, testing notes, screenshots, and any `Closes #N` lines.
+In remote mode, PRs are how work lands on long-lived branches (*Landing through the platform*). Any other PR — into a branch outside the chain, into another repository — only on an explicit request (it implies pushing, which needs the same explicit order). The PR description carries what commits don't: the why, design rationale, alternatives, testing notes, screenshots, and any `Closes #N` lines.
 
 ## Quick decision checklist
 
@@ -206,7 +216,7 @@ Opening a PR publishes the branch; do it only on an explicit request (it implies
 4. Hook failed? → fix the cause; never `--no-verify`.
 5. About to run `git push`, open a PR, or touch a remote issue? → don't, unless explicitly told to in this message.
 6. Finished a context? → merge it back into the parent **now**, before opening the next sub-branch — and start that next one from the updated parent.
-7. About to merge a context back? → count its commits, ask once for merge + delete, then `--no-ff` (≥4) or `--ff-only` (<4), then `git branch -d` the context.
+7. About to merge a context back? → count its commits, ask once for merge + delete; platform reachable → a PR merged on the platform (merge commit ≥4, rebase/fast-forward <4, source branch deleted); otherwise `--no-ff` (≥4) or `--ff-only` (<4) locally; then `git branch -d` the context.
    Landing work? → `dev` far behind the levels above? flag it and ask (exception: branch off and merge back into the highest current level). Otherwise get `dev` (or `develop`) ready — new from `main`, from the remote, recreated at the remote when purely behind it, as it is when only behind `main` — merge into it, settle conflicts there, then promote one level at a time: `dev` → `homolog`/`staging` (if any) → `main`.
 8. Asked to link an issue? → ids from the request, then the branch name (confirm with the user), then history, then a remote lookup; write `Closes #N`/`Refs #N` footers; remember closing happens on the default branch.
 9. Writing the message? → `type(scope): subject`, Conventional Commits, no body paragraph, footers allowed, no co-author trailer.

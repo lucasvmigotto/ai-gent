@@ -4,6 +4,32 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **Remote mode: work lands through pull requests, and specs go on the
+  tracker, whenever the platform is reachable.** When `reporun detect`
+  finds the code platform's CLI signed in or its token in pass — and the
+  user hasn't said merges are local — every merge into a long-lived
+  branch (work into `dev`, each promotion up to `main`) is a PR the agent
+  opens and merges on the platform: same ask (or the run's up-front
+  permission), the same count rule mapped to each platform (merge commit
+  from 4 commits, rebase/fast-forward under 4), required checks and
+  reviews respected, never self-approved, the source branch deleted on
+  both sides. `repo:pr`'s new `landing.md` has the flow; `git:workflow`,
+  pipeline rule 7 and `agents:parallel` follow it. `repo:sync` runs by
+  default in remote mode once a feature has its tasks (pipeline rule 10).
+- **CI for pull requests, and failures as issues.** `devsecops:pipeline`
+  triggers the PR pipeline on PRs into every long-lived branch, with
+  stable job names to mark as required checks (with the user's
+  go-ahead), and ends scheduled and main/release runs with a failure job
+  that opens or updates one issue per workflow (new
+  `failure-issues.md`, with a GitHub Actions example). `devsecops:watch`
+  hands back an `issue` for a red run the loop won't fix — flaky, runner,
+  outage, already red, or still red after three rounds — and the stage
+  files it through `repo:issues`.
+
 ## 2.8.0 — 2026-10-17
 
 ### Changed

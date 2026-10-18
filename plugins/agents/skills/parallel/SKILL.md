@@ -88,8 +88,10 @@ In dependency order, then smallest first, from the main checkout on
    under 4, `--no-ff` from 4), its checks. **Ask before each merge**,
    unless the user gave explicit permission beforehand to run the project
    on its own (`git:workflow`).
-2. Merge it, then run the project's checks on `dev` before the next one:
-   each landing must be green on its own.
+2. Merge it — in remote mode through its PR, opened and merged on the
+   platform (`repo:pr`) — then make sure `dev` is green (the project's
+   checks, or the merge's CI) before the next one: each landing must be
+   green on its own.
 3. **A conflict stops the landing.** Report the files and both sides;
    never resolve it on your own. The fix happens in the track's worktree
    (merge `dev` into its branch there, resolve, re-run its checks), then
