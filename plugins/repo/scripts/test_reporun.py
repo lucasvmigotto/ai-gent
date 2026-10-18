@@ -52,6 +52,8 @@ class RemoteTest(unittest.TestCase):
             "https://dev.azure.com/org/_git/app": ("azure-devops", {"org": "org", "project": "app", "repo": "app"}),
             "git@gitlab.com:grp/sub/proj.git": ("gitlab", {"namespace": "grp/sub", "repo": "proj", "project_path": "grp/sub/proj"}),
             "git@bitbucket.org:ws/app.git": ("bitbucket", {"workspace": "ws", "repo": "app"}),
+            "https://codeberg.org/o/r.git": ("forgejo", {"owner": "o", "repo": "r"}),
+            "git@gitea.example.com:o/r.git": ("forgejo", {"owner": "o", "repo": "r"}),
             "https://git.example.com/a/b": ("", {"owner": "a", "repo": "b"}),
         }
         for url, (platform, facts) in cases.items():
@@ -251,6 +253,22 @@ class ApiTest(Sandbox):
         req = Stub.seen[-1]
         self.assertEqual(req["path"], "/proj/_apis/wit/workitems/12?api-version=7.1")
         self.assertEqual(req["headers"]["Authorization"], "Basic " + base64.b64encode(f":{TOKEN}".encode()).decode())
+
+    def test_forgejo_token_header_and_repo_path(self):
+        subprocess.run(["git", "remote", "set-url", "origin", "https://codeberg.org/o/r.git"], check=True)
+        self.entry("ai-gent/forgejo/pat", f"{TOKEN}\n")
+        code, _, err = self.run_cmd("api", "forgejo", "GET", "/repos/{owner}/{repo}/issues")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Stub.seen[-1]["path"], "/repos/o/r/issues")
+        self.assertEqual(Stub.seen[-1]["headers"]["Authorization"], f"token {TOKEN}")
+        data = Path(self.tmp.name) / "m.json"
+        data.write_text('{"Do": "merge"}')
+        code, _, _ = self.run_cmd("api", "forgejo", "POST", "/repos/o/r/pulls/3/merge", "--data", str(data))
+        self.assertEqual(code, reporun.EXIT_REFUSED)  # a write without --write
+
+    def test_forgejo_has_no_cli(self):
+        with self.assertRaises(SystemExit):  # REST only: the cli command doesn't take the platform
+            self.run_cmd("cli", "forgejo", "--", "issue", "list")
 
     def test_jira_basic_with_email(self):
         self.entry("ai-gent/jira/token", f"{TOKEN}\nemail: me@example.com\n")

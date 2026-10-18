@@ -93,6 +93,11 @@ transition whose target status's `statusCategory.key` is `new` (todo),
 `indeterminate` (doing; a status named like "In Review" for review when
 the workflow has one), or `done`. Ref: the issue key (`KEY-12`).
 
+**Forgejo / Gitea** — feature and story: issues; link each story to the
+feature as a dependency (`POST …/issues/<feature n>/dependencies`, no
+sub-issues). Open for `todo`/`doing`/`review`; `done` is `PATCH …/issues/<n>`
+`{"state":"closed"}`. Ref: `#<n>`.
+
 **Bitbucket issues** — no hierarchy: the story body names the feature
 item. States: `new` (todo), `open` (doing, review), `resolved` (done).
 Ref: `#<id>`. When the team uses Jira, sync to Jira instead.
