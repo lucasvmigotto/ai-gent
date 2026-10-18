@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
 # shell scripts, the git, db, secrets and repo guard hooks, dbrun, reporun,
-# the project scripts, compact:code, the release script, and installer tests
+# the project scripts, compact:code, the prose consistency checks, the release
+# script, and installer tests
 # in a throwaway HOME.
 # Run before every commit; CI runs the same script.
 #
@@ -126,7 +127,7 @@ fi
 # -------------------------------------------------------- cross-references
 
 before=$failures
-plugins_re="$(find plugins -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | paste -sd'|')"
+plugins_re="$(for d in plugins/*/; do basename "$d"; done | paste -sd'|' -)"
 while IFS=: read -r file line ref; do
   plugin="${ref%%:*}"
   skill="${ref#*:}"
@@ -277,6 +278,16 @@ else
   fail "compact:code tests"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-compact.out"
+
+# ------------------------------------------------------------ consistency
+
+if python3 scripts/test_consistency.py >/dev/null 2>&1; then
+  pass "consistency checks (tests)"
+else
+  python3 scripts/test_consistency.py || true
+  fail "consistency checks (tests)"
+fi
+python3 scripts/consistency.py || failures=$((failures + 1))
 
 # ----------------------------------------------------------------- release
 

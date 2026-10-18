@@ -4,6 +4,46 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **macOS support in the installer.** `setup.sh` hands over to bash 4+
+  (Homebrew's) when macOS's bash 3.2 runs it, or says how to install one;
+  the GNU-only calls are replaced, and a `macos` CI job runs the installer
+  tests under the system bash.
+- **A weekly scheduled run**: the full checks, dbrun against the five real
+  database engines and the live docs site in a browser. A failure in it, in
+  `release` or in the docs deploy opens (or updates) one `CI failing:`
+  issue labelled `ci-failure`.
+- **The docs site's SBOM is built by CI**, and Dependabot also updates its
+  Bun dependencies.
+- **Consistency checks in `check.sh`**: a skill's *italic section*
+  references must exist, retired phrasings and hardcoded counts can't come
+  back, and the skill descriptions' total size has a ceiling.
+- **Troubleshooting on the install page** (and its Markdown twin): skills
+  not showing up, the wrong agents installed, opencode not set up, guard
+  prompts, updating, and something in setup's way — each with the
+  command that fixes it.
+
+### Fixed
+
+- **Uninstalling one agent keeps the shared `~/.agents/skills` entries**
+  while another remembered agent (Codex, Cursor, Gemini, Copilot, Amp)
+  still uses them; `setup.sh --target` with no value is refused instead of
+  exiting silently.
+- **dbrun's client image and database drivers are pinned**: the `uv` image
+  by digest, and psycopg, PyMySQL, pymssql and oracledb to exact versions.
+- **Docs CI no longer shows a false "cancelled" run on every release**: the
+  push's verify and the post-release deploy have separate concurrency groups.
+- **The docs deploy no longer has a 404 window, nor a false green.** New
+  hashed assets upload first and the old ones are pruned last, after
+  `index.html` points at the new ones; missing R2 credentials fail the run
+  instead of skipping the deploy.
+- **The skip link works under hash routing.** It's a button that moves
+  focus to the content, instead of a `#main` link that routed to the
+  not-found page.
+
 ## 2.10.1 — 2026-10-18
 
 ### Changed

@@ -23,9 +23,13 @@ on:
 permissions:
   contents: read
 
+# A push to main verifies while the release it triggers is still running, and
+# the post-release deploy runs on the same ref: separate groups keep that deploy
+# from cancelling the push's verify (a false "cancelled" on every release). A
+# deploy is never cancelled mid-sync; a newer one waits its turn.
 concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
+  group: docs-${{ github.event_name == 'workflow_run' && 'deploy' || 'verify' }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_run' }}
 
 jobs:
   verify:
@@ -44,6 +48,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
         working-directory: docs/site
+
+      - name: SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: docs/site
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          artifact-name: docs-site-sbom.cdx.json
 
       - name: Lint (Biome)
         run: bun run lint
@@ -210,11 +222,12 @@ jobs:
       - name: Check R2 credentials
         id: creds
         run: |
+          # A deploy that publishes nothing must not look green.
           if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::R2 credentials not configured — skipping deploy"
-            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::error::R2 credentials not configured (CLOUDFLARE_R2_ACCOUNT_ID, CLOUDFLARE_R2_ACCOUNT_SECRET) — nothing was deployed"
+            exit 1
           fi
 
       - name: Validate R2 configuration
@@ -231,8 +244,10 @@ jobs:
       - name: Sync hashed assets (immutable)
         if: steps.creds.outputs.present == 'true'
         run: |
+          # New hashed assets first, without deleting the old ones: a reader
+          # holding the previous index.html can still load its assets.
           aws s3 sync docs/site/dist/assets "s3://$R2_BUCKET${R2_PREFIX}assets" \
-            --endpoint-url "$R2_ENDPOINT" --delete \
+            --endpoint-url "$R2_ENDPOINT" \
             --cache-control "public, max-age=31536000, immutable"
 
       - name: Sync entry files (no-cache)
@@ -261,3 +276,21 @@ jobs:
           aws s3 sync docs/site/dist/docs "s3://$R2_BUCKET${R2_PREFIX}docs" \
             --endpoint-url "$R2_ENDPOINT" --delete \
             --content-type "text/markdown; charset=utf-8" --cache-control "no-cache"
+
+      # Last: prune the previous hashed assets, now that index.html points
+      # at the new ones (no 404 window for readers mid-deploy).
+      - name: Prune old hashed assets
+        if: steps.creds.outputs.present == 'true'
+        run: |
+          aws s3 sync docs/site/dist/assets "s3://$R2_BUCKET${R2_PREFIX}assets" \
+            --endpoint-url "$R2_ENDPOINT" --delete \
+            --cache-control "public, max-age=31536000, immutable"
+
+  # A failed deploy is nobody's open pull request: report it. (The push's
+  # verify and e2e jobs fail in the PR or push that caused them.)
+  report-failure:
+    needs: deploy
+    if: failure() && github.event_name == 'workflow_run'
+    permissions:
+      issues: write
+    uses: ./.github/workflows/report-failure.yml

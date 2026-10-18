@@ -231,6 +231,18 @@ export function InstallPage() {
 			<p className="mt-2 max-w-2xl text-muted">{t.install.updatesBody}</p>
 			<h2 className="mt-6 font-display text-xl">{t.install.firstSkill}</h2>
 			<p className="mt-2 max-w-2xl text-muted">{t.install.firstSkillBody}</p>
+			<h2 className="mt-6 font-display text-xl">{t.install.troubleshooting}</h2>
+			<dl className="mt-2 max-w-2xl space-y-4">
+				{t.install.troubleshootingItems.map((item) => (
+					<div key={item.problem}>
+						<dt className="font-medium">{item.problem}</dt>
+						<dd className="mt-1 text-muted">
+							{item.fix}
+							{item.command && <CodeBlock label="shell" code={item.command} />}
+						</dd>
+					</div>
+				))}
+			</dl>
 			<p className="mt-4">
 				<Link to="/use/skills" className="text-signal underline">
 					{t.install.next}

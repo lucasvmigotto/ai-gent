@@ -140,18 +140,22 @@ Nothing is Verified. Confidence mix: most behavior claims are Observed with file
 
 ### Inferred (confirm with the named check)
 
-1. Skip link under hash routing renders not-found (`specs/001`) — keyboard test in a browser.
+1. ~~Skip link under hash routing renders not-found~~ — fixed: a button that focuses the content (`specs/001`).
 2. Install verify commands `claude plugin details project@skills-dir`, `opencode plugin list` work (`specs/003`) — run them in a real install.
-3. Static pages' Markdown drifts by construction (`specs/004`) — render both from one description.
-4. Mid-deploy 404 window (`specs/005`) — load the site during a deploy.
+3. Static pages' Markdown drifts by construction (`specs/004`) — aligned 2026-10-18; rendering both from one description is planned.
+4. ~~Mid-deploy 404 window~~ — fixed: new assets upload first, old ones are pruned last (`specs/005`).
 5. macOS bash 3.2 fails at `setup.sh:71` (`specs/006`) — run on macOS.
 6. `setup.sh --target` with no value exits silently (`specs/006`).
 7. `--uninstall --target codex` removes the entries of every shared-directory agent (`specs/006`).
 8. `has()` true but `read()` failing on a missing gpg key; `pass` doesn't echo values on stderr (`specs/007`).
 9. dbrun plan hash is integrity, not authenticity; `script`'s WHERE check passes on a subquery's WHERE (`specs/008`).
-10. wt.py port-offset reuse; git ≥ 2.31 required (`specs/011`).
+10. ~~wt.py port-offset reuse~~ — fixed (offsets recorded); git ≥ 2.31 required (`specs/011`).
 
-### Assumed (only the user can confirm)
+### Assumed — confirmed or corrected by the user on 2026-10-18
+
+1. Confirmed. 2. **Corrected:** Linux and macOS (Windows through WSL). 3. Confirmed (decision logged in the brief). 4. Confirmed (decision logged). 5. Confirmed — the twins were aligned. 6. Confirmed — every deploy updates the live site. 7. Confirmed — all five engines passed on 2026-10-17. 8. **Corrected:** shared entries stay until the last agent using them is uninstalled.
+
+The original assumptions, for the record:
 
 1. Purpose and audiences of the runners and installer: the toolkit's users running agents on their own Linux machines; maintained by one person.
 2. Linux is the only supported platform.
@@ -164,8 +168,8 @@ Nothing is Verified. Confidence mix: most behavior claims are Observed with file
 
 ### Needs clarification
 
-- [NEEDS CLARIFICATION: keep and build the install troubleshooting section (brief journey 1), or drop the dead `install.troubleshooting` key?] (`specs/003`)
-- [NEEDS CLARIFICATION: bootstrap Spec Kit (`.specify/`, constitution, `.claude/skills/speckit-*`) in the toolkit repository, or keep these reconstructed specs template-shaped only?]
+- Resolved 2026-10-18: build the install troubleshooting section — done (`specs/003`).
+- Resolved 2026-10-18: no Spec Kit bootstrap for now — the reasons are in the brief's decision log.
 
 ## Coverage checklist
 
