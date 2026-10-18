@@ -33,3 +33,23 @@ jobs:
 
       - name: Check
         run: scripts/check.sh
+
+  # The installer on macOS: the system bash is 3.2, so setup.sh hands over to
+  # Homebrew's bash, and the BSD userland catches GNU-only commands.
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 10
+    concurrency:
+      group: check-macos-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # install.sh tests clone this repository
+          persist-credentials: false
+
+      - name: Install bash 4+
+        run: brew install bash
+
+      - name: Installer tests, run by the system bash 3.2
+        run: /bin/bash scripts/test-install.sh

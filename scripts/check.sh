@@ -126,7 +126,7 @@ fi
 # -------------------------------------------------------- cross-references
 
 before=$failures
-plugins_re="$(find plugins -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | paste -sd'|')"
+plugins_re="$(for d in plugins/*/; do basename "$d"; done | paste -sd'|' -)"
 while IFS=: read -r file line ref; do
   plugin="${ref%%:*}"
   skill="${ref#*:}"

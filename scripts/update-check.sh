@@ -51,7 +51,12 @@ _ai_gent_update_root() {
     fi
     [[ -n "${BASH_SOURCE[0]:-}" ]] || return 1
     command -v readlink >/dev/null 2>&1 || return 1
-    dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+    local self="${BASH_SOURCE[0]}" link
+    while [[ -L $self ]]; do
+        link="$(readlink "$self")"
+        if [[ $link == /* ]]; then self="$link"; else self="$(dirname "$self")/$link"; fi
+    done
+    (cd "$(dirname "$self")/.." && pwd -P)
 }
 
 # _ai_gent_local_tag [root]: newest local SemVer tag, or fails.

@@ -121,7 +121,8 @@ check "shared file bumps the plugin that links it (a)" test "$(version_of a)" ==
 check "  and not the one that doesn't (b)" test "$(version_of b)" == "1.0.0"
 
 fresh
-sed -i 's/"version": "1.0.0"/"version": "1.3.0"/' "$repo/plugins/a/.claude-plugin/plugin.json"
+sed -i.bak 's/"version": "1.0.0"/"version": "1.3.0"/' "$repo/plugins/a/.claude-plugin/plugin.json"
+rm "$repo/plugins/a/.claude-plugin/plugin.json.bak"
 edit plugins/a/README.md "feat(a): bump by hand"
 run
 check "hand-bumped plugin version left alone" test "$(version_of a)" == "1.3.0"
