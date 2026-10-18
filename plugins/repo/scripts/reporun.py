@@ -306,7 +306,12 @@ def cli_is_write(cli: str, words: list[str]) -> bool:
         return False
     if cli == "az" and positional[:2] == ["boards", "query"]:
         return False
-    return not any(w in READ_VERBS for w in positional[:4])
+    # The verb sits at a fixed place: gh, glab and jira are `<noun> <verb>`
+    # (a lone word is the verb: `jira me`); az is `<group…> <verb>`, the last
+    # word before the options. Words after the verb are arguments, never verbs
+    # (`gh issue edit 12 view` edits).
+    verb = positional[-1] if cli == "az" else (positional[1] if len(positional) > 1 else positional[0])
+    return verb not in READ_VERBS
 
 
 def prepare_cli(platform: str, words: list[str], entry_arg: str | None, write: bool) -> tuple[list[str], dict]:
