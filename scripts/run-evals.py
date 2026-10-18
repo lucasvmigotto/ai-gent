@@ -50,6 +50,8 @@ def run_one(plugin: str, behavior: bool, runs: int, extra: list[str]) -> dict | 
            "--trust-plugin", "--no-publish", "--json", str(out)]
     if behavior:
         cmd += ["--tag", "behavior", "--scaffold", "--allow-tools", "Bash"]
+    else:
+        cmd += ["--tag", "trigger"]
     cmd += extra
     proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, stdin=subprocess.DEVNULL)
     if not out.is_file():
