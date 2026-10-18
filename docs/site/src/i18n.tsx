@@ -79,6 +79,7 @@ export interface Messages {
 		firstSkill: string;
 		firstSkillBody: string;
 		troubleshooting: string;
+		troubleshootingItems: { problem: string; fix: string; command?: string }[];
 		next: string;
 	};
 	contribute: {
@@ -212,6 +213,38 @@ export const enUS: Messages = {
 		firstSkillBody:
 			"Type what you want in plain words and the matching skill loads, or invoke one directly.",
 		troubleshooting: "If it does not work",
+		troubleshootingItems: [
+			{
+				problem: "The skills don't show up.",
+				fix: "Agents read their skills (and Claude Code its hooks) when a session starts: start a new session after running setup.sh. Then check one plugin is linked.",
+				command: "claude plugin details project@skills-dir",
+			},
+			{
+				problem: "An agent is missing, or one you don't use was installed.",
+				fix: "Re-run setup and pick the agents again, or name them; uninstall removes what setup installed, for every agent or only the ones named.",
+				command:
+					"./setup.sh --target claude,opencode\n./setup.sh --uninstall --target codex",
+			},
+			{
+				problem: "opencode doesn't see the skills or enforce the guards.",
+				fix: "setup skips opencode when it isn't installed, and asks before editing its configuration. Run it again once opencode is installed; --no-config-edits prints what to add yourself instead.",
+				command: "./setup.sh --target opencode --no-config-edits",
+			},
+			{
+				problem: "A guard keeps asking, or blocks a command.",
+				fix: "That's the guard working: it asks before pushes, merges on main and remote changes, and blocks force pushes, --no-verify and secret values. For a hands-off run, allow pushes in your agent's permission settings; never work around a block.",
+			},
+			{
+				problem: "A newer release is announced.",
+				fix: "Update the checkout, then re-run setup so new or renamed skills are linked; start a new session.",
+				command: "scripts/ai-gent-update.sh && ./setup.sh",
+			},
+			{
+				problem: "A directory or link is in the way.",
+				fix: "setup never overwrites what it didn't create. Preview with --dry-run; --force backs up the real directory or foreign link and replaces it.",
+				command: "./setup.sh --dry-run\n./setup.sh --force",
+			},
+		],
 		next: "Next: browse the skills",
 	},
 	contribute: {

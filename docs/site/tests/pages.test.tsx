@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
 import { skillById } from "../src/content";
 import { enUS, I18nProvider } from "../src/i18n";
-import { FlowPage, LandingPage, SkillPage } from "../src/pages";
+import { FlowPage, InstallPage, LandingPage, SkillPage } from "../src/pages";
 
 function renderPage(node: React.ReactNode) {
 	return render(
@@ -41,6 +41,16 @@ describe("pages", () => {
 		const { container } = renderPage(<LandingPage />);
 		const results = await axe(container);
 		expect(results.violations).toEqual([]);
+	});
+
+	it("shows the install troubleshooting, one entry per problem", () => {
+		renderPage(<InstallPage />);
+		expect(
+			screen.getByRole("heading", { name: enUS.install.troubleshooting }),
+		).toBeInTheDocument();
+		for (const item of enUS.install.troubleshootingItems) {
+			expect(screen.getByText(item.problem)).toBeInTheDocument();
+		}
 	});
 
 	it("renders the autonomous flow with every step and a link per skill", () => {

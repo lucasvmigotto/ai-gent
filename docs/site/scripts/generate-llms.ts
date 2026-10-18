@@ -93,6 +93,15 @@ function staticPages(locale: Locale): Page[] {
 				"",
 				t.install.firstSkillBody,
 				"",
+				`## ${t.install.troubleshooting}`,
+				"",
+				...t.install.troubleshootingItems.flatMap((item) => [
+					`### ${item.problem}`,
+					"",
+					item.fix,
+					"",
+					...(item.command ? ["```sh", item.command, "```", ""] : []),
+				]),
 			].join("\n"),
 		},
 		{
