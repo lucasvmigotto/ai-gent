@@ -35,7 +35,14 @@ check() { # check <description> <command...>
   fi
 }
 
-setup() { "$REPO_DIR/setup.sh" "$@" >"$SANDBOX/out" 2>&1; }
+setup() { # a failure shows setup.sh's output instead of aborting silently
+  "$REPO_DIR/setup.sh" "$@" >"$SANDBOX/out" 2>&1 || {
+    local rc=$?
+    echo "setup.sh $* failed ($rc):" >&2
+    cat "$SANDBOX/out" >&2
+    return "$rc"
+  }
+}
 # Path, mode, size, mtime and link target of everything under HOME (portable:
 # GNU ls and find options are missing on macOS).
 snapshot() {
