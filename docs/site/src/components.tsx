@@ -372,14 +372,25 @@ export function Layout({ children }: { children: ReactNode }) {
 	const { t } = useI18n();
 	return (
 		<>
-			<a
-				href="#main"
-				className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:bg-surface focus:p-2"
+			<button
+				type="button"
+				onClick={() => {
+					// A link to "#main" would be a route under HashRouter (the
+					// not-found page): move focus to the content instead.
+					const main = document.getElementById("main");
+					main?.focus();
+					main?.scrollIntoView?.();
+				}}
+				className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-20 focus:bg-surface focus:p-2"
 			>
 				{t.a11y.skip}
-			</a>
+			</button>
 			<TopBar />
-			<main id="main" className="mx-auto max-w-6xl px-4 py-8">
+			<main
+				id="main"
+				tabIndex={-1}
+				className="mx-auto max-w-6xl px-4 py-8 focus:outline-none"
+			>
 				{children}
 			</main>
 			<footer className="border-t border-muted/20 px-4 py-6 text-sm text-muted">

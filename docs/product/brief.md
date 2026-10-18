@@ -357,3 +357,18 @@ by `project:docs` phases, not Spec Kit features — the host repo has no
   the site exists to reduce maintainer load and onboard users.
 - 2026-10-04, deploy to Cloudflare R2 at
   `https://docs.lucasvmigotto.me/ai-gent/`, environment `ai-gent-docs`.
+- 2026-10-18, the site documents the **published plugins only**; personal
+  skills (`skills/<name>/`) stay off it.
+- 2026-10-18, the Reference page **links each contract to its source on
+  GitHub** instead of rendering it: one source of truth, always current.
+- 2026-10-18, **no Spec Kit bootstrap in ai-gent for now**: its
+  `speckit-*` skills would load in every session here and compete with
+  `project:spec` in this repository's trigger evals, and most ai-gent
+  changes are too small for the full flow; CLAUDE.md and `check.sh` play
+  the constitution's and the gate's roles. The reconstructed specs keep
+  the Spec Kit shape, so `project:spec` can bootstrap it the day a feature
+  is big enough.
+- 2026-10-18, **Linux and macOS** are the installer's platforms (Windows
+  through WSL); uninstalling one agent keeps the shared `~/.agents/skills`
+  entries while another agent still uses them.
+- 2026-10-18, the install page gets a **troubleshooting** section (built).
