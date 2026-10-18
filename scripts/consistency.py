@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Consistency checks for the prose that scripts/check.sh can't see.
+
+  1. `plugin:skill` followed by an *italic section* names a heading (or a bold
+     lead-in) in that skill or its references.
+  2. Phrasings the toolkit retired don't come back.
+  3. The skill descriptions every session loads stay under a ceiling.
+
+Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
+Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
+(default 18000; about 4.1k tokens today at ~16.5k).
+"""
+import os
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+PROSE_DIRS = ("plugins", "shared")
+PROSE_FILES = ("README.md", "AGENTS.md")
+
+# A skill reference, then (optionally "→", ",", "says (") an *italic section*.
+SECTION_REF = re.compile(r"`([a-z]+:[a-z-]+)`(?:\s*(?:→|,|says\s*\()\s*|\s+)\*([A-Za-z][^*\n]{1,60})\*")
+
+# Retired phrasings: (pattern, what to say instead).
+RETIRED = (
+    (r"\b3[–-]5 questions\b", "ask first has no fixed count (pipeline rule 2)"),
+    (r"\bone question at a time\b", "ask up to four per prompt (pipeline rule 2)"),
+    (r"\bat most 5 questions\b", "ask up to four per prompt (pipeline rule 2)"),
+    (r"\b5 questions (tops|at most|max)\b", "ask up to four per prompt (pipeline rule 2)"),
+    (r"\b\d+ (skills|plugins)\b", "no hardcoded counts in copy; they drift"),
+)
+
+
+def prose_files(root: Path):
+    for d in PROSE_DIRS:
+        for p in sorted((root / d).rglob("*.md")):
+            if "/evals/" not in p.as_posix():
+                yield p
+    for name in PROSE_FILES:
+        if (root / name).is_file():
+            yield root / name
+
+
+def headings(skill_dir: Path) -> list[str]:
+    """Headings and bold lead-ins of a skill's SKILL.md and references/*.md."""
+    found: list[str] = []
+    files = [skill_dir / "SKILL.md", *sorted((skill_dir / "references").rglob("*.md"))]
+    for f in files:
+        if not f.is_file():
+            continue
+        for line in f.read_text().splitlines():
+            m = re.match(r"#+\s+(.*)", line) or re.match(r"\s*(?:[-*]\s+)?\*\*(.+?)\*\*", line)
+            if m:
+                found.append(m.group(1).strip().lower())
+    return found
+
+
+def check_sections(root: Path) -> list[str]:
+    problems = []
+    cache: dict[str, list[str]] = {}
+    for f in prose_files(root):
+        text = f.read_text()
+        for m in SECTION_REF.finditer(text):
+            ref, section = m.group(1), m.group(2).strip().lower().rstrip(".,")
+            plugin, skill = ref.split(":")
+            skill_dir = root / "plugins" / plugin / "skills" / skill
+            if not skill_dir.is_dir():
+                continue  # a missing skill is the cross-reference check's finding
+            heads = cache.setdefault(ref, headings(skill_dir))
+            if not any(section in h for h in heads):
+                line = text.count("\n", 0, m.start()) + 1
+                problems.append(f"{f.relative_to(root)}:{line}: {ref} has no section '{m.group(2).strip()}'")
+    return problems
+
+
+def check_retired(root: Path) -> list[str]:
+    problems = []
+    for f in prose_files(root):
+        for n, line in enumerate(f.read_text().splitlines(), 1):
+            for pattern, instead in RETIRED:
+                if re.search(pattern, line, re.IGNORECASE):
+                    problems.append(f"{f.relative_to(root)}:{n}: retired phrasing /{pattern}/ — {instead}")
+    return problems
+
+
+def description_total(root: Path) -> int:
+    total = 0
+    for f in sorted(root.glob("skills/*/SKILL.md")) + sorted(root.glob("plugins/*/skills/*/SKILL.md")):
+        for line in f.read_text().splitlines():
+            if line.startswith("description: "):
+                total += len(line) - len("description: ")
+                break
+    return total
+
+
+def check_budget(root: Path) -> tuple[list[str], int]:
+    ceiling = int(os.environ.get("DESC_TOTAL_CEILING", "18000"))
+    total = description_total(root)
+    problems = []
+    if total > ceiling:
+        problems.append(f"skill descriptions total {total} characters, over the {ceiling} ceiling (every session loads them)")
+    return problems, total
+
+
+def main(root: Path = ROOT) -> int:
+    problems = check_sections(root) + check_retired(root)
+    budget, total = check_budget(root)
+    problems += budget
+    for p in problems:
+        print(f"FAIL  {p}")
+    if not problems:
+        print(f"ok    section references, retired phrasings, descriptions ({total} characters)")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
