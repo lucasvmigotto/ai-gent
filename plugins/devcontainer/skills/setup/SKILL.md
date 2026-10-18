@@ -427,7 +427,9 @@ containers boot:
 ## Phase 9 — Document the decisions, not just the commands
 
 Future readers — including future-you — need the *why*, not only the
-config. In the project's README or a docs file, record:
+config. In the project's README (its *Development* section, per
+`../../references/readme.md`, prerequisites as `[!IMPORTANT]`) or a docs
+file, record:
 
 - The setup's moving parts and the order to bring them up (which
   devcontainer to open for which work, in a split).

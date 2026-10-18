@@ -19,7 +19,9 @@ description: Design and run performance tests — smoke, load, stress, spike, so
 
 ## Workload model
 
-Before any script, write the model in `qa.md` / a `tests/load/README.md`:
+Before any script, write the model in `qa.md` / a `tests/load/README.md`
+(conventions in `../../references/readme.md`; never run against
+production is a `[!CAUTION]` there):
 
 - **Arrival rate** (requests or iterations per second) at average, peak
   and 10× from the capacity model — not a count of virtual users.

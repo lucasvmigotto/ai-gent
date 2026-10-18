@@ -261,7 +261,9 @@ containers, and a stopped container still pins them.
 
 ## 10. Document the gaps
 
-In the project's README or docs, per resource: what runs in dev, what runs
+In the project's README (per `../../references/readme.md`: the tier-2–3
+gaps are `[!NOTE]`s, anything that can lose data a `[!CAUTION]`) or docs,
+per resource: what runs in dev, what runs
 in prod, the tier, and the behavior gaps for tier 2–3 choices (e.g.
 "Entra ID simulated with mock-oauth2-server — no conditional access, no
 group overage claim, no real MFA"), plus the test personas and their
