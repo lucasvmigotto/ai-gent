@@ -74,7 +74,10 @@ class ClassifyTest(unittest.TestCase):
         writes = [("gh", "pr create --title list"), ("gh", "issue comment 5 --body x"), ("gh", "pr merge 3 --squash"),
                   ("gh", "api repos/o/r/issues -f title=x"), ("gh", "api -X PATCH repos/o/r/issues/1"),
                   ("gh", "-R o/r pr list"), ("gh", "run rerun 5"), ("az", "boards work-item update --id 3 --state Done"),
-                  ("az", "devops invoke --area wit --http-method PATCH"), ("glab", "mr merge 2"), ("jira", "issue move X-1 Done")]
+                  ("az", "devops invoke --area wit --http-method PATCH"), ("glab", "mr merge 2"), ("jira", "issue move X-1 Done"),
+                  # A read word in an argument position isn't the verb.
+                  ("gh", "label create status"), ("gh", "issue edit 12 view"), ("gh", "pr comment 3 list"),
+                  ("glab", "issue note 4 show"), ("jira", "issue comment add KEY-1 list")]
         for cli, words in reads:
             with self.subTest(read=words):
                 self.assertFalse(reporun.cli_is_write(cli, words.split()))
