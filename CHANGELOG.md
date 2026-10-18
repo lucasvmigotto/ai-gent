@@ -34,6 +34,10 @@ changes.
   checkout's; port offsets are recorded (`.worktrees/.ports.json`) so a new
   track never takes a live one's; and `remove` recognizes a branch the
   platform merged by rebase (`git cherry`) instead of calling it unlanded.
+- **reporun batches no longer choke on text that quotes their syntax.**
+  Only the batch's own step names are references: a `{{…}}` in an issue
+  body (documentation quoting the placeholder syntax, say) stays as
+  written instead of stopping the batch.
 - **The docs site's Markdown pages match the HTML ones.** The Reference
   page lists all nine contracts; Install and Contribute carry every
   section, the plugin versions table included.
