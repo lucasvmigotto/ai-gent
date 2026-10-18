@@ -23,9 +23,13 @@ on:
 permissions:
   contents: read
 
+# A push to main verifies while the release it triggers is still running, and
+# the post-release deploy runs on the same ref: separate groups keep that deploy
+# from cancelling the push's verify (a false "cancelled" on every release). A
+# deploy is never cancelled mid-sync; a newer one waits its turn.
 concurrency:
-  group: docs-${{ github.ref }}
-  cancel-in-progress: true
+  group: docs-${{ github.event_name == 'workflow_run' && 'deploy' || 'verify' }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_run' }}
 
 jobs:
   verify:
@@ -44,6 +48,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
         working-directory: docs/site
+
+      - name: SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: docs/site
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          artifact-name: docs-site-sbom.cdx.json
 
       - name: Lint (Biome)
         run: bun run lint
