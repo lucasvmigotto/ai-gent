@@ -4,6 +4,32 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **`git:workflow`, rewritten lean.** The body is less than half its size
+  (23 KB → 11 KB); getting `dev` ready, landing locally and history
+  rewriting moved to references read only when needed. One permission
+  table — a one-off request, an approved workflow, an autonomous run —
+  replaces the exceptions nested inside the *never* rules, which now hold
+  only true nevers. One *Landing* section covers both paths, through the
+  platform (PRs, in remote mode) or locally, with the merge style,
+  promotions (a merge commit on GitHub), conflicts and cleanup. Fixed
+  along the way: `git branch -D` after a rebase merge, pulling the parent
+  right after your own landing (routine, fast-forward only), tracked
+  specs' refs without asking, and a description that now names PRs and
+  promotions. Commit bodies stay as the rule always said: none, or a
+  short bullet list.
+
+### Fixed
+
+- **reporun let some CLI writes run as reads.** It looked for a read verb
+  anywhere among a command's first words, so `gh label create status` or
+  `gh issue edit 12 view` ran without `--write` and without the guard's
+  question. It now takes the verb from its place in each CLI's command
+  (`gh`/`glab`/`jira`: the second word; `az`: the last before options).
+
 ## 2.10.0 — 2026-10-18
 
 ### Added

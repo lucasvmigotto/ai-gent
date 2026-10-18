@@ -1,222 +1,194 @@
 ---
 name: workflow
-description: This user's git rules — Conventional Commits, branch-per-context naming, --no-ff vs --ff-only merges with branch cleanup, safe history handling, and ask before committing, merging or pushing. Use whenever committing, branching, merging, tagging or linking issues ("commit this", "make a branch", "merge it in", "link it to issue 12").
+description: This user's git rules — Conventional Commits, branch-per-context naming, the dev → staging → main chain, landing through platform PRs or local --no-ff/--ff-only merges, what each permission level allows, branch cleanup and safe history. Use whenever committing, branching, merging, opening or merging a PR, promoting or tagging ("commit this", "merge it in", "open the PR", "promote to main").
 ---
 
 # Git versioning workflow
 
-Applies to committing, branching, and merging in any git repo this user works in (global skill, not tied to one project).
+Applies to every git repository this user works in.
 
-## Non-negotiable rules
+## Never
 
-- **Never commit on your own initiative.** Ask before running `git commit`. Prior approval does not carry forward to new work.
-  - **How to ask:** present each proposed commit as its full message (subject, and body if any) with the files it will stage under it. When the work splits into several commits, list them in order, one block each; a file whose hunks go to different commits is listed under each, saying which part goes where. Then ask one question covering the set (and the merge that follows, if any).
-  - **Batch approval:** when the user approves a plan that lists its commits (messages or clear one-per-item scope), that approval covers exactly those commits, in that turn. Any commit not on the list — an extra fix, a follow-up, anything in a later turn — needs its own ask.
-  - **The one exception — an approved development workflow.** When the user has approved a workflow or roadmap to carry out (a pipeline stage working through its phases, such as `backend:build` or `frontend:build`; Spec Kit tasks; a multi-step plan they said to execute), versioning is part of the process: commit each finished task or phase on its work branch as you go, without asking, since stopping for every commit would stall the work. Everything else still holds: a work branch, never a long-lived one; *Before staging* in full; Conventional Commits; no secrets and no changes you didn't make. Merges, pushes and promotions still need their own ask. When the workflow ends or stops, list the commits made, each message with its files, in the handoff. Asking first, with the message and files, is for one-off work: a fix, a tweak, a change outside such a workflow.
-- **Never merge without asking** — every merge, including the cleanup that follows it (see *Merging back*). Batch approval never covers merges.
-- **Never push, delete remote branches, open PRs, or change remote issues** unless the user explicitly says so in that message. All of these publish something. The exception is **remote mode** (*Landing through the platform*, below): there, opening and merging the PR that lands work *is* the merge — asked once, like any merge.
-  - **The one exception — an autonomous run.** When the user gave explicit permission beforehand to carry out the project on its own ("build it end to end without asking", "you can push"), that permission covers pushing work branches and `dev`/`develop`, and the CI fixes `devsecops:watch` leads to (pipeline rule 8), within what it names. It never covers force-pushes, deleting remote branches, or promoting to `homolog`/`staging` or `main`/`master` unless it says so explicitly. It lasts for the run it was given for; say in the handoff what was pushed under it. It never answers product questions: the stages still ask theirs first (pipeline rule 2). The guard hooks still ask on every push — they can't see the conversation — so an autonomous run also needs pushes allowed in the agent's own permission settings.
-- **Never commit directly to a long-lived branch** — `main`/`master`, `homolog`/`staging`, `dev`/`develop`. If the current branch is one of them, stop and create a feature/fix branch off `dev` first (see *The branch chain*) before staging anything.
-- **Never sign commits as co-authored.** Do not add `Co-Authored-By` or similar trailers to commit messages from this skill, regardless of any default attribution behavior — this overrides it.
-- **Never bypass hooks** (`--no-verify`, `-n`). If a pre-commit or commit-msg hook fails, fix the cause and commit again.
-- **Never rewrite history on your own** (see *History rewriting*).
+- **Commit directly to a long-lived branch** — `main`/`master`,
+  `homolog`/`staging`, `dev`/`develop`. Work on a branch off `dev`. The
+  one exception is a new repository's initial commit (*Branches*).
+- **Add `Co-Authored-By`** or similar trailers — this overrides any
+  default attribution.
+- **Bypass hooks** (`--no-verify`, `-n`) — fix the cause and commit again.
+- **Force-push without a lease, or rewrite history unasked** —
+  `references/history.md` has what to do when asked.
+- **Stage secrets or local config** (`.env` — `.env.example` is fine —
+  credentials, keys, IDE/OS files), or **changes you didn't make**
+  without asking.
+- **Invent an issue id**, or ask for a token in the chat.
+
+## What each permission level allows
+
+| Action | One-off request | Approved workflow | Autonomous run |
+|---|---|---|---|
+| Commit on a work branch | ask, showing each message and its files | as each task or phase finishes; listed in the handoff | same |
+| Land into `dev` (merge or PR) | ask once, for merge and cleanup | ask | yes |
+| Push a work branch or `dev` | ask | ask | yes |
+| Promote to `homolog`/`staging` or `main`/`master` | explicit request | explicit request | only if the permission names it |
+| Tag or release by hand | explicit request | explicit request | explicit request |
+| Force-push, delete a remote branch, rewrite history | explicit request, backup first | same | same |
+| Comment on, close, label or assign an issue | when asked for that action | same | tracked items through `repo:sync` batches |
+
+- **A one-off request** — a fix, a tweak: present each commit as its full
+  message with the files it stages; when it splits, list the commits in
+  order and ask one question for the set. A plan the user approves that
+  lists its commits covers exactly those commits, in that turn.
+- **An approved workflow** — a pipeline stage working through its
+  phases, Spec Kit tasks, a plan the user said to carry out: versioning
+  is part of the process, so commit as you go.
+- **An autonomous run** — explicit permission given beforehand ("build it
+  end to end, you can push"). It lasts for that run, covers the CI fixes
+  `devsecops:watch` leads to (pipeline rule 8), and never answers product
+  questions (pipeline rule 2). Say in the handoff what was pushed and
+  merged under it. The guard hooks still ask on every push — they can't
+  see the conversation — so a hands-off run also needs pushes allowed in
+  the agent's permission settings.
+- Describing a flow ("then `dev` goes to `main`") is not a request to
+  promote: stop at the level below, report, and ask.
 
 ## Before staging
 
-1. `git status` and `git diff` — look at **everything** in the working tree, not only your own edits.
-2. **Changes you didn't make** (the user edited a file in parallel, leftovers from earlier work): list them and ask whether they belong in this commit, a separate commit, or should be left alone. Never commit them silently, never discard, stash or reset them.
-3. Stage deliberately (`git add <paths>`, not `git add -A` over an unreviewed tree), then check `git diff --cached` — what's staged is what gets committed.
-4. Never stage secrets or local config: `.env` (but `.env.example` is fine), credentials, keys, tokens, local IDE/OS files. If one is about to be tracked and isn't gitignored, stop and say so.
-5. Use the repo's configured identity. Change `user.name`/`user.email` (repo or global) only when the user asks.
+1. `git status` and `git diff` — everything in the tree, not only your
+   own edits.
+2. Changes you didn't make: list them and ask whether they belong here,
+   in a separate commit, or stay out. Never commit, discard, stash or
+   reset them silently.
+3. Stage by path (`git add <paths>`, never `-A` over an unreviewed tree),
+   then check `git diff --cached`.
+4. Use the repository's configured identity; change it only when asked.
 
-## Branch strategy
+## Branches
 
-- **Branch off `dev`/`develop`** — the bottom of the branch chain (below) — never off `main`/`master` or a staging branch, and never work directly on any of them. The exceptions: a `hotfix/`, and a `dev` left far behind (*When `dev` is left behind*, below).
-- Before branching, `git fetch` (read-only, always safe) and warn if the base is behind its upstream. Don't pull, rebase or merge the upstream in automatically — ask.
-- If the current branch already looks like the right working branch for the task (already a `feat/…`, `fix/…`, etc. matching the work), keep using it instead of creating a redundant new one.
-- If it's ambiguous which branch is the chain's `dev` (both `dev` and `develop` exist, say), ask the user rather than guessing.
-- **Naming convention:** `<prefix>/[<id>-]short-description`, kebab-case. Pick the prefix for the kind of work (below). When the work belongs to an issue or work item the user gave or confirmed, the id may go **right after the prefix**: `feat/123-user-auth`, `fix/PROJ-42-login-crash`, `hotfix/981-payment-timeout`. The prefix always comes first — never `123-user-auth` or `123/user-auth` — and never an invented id.
-  - `feat/` or `feature/` — new functionality (`feat/user-auth`); follow whichever the repo already uses
-  - `fix/` or `bugfix/` — a bug fix on the normal flow (`fix/login-crash`)
-  - `hotfix/` — an urgent fix branched from the production branch (`hotfix/payment-timeout`); it merges back into the production branch **and** down into `homolog`/`staging` (if any) and `dev`/`develop`, so the fix isn't lost (ask for each)
-  - `release/` — release preparation (`release/1.4.0`)
-  - `refactor/`, `perf/`, `docs/`, `test/`, `build/`, `ci/`, `chore/` — matching the Conventional Commit types
-  - If the repo already has a branch-naming convention (existing branches, CONTRIBUTING, branch rules), follow it instead.
-- **Sub-branches for stages/contexts:** for larger work, branch again off the working branch per context, component, or development stage (e.g. `feat/user-auth` → `feat/user-auth-db-schema`, `feat/user-auth-api-routes`). This keeps each sub-branch's history focused on one thing.
-  - Use a **flat suffix**, not a nested path: git keeps branches as files under `refs/heads/`, so `feat/user-auth/db-schema` cannot be created while `feat/user-auth` exists (`fatal: cannot lock ref ... exists`).
-- **When the trunk is off-limits** — the user works on a long-lived integration branch because `main`/`master`/`develop` are protected — that integration branch *is* the parent working branch here: branch the contexts off it, and merge them back into it.
+- **The chain**, highest first: **`main`/`master` > `homolog`/`staging`
+  (when there is one) > `dev`/`develop` > work branches.** Work enters at
+  `dev` and moves up one level at a time.
+- **Branch off `dev`**, after `git fetch`. Getting `dev` ready (missing,
+  only on the remote, behind or diverged from it) and the exception for a
+  `dev` far behind the levels above are in `references/chain.md`. Both
+  `dev` and `develop` exist: ask which one.
+- **Names:** `<prefix>/[<id>-]short-description`, kebab-case —
+  `feat/`, `fix/`, `hotfix/`, `release/`, `refactor/`, `perf/`, `docs/`,
+  `test/`, `build/`, `ci/`, `chore/` (or `feature/`, `bugfix/` where the
+  repository uses them). An id goes right after the prefix
+  (`feat/123-user-auth`) only when it's confirmed — given by the user or
+  recorded in a `tracker.md`. A repository's own convention wins.
+- **A `hotfix/`** branches off the production branch and lands back in it
+  **and** in every level below, so the fix isn't lost (each landing asked).
+- **One context, one sub-branch**, off the parent's current tip, with a
+  flat suffix (`feat/user-auth-db-schema` — `feat/user-auth/db-schema`
+  can't coexist with `feat/user-auth`). Land it the moment it's done;
+  the next one starts from the updated parent. Never chain sub-branches
+  or save the landings for the end.
+- **A protected trunk:** when the user works on an integration branch
+  because the chain's branches are protected, that branch is the parent.
+- **A new repository** starts the same way every time: `git init -b main`
+  (or the user's production branch), a single-line `README.md` —
+  `# <Project name>` — committed alone as `chore: initial commit` (the
+  guard asks), then `dev` from it. Input documents the user handed in (a
+  spec, requirements, references) are never committed unless they say so.
 
-### A new repository — one README line first
+## Landing — merging into a long-lived branch
 
-A repository with no commits starts the same way every time, before any
-work is committed:
+Count the branch's commits (`git log <parent>..<branch> --oneline | wc -l`),
+then take one of two paths:
 
-1. `git init -b main` (or the production branch name the user's flow
-   uses), then a **single-line `README.md`**: `# <Project name>`.
-2. Commit only that file: `chore: initial commit`. The guard asks, as
-   for any commit on `main`; this is the one commit made there directly.
-3. Create the chain's bottom from it — `dev`, or `develop` when that's
-   the user's or team's flow — and do all work on branches off it
-   (`feat/…`, `docs/…`), merged back as usual.
+- **Through the platform — remote mode.** When `reporun detect`
+  (`repo:pr`) finds the platform's CLI signed in or its token in pass,
+  and the user hasn't said merges are local: push, open a PR into the
+  parent, wait for its required checks (`devsecops:watch`) and reviews,
+  then merge it on the platform — `repo:pr` has the procedure and each
+  platform's merge options. Never self-approve, never bypass branch
+  protection, never merge red.
+- **Locally**, when the platform isn't reachable (say why):
+  `references/local-merge.md`.
 
-**Input documents stay out unless asked.** A spec, requirements file,
-brief or references the user handed in (`spec.md`, `requirements.docx`,
-a `references/` folder) are inputs, not project files: never stage or
-commit them — not in the initial commit, not later — unless the user
-says to. Leave them untracked and say so in the handoff.
+**Merge style**, both paths: **4 or more commits → a merge commit**
+(`--no-ff`); **fewer → fast-forward** (`--ff-only`; GitHub's closest is a
+rebase merge). **Promotions** between long-lived branches follow the same
+rule locally; on a platform that can't fast-forward (GitHub) they always
+use a merge commit, so the lower branch can still fast-forward to the
+upper one. Never skip a level, never land a work branch on a higher one,
+and settle conflicts on `dev`, never higher.
 
-### The branch chain — work lands on `dev`, then moves up
+**Conflicts** stop the landing: show the files and hunks and resolve them
+with the user — never `-X ours`/`-X theirs` or a side picked blindly. In
+remote mode, merge the parent into the branch, resolve, re-run the
+checks, and push; the PR updates.
 
-Long-lived branches rank, highest first:
-
-**`main`/`master` > `homolog`/`staging` (when the repo has one) > `dev`/`develop` > everything else** (`feat/…`, `fix/…`, …).
-
-Work always enters at `dev` and moves up one level at a time — a single branch as much as several. Where the repo has `develop` rather than `dev`, `develop` is that level.
-
-1. **Get `dev` ready** — `git fetch` first, then the first case that fits:
-   - **Neither local nor remote:** create it from the trunk, `git checkout -b dev main`.
-   - **Only on the remote:** create it at the remote's point, tracking it: `git checkout -b dev origin/dev`.
-   - **Local, and behind its remote** (the remote has commits the local branch lacks, and the local branch has none of its own — `git rev-list --count origin/dev..dev` is 0): recreate the local branch at the remote's point — `git branch -f dev origin/dev`, or `git checkout -B dev origin/dev` when it's checked out. That's the same as deleting and recreating it, and loses nothing.
-   - **Local and diverged from its remote** (commits on both sides): stop. Show the local-only commits (`git log origin/dev..dev --oneline`) and ask; suggest keeping them on a backup branch first (`git branch backup/dev-<date> dev`) before recreating `dev` at the remote's point.
-   - **Local and up to date with its remote, or never pushed:** use it as it is — **even when it is behind `main`/`master`**. Don't update it from the trunk. If it looks far behind, see *When `dev` is left behind*.
-2. **Branch off `dev`, merge back into `dev`**, one branch at a time, with the usual rules (*Merging back*: `--no-ff` at 4 or more commits, `--ff-only` below, delete the merged branch). Work that starts after a merge branches off the updated `dev`.
-3. **Settle conflicts on `dev`**, where they belong — never higher up. Several branches touching the same file (a changelog, a shared list) conflict here by design: keep both sides, in the file's own order.
-4. **Promote one level at a time** once the checks pass: `dev` into `homolog`/`staging` when the repo has one, then that into `main`; otherwise `dev` into `main`. Each promotion is a merge with the same count rule (`git checkout main && git merge --no-ff dev`, or `--ff-only` under 4 commits). Never skip a level, and never merge a feature branch straight into a higher one. Keep `dev` (and the staging branch); they're reused next time.
-
-Ask before each merge and each promotion as always — one question may name the whole sequence. A `hotfix/` is the exception: it branches off the production branch and merges back into it **and** down into every level below, so the fix isn't lost.
-
-**Promotion into `main`/`master` needs its own explicit request.** Describing the flow ("then `dev` goes to `main`") is not one: stop at the level below, report, and ask.
-
-**When `dev` is left behind.** When `dev`/`develop` lacks commits that `main`/`master` or `homolog`/`staging` have, flag it before branching: how many commits it lacks from each level above (`git rev-list --count dev..main`), its last commit date, and whether the flow still passes through it (recent merges into it, or the upper levels moving without it). Then ask whether to use the exception; there's no fixed threshold — the user decides. If they agree:
-
-- branch off the highest level that holds the current work — `homolog`/`staging` when it's ahead of `main`, otherwise `main`;
-- merge the work back into **that same level**, asking first as always;
-- leave `dev` alone: don't update it, merge into it or recreate it.
-
-### Merge each context back as soon as it is done — the part most easily missed
-
-The merge commits are what mark the stages in the parent's history. They only mark anything if each context is merged back **the moment that context is finished**, and the next context then starts from the **updated parent**.
-
-Repeat this cycle once per context:
-
-1. `git checkout <parent>` — always start from the parent.
-2. `git checkout -b <parent>-<context>` — branch off the parent's *current* tip, never off a sibling sub-branch.
-3. Commit the work of that one context there.
-4. Merge it back into `<parent>` and delete the context branch (below) before opening the next sub-branch.
-
-**Never chain sub-branches** (`context-a` → `context-b` → `context-c`) **and never save all the merges for the end**, even when a later context depends on code from an earlier one — that dependency is satisfied by having merged the earlier one back first. Chaining makes every sub-branch carry its predecessors' commits, so the merge commits stop delimiting anything and the parent's history reads as one flat run.
-
-### Landing through the platform — remote mode
-
-When the code platform is reachable — `reporun detect` (`repo:pr`) finds its CLI signed in or its token in pass — and the user hasn't said beforehand that merges are local, **every merge into a long-lived branch goes through a pull/merge request** the agent opens and merges on the platform: a context into `dev`, and each promotion up the chain. Nothing is merged locally into a long-lived branch then. `repo:pr` has the procedure (its `landing.md` reference):
-
-- push the branch, open the PR into the parent, wait for its required checks (`devsecops:watch`) and reviews — never self-approve, never bypass protection, never merge red;
-- merge on the platform with the same count rule — a merge commit from 4 commits, rebase/fast-forward under 4 — and the same ask (or the run's up-front permission);
-- the platform deletes the source branch; locally, `git pull --ff-only` the parent and `git branch -d` the context.
-
-Without a reachable platform, merge locally as below and say why.
-
-### Merging back — and cleaning up
-
-1. Count the commits on the context branch: `git log <parent>..<context> --oneline | wc -l`.
-2. Ask once, naming both steps: *"Merge `<context>` into `<parent>` with `--no-ff`, then delete `<context>`?"*
-3. Merge:
-   - **4 or more commits:** `git merge --no-ff <context>` — preserves the context's history as a distinct block with a merge commit.
-   - **Fewer than 4 commits:** `git merge --ff-only <context>` — the few commits fold straight into the parent. Use `--ff-only`, not `--ff`: plain `--ff` silently creates a merge commit when a fast-forward isn't possible.
-   - If `--ff-only` fails because the parent moved (e.g. a sibling context was merged first): if the context branch was **never pushed**, rebase it onto the parent (`git rebase <parent>` on the context branch) and retry; if it **was pushed**, ask how to proceed.
-4. **Conflicts:** stop and show them (files and hunks). Never resolve by blanket `-X ours`/`-X theirs` or by picking a side without understanding both. Resolve with the user's input, then continue the merge.
-5. **Delete the context branch** once merged:
-   - confirm it's merged: it appears in `git branch --merged <parent>`;
-   - `git branch -d <context>` — the safe delete, which refuses unmerged work. Never `-D`.
-   - If the branch exists on a remote, deleting it there (`git push <remote> --delete <context>`) publishes a change — ask separately, never assume.
-   - Never delete the parent working branch, `main`/`master`, `dev`/`develop`, or any branch that isn't the context just merged.
+**After landing:** bring the parent up to date with `git pull --ff-only`
+— routine right after your own merge; a parent that diverged is reported
+and asked. Delete the landed branch: the platform removes the remote
+one (on a local merge, deleting it on the remote is asked); locally
+`git branch -d`. If a rebase merge rewrote the commits and `-d` refuses,
+confirm the PR shows as merged, then `git branch -D` (the guard
+confirms it). Never delete a long-lived branch.
 
 ## Commit messages — Conventional Commits, strictly
 
-Format: `type(scope): subject`
+`type(scope): subject`
 
-- **Types** (standard set only, don't invent new ones): `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
-- **Scope:** optional — include it when the change is clearly localized to one module/component/area (`feat(auth): add refresh token`), omit it when the change is cross-cutting or the scope would be redundant/noisy.
-- **Breaking changes:** `type(scope)!: subject`, plus a `BREAKING CHANGE:` footer line describing the break — still keep the footer terse, not a paragraph.
-- **Subject:** short, imperative, lowercase after the colon, no trailing period. Describe *what changed*, meaningfully — not vague filler like `fix: update code`.
-- **No prose body.** Do not add multi-line paragraph descriptions below the header. If genuinely necessary, a short bullet list is acceptable (markdown is fine in commit messages), but prefer letting the header alone carry the meaning. Deeper context (why, design rationale, alternatives considered) belongs in the PR description, README, or CHANGELOG — not the commit body.
-- **Footers are allowed** — they're metadata, not prose: `BREAKING CHANGE: …`, `Closes #123`, `Refs #45` (see *Linking issues*). One per line, after a blank line.
-- **Commit small and often.** Prefer several small, single-purpose commits (one file, one component, one logical change) over one large commit bundling unrelated changes. The commit history itself should read as a narrative of the work — that's more valuable here than minimizing commit count.
+- **Types**, the standard set only: `feat`, `fix`, `docs`, `style`,
+  `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- **Scope** when the change is clearly one area (`feat(auth): …`); none
+  when it's cross-cutting.
+- **Subject:** imperative, lowercase after the colon, no trailing period,
+  saying what changed — never `fix: update code`.
+- **No prose body.** A short bullet list only when truly needed; the
+  why, rationale and alternatives go in the PR description, the README or
+  the CHANGELOG.
+- **Footers** are metadata, one per line after a blank line:
+  `BREAKING CHANGE: …` (with `type!:`), `Closes #12`, `Refs #45`.
+- **Small and often:** single-purpose commits that read as the story of
+  the work.
 
-## Linking issues and work items — only when asked
+## Issues and work items
 
-Only when the user asks ("this closes #12", "link the issue", "find the
-related issue") — never on your own initiative. Then read
-`references/issue-linking.md` in full: where candidate ids come from
-(the request, then the branch name — always confirmed with the user —
-then earlier commits, then a remote lookup), each platform's closing
-syntax, and when closing actually happens. The rules that always hold:
-
-- ids go in **footers** (`Closes #N`, `Refs #N`), never in the subject;
-- never invent an id, and never use one from a branch name unconfirmed;
-- never ask the user to paste a token into the chat;
-- never close, comment on, label or assign an issue through a CLI or API
-  unless asked for that specific action.
-
-**Tracked specs are the standing request.** When a feature has a
-`specs/NNN-*/tracker.md` (`repo:sync`, pipeline rule 10), the user asked
-for its stories to be tracked: stages name a story's branch with its ref
-and add `Refs <ref>` footers from that file without asking again, and the
-promotion PR to production lists `Closes <ref>`. Items still change only
-through `repo:sync`'s confirmed batches.
+- **Tracked specs** (a `specs/NNN-*/tracker.md`, from `repo:sync` —
+  pipeline rule 10, by default in remote mode): the story's ref names its
+  branch, commits and PRs into `dev` say `Refs <ref>`, and the promotion
+  PR to production lists `Closes <ref>` — without asking again, since
+  those ids were confirmed when the items were created.
+- **Anything else, only when asked:** `references/issue-linking.md` —
+  where candidate ids come from, each platform's closing syntax, and when
+  closing actually happens (only on the default branch).
+- Ids go in footers, never in the subject.
 
 ## Tags and releases
 
-- Tag only when asked, with an annotated tag on the commit being released:
-  `git tag -a 1.4.0 -m "1.4.0"`.
-- Follow the repo's existing tag convention; with none, plain SemVer
-  (`1.4.0`, no `v` prefix — a `v` belongs only in display text such as a
-  release title).
-- Pushing a tag publishes it: `git push <remote> <tag>` needs the same
-  explicit order as any push.
-- **When the repo has release automation** (a push-to-main workflow with
-  a release script), the automation cuts the tag — don't tag by hand on
-  the same commit it releases. The flow to follow is
-  `../../references/releasing.md`; this section's rules are the manual
-  fallback for repos that don't run it.
-
-## History rewriting — only on explicit request
-
-`commit --amend`, `rebase` of already-shared commits, `filter-branch`/`filter-repo`, `reset --hard`, deleting unmerged branches — only when the user asks, and then:
-
-1. **Back up first**: `git bundle create <scratch>/<repo>-pre-rewrite.bundle --all`, or a `backup/<name>-<date>` branch, and say where it is.
-2. Say which remotes and branches will diverge and need a force push, and whether anyone else may have the old history.
-3. Force-push only when told to, and then with `--force-with-lease`, never `--force`.
-4. The one routine exception: rebasing a **never-pushed** context branch onto its parent to allow `--ff-only` (see *Merging back*).
+- A repository with release automation (a push-to-main workflow with a
+  release script) cuts its own tags — follow `../../references/releasing.md`
+  and never tag the same commit by hand.
+- Otherwise, only when asked: an annotated tag on the released commit
+  (`git tag -a 1.4.0 -m "1.4.0"`), the repository's convention or plain
+  SemVer without a `v`. Pushing a tag is a push.
 
 ## The guard hook
 
-The `git` plugin ships a PreToolUse hook (`../../hooks/guard.sh`) that
-enforces the rules above mechanically: it **blocks** `--no-verify`,
-co-author trailers and `git push --force` without a lease, and it makes
-the user **confirm** pushes, commits or merges on `main`/`master` or
-`homolog`/`staging`, commits made directly on `dev`/`develop` (merges into
-it pass; conclude a conflicted merge with `git merge --continue`),
-`git branch -D`, `reset --hard`, `clean -f`, `commit --amend`,
-`filter-branch`/`filter-repo` and `gh pr create`. A confirmation prompt
-is the hook working, not an error — never try to get around it (other
-commands, aliases, scripts); if it blocks something the user asked for,
-say so and let them decide.
+The `git` plugin's PreToolUse hook (`../../hooks/guard.sh`) enforces these
+rules mechanically: it **blocks** `--no-verify`, co-author trailers and
+force pushes without a lease, and **asks** before pushes, commits or
+merges on `main`/`master` or `homolog`/`staging`, commits made directly
+on `dev`/`develop`, `git branch -D`, `reset --hard`, `clean -f`,
+`commit --amend`, history rewrites and `gh pr create` (the `repo`
+plugin's guard asks before every `reporun --write`). A prompt is the hook
+working, not an error — never work around it.
 
-## Pull requests
+## Checklist
 
-In remote mode, PRs are how work lands on long-lived branches (*Landing through the platform*). Any other PR — into a branch outside the chain, into another repository — only on an explicit request (it implies pushing, which needs the same explicit order). The PR description carries what commits don't: the why, design rationale, alternatives, testing notes, screenshots, and any `Closes #N` lines.
-
-## Quick decision checklist
-
-0. No commits yet? → single-line `README.md` (`# <Project name>`) as `chore: initial commit`, then `dev` from it; input files the user handed in stay uncommitted unless asked.
-1. On `main`/`master` or a staging branch? → get `dev` ready and branch off it first (ask for the name/type if unclear).
-2. About to stage? → review the whole tree, ask about changes you didn't make, never stage secrets.
-3. About to run `git commit`? → inside an approved development workflow, commit as each task or phase finishes and list the commits at the end; otherwise ask first, showing each commit's message and its files, unless it's one of the commits in a plan the user just approved.
-4. Hook failed? → fix the cause; never `--no-verify`.
-5. About to run `git push`, open a PR, or touch a remote issue? → don't, unless explicitly told to in this message.
-6. Finished a context? → merge it back into the parent **now**, before opening the next sub-branch — and start that next one from the updated parent.
-7. About to merge a context back? → count its commits, ask once for merge + delete; platform reachable → a PR merged on the platform (merge commit ≥4, rebase/fast-forward <4, source branch deleted); otherwise `--no-ff` (≥4) or `--ff-only` (<4) locally; then `git branch -d` the context.
-   Landing work? → `dev` far behind the levels above? flag it and ask (exception: branch off and merge back into the highest current level). Otherwise get `dev` (or `develop`) ready — new from `main`, from the remote, recreated at the remote when purely behind it, as it is when only behind `main` — merge into it, settle conflicts there, then promote one level at a time: `dev` → `homolog`/`staging` (if any) → `main`.
-8. Asked to link an issue? → ids from the request, then the branch name (confirm with the user), then history, then a remote lookup; write `Closes #N`/`Refs #N` footers; remember closing happens on the default branch.
-9. Writing the message? → `type(scope): subject`, Conventional Commits, no body paragraph, footers allowed, no co-author trailer.
+1. No commits yet? → one-line README as `chore: initial commit`, then `dev`.
+2. On a long-lived branch? → get `dev` ready and branch off it.
+3. About to stage? → the whole tree, nothing you didn't make, no secrets.
+4. About to commit? → the permission table: ask, or commit as you go.
+5. Context done? → land it now; the next starts from the updated parent.
+6. Landing? → count commits; platform reachable → PR merged on the
+   platform; else local; merge commit ≥4, fast-forward <4; promotions on
+   GitHub always a merge commit; pull the parent, delete the branch.
+7. Promoting? → only on an explicit request (or a permission naming it),
+   one level at a time.
+8. Writing the message? → `type(scope): subject`, no body paragraph,
+   footers allowed, no co-author trailer.
