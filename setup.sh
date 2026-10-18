@@ -387,7 +387,7 @@ prune_links() {
 }
 
 frontmatter() { # frontmatter <file> <key> — single-line values only
-  sed -n "/^---$/,/^---$/{s/^$2: //p}" "$1" | head -n1
+  sed -n "/^---$/,/^---$/{s/^$2: //p;}" "$1" | head -n1
 }
 
 yaml_quote() {
