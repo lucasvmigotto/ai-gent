@@ -167,6 +167,60 @@ check "--target followed by another option is refused" bash -c '! "$1/setup.sh" 
 check "an unknown agent is refused" bash -c '! "$1/setup.sh" --target nope >/dev/null 2>&1' _ "$REPO_DIR"
 setup --target claude,opencode
 
+echo "      -- agent picker (a terminal, a fake fzf, and the numbered prompt)"
+if script --version 2>/dev/null | grep -q util-linux; then
+  pk="$SANDBOX/picker"
+  fakebin="$SANDBOX/fakebin"
+  mkdir -p "$fakebin" "$pk"
+  # A fake fzf: records its arguments and the lines it was given, then
+  # "selects" the agents named in FAKE_FZF_PICK (space separated; none = empty).
+  cat >"$fakebin/fzf" <<'FZF'
+#!/bin/sh
+printf '%s\n' "$@" >"$FAKE_FZF_LOG.args"
+cat >"$FAKE_FZF_LOG.lines"
+for id in $FAKE_FZF_PICK; do grep "^$id	" "$FAKE_FZF_LOG.lines"; done
+exit 0
+FZF
+  chmod +x "$fakebin/fzf"
+  # pick_run <input to type> <setup args...> — setup.sh on a terminal in its own HOME
+  pick_run() {
+    local input="$1"
+    shift
+    printf '%b' "$input" | env HOME="$pk" XDG_STATE_HOME="$pk/state" CLAUDE_SKILLS_DIR="$pk/.claude/skills" \
+      OPENCODE_SKILLS_DIR="$pk/.config/opencode/skills" OPENCODE_COMMANDS_DIR="$pk/.config/opencode/commands" \
+      AGENTS_SKILLS_DIR="$pk/.agents/skills" KIRO_SKILLS_DIR="$pk/.kiro/skills" \
+      WINDSURF_SKILLS_DIR="$pk/.codeium/windsurf/skills" PATH="$fakebin:$PATH" TERM=xterm-256color \
+      FAKE_FZF_LOG="$pk/fzf" FAKE_FZF_PICK="${FAKE_FZF_PICK:-}" AI_GENT_NO_FZF="${AI_GENT_NO_FZF:-}" \
+      script -qec "$REPO_DIR/setup.sh --no-config-edits $*" /dev/null >"$SANDBOX/out" 2>&1
+  }
+  pk_targets="$pk/state/ai-gent/targets"
+
+  mkdir -p "$pk/state/ai-gent"
+  echo "claude codex" >"$pk_targets"
+  FAKE_FZF_PICK="kiro amp" pick_run "" || true
+  check "fzf: gets one line per agent, id first" test "$(wc -l <"$pk/fzf.lines")" -eq 9 -a "$(head -c 7 "$pk/fzf.lines")" == "claude$(printf '\t')"
+  check "fzf: the previous choice is preselected, in order" grep -q -F 'start:pos(1)+select+pos(3)+select+first' "$pk/fzf.args"
+  check "fzf: statuses are aligned" bash -c 'cut -f2 "$1" | grep -E "^.{14}  \((found|not found)\)$" | wc -l | grep -qx 9' _ "$pk/fzf.lines"
+  check "fzf: what it returned is installed and remembered" test "$(cat "$pk_targets")" == "amp kiro"
+  check "fzf: kiro and the shared agents got their entries" test -d "$pk/.kiro/skills" -a -d "$pk/.agents/skills"
+  check "fzf: claude was not chosen, so not installed" test ! -e "$pk/.claude/skills"
+
+  FAKE_FZF_PICK="" pick_run "" || true
+  check "fzf: nothing chosen installs nothing" grep -q "no agent chosen" "$SANDBOX/out"
+
+  echo "      -- numbered prompt"
+  echo "claude codex" >"$pk_targets"
+  AI_GENT_NO_FZF=1 pick_run "\n" || true
+  check "numbered: Enter keeps the preselection" grep -q -F "Numbers separated by spaces [1 3]" "$SANDBOX/out"
+  check "numbered: marks the preselected and shows found/not" bash -c 'grep -q "1) \[x\] Claude Code" "$1" && grep -q "2) \[ \] opencode" "$1"' _ "$SANDBOX/out"
+  check "numbered: Enter remembers the preselection" test "$(cat "$pk_targets")" == "claude codex"
+  AI_GENT_NO_FZF=1 pick_run "2 9\n" || true
+  check "numbered: typed numbers choose the agents" test "$(cat "$pk_targets")" == "opencode windsurf"
+  AI_GENT_NO_FZF=1 pick_run "1 x 99\n" || true
+  check "numbered: junk is ignored, the valid number kept" bash -c 'grep -q "ignored: x" "$1" && grep -q "ignored: 99" "$1"' _ "$SANDBOX/out"
+  check "numbered: and only the valid one remembered" test "$(cat "$pk_targets")" == "claude"
+fi
+
 echo "      -- default (first run, no terminal)"
 d="$SANDBOX/first"
 mkdir -p "$d"
