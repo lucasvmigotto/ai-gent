@@ -1,8 +1,8 @@
-# Linking issues and work items — only when asked
+# Linking issues and work items
 
-Part of `git:workflow` (`../SKILL.md`); its non-negotiable rules apply here too.
+Part of `git:workflow` (`../SKILL.md`); its *Never* rules apply here too.
 
-Do this only when the user asks ("this closes #12", "link the issue", "find the related issue"). Never add issue references on your own initiative.
+Tracked specs carry their refs on their own (`git:workflow` → *Issues and work items*). Everything else happens only when the user asks ("this closes #12", "link the issue", "find the related issue") — never add issue references on your own initiative.
 
 ## 1. Find the candidate ids, cheapest first
 

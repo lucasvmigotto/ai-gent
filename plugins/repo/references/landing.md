@@ -11,7 +11,7 @@ platform, instead of a local merge. `git:workflow` decides when;
   token is in pass;
 - and the user hasn't said beforehand that merges are local.
 
-Otherwise merges stay local (`git:workflow` → *Merging back*), and the
+Otherwise merges stay local (`git:workflow` → *Landing*), and the
 handoff says why ("no GitHub token and gh isn't signed in"). A
 repository with no remote is always local.
 
