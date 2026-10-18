@@ -1,244 +1,15 @@
-// Emits the LLM-readable output from the same content the pages render:
-// llms.txt, llms-full.txt and one .md per page and locale.
+// Emits the LLM-readable output: llms.txt, llms-full.txt and one .md per
+// page and locale (the pages themselves are built in llms-pages.ts).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import generated from "../src/content/generated.json";
-import { LOCALES, type Locale, messages } from "../src/i18n";
+import { LOCALES } from "../src/i18n";
+import { llmsTxt, skillPages, staticPages } from "./llms-pages";
 
 const site = fileURLToPath(new URL("..", import.meta.url));
 const dist = join(site, "dist");
 const base =
 	process.env.VITE_SITE_URL || "https://docs.lucasvmigotto.me/ai-gent";
-
-interface Page {
-	slug: string;
-	title: string;
-	description: string;
-	body: string;
-	optional?: boolean;
-}
-
-function skillPages(locale: Locale): Page[] {
-	const t = messages[locale];
-	return generated.skills.map((s) => ({
-		slug: `skills/${s.id}`,
-		title: s.name,
-		description: s.description.split(". ")[0] ?? s.description,
-		body: [
-			`# ${s.name}`,
-			"",
-			s.description,
-			"",
-			`**${t.skill.invoke}:** \`/${s.plugin}:${s.skill}\` (Claude Code) · \`${s.id}\` (opencode, Codex, Cursor and the other agents)`,
-			"",
-			`**${t.skill.generated(s.plugin, pluginVersion(s.plugin), generated.version)}**`,
-			"",
-			t.skill.bodyNote,
-			"",
-			s.body,
-			"",
-			`[${t.skill.source}](${s.sourceUrl})`,
-			"",
-		].join("\n"),
-	}));
-}
-
-function pluginVersion(plugin: string): string {
-	return generated.plugins.find((p) => p.name === plugin)?.version ?? "?";
-}
-
-function staticPages(locale: Locale): Page[] {
-	const t = messages[locale];
-	return [
-		{
-			slug: "install",
-			title: t.install.title,
-			description: t.install.lede,
-			body: [
-				`# ${t.install.title}`,
-				"",
-				t.install.lede,
-				"",
-				`## ${t.install.choose}`,
-				"",
-				`### ${t.install.claude}`,
-				"",
-				"```sh",
-				"curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh",
-				"```",
-				"",
-				t.install.claudeBody,
-				"",
-				`### ${t.install.others}`,
-				"",
-				"```sh",
-				"curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,opencode,codex,cursor",
-				"```",
-				"",
-				t.install.othersBody,
-				"",
-				`## ${t.install.verify}`,
-				"",
-				"```sh",
-				"claude plugin details project@skills-dir",
-				"opencode plugin list",
-				"```",
-				"",
-				`## ${t.install.updates}`,
-				"",
-				t.install.updatesBody,
-				"",
-				`## ${t.install.firstSkill}`,
-				"",
-				t.install.firstSkillBody,
-				"",
-				`## ${t.install.troubleshooting}`,
-				"",
-				...t.install.troubleshootingItems.flatMap((item) => [
-					`### ${item.problem}`,
-					"",
-					item.fix,
-					"",
-					...(item.command ? ["```sh", item.command, "```", ""] : []),
-				]),
-			].join("\n"),
-		},
-		{
-			slug: "flow",
-			title: t.flow.title,
-			description: t.flow.lede,
-			body: [
-				`# ${t.flow.title}`,
-				"",
-				t.flow.lede,
-				"",
-				`## ${t.flow.loop}`,
-				"",
-				...t.flow.steps.flatMap((s, i) => [
-					`${i + 1}. **${s.title}**${s.asks ? ` (${t.flow.asks})` : ""} — ${s.skills.join(", ")}. ${s.body}`,
-					...(s.track ?? []).map(
-						(x) => `   - ${x.title} — ${x.skills.join(", ")}. ${x.body}`,
-					),
-					...(s.loop ? [`   - ${t.flow.whenRed}: ${s.loop}`] : []),
-				]),
-				"",
-				`## ${t.flow.autonomyTitle}`,
-				"",
-				t.flow.autonomy,
-				"",
-				`## ${t.flow.supportTitle}`,
-				"",
-				...t.flow.support.map((x) => `- ${x.skills.join(", ")}: ${x.body}`),
-				"",
-				t.flow.guards,
-				"",
-			].join("\n"),
-		},
-		{
-			slug: "contribute",
-			title: t.contribute.title,
-			description: t.contribute.lede,
-			body: [
-				`# ${t.contribute.title}`,
-				"",
-				t.contribute.lede,
-				"",
-				`## ${t.contribute.conventions}`,
-				"",
-				t.contribute.conventionsBody,
-				"",
-				`## ${t.contribute.checks}`,
-				"",
-				t.contribute.checksBody,
-				"",
-				"```sh",
-				"./scripts/check.sh",
-				"```",
-				"",
-				`## ${t.contribute.layout}`,
-				"",
-				t.contribute.layoutBody,
-				"",
-				`## ${t.contribute.releases}`,
-				"",
-				t.contribute.releasesBody,
-				"",
-				`## ${t.contribute.versions}`,
-				"",
-				"| plugin | version |",
-				"|---|---|",
-				...generated.plugins.map((pl) => `| ${pl.name} | ${pl.version} |`),
-				"",
-			].join("\n"),
-		},
-		{
-			slug: "reference",
-			title: t.reference.title,
-			description: t.reference.lede,
-			body: [
-				`# ${t.reference.title}`,
-				"",
-				t.reference.lede,
-				"",
-				`- ${t.reference.pipeline}: shared/pipeline.md`,
-				`- ${t.reference.containers}: shared/containers.md`,
-				`- ${t.reference.databases}: plugins/db/references/safety.md`,
-				`- ${t.reference.guards}: ${t.reference.guardsBody}`,
-				`- ${t.reference.readingCode}: shared/reading-code.md`,
-				`- ${t.reference.specKit}: shared/spec-kit.md`,
-				`- ${t.reference.secrets}: shared/secrets.md`,
-				`- ${t.reference.agentRoles}: shared/agent-roles.md`,
-				`- ${t.reference.trackerSync}: plugins/repo/references/sync.md`,
-				"",
-			].join("\n"),
-		},
-		{
-			slug: "changelog",
-			title: t.changelog.title,
-			description: t.changelog.lede,
-			body: generated.changelog,
-			optional: true,
-		},
-	];
-}
-
-function llmsTxt(locale: Locale, pages: Page[]): string {
-	const t = messages[locale];
-	const lines = [
-		`# ai-gent docs`,
-		"",
-		`> ${t.meta.description}`,
-		"",
-		`ai-gent is ${generated.counts.plugins} plugins and ${generated.counts.skills} skills for Claude Code and other coding agents. Current version ${generated.version}.`,
-		"",
-		"## Use",
-		"",
-	];
-	const use = pages.filter(
-		(p) => p.slug === "install" || p.slug.startsWith("skills/"),
-	);
-	const ref = pages.filter((p) => !use.includes(p) && !p.optional);
-	const opt = pages.filter((p) => p.optional);
-	for (const p of use)
-		lines.push(
-			`- [${p.title}](${base}/docs/${locale}/${p.slug}.md): ${p.description}`,
-		);
-	lines.push("", "## Reference", "");
-	for (const p of ref)
-		lines.push(
-			`- [${p.title}](${base}/docs/${locale}/${p.slug}.md): ${p.description}`,
-		);
-	if (opt.length) {
-		lines.push("", "## Optional", "");
-		for (const p of opt)
-			lines.push(
-				`- [${p.title}](${base}/docs/${locale}/${p.slug}.md): ${p.description}`,
-			);
-	}
-	lines.push("");
-	return lines.join("\n");
-}
 
 for (const locale of LOCALES) {
 	const pages = [...staticPages(locale), ...skillPages(locale)];
@@ -249,7 +20,7 @@ for (const locale of LOCALES) {
 		mkdirSync(join(file, ".."), { recursive: true });
 		writeFileSync(file, `${p.body.trim()}\n`);
 	}
-	writeFileSync(join(dist, `llms-${locale}.txt`), llmsTxt(locale, pages));
+	writeFileSync(join(dist, `llms-${locale}.txt`), llmsTxt(locale, pages, base));
 	writeFileSync(
 		join(dist, `llms-full-${locale}.txt`),
 		`${pages.map((p) => p.body.trim()).join("\n\n---\n\n")}\n`,
@@ -259,7 +30,7 @@ for (const locale of LOCALES) {
 // llms.txt / llms-full.txt default to the primary locale (en-US).
 writeFileSync(
 	join(dist, "llms.txt"),
-	llmsTxt("en-US", [...staticPages("en-US"), ...skillPages("en-US")]),
+	llmsTxt("en-US", [...staticPages("en-US"), ...skillPages("en-US")], base),
 );
 writeFileSync(
 	join(dist, "llms-full.txt"),
