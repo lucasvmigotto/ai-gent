@@ -72,46 +72,15 @@ Different resources in the same project routinely land in different tiers
    case into tier 1 or 2 by reaching for an unrelated container that
    happens to expose *a* port.
 
-## 3. Reference catalog — concrete starting points, not a ceiling
+## 3. Reference catalog → `references/catalog.md`
 
-| Category | Prod-identical option (tier 1) | Common tier-2 substitute | Notes |
-|---|---|---|---|
-| Relational DB | `postgres`, `mysql`/`mariadb` official images | `gvenzl/oracle-free` (Oracle); `mcr.microsoft.com/mssql/server` is itself a real free edition, not actually a gap | SQLite usually needs no container — it's a file |
-| Document / key-value DB | `mongo` official image | `amazon/dynamodb-local` (DynamoDB) | |
-| Cache | `redis` official image | `docker.dragonflydb.io/dragonflydb/dragonfly` — RESP-compatible, worth it when prod itself runs Dragonfly, or as a faster local swap once compatibility is confirmed against the app's actual command usage | rarely needs a persistent volume — a clean slate on restart is usually the point |
-| Object/blob storage | `mcr.microsoft.com/azure-storage/azurite` (Azure — Microsoft's own emulator, tier 1) | `localstack/localstack` (broad AWS emulation: S3/SQS/SNS/DynamoDB/Lambda) or the lighter S3-only `minio/minio`, for AWS; `fsouza/fake-gcs-server` for GCS | |
-| Queue / streaming | `rabbitmq` (the `-management` tag adds the web UI), `nats` | `apache/kafka` in KRaft mode (no ZooKeeper needed since Kafka 3.3+) for full Kafka; `redpandadata/redpanda` when only the Kafka wire protocol matters and a lighter single-binary footprint is worth it | confirm KRaft env vars (`KAFKA_PROCESS_ROLES=broker,controller`, a node/cluster ID) — older Kafka compose examples still show the legacy two-container ZooKeeper setup |
-| Outbound mail (SMTP) | — | `axllent/mailpit` | always a capture sink regardless of prod's real provider — dev must never send real mail. Details in §5 of `references/mail.md` |
-| Inbound mailbox (IMAP/POP3) | — | `greenmail/standalone` | for apps that *read* mail; §5.4 of `references/mail.md` |
-| Transactional mail HTTP API (SES, SendGrid, Postmark, Mailgun) | vendor sandbox (tier 0) | LocalStack SES; WireMock stub | §5.3 of `references/mail.md` |
-| Browser automation (Chrome, Firefox, Edge, Chromium) | `selenium/standalone-chrome`, `selenium/standalone-firefox`, `selenium/standalone-edge`, `selenium/standalone-chromium` — the vendor's own browser+driver bundles, tier 1 | — | behind a `browser` profile, endpoint from env, `shm_size` for Chrome; WebKit has no standalone flavor (Playwright container only) — full rules in the qa plugin's references/browsers.md |
-| OAuth2 / OIDC identity provider | `quay.io/keycloak/keycloak` when prod runs Keycloak | `ghcr.io/navikt/mock-oauth2-server`, Keycloak, `ghcr.io/dexidp/dex` | details and the flow-based choice in §4 of `references/identity.md` |
-| SAML IdP | Keycloak (as a SAML IdP) when prod is Keycloak | Keycloak | §4.6 of `references/identity.md` |
-| LDAP / Active Directory | `osixia`/Bitnami OpenLDAP-style images (check current maintenance) | `lldap/lldap` for simple user/group lookups | §4.6 of `references/identity.md` |
-| Search index | `elasticsearch`/`opensearchproject/opensearch` official images | — | needs `discovery.type=single-node` (or the OpenSearch equivalent) for a one-node dev cluster |
-| Vector database | `pgvector/pgvector` (Postgres with the extension preinstalled, when the project already runs Postgres and only needs vector search added) | `qdrant/qdrant`, Weaviate | pick the Postgres-extension route first if the project is already relational — one fewer moving part |
-| Observability backend (traces/metrics/logs) | `jaegertracing/all-in-one`, `openzipkin/zipkin` | a local Grafana + Prometheus + Loki stack when metrics/logs matter too | only worth it once the app actually emits OpenTelemetry/traces |
-| Feature flags | `unleashorg/unleash-server`, GrowthBook self-hosted | — | avoids needing a real LaunchDarkly/GrowthBook account for local dev |
-| Secrets/config management | `hashicorp/vault` in `server -dev` mode (in-memory, fixed dev root token — Vault's own documented dev-mode flag) | `localstack` (AWS Secrets Manager) | only needed if the app fetches secrets at runtime rather than via env vars |
-| Service discovery | `hashicorp/consul` in `-dev` mode | — | only needed if the app resolves other services through it instead of DNS/network alias |
-| Third-party or internal API with no self-hosted engine (tier 3) | — | `wiremock/wiremock` (programmable stubbing), `stoplight/prism` (mocks straight from an OpenAPI spec) | naming a concrete tool here beats a "hand-rolled stub" every time one of these fits the shape of the API |
-
-Apply §2's procedure to whatever the project's own stack actually needs,
-including categories not listed here. Image names, tags and maintenance
-status drift — confirm the current image/tag before pinning one.
-
-**Prefer a vendor's bundled multi-service emulator suite over assembling
-one container per category**, when the project is deeply tied to one
-cloud/vendor — it keeps auth and config consistent across services:
-AWS-heavy → LocalStack alone already covers S3/SQS/SNS/DynamoDB/Lambda/
-Secrets Manager/SES; Firebase-heavy → the Firebase Local Emulator Suite
-covers Firestore, Realtime Database, Auth, Functions, Pub/Sub and Storage
-together; Azure has no single suite that broad, so its services stay
-per-emulator (Azurite for storage, a separate Cosmos DB emulator, a
-separate Service Bus emulator) — check whether one exists for the
-specific Azure service before assuming Azurite alone covers it. Some
-LocalStack services are paid-tier only (Cognito, for example) — check
-before planning around one.
+A table of tier-1 images and tier-2 substitutes per category (relational,
+document, cache, object storage, queues, mail, browsers, identity, search,
+vector, observability, feature flags, secrets, service discovery, stubs),
+plus when to prefer a vendor's bundled emulator suite (LocalStack,
+the Firebase Local Emulator Suite) over one container per category. Read
+it when choosing an image; apply §2 to anything it doesn't list. Image
+names, tags and maintenance status drift — confirm before pinning.
 
 ## 4. OAuth2 / OIDC identity → `references/identity.md`
 
@@ -130,50 +99,14 @@ covers classifying SMTP vs. provider API vs. inbound mailbox (5.1),
 Mailpit as the SMTP capture sink, so dev never sends real mail (5.2),
 transactional-mail HTTP APIs such as SES, SendGrid and Postmark (5.3), and
 GreenMail for inbound mailboxes (5.4).
+## 6. Bootstrapping each resource → `references/bootstrapping.md`
 
-## 6. Bootstrapping each resource — pick the right pattern
-
-- **Schema/migration tools** (Flyway, Liquibase, Prisma Migrate, Alembic,
-  etc.) — for relational/document DBs, run the project's own migration
-  tool against the container once it's healthy.
-- **Declarative imports the engine supports natively** — Keycloak realm
-  import, Dex/mock-oauth2-server config files, LDIF for LDAP, RabbitMQ
-  `definitions.json`. Prefer these over a scripted seed: they're one file
-  in the repo, applied on every fresh start.
-- **One-shot resource seeding** (create a bucket, a topic, an
-  exchange/queue, an index) — model it as its **own** compose service that
-  runs once and exits, gated on the target being healthy, not just
-  started:
-  ```yaml
-  services:
-    minio:
-      image: minio/minio
-      command: server /data
-      healthcheck:
-        test: ["CMD", "mc", "ready", "local"]
-        interval: 5s
-        retries: 10
-    minio-seed:
-      image: minio/mc
-      depends_on:
-        minio:
-          condition: service_healthy
-      entrypoint: >
-        sh -c "mc alias set local http://minio:9000 <key> <secret> &&
-               mc mb --ignore-existing local/<bucket-name>"
-      restart: "no"
-  ```
-  `condition: service_healthy` is what actually waits for the resource to
-  accept connections — a bare `depends_on:` by name only orders container
-  *start*, and a seed step racing a not-yet-ready service fails
-  intermittently in a way that looks like a flaky test rather than a
-  compose ordering bug.
-- **The app already auto-declares its own topics/queues/exchanges on
-  startup** — common for message-queue clients. Check for this before
-  adding a redundant seed step.
-- **Mail capture / cache / mock-oauth2-server** — typically need zero
-  bootstrap beyond their config; the app just needs the right connection
-  env var pointed at them.
+Schema and migration tools run against the healthy container; declarative
+imports (Keycloak realm, `definitions.json`, LDIF) beat scripted seeds;
+one-shot seeding (a bucket, a topic, an index) is its own compose service
+gated on `condition: service_healthy` — a bare `depends_on` only orders
+*start*, and a seed racing a not-ready service fails intermittently. Read
+the file for the patterns and a worked example.
 
 ## 7. Compose mechanics
 
@@ -236,28 +169,19 @@ the repo.
 
 ## 9. Verification — one real round trip per resource
 
-A healthcheck only proves the process started, not that the app can use
-it. From the app's own container, over the network alias:
-
-- DB: migrations run; the app reads/writes one row.
-- Cache: set + get a key.
-- Queue/stream: publish + consume one message.
-- Storage: write + read one object.
-- SMTP: trigger one real app email (signup, password reset) and find it
-  via Mailpit's API — confirm subject, recipient and rendered links.
-- Mail API: one send reaches the sandbox/emulator/stub, and nothing
-  reached a real inbox.
-- Inbound mail: send to GreenMail, confirm the app ingests it.
-- Identity: log in through the **browser** as each persona (§4.3 of `references/identity.md`), call a
-  protected API endpoint with the resulting token and see it accepted;
-  call it with the no-roles persona and see it **rejected**; call it with
-  no token and see a 401. A dev IdP that makes everything pass is a
-  bypass, not a simulation.
-- Stubs: the app's real client hits the stub and parses the response.
-
-Clean up any container/volume/image created only for the verification, per
-`../../references/containers.md` §9 — the stub images are as disposable as the
-containers, and a stopped container still pins them.
+A healthcheck only proves the process started. From the app's own
+container, over the network alias: a DB migration plus a read/write, a
+cache set/get, a queue publish/consume, a storage write/read, a real app
+email found via Mailpit's API (subject, recipient, links), a mail-API send
+that reached the sandbox and no real inbox, inbound mail ingested, an
+identity login in the **browser** per persona with the protected API
+accepting the token, rejecting the no-roles persona and returning 401
+without one (a dev IdP that makes everything pass is a bypass), and the
+app's real client parsing a stub's response. Clean up what the
+verification created (`containers.md` §9). `references/verification.md`
+has the checklist and the pitfalls table (compose naming, seed races,
+SDKs reaching the real cloud, issuer and claim mismatches, redirect URIs,
+Mailpit auth and loopback) — check it before assuming a fresh bug.
 
 ## 10. Document the gaps
 
@@ -268,17 +192,3 @@ in prod, the tier, and the behavior gaps for tier 2–3 choices (e.g.
 "Entra ID simulated with mock-oauth2-server — no conditional access, no
 group overage claim, no real MFA"), plus the test personas and their
 credentials.
-
-## Pitfalls (observed firsthand — check these before assuming a fresh bug)
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| Compose resources named `<invoking-dir>_<resource>` instead of the intended project name | Compose prefixes resource names with the invoking directory when no explicit name is set | add a top-level `name: <project>` to the compose file; clean up anything already created under the stale prefix |
-| A seed/init step intermittently fails right after `$CONTAINER_ENGINE compose up` | `depends_on` without a `condition` only waits for the target container to **start** | add a `healthcheck` to the target service and gate the seed step on `condition: service_healthy` |
-| The app still reaches the real cloud endpoint even with the emulator container running | Cloud SDKs default to the real service; the emulator needs an explicit endpoint override (`AWS_ENDPOINT_URL`/path-style flag, an Azure emulator connection string) | set the override explicitly in the dev `.env`/`.env.example`, and confirm it with §9's round trip |
-| Login works in the browser, but the API rejects the token with 401 "invalid issuer" | `iss` holds the browser-facing URL (`localhost`), the API is configured with the internal alias URL (or vice versa) | §4.4 of `references/identity.md` — split issuer and JWKS URLs, or pin the IdP's public hostname |
-| API fails to start: can't fetch OIDC discovery | `issuer-uri`-style config fetches discovery at boot from a URL only the browser can reach, or before the IdP is healthy | use the alias for JWKS/discovery from the container; gate the API on the IdP's healthcheck |
-| Authenticated, but every endpoint is 403 | Dev tokens carry roles under a different claim than prod (`realm_access.roles` vs. `roles`) | emit prod's exact claim shape (§4.3 of `references/identity.md`) instead of changing the app's mapping |
-| IdP login page says "invalid redirect_uri" | dev redirect URI not registered exactly (port, path, trailing slash, proxy prefix) | add the exact URI to the realm export / mock config |
-| App errors on SMTP connect: "AUTH not supported" or TLS handshake failure | Mailpit's defaults (no auth, no TLS) don't match what the client insists on | enable accept-any auth / give Mailpit a cert (§5.2 of `references/mail.md`) rather than editing the app's mail config |
-| Emails "sent" but nothing in Mailpit | app points at `localhost:1025` from inside its container (that's its own loopback) | use the alias `mailpit:1025` |
