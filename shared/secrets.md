@@ -34,6 +34,7 @@ other setups).
 | `ai-gent/github/pat` | a GitHub fine-grained token | `reporun` (`repo:*`) |
 | `ai-gent/azure-devops/pat` | an Azure DevOps PAT | `reporun` |
 | `ai-gent/gitlab/pat` | a GitLab project or personal access token | `reporun` |
+| `ai-gent/forgejo/pat` | a Forgejo, Gitea or Codeberg access token | `reporun` |
 | `ai-gent/bitbucket/token` | a Bitbucket access token, or an Atlassian API token with an `email:` line | `reporun` |
 | `ai-gent/jira/token` | a Jira API token (Cloud, with `email:` and `url:` lines) or PAT (Server/Data Center) | `reporun` |
 

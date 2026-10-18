@@ -8,7 +8,7 @@ description: Find, read, create and update issues and work items — GitHub Issu
 Read `../../references/runner.md` first: every call goes through
 `reporun`, the CLI when it's installed and the REST API otherwise. Then
 the tracker's file in `../../references/platforms/` (`github.md`,
-`azure-devops.md`, `gitlab.md`, `bitbucket.md`, `jira.md`).
+`azure-devops.md`, `gitlab.md`, `bitbucket.md`, `forgejo.md`, `jira.md`).
 
 ## Which tracker
 
