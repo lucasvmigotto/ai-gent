@@ -33,15 +33,22 @@ EXIT_OK, EXIT_ERROR, EXIT_USAGE, EXIT_REFUSED, EXIT_CONNECT = 0, 1, 2, 3, 4
 
 ENGINES = ("postgresql", "mysql", "mariadb", "sqlserver", "oracle", "sqlite")
 REMOTE_CLASSES = ("production", "staging", "development")
+# Drivers receive the credentials, so each is pinned to an exact version. To
+# bump one: set the new version, then run scripts/test-dbrun-engines.py.
 DRIVERS = {
-    "postgresql": "psycopg[binary]",
-    "mysql": "PyMySQL",
-    "mariadb": "PyMySQL",
-    "sqlserver": "pymssql",
-    "oracle": "oracledb",
+    "postgresql": "psycopg[binary]==3.3.6",
+    "mysql": "PyMySQL==1.2.3",
+    "mariadb": "PyMySQL==1.2.3",
+    "sqlserver": "pymssql==2.4.4",
+    "oracle": "oracledb==26.0.1",
 }
 DEFAULT_PORTS = {"postgresql": 5432, "mysql": 3306, "mariadb": 3306, "sqlserver": 1433, "oracle": 1521}
-CLIENT_IMAGE = os.environ.get("AI_GENT_DB_CLIENT_IMAGE", "ghcr.io/astral-sh/uv:python3.12-bookworm-slim")
+# uv 0.9.30, Python 3.12, Debian bookworm, pinned by digest (multi-arch index).
+# To bump it: pull the tag, copy its index digest, then run scripts/test-dbrun-engines.py.
+CLIENT_IMAGE = os.environ.get(
+    "AI_GENT_DB_CLIENT_IMAGE",
+    "ghcr.io/astral-sh/uv:python3.12-bookworm-slim@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58",
+)
 LOCK_TIMEOUT_MS = 5000
 SCRIPT = Path(__file__).resolve()
 
@@ -1451,7 +1458,7 @@ def sqlserver_autocommit(p: dict, cls: dict, req: dict) -> dict:
     req["conn"].update(host="127.0.0.1", port=str(DEFAULT_PORTS["sqlserver"]))
     cmd = [engine, "run", "--rm", "-i", *network_args(cls),
            "-v", "ai-gent-dbrun-uv-cache:/root/.cache/uv", CLIENT_IMAGE,
-           "uv", "run", "--no-project", "--quiet", "--with", "pymssql", "python", "-c", code]
+           "uv", "run", "--no-project", "--quiet", "--with", DRIVERS["sqlserver"], "python", "-c", code]
     out = run(cmd, input=json.dumps(req), timeout=1800)
     try:
         return json.loads(out.stdout.strip().splitlines()[-1])
