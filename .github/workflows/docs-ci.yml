@@ -285,3 +285,12 @@ jobs:
           aws s3 sync docs/site/dist/assets "s3://$R2_BUCKET${R2_PREFIX}assets" \
             --endpoint-url "$R2_ENDPOINT" --delete \
             --cache-control "public, max-age=31536000, immutable"
+
+  # A failed deploy is nobody's open pull request: report it. (The push's
+  # verify and e2e jobs fail in the PR or push that caused them.)
+  report-failure:
+    needs: deploy
+    if: failure() && github.event_name == 'workflow_run'
+    permissions:
+      issues: write
+    uses: ./.github/workflows/report-failure.yml

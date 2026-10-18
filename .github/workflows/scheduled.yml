@@ -1,0 +1,75 @@
+name: scheduled
+
+# Weekly, for what a pull request's checks don't cover: the whole check suite,
+# dbrun against real database engines, and the live docs site in a browser.
+# A failure opens (or updates) one "CI failing: scheduled on main" issue.
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled
+  cancel-in-progress: false
+
+jobs:
+  check:
+    uses: ./.github/workflows/check.yml
+
+  engines:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        run: pipx install uv==0.12.20
+
+      - name: dbrun against PostgreSQL, MySQL, MariaDB, SQL Server and Oracle
+        run: scripts/test-dbrun-engines.py
+
+  site:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        working-directory: docs/site
+
+      - name: Start containerized Chrome
+        run: |
+          docker run -d --name ai-gent-chrome --network host --shm-size=2g \
+            selenium/standalone-chrome:153.0@sha256:7efe71e7e4a83bdf574b26bd354690928075e8f443223d2ced16a2c208eae1d7
+          for _ in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:4444/wd/hub/status >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::selenium grid did not start"
+          docker logs ai-gent-chrome | tail -50
+          exit 1
+
+      - name: Smoke the live site in Chrome
+        run: bun run e2e
+        working-directory: docs/site
+        env:
+          SITE_URL: https://docs.lucasvmigotto.me/ai-gent/
+
+  report-failure:
+    needs: [check, engines, site]
+    if: failure()
+    permissions:
+      issues: write
+    uses: ./.github/workflows/report-failure.yml
