@@ -38,7 +38,7 @@ against the repository rather than trusting the table:
 | Planned | `spec.md` exists with no open `[NEEDS CLARIFICATION]`, plus `plan.md` and `tasks.md` |
 | In progress | some tasks checked in the matching `## Frontend` / `## Backend` section of `tasks.md` |
 | Implemented | all of that side's tasks checked, code and tests for them present, and no unchecked `## Phase N: Convergence` phase |
-| Verified | `qa.md` journeys exist as tests under `tests/e2e/` (and `tests/load/` where the feature has load targets), and CI runs them and passed on the last run |
+| Verified | `qa.md` journeys exist as tests under `tests/e2e/` (and `tests/load/` where the feature has load targets), and CI runs them and passed on the last run. For tooling without a UI: the integration suites its `qa.md` or `tasks.md` names run in CI (a scheduled run counts) and passed on the last run |
 
 A claim without its evidence is a **contradiction**. Report it, and name
 the stage that should move the status back (pipeline rule 6). Two that
