@@ -13,6 +13,12 @@ file covers changing things.
 - Versioning follows `git:workflow` (`plugins/git/skills/workflow/SKILL.md`),
   and its guard hook is active here too.
 - Run `scripts/check.sh` before every commit; CI runs the same script.
+- Before pushing a change to `plugins/repo/scripts/reporun.py`, also run
+  `scripts/test-reporun-github.py`: it drives reporun against a throwaway
+  private GitHub repository (issues, sub-issues, rebase and merge-commit PRs,
+  a batch) and deletes it (that needs `gh auth refresh -s delete_repo`;
+  otherwise it names the repository to delete). Needs `gh` signed in; not
+  part of CI.
 - Before pushing a change to `plugins/db/scripts/dbrun.py`, also run
   `scripts/test-dbrun-engines.py` (`--engine <name>` for one engine): it
   tests dbrun end to end against real PostgreSQL, MySQL, MariaDB, SQL
