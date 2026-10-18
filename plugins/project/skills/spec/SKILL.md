@@ -104,7 +104,7 @@ each other's feature.
    here they are not. Fill `Feature Branch` with the `git:workflow`
    branch name.
 2. `/speckit-clarify` — [gate: `spec.md` written] resolve every
-   `[NEEDS CLARIFICATION]` marker with the user — at most five per prompt,
+   `[NEEDS CLARIFICATION]` marker with the user — at most four per prompt,
    as options with a recommendation, in as many rounds as it takes
    (pipeline rule 2; re-run `/speckit-clarify`, which asks five per
    session) — and write the answers back into `spec.md`. A question the

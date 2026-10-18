@@ -29,6 +29,9 @@ changes.
   hands back an `issue` for a red run the loop won't fix — flaky, runner,
   outage, already red, or still red after three rounds — and the stage
   files it through `repo:issues`.
+- **Four questions per prompt, not five (pipeline rule 2).** Claude
+  Code's question tool takes at most four at once, so the limit matches
+  it; the rounds still go on until nothing is open.
 
 ## 2.8.0 — 2026-10-17
 
