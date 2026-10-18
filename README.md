@@ -282,7 +282,7 @@ stateDiagram-v2
 
 ### The autonomous flow
 
-Questions come first: the stages that shape the product (brief, architecture, UX, domain, specs) ask theirs before writing, five per prompt and as choices, in as many rounds as it takes; what you decline to answer, the agent decides and records. Then, given permission up front ("build it end to end, you can push"), the whole loop runs on its own: issues, parallel development, CI watching and fixes, closing, versioning, release and docs. Promotion to `main` and releasing still ask unless that permission names them. The same flow, with every skill linked, is on the [docs site](https://docs.lucasvmigotto.me/ai-gent/#/use/flow).
+Questions come first: the stages that shape the product (brief, architecture, UX, domain, specs) ask theirs before writing, four per prompt and as choices, in as many rounds as it takes; what you decline to answer, the agent decides and records. Then, given permission up front ("build it end to end, you can push"), the whole loop runs on its own: issues, parallel development, CI watching and fixes, closing, versioning, release and docs. Promotion to `main` and releasing still ask unless that permission names them. The same flow, with every skill linked, is on the [docs site](https://docs.lucasvmigotto.me/ai-gent/#/use/flow).
 
 ```mermaid
 flowchart TD
@@ -304,12 +304,12 @@ flowchart TD
     end
     track --> parallel
 
-    land["<b>Land</b> · git:workflow<br/>one branch at a time into dev, checks after each"]:::asks
+    land["<b>Land</b> · git:workflow, repo:pr<br/>a PR per branch into dev, merged on the platform"]:::asks
     watch["<b>Watch CI</b> · devsecops:watch<br/>small model, its own context"]
-    fix["fix on the branch, push again<br/>at most 3 rounds"]:::loop
+    fix["fix on the branch, push again<br/>at most 3 rounds; else an issue"]:::loop
     verify["<b>Verify</b> · qa:e2e, qa:load"]
     close["<b>Close</b> · repo:sync<br/>items close once on dev"]
-    release["<b>Release</b> · promotion to main<br/>version, changelog, tag from Conventional Commits"]:::asks
+    release["<b>Release</b> · promotion PR to main<br/>version, changelog, tag from Conventional Commits"]:::asks
     docs["<b>Document</b> · project:docs<br/>site and llms.txt deployed"]
 
     parallel --> land --> watch

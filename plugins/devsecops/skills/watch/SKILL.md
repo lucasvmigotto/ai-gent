@@ -26,10 +26,13 @@ the conversation, so:
 - **observe and report only** — never edit, commit, push, re-run or
   cancel from here. A fix belongs to the stage that pushed (pipeline rule
   8), which runs on the main model;
-- end the report with `Hand back`: `none` when everything is green or the
-  cause is outside the change (flaky, runner, outage, already red), or
+- end the report with `Hand back`: `none` when everything is green;
   `fix needed` with the failing job, the log lines and the likely file —
-  what the main model needs to act without reading the logs again.
+  what the main model needs to act without reading the logs again; or
+  `issue` when the cause is outside the change (flaky, runner, outage,
+  already red) or three fix rounds failed — with the title and body for
+  the issue the stage opens or updates through `repo:issues`
+  (`../../references/failure-issues.md`).
 
 ## Before starting
 
@@ -149,7 +152,7 @@ Cause      <class>: <one line>, with the log line that shows it
 Since      new with this change | already failing on <branch> since <run>
 Fix        <what to change, where> — or the question to ask
 Next       the run to watch next (a chained deploy, the re-run)
-Hand back  none | fix needed: <job>, <log lines>, <likely file>
+Hand back  none | fix needed: <job>, <log lines>, <likely file> | issue: <title> — <body>
 ```
 
 Keep watching chained runs until the change has fully landed (released,

@@ -283,7 +283,7 @@ export const enUS: Messages = {
 				key: "track",
 				title: "Track",
 				skills: ["repo-sync"],
-				body: "An issue, work item or epic per feature and a child per story — GitHub, Azure Boards, GitLab, Jira or Bitbucket — created in one confirmed batch.",
+				body: "An issue, work item or epic per feature and a child per story — GitHub, Azure Boards, GitLab, Jira or Bitbucket — created by default when the platform is reachable, in one confirmed batch.",
 			},
 			{
 				key: "develop",
@@ -312,7 +312,7 @@ export const enUS: Messages = {
 				key: "land",
 				title: "Land",
 				skills: ["git-workflow"],
-				body: "Branches merge into dev one at a time, in dependency order, with the checks run after each.",
+				body: "Each branch lands on dev through a pull request the agent opens and merges on the platform once its required checks pass — one at a time, in dependency order; locally only when the platform isn't reachable.",
 				asks: true,
 			},
 			{
@@ -320,7 +320,7 @@ export const enUS: Messages = {
 				title: "Watch CI",
 				skills: ["devsecops-watch"],
 				body: "Every push is followed to the end by a small model in its own context, which reports back.",
-				loop: "Red because of the change: the build stage fixes it on the same branch and pushes again — at most three rounds, then it stops and reports.",
+				loop: "Red because of the change: the build stage fixes it on the same branch and pushes again — at most three rounds. A failure it can't fix becomes an issue.",
 			},
 			{
 				key: "verify",
@@ -338,7 +338,7 @@ export const enUS: Messages = {
 				key: "release",
 				title: "Release",
 				skills: ["git-workflow", "devsecops-pipeline"],
-				body: "dev is promoted to main; the release workflow picks the version from the Conventional Commits, writes the changelog, tags and publishes.",
+				body: "dev is promoted to main through a pull request; the release workflow picks the version from the Conventional Commits, writes the changelog, tags and publishes.",
 				asks: true,
 			},
 			{
@@ -350,7 +350,7 @@ export const enUS: Messages = {
 		],
 		autonomyTitle: "How autonomous",
 		autonomy:
-			"Questions come first: the stages that shape the product ask theirs before writing — five at a time, as choices with a recommendation, in as many rounds as it takes; whatever you decline to answer, the agent decides and records. Then give permission up front — “build it end to end, you can push” — and the loop runs without stopping: commits, pushes of work branches and dev, tracker batches and CI fixes. Promoting to main and releasing still ask unless that permission names them; force pushes and deletions always do. The guard hooks ask on every push, so a hands-off run also needs pushes allowed in your agent's permission settings.",
+			"Questions come first: the stages that shape the product ask theirs before writing — four at a time, as choices with a recommendation, in as many rounds as it takes; whatever you decline to answer, the agent decides and records. Then give permission up front — “build it end to end, you can push” — and the loop runs without stopping: commits, pushes of work branches and dev, tracker batches and CI fixes. Promoting to main and releasing still ask unless that permission names them; force pushes and deletions always do. The guard hooks ask on every push, so a hands-off run also needs pushes allowed in your agent's permission settings.",
 		supportTitle: "Alongside every step",
 		support: [
 			{

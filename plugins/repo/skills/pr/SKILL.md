@@ -24,7 +24,14 @@ and merge rules are `git:workflow`'s; this skill is the platform side.
 - **The diff:** `pr diff` or the API's diff, for a review the user asked
   for.
 
-## Open a PR — when the user asks
+## Open a PR — when landing, or when asked
+
+In **remote mode** (`../../references/landing.md`) every merge into a
+long-lived branch is a PR this skill opens and merges on the platform:
+`git:workflow` asks once, as for a merge (or the run's up-front
+permission covers it), and the flow in `landing.md` runs to the end —
+push, open, checks and reviews, merge with the count rule, cleanup.
+Outside that, open one when the user asks:
 
 1. The branch is pushed (pushing is `git:workflow`'s, and asked there).
 2. **Target:** the branch the workflow says — a work branch goes to
@@ -45,13 +52,14 @@ and merge rules are `git:workflow`'s; this skill is the platform side.
 
 Comment, reply to a thread, approve, request changes, update the
 description, mark ready, close, and **merge**: each only when the user
-asks for that action, said first in one line, through `--write`.
+asks for that action (or, for the merge, when it lands work in remote
+mode), said first in one line, through `--write`.
 
-- **Merge** follows `git:workflow`: the strategy it sets for that branch
-  (`--no-ff` merges or `--ff-only`, as the repository's rules map to
-  merge, squash or rebase), only with green required checks and the
-  approvals the branch needs, and the source branch deleted when the
-  workflow says. Never bypass branch protection or merge a red PR.
+- **Merge** follows `git:workflow`'s count rule, mapped to each
+  platform's options in `landing.md` (merge commit from 4 commits,
+  rebase/fast-forward under 4), only with green required checks and the
+  approvals the branch needs, deleting the source branch. Never bypass
+  branch protection or merge a red PR.
 - **Approve** only when the user says they reviewed it or asks you to
   approve after a review you did together; never self-approve to get past
   a policy.

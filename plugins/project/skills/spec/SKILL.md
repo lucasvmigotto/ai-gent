@@ -104,7 +104,7 @@ each other's feature.
    here they are not. Fill `Feature Branch` with the `git:workflow`
    branch name.
 2. `/speckit-clarify` — [gate: `spec.md` written] resolve every
-   `[NEEDS CLARIFICATION]` marker with the user — at most five per prompt,
+   `[NEEDS CLARIFICATION]` marker with the user — at most four per prompt,
    as options with a recommendation, in as many rounds as it takes
    (pipeline rule 2; re-run `/speckit-clarify`, which asks five per
    session) — and write the answers back into `spec.md`. A question the
@@ -179,13 +179,15 @@ step belongs to the build stages; do not write code here.
 - [ ] each feature has a layer-pointer task per layer, so `implement` has an entry point
 - [ ] `/speckit-analyze` run per feature; findings fixed or reported
 
-## Tracker (only when the user wants it)
+## Tracker (by default when the platform is reachable)
 
-If the user wants the specs on the project's tracker, or a feature already
-has a `tracker.md`, run `repo:sync` for the features written or changed
-(pipeline rule 10) once their `tasks.md` exists: a feature item and a
-child item per story. Then the story branches use the refs it records.
-Don't create tracker items unasked.
+In remote mode (`reporun detect` finds the platform signed in or a token
+in pass — pipeline rule 7), or when the user asks, run `repo:sync` for the
+features written or changed (pipeline rule 10) once their `tasks.md`
+exists: a feature item and a child item per story, in one confirmed batch
+(or covered by the run's up-front permission). Then the story branches
+use the refs it records. Without a reachable platform, say so and go
+on.
 
 ## Handoff
 

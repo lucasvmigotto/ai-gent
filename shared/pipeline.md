@@ -167,7 +167,8 @@ definition and the words **not** to use for it
 2. **Ask first.** Before writing, ask the questions whose answers would
    change the output — the audience, a scope boundary, a hard
    constraint, a rule — and none the inputs already answer.
-   - **At most 5 questions per prompt, no limit on rounds.** Answers
+   - **At most 4 questions per prompt, no limit on rounds** (4 is what
+     Claude Code's question tool takes at once). Answers
      often raise new questions, so ask in rounds, each building on what
      the last one settled. Stop only when nothing that would change the
      output is open — or when the user declines to answer ("you decide",
@@ -230,7 +231,12 @@ definition and the words **not** to use for it
    `chore: initial commit`, then `dev`/`develop` from it, and every
    stage's work on branches off that. Input documents the user hands in
    — a spec, requirements, references — are never committed unless they
-   say so.
+   say so. **Remote mode:** when the code platform is reachable (its CLI
+   signed in or a token in pass) and the user hasn't said merges are
+   local, every merge into a long-lived branch — work into `dev`, each
+   promotion up the chain — goes through a PR the agent opens and merges
+   on the platform (`repo:pr`), with the same asks, merge style and
+   branch cleanup as a local merge.
 8. **Pushed means watched.** After every push, merge to a pushed branch
    or promotion, the stage that made it follows the CI runs it started
    with `devsecops:watch` until they finish, chained runs included: done
@@ -250,13 +256,16 @@ definition and the words **not** to use for it
    - **already red** on the default branch before this change: report it,
      don't fix it unasked.
    Three fix rounds that leave CI red end the loop: report what was tried
-   and ask. A feature whose CI is red is not Implemented or Verified —
+   and ask. In remote mode, a red run the loop won't fix — flaky, runner,
+   outage, already red, or still red after three rounds — also becomes an
+   issue (`repo:issues`, one per failing workflow, updated rather than
+   duplicated). A feature whose CI is red is not Implemented or Verified —
    move it back (rule 6) until it's green.
 9. **Finish with a handoff line**: what was written, what's still open,
    CI's state for anything pushed, and the next stage to run.
-10. **Tracked features stay in step.** When the user wants the specs on
-   the tracker (GitHub, Azure Boards, GitLab, Jira, Bitbucket),
-   `repo:sync` mirrors each feature as an item and each user story as a
+10. **Tracked features stay in step.** In remote mode — or when the user
+   asks — the specs go on the tracker (GitHub, Azure Boards, GitLab,
+   Jira, Bitbucket) by default: `repo:sync` mirrors each feature as an item and each user story as a
    child item, and records them in the feature's `tracker.md`. From then
    on, for a feature with a `tracker.md`:
    - a stage that ticks tasks or moves a status (the build stages,
