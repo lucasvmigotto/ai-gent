@@ -73,3 +73,10 @@ jobs:
           # the next run releases those commits too.
           git push --atomic origin HEAD:refs/heads/main "refs/tags/$version"
           gh release create "$version" --title "$version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+
+  report-failure:
+    needs: [check, release]
+    if: failure()
+    permissions:
+      issues: write
+    uses: ./.github/workflows/report-failure.yml
