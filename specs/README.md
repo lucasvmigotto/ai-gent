@@ -17,12 +17,12 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 005 | docs-site-delivery | Docs CI checks, e2e smoke, R2 deploy, OG image | P1 | 001 | N/A | Implemented | — | CI green 2026-10-17; actions pinned by tag only |
 | 006 | installer | install.sh clone/update/pin, setup.sh per-agent install, opencode config | P1 | — | N/A | Implemented | — | test-install.sh (70 checks) runs in CI and passed; interactive selector untested |
 | 007 | pass-store | shared passstore module: check, has, read, write | P1 | — | N/A | Implemented | — | tested only through dbrun and reporun |
-| 008 | db-runner | dbrun: profiles, classification, read-only queries, plans/apply/restore, scripts, log, secrets | P1 | 007 | N/A | Implemented | — | 51 unit tests pass; real-engine suite manual, not run here |
+| 008 | db-runner | dbrun: profiles, classification, read-only queries, plans/apply/restore, scripts, log, secrets | P1 | 007 | N/A | Verified | — | 51 unit tests run in CI; the real-engine suite runs weekly in CI (scheduled.yml, green 2026-10-18) |
 | 009 | repo-runner | reporun: detect, cli, api, batch, chain | P1 | 007 | N/A | Implemented | — | 27 test methods pass; write misclassification found |
 | 010 | spec-sync | specsync: plan, record, features | P2 | 009 | N/A | Implemented | — | parses this file |
 | 011 | worktrees | wt.py: plan, add, list, remove | P3 | — | N/A | Implemented | — | parses this file |
 
-No feature is Verified: Verified needs end-to-end suites covering every story, running and passing in CI. The closest are 006 (all stories but the interactive selector) and 002 (two of four stories).
+Verified needs suites covering every story, running and passing in CI; for tooling without a UI the integration suites stand in for e2e journeys (pipeline rule 6). 008 is Verified: its unit tests run on every pull request and the real-engine suite weekly. The closest others are 006 (all stories but the interactive selector) and 002 (two of four stories).
 
 ## Contract
 

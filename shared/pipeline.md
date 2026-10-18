@@ -209,7 +209,10 @@ definition and the words **not** to use for it
      `/speckit-converge` reported the feature converged**;
    - *Verified* — `qa:e2e` (and `qa:load` where the feature has load
      targets) passed against the implemented feature, and CI runs those
-     suites and they pass there.
+     suites and they pass there. A feature with no user interface
+     (tooling: an installer, a runner, a script) has no e2e journeys: its
+     integration suites, named in its `qa.md` or `tasks.md`, take their
+     place — they run in CI (a scheduled run counts) and pass there.
    Only the named stage moves a status forward; any stage moves it back
    when it finds the claim no longer holds. The one exception is
    `project:introspec` on existing code, which sets Implemented or
