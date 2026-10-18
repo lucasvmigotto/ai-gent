@@ -17,7 +17,13 @@ set -euo pipefail
 say() { printf 'ai-gent-update: %s\n' "$*"; }
 die() { printf 'ai-gent-update: error: %s\n' "$*" >&2; exit 1; }
 
-root="${AI_GENT_UPDATE_ROOT:-$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")}"
+# the script may be run through a symlink (readlink -f is missing on older macOS)
+self="${BASH_SOURCE[0]}"
+while [[ -L $self ]]; do
+    link="$(readlink "$self")"
+    if [[ $link == /* ]]; then self="$link"; else self="$(dirname "$self")/$link"; fi
+done
+root="${AI_GENT_UPDATE_ROOT:-$(cd "$(dirname "$self")/.." && pwd -P)}"
 [[ -d "$root/.git" ]] || die "$root is not a git checkout — re-clone https://github.com/lucasvmigotto/ai-gent.git"
 [[ -n "$(git -C "$root" status --porcelain)" ]] && die "$root has local changes — stash or commit them first"
 

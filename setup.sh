@@ -45,6 +45,35 @@
 
 set -euo pipefail
 
+# The agent tables below are associative arrays, which need bash 4. macOS ships
+# bash 3.2: hand over to a newer bash (Homebrew's) when there is one.
+if ((BASH_VERSINFO[0] < 4)); then
+  for newer in "${AI_GENT_BASH:-}" /opt/homebrew/bin/bash /usr/local/bin/bash; do
+    if [[ -n $newer && -x $newer ]] && "$newer" -c '((BASH_VERSINFO[0] >= 4))' 2>/dev/null; then
+      exec "$newer" "${BASH_SOURCE[0]}" "$@"
+    fi
+  done
+  echo "setup.sh needs bash 4 or newer; this is bash $BASH_VERSION. On macOS: brew install bash" >&2
+  exit 1
+fi
+
+# physical <path> — the path with its symlinks resolved (readlink -f is missing
+# on macOS before 12.3)
+physical() {
+  local p="$1" t
+  while [[ -L $p ]]; do
+    t="$(readlink "$p")"
+    if [[ $t == /* ]]; then p="$t"; else p="$(dirname "$p")/$t"; fi
+  done
+  if [[ -d $p ]]; then
+    (cd -P "$p" && pwd) || printf '%s\n' "$p"
+  else
+    local d
+    d="$(cd -P "$(dirname "$p")" 2>/dev/null && pwd)" || d="$(dirname "$p")"
+    printf '%s/%s\n' "$d" "$(basename "$p")"
+  fi
+}
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 OPENCODE_SKILLS="${OPENCODE_SKILLS_DIR:-$HOME/.config/opencode/skills}"
@@ -358,7 +387,7 @@ prune_links() {
 }
 
 frontmatter() { # frontmatter <file> <key> — single-line values only
-  sed -n "/^---$/,/^---$/{s/^$2: //p}" "$1" | head -n1
+  sed -n "/^---$/,/^---$/{s/^$2: //p;}" "$1" | head -n1
 }
 
 yaml_quote() {
@@ -634,7 +663,7 @@ install_opencode() {
   # A symlink to the Claude skills dir would make generated entries appear
   # as Claude personal skills too; opencode needs its own real directory.
   if [[ -L "$OPENCODE_SKILLS" ]]; then
-    if [[ "$(readlink -f "$OPENCODE_SKILLS")" == "$(readlink -f "$CLAUDE_DIR")" ]] || ((FORCE)); then
+    if [[ "$(physical "$OPENCODE_SKILLS")" == "$(physical "$CLAUDE_DIR")" ]] || ((FORCE)); then
       line replace "$OPENCODE_SKILLS (symlink to $(readlink "$OPENCODE_SKILLS")) with a real directory"
       run rm "$OPENCODE_SKILLS"
     else
