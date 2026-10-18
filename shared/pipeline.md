@@ -281,6 +281,14 @@ definition and the words **not** to use for it
    Tracker writes are remote changes: one confirmation per sync batch,
    covered by the user's up-front permission to run the project on its
    own. Without a `tracker.md`, nothing here applies.
+11. **READMEs follow `readme.md`.** A stage that writes or updates a
+   README — the project's or a folder's — follows the shared
+   conventions: the sections in order, setting names never values, and
+   GitHub alerts (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`,
+   `[!CAUTION]`) by default for anything a reader must not miss, picked
+   by consequence and used sparingly. It updates the README in the same
+   change that alters how the project runs, builds, tests or is
+   configured.
 
 ## Spec Kit
 
