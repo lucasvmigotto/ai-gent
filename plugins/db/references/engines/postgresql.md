@@ -1,6 +1,6 @@
 # PostgreSQL
 
-- **Driver:** psycopg 3 (`uv run --with 'psycopg[binary]'`). CLI
+- **Driver:** psycopg 3 (`uv run --with 'psycopg[binary]==<pinned>'`, versions in `DRIVERS` of `dbrun.py`). CLI
   fallback: `psql --csv` from the official `postgres` image.
 - **Session guards (runner):** `default_transaction_read_only = on`
   (remote), `statement_timeout`, `lock_timeout = 5s`,
