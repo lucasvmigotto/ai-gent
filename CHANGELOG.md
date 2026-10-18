@@ -4,6 +4,25 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Troubleshooting on the install page** (and its Markdown twin): skills
+  not showing up, the wrong agents installed, opencode not set up, guard
+  prompts, updating, and something in setup's way — each with the
+  command that fixes it.
+
+### Fixed
+
+- **The docs deploy no longer has a 404 window, nor a false green.** New
+  hashed assets upload first and the old ones are pruned last, after
+  `index.html` points at the new ones; missing R2 credentials fail the run
+  instead of skipping the deploy.
+- **The skip link works under hash routing.** It's a button that moves
+  focus to the content, instead of a `#main` link that routed to the
+  not-found page.
+
 ## 2.10.1 — 2026-10-18
 
 ### Changed
