@@ -8,7 +8,7 @@ They cover the whole path of a software project, from idea to docs site, plus th
 - **Container-first development environments.**
 - **CI/CD and supply-chain security.**
 - **Safe database access**, with passwords kept in [pass](https://www.passwordstore.org/).
-- **Issues, work items and pull requests** on GitHub, Azure DevOps, GitLab, Bitbucket and Jira — and the specs mirrored there, kept in step as the work moves.
+- **Issues, work items and pull requests** on GitHub, Azure DevOps, GitLab, Bitbucket, Forgejo/Gitea and Jira — and the specs mirrored there, kept in step as the work moves.
 - **Token-lean code reading**, verified against the original.
 - **git rules**, enforced by a hook.
 
@@ -182,7 +182,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
   - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
   - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
-- `plugins/repo/` — issues, work items and pull requests on GitHub, Azure DevOps, GitLab, Bitbucket and Jira (see [Platforms and secrets](#platforms-and-secrets))
+- `plugins/repo/` — issues, work items and pull requests on GitHub, Azure DevOps, GitLab, Bitbucket, Forgejo/Gitea and Jira (see [Platforms and secrets](#platforms-and-secrets))
   - `issues` — find, read, create and update issues and work items (Azure Boards WIQL, Jira JQL and transitions), every change asked first
   - `pr` — pull and merge requests: read them with checks, diffs and review threads; open one with the template and linked issues; comment, approve, merge
   - `sync` — mirror Spec Kit features into the tracker (an item per feature, a child item per user story with its tasks as a checklist) and keep their states in step with `tasks.md` and `specs/README.md`, closing at Verified on the integration branch

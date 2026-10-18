@@ -15,7 +15,7 @@ REPORUN="python3 <plugin>/scripts/reporun.py"     # <plugin> = this plugin's dir
 | `cli <platform> [--write] [--entry E] -- <args>` | run **that platform's own CLI** (`gh`, `az`, `glab`, `jira`) with the token from pass in its environment only; output redacted |
 | `api <platform> METHOD PATH [--data FILE\|-] [--query K=V]… [--write] [--paginate] [--max-pages N] [--entry E]` | call the REST API: the runner builds the auth header; JSON out; errors redacted |
 
-`<platform>` is `github`, `azure-devops`, `gitlab`, `bitbucket` or `jira`.
+`<platform>` is `github`, `azure-devops`, `gitlab`, `bitbucket`, `forgejo` (Forgejo, Gitea, Codeberg) or `jira`.
 
 ## CLI first, REST as the fallback
 
@@ -61,7 +61,7 @@ REPORUN="python3 <plugin>/scripts/reporun.py"     # <plugin> = this plugin's dir
 `api` paths are relative to the platform's API base and may use
 placeholders filled from the remote: `{owner}`, `{repo}` (GitHub),
 `{org}`, `{project}` (Azure DevOps), `{project_path}` (GitLab, URL-encoded
-as the API wants), `{workspace}` (Bitbucket). Single-quote paths with `$`
+as the API wants), `{workspace}` (Bitbucket), `{owner}`, `{repo}` (Forgejo). Single-quote paths with `$`
 in them (`'/{project}/_apis/wit/workitems/$Bug'`).
 
 | Platform | Base | Auth the runner sends |
@@ -70,6 +70,7 @@ in them (`'/{project}/_apis/wit/workitems/$Bug'`).
 | Azure DevOps | `https://dev.azure.com/<org>` (from the remote, or `git config ai-gent.azure-devops.org`); `api-version=7.1` added unless given | `Basic :<pat>` |
 | GitLab | `https://<host>/api/v4` | `Bearer <token>` |
 | Bitbucket Cloud | `https://api.bitbucket.org/2.0` | `Basic <email>:<token>` with an `email:` line in the entry (Atlassian API token), else `Bearer` (access token) |
+| Forgejo / Gitea | `https://<host>/api/v1` | `token <pat>` |
 | Jira | `git config ai-gent.jira.url`, `JIRA_URL`, or a `url:` line in the entry | `Basic <email>:<token>` with an `email:` line (Cloud), else `Bearer` (Server/Data Center PAT) |
 
 `--paginate` follows `Link: rel="next"` (GitHub, GitLab) and Bitbucket's

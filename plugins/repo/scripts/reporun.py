@@ -54,6 +54,7 @@ PLATFORMS = {
     "azure-devops": {"cli": "az", "entry": "azure-devops/pat", "env": ("AZURE_DEVOPS_EXT_PAT",)},
     "gitlab": {"cli": "glab", "entry": "gitlab/pat", "env": ("GITLAB_TOKEN",)},
     "bitbucket": {"cli": None, "entry": "bitbucket/token", "env": ()},
+    "forgejo": {"cli": None, "entry": "forgejo/pat", "env": ()},  # Forgejo, Gitea, Codeberg: REST only
     "jira": {"cli": "jira", "entry": "jira/token", "env": ("JIRA_API_TOKEN",)},
 }
 
@@ -78,6 +79,7 @@ READ_POSTS = {
     "azure-devops": re.compile(r"/_apis/wit/wiql(/|$|\?)"),
     "jira": re.compile(r"^/rest/api/\d+/search(/jql)?$|^/rest/agile/[\d.]+/.*/search$"),
     "bitbucket": None,
+    "forgejo": None,
 }
 
 
@@ -198,6 +200,8 @@ def parse_remote(url: str, forced: str = "") -> dict:
             info["platform"] = "bitbucket"
         elif "gitlab" in host:
             info["platform"] = "gitlab"
+        elif host == "codeberg.org" or "forgejo" in host or "gitea" in host:
+            info["platform"] = "forgejo"
     if info["platform"] == "gitlab":
         info["namespace"], info["repo"] = "/".join(parts[:-1]), (parts[-1] if parts else "")
         info["project_path"] = "/".join(parts)
@@ -250,7 +254,7 @@ def cmd_detect(args) -> int:
         print(json.dumps(report, indent=2))
         return EXIT_OK
     print(f"remote    {repo.get('url') or '(none)'}")
-    print(f"platform  {repo.get('platform') or 'unknown — set git config ai-gent.platform <github|gitlab|azure-devops|bitbucket>'}")
+    print(f"platform  {repo.get('platform') or 'unknown — set git config ai-gent.platform <github|gitlab|azure-devops|bitbucket|forgejo>'}")
     for k in ("owner", "org", "project", "namespace", "workspace", "repo"):
         if repo.get(k):
             print(f"{k:<9} {repo[k]}")
@@ -406,6 +410,11 @@ def api_base(platform: str, notes: dict) -> tuple[str, dict]:
                 f"https://api.{host}" if host.endswith(".ghe.com") else f"https://{host}/api/v3"), facts
     if platform == "gitlab":
         return f"https://{host or 'gitlab.com'}/api/v4", facts
+    if platform == "forgejo":
+        if not host:
+            raise Failed("no Forgejo host: the remote isn't on one; set git config ai-gent.platform forgejo "
+                         "with a remote on the Forgejo or Gitea instance")
+        return f"https://{host}/api/v1", facts
     if platform == "azure-devops":
         org = facts.get("org") or notes.get("org") or git_config("ai-gent.azure-devops.org")
         if not org:
@@ -418,6 +427,8 @@ def auth_header(platform: str, secret: str, notes: dict) -> str:
     user = notes.get("email") or notes.get("username") or notes.get("user")
     if platform == "azure-devops":
         return "Basic " + base64.b64encode(f":{secret}".encode()).decode()
+    if platform == "forgejo":
+        return "token " + secret
     if user and platform in ("bitbucket", "jira"):
         return "Basic " + base64.b64encode(f"{user}:{secret}".encode()).decode()
     return "Bearer " + secret
