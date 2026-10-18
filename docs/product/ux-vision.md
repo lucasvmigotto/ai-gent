@@ -18,7 +18,7 @@ violet-ink dark theme with a single marigold signal color.
 ## Inputs used (and missing)
 
 - Used: `docs/product/brief.md` — audiences (toolkit users, contributors,
-  agents over HTTP, maintainer), MVP scope (all 36 skill pages, English
+  agents over HTTP, maintainer), MVP scope (every skill page, English
   with the i18n architecture, `llms.txt` output, R2 deploy), glossary, constraints (single
   maintainer, automation over process), public URL
   `https://docs.lucasvmigotto.me/ai-gent/`.
@@ -35,8 +35,9 @@ violet-ink dark theme with a single marigold signal color.
 
 No references directory was provided, so there is no reference table. The
 direction was built from the subject matter instead: agent skills invoked
-from a prompt, symlinked installs, plugin manifests, guard hooks, and a
-bilingual reader base.
+from a prompt, symlinked installs, plugin manifests, guard hooks, and an
+English-reading audience (the site was planned bilingual; see the
+2026-10-05 decision).
 
 ## Personas & jobs
 
@@ -81,7 +82,8 @@ correct first contribution; consume releases and versions; ingest via
 landing (skill finder: search + index + install shortcut)
 ├── /use/install            per-tool install, verify, troubleshoot
 ├── /use/skills              full index, grouped by plugin, filterable
-│   └── /use/skills/<plugin>-<skill>   36 pages: what, when, invoke, source
+│   └── /use/skills/<plugin>-<skill>   one page per skill: what, when, invoke, source
+├── /use/flow                the autonomous flow: steps, skills, what asks you
 ├── /contribute              conventions, checks, releases, versions
 ├── /reference/pipeline      the product pipeline
 ├── /reference/containers     container-first rules
@@ -144,7 +146,7 @@ Landing, desktop:
 +----------------------------------------------------------+
 |  Find the skill for the task.                            |
 |  [ what are you trying to do? .................... ]     |
-|  36 skills · 9 plugins · en-US                           |
+|  44 skills · 12 plugins · en-US   (generated counts)     |
 |                                                          |
 |  project ......... init architecture spec status docs .. |
 |  frontend ........ uiux spec build tui                   |
@@ -292,7 +294,7 @@ terms introduced — none needed, so the brief's glossary is unchanged.
   install command" → confirmation "Copied".
 - Errors say what happened plus the fix, no apology, no vagueness:
   "No skill matches 'perf test'. Try 'load' or browse the qa plugin."
-- Empty states invite action: "No results — browse all 36 skills."
+- Empty states invite action: "No results — browse every skill."
 - Numbers and versions use the repo's forms: `1.7.0`, `/qa-load`,
   `docs/site/`. Dates in ISO.
 - A future locale may run ~30% longer; layouts must not clip or overlap,
@@ -307,7 +309,7 @@ Landing hero:
 
 - `landing.hero.title` — "Find the skill for the task."
 - `landing.hero.search.placeholder` — "What are you trying to do?"
-- `landing.hero.meta` — "36 skills · 9 plugins · en-US"
+- `landing.hero.meta` — "<skills> skills · <plugins> plugins · en-US" (generated)
 - `landing.hero.install` — "Install ai-gent"
 
 Skill page:
@@ -376,3 +378,11 @@ versions) stay untranslated.
   (rejected — maintenance), silent en-US fallback (rejected — hides gaps).
 - 2026-10-04, no terminal-interface section: none was requested for this
   site.
+- 2026-10-17, a **Flow** page (`/use/flow`) and site 1.0.0: the autonomous
+  loop from idea to release as one icon line (names in tooltips) and
+  numbered steps with skill chips, asks-you badges and the CI fix loop;
+  the landing keeps two actions, install and the flow. Alternatives: a
+  Mermaid diagram (rejected — a ~600 KB library on a small static site)
+  and ASCII art (rejected — poor at phone width and for screen readers).
+- 2026-10-18, counts in copy are generated, never written: the site had
+  said 36 skills and 9 plugins long after both grew.
