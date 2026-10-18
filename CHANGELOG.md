@@ -29,6 +29,17 @@ changes.
   `gh issue edit 12 view` ran without `--write` and without the guard's
   question. It now takes the verb from its place in each CLI's command
   (`gh`/`glab`/`jira`: the second word; `az`: the last before options).
+- **`wt.py` (agents:parallel) in worktrees and after rebase merges.**
+  `plan` reads the `specs/` of the worktree it runs in, not the main
+  checkout's; port offsets are recorded (`.worktrees/.ports.json`) so a new
+  track never takes a live one's; and `remove` recognizes a branch the
+  platform merged by rebase (`git cherry`) instead of calling it unlanded.
+- **The docs site's Markdown pages match the HTML ones.** The Reference
+  page lists all nine contracts; Install and Contribute carry every
+  section, the plugin versions table included.
+- Docs CI pins its actions by SHA and Bun to an exact version, like the
+  other workflows; the brief and UX vision catch up with the site
+  (generated counts, English only, the Flow page).
 
 ## 2.10.0 — 2026-10-18
 
