@@ -69,7 +69,8 @@ content.
 
 Audit the host project: structure, manifest (`Cargo.toml`/`package.json`),
 CLI surface, config shape, auth model, API integration, features, tests,
-CI/CD, README/LICENSE, version, platforms. Produce a truth table with
+CI/CD, README/LICENSE, version, platforms (the README itself follows
+`../../references/readme.md`; add the docs site to its *Links*). Produce a truth table with
 `file:line` references plus the no-invent list. Inspect the reference
 projects for reusable patterns (visual family, router strategy, test
 harness, locale architecture, R2 deploy + cache strategy).

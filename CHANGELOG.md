@@ -4,6 +4,21 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **README conventions with GitHub alerts by default (pipeline rule
+  11).** A new shared reference, `readme.md`, sets how the READMEs a
+  stage writes read: the sections in order (what it is, quick start,
+  usage, development, configuration by name, links, license) and GitHub
+  alerts for anything a reader must not miss — `[!NOTE]` for context,
+  `[!TIP]` for a better way, `[!IMPORTANT]` for what's required,
+  `[!WARNING]` for risks, `[!CAUTION]` for what an action can destroy —
+  picked by consequence and used sparingly. `devcontainer:setup`,
+  `devcontainer:infra`, `qa:load` and `project:docs` point to it, and a
+  README is updated in the same change that alters how the project runs.
+
 ## 2.9.0 — 2026-10-18
 
 ### Changed
