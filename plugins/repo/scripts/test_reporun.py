@@ -370,6 +370,17 @@ class BatchTest(Sandbox):
         self.assertEqual(report["skipped"], ["US1"])
         self.assertEqual(len(report["records"]), 1)  # what was created is still recorded
 
+    def test_text_that_quotes_the_syntax_stays(self):
+        self.entry("ai-gent/github/pat", f"{TOKEN}\n")
+        steps = [{"name": "doc", "api": {"method": "POST", "path": "/repos/{owner}/{repo}/issues",
+                                         "data": {"title": "x", "body": "Use {{step.field}} or {{self.id}} here"}}},
+                 {"name": "later", "api": {"method": "POST", "path": "/repos/o/r/issues/{{doc.number}}/comments",
+                                           "data": {"body": "refs {{doc.number}}"}}}]
+        code, out, err = self.run_cmd("batch", self.plan(steps), "--write")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(Stub.seen[0]["body"])["body"], "Use {{step.field}} or {{self.id}} here")
+        self.assertEqual(Stub.seen[1]["path"], "/repos/o/r/issues/101/comments")
+
     def test_reads_need_no_write(self):
         code, out, err = self.run_cmd("batch", self.plan([{"name": "list", "api": {"method": "GET", "path": "/repos/o/r/issues"}}]))
         self.assertEqual(code, 0, err)
