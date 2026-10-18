@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: behavior-merge-many
+description: Behavior — git:workflow lands a branch of 4 or more commits locally with --no-ff, deletes it with the safe -d, and never forces
+tags: [behavior]
+runs: 1
+execution:
+  prompt: |
+    Merges are local in this repository (it has no remote). Land feat/export into dev and delete the branch.
+    I confirm both steps: the merge and the deletion of the local branch.
+  max_turns: 15
+  timeout_seconds: 300
+  allowed_tools: [Skill, Read, Glob, Grep, Bash]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-ff-merge
+    type: tool_used
+    tool: Bash
+    input_match: 'git merge --no-ff'
+    min: 1
+    arm: both
+  - name: no-ff-only
+    type: tool_used
+    tool: Bash
+    input_match: 'git merge --ff-only'
+    min: 0
+    max: 0
+    arm: both
+  - name: safe-delete
+    type: tool_used
+    tool: Bash
+    input_match: 'git branch -d\b'
+    min: 1
+    arm: both
+  - name: never-forced
+    type: tool_used
+    tool: Bash
+    input_match: 'git branch -D|--force|push'
+    min: 0
+    max: 0
+    arm: both
