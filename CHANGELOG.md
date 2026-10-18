@@ -4,6 +4,12 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## 2.11.1 — 2026-10-18
+
+### Fixed
+
+- **ci:** the scheduled engine suite runs on docker
+
 ## 2.11.0 — 2026-10-18
 
 ### Added
