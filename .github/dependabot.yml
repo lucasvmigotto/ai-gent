@@ -6,3 +6,12 @@ updates:
       interval: monthly
     commit-message:
       prefix: ci
+  - package-ecosystem: bun
+    directory: /docs/site
+    schedule:
+      interval: monthly
+    groups:
+      docs-site:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore
