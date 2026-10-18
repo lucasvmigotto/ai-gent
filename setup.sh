@@ -101,6 +101,7 @@ Code and the previous choice preselected.
   --dry-run    print what would change, change nothing
   --force      back up and replace a real directory or foreign symlink in the way
   --uninstall  remove everything this script installed, or only for --target
+               (the shared ~/.agents/skills stays while a remaining agent uses it)
   --yes        apply the opencode config edits without asking
   --no-config-edits
                never edit opencode.json; print what to add instead
@@ -124,7 +125,12 @@ EOF
 
 while (($#)); do
   case "$1" in
-    --target) TARGET="${2:-}"; shift ;;
+    --target)
+      if (($# < 2)) || [[ -z $2 || $2 == -* ]]; then
+        echo "--target needs a value: a comma-separated list of agents, or all" >&2
+        exit 2
+      fi
+      TARGET="$2"; shift ;;
     --target=*) TARGET="${1#*=}" ;;
     --dry-run) DRY_RUN=1 ;;
     --force) FORCE=1 ;;
@@ -845,6 +851,17 @@ for id in $AGENTS; do
       # One pass for every chosen agent that reads ~/.agents/skills.
       ((SHARED_DONE)) && continue
       SHARED_DONE=1
+      if ((UNINSTALL)); then
+        # Keep the shared entries while another remembered agent still reads them.
+        still=""
+        for s in $(previous_agents); do
+          if [[ $SHARED_AGENTS == *" $s "* && " $AGENTS " != *" $s "* ]]; then still+="${still:+, }${AGENT_LABEL[$s]}"; fi
+        done
+        if [[ -n $still ]]; then
+          printf '%s kept: %s still uses it\n' "$AGENTS_SKILLS" "$still"
+          continue
+        fi
+      fi
       shared=""
       for s in $AGENTS; do
         if [[ $SHARED_AGENTS == *" $s "* ]]; then shared+="${shared:+, }${AGENT_LABEL[$s]}"; fi
