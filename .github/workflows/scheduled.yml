@@ -32,6 +32,9 @@ jobs:
 
       - name: dbrun against PostgreSQL, MySQL, MariaDB, SQL Server and Oracle
         run: scripts/test-dbrun-engines.py
+        env:
+          # the runner has podman installed but no podman socket running
+          CONTAINER_ENGINE: docker
 
   site:
     runs-on: ubuntu-24.04
