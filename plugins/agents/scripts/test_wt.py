@@ -116,6 +116,35 @@ class WtTest(unittest.TestCase):
         code, _, err = self.run_wt("add", "feat/x", "--base", "dev")
         self.assertIn("exists", err)
 
+    def test_offsets_never_reuse_a_live_one(self):
+        self.run_wt("add", "feat/a")
+        self.run_wt("add", "feat/b")
+        self.git("switch", "-q", "dev")
+        self.run_wt("remove", "feat/a")                                            # nothing to land: removable
+        code, out, _ = self.run_wt("add", "feat/c")
+        self.assertEqual(json.loads(out)["port_offset"], 100)                       # a's freed offset, not b's 200
+
+    def test_remove_after_a_rebase_merge(self):
+        self.run_wt("add", "feat/x")
+        wt_path = self.repo / ".worktrees" / "feat-x"
+        (wt_path / "x.py").write_text("x = 1\n")
+        self.git("add", ".", cwd=wt_path)
+        self.git("commit", "-q", "-m", "feat: x", cwd=wt_path)
+        self.git("switch", "-q", "dev")
+        self.git("cherry-pick", "feat/x")                                     # same change, a new hash
+        code, out, err = self.run_wt("remove", "feat/x")
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("feat/x", self.git("branch"))
+
+    def test_plan_reads_the_worktree_it_runs_in(self):
+        self.run_wt("add", "feat/specs")
+        wt_path = self.repo / ".worktrees" / "feat-specs"
+        (wt_path / "specs" / "README.md").write_text(README.replace("| 004 | search | P2 | 001 | N/A | Planned |",
+                                                                      "| 004 | search | P2 | 001 | N/A | Implemented |"))
+        os.chdir(wt_path)
+        code, out, _ = self.run_wt("plan", "--json")
+        self.assertEqual([x["number"] for x in json.loads(out)["ready"]], ["002"])  # this worktree's README
+
     def test_from_inside_a_worktree(self):
         self.run_wt("add", "feat/002-orgs")
         os.chdir(self.repo / ".worktrees" / "feat-002-orgs")

@@ -45,6 +45,27 @@ def root() -> Path:
     return common.parent
 
 
+def here() -> Path:
+    """The checkout you're in — a worktree reads its own specs."""
+    return Path(git("rev-parse", "--show-toplevel"))
+
+
+def ports_file(r: Path) -> Path:
+    return r / DIR / ".ports.json"
+
+
+def load_ports(r: Path) -> dict[str, int]:
+    try:
+        return json.loads(ports_file(r).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save_ports(r: Path, ports: dict[str, int]) -> None:
+    ports_file(r).parent.mkdir(parents=True, exist_ok=True)
+    ports_file(r).write_text(json.dumps(ports, indent=2, sort_keys=True) + "\n")
+
+
 def slug(branch: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", branch.lower()).strip("-")
 
@@ -116,8 +137,7 @@ def level(value: str) -> int | None:
 
 
 def cmd_plan(args) -> int:
-    r = root()
-    rows = readme_rows(r)
+    rows = readme_rows(here())
     by = {x["number"]: x for x in rows}
 
     def built(n: str) -> bool:  # dependencies count once Implemented
@@ -156,12 +176,16 @@ def cmd_add(args) -> int:
     if git("rev-parse", "--verify", "--quiet", f"refs/heads/{args.branch}", cwd=r, ok=True):
         raise Failed(f"branch {args.branch} exists; a track starts on a new branch")
     exclude(r)
-    index = len(worktrees(r)) + 1
+    live = {w.get("branch") for w in worktrees(r)}
+    ports = {b: o for b, o in load_ports(r).items() if b in live}  # offsets of live tracks only
+    offset = next(k * PORT_STEP for k in range(1, 1000) if k * PORT_STEP not in ports.values())
     git("worktree", "add", "-q", "-b", args.branch, str(path), base, cwd=r)
+    ports[args.branch] = offset
+    save_ports(r, ports)
     project = f"{slug(r.name)}-{slug(args.branch)}"
     print(json.dumps({"branch": args.branch, "base": base, "path": str(path),
-                      "compose_project": project, "port_offset": index * PORT_STEP}, indent=2))
-    print(f"\nin this worktree: COMPOSE_PROJECT_NAME={project}; publish ports +{index * PORT_STEP} through an "
+                      "compose_project": project, "port_offset": offset}, indent=2))
+    print(f"\nin this worktree: COMPOSE_PROJECT_NAME={project}; publish ports +{offset} through an "
           f"untracked compose.worktree.yaml (already excluded), never by editing the shared compose file",
           file=sys.stderr)
     return 0
@@ -204,11 +228,19 @@ def cmd_remove(args) -> int:
     if git("status", "--porcelain", cwd=p, ok=True):
         raise Failed(f"{p.relative_to(r)} has uncommitted changes; commit or discard them first")
     base = chain_dev(r)
-    if git("rev-list", "--count", f"{base}..{args.branch}", cwd=r) != "0":
-        raise Failed(f"{args.branch} has commits {base} doesn't; land it first")
+    # Landed means every change is on dev — by hash, or by content after the
+    # platform rebased it (git cherry marks those "-").
+    unlanded = [ln for ln in git("cherry", base, args.branch, cwd=r).splitlines() if ln.startswith("+")]
+    if unlanded:
+        raise Failed(f"{args.branch} has {len(unlanded)} change(s) {base} doesn't; land it first")
     git("worktree", "remove", str(p), cwd=r)
-    git("branch", "-d", args.branch, cwd=r)
+    if not git("branch", "-d", args.branch, cwd=r, ok=True) and git(
+            "rev-parse", "--verify", "--quiet", f"refs/heads/{args.branch}", cwd=r, ok=True):
+        git("branch", "-D", args.branch, cwd=r)  # its changes are on dev under new hashes (checked above)
     git("worktree", "prune", cwd=r)
+    ports = load_ports(r)
+    if ports.pop(args.branch, None) is not None:
+        save_ports(r, ports)
     print(f"removed {p.relative_to(r)} and branch {args.branch}")
     return 0
 
