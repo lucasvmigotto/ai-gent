@@ -93,7 +93,9 @@ cases. Run one plugin's suite with
 graders count only with the plugin loaded). Behavior cases that need a
 shell (tag `behavior`, with a `scaffold.sh`) also need `--scaffold
 --allow-tools Bash`, and the eval sandbox's dependencies (`bubblewrap`,
-`socat`) installed. Eval runs cost real tokens and aren't part of CI.
+`socat`) installed. `scripts/run-evals.py [plugin…] [--behavior]` runs the suites for you,
+prints a table and records the scores in `docs/product/evals.md`.
+Eval runs cost real tokens and aren't part of CI.
 
 ## Docs site (`docs/site/`)
 
