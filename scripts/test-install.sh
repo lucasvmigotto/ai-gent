@@ -129,6 +129,14 @@ check "--skip-prompt: the remembered choice, unchanged" bash -c '! grep -Eq "^\[
 setup --uninstall --target kiro
 check "--uninstall --target: only that agent" test "$(gen_count "$KIRO_SKILLS_DIR")" -eq 0 -a "$(gen_count "$AGENTS_SKILLS_DIR")" -gt 0
 check "--uninstall --target: forgotten" test "$(cat "$targets_state")" == "claude codex cursor"
+setup --uninstall --target codex
+check "--uninstall --target: shared entries kept while another agent uses them" test "$(gen_count "$AGENTS_SKILLS_DIR")" -gt 0
+check "--uninstall --target: the keeper is named" grep -q "kept: Cursor still uses it" "$SANDBOX/out"
+setup --uninstall --target cursor
+check "--uninstall --target: shared entries removed with the last agent" test "$(gen_count "$AGENTS_SKILLS_DIR")" -eq 0
+setup --target claude,codex,cursor
+check "--target without a value is refused" bash -c '! "$1/setup.sh" --target >/dev/null 2>"$2" && grep -q "needs a value" "$2"' _ "$REPO_DIR" "$SANDBOX/err"
+check "--target followed by another option is refused" bash -c '! "$1/setup.sh" --target --dry-run >/dev/null 2>&1' _ "$REPO_DIR"
 check "an unknown agent is refused" bash -c '! "$1/setup.sh" --target nope >/dev/null 2>&1' _ "$REPO_DIR"
 setup --target claude,opencode
 
