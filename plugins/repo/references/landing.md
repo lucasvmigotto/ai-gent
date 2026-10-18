@@ -48,6 +48,13 @@ into one of them.
 
    A method the repository disallows (GitHub's *Allow rebase merging*
    off, say): use the closest allowed one and say so in the report.
+
+   **Promotions between long-lived branches** (`dev` → `staging` →
+   `main`): where the platform can't fast-forward — GitHub — use a merge
+   commit whatever the count. A rebase merge rewrites the commits, so the
+   lower branch could no longer catch up by fast-forward and the two
+   would drift apart. Azure Repos, GitLab (fast-forward method) and
+   Bitbucket can fast-forward, so the count rule holds there.
 5. **Clean up** — the platform deletes the source branch on merge; then
    locally: `git fetch --prune`, switch to the parent, `git pull
    --ff-only`, `git branch -d <branch>`. After a rebase merge the commits

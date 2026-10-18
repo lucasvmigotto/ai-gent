@@ -167,7 +167,8 @@ definition and the words **not** to use for it
 2. **Ask first.** Before writing, ask the questions whose answers would
    change the output — the audience, a scope boundary, a hard
    constraint, a rule — and none the inputs already answer.
-   - **At most 5 questions per prompt, no limit on rounds.** Answers
+   - **At most 4 questions per prompt, no limit on rounds** (4 is what
+     Claude Code's question tool takes at once). Answers
      often raise new questions, so ask in rounds, each building on what
      the last one settled. Stop only when nothing that would change the
      output is open — or when the user declines to answer ("you decide",
