@@ -210,11 +210,12 @@ jobs:
       - name: Check R2 credentials
         id: creds
         run: |
+          # A deploy that publishes nothing must not look green.
           if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::R2 credentials not configured — skipping deploy"
-            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::error::R2 credentials not configured (CLOUDFLARE_R2_ACCOUNT_ID, CLOUDFLARE_R2_ACCOUNT_SECRET) — nothing was deployed"
+            exit 1
           fi
 
       - name: Validate R2 configuration
@@ -231,8 +232,10 @@ jobs:
       - name: Sync hashed assets (immutable)
         if: steps.creds.outputs.present == 'true'
         run: |
+          # New hashed assets first, without deleting the old ones: a reader
+          # holding the previous index.html can still load its assets.
           aws s3 sync docs/site/dist/assets "s3://$R2_BUCKET${R2_PREFIX}assets" \
-            --endpoint-url "$R2_ENDPOINT" --delete \
+            --endpoint-url "$R2_ENDPOINT" \
             --cache-control "public, max-age=31536000, immutable"
 
       - name: Sync entry files (no-cache)
@@ -261,3 +264,12 @@ jobs:
           aws s3 sync docs/site/dist/docs "s3://$R2_BUCKET${R2_PREFIX}docs" \
             --endpoint-url "$R2_ENDPOINT" --delete \
             --content-type "text/markdown; charset=utf-8" --cache-control "no-cache"
+
+      # Last: prune the previous hashed assets, now that index.html points
+      # at the new ones (no 404 window for readers mid-deploy).
+      - name: Prune old hashed assets
+        if: steps.creds.outputs.present == 'true'
+        run: |
+          aws s3 sync docs/site/dist/assets "s3://$R2_BUCKET${R2_PREFIX}assets" \
+            --endpoint-url "$R2_ENDPOINT" --delete \
+            --cache-control "public, max-age=31536000, immutable"
