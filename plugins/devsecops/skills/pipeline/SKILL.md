@@ -60,6 +60,15 @@ rendering any YAML:
 4. **Promotion** — the digest/artifact id carried from build to deploy.
 5. **Performance** — caching keys, parallelism, matrix, path filters,
    concurrency/cancel rules, timeouts on every job.
+6. **Pull requests** — when work lands through PRs (remote mode,
+   `git:workflow`), the PR pipeline triggers on PRs into every
+   long-lived branch (`dev`/`develop`, `homolog`/`staging`,
+   `main`/`master`), with stable job names so they can be **required
+   checks**; with the user's go-ahead (it's a platform settings change),
+   mark them required in branch protection, so no PR merges red.
+7. **Failure issues** — scheduled runs and runs on `main`/release end with
+   a job that runs only on failure and opens or updates one issue per
+   workflow (`../../references/failure-issues.md`).
 
 ## Render for the platform
 

@@ -304,12 +304,12 @@ flowchart TD
     end
     track --> parallel
 
-    land["<b>Land</b> · git:workflow<br/>one branch at a time into dev, checks after each"]:::asks
+    land["<b>Land</b> · git:workflow, repo:pr<br/>a PR per branch into dev, merged on the platform"]:::asks
     watch["<b>Watch CI</b> · devsecops:watch<br/>small model, its own context"]
-    fix["fix on the branch, push again<br/>at most 3 rounds"]:::loop
+    fix["fix on the branch, push again<br/>at most 3 rounds; else an issue"]:::loop
     verify["<b>Verify</b> · qa:e2e, qa:load"]
     close["<b>Close</b> · repo:sync<br/>items close once on dev"]
-    release["<b>Release</b> · promotion to main<br/>version, changelog, tag from Conventional Commits"]:::asks
+    release["<b>Release</b> · promotion PR to main<br/>version, changelog, tag from Conventional Commits"]:::asks
     docs["<b>Document</b> · project:docs<br/>site and llms.txt deployed"]
 
     parallel --> land --> watch

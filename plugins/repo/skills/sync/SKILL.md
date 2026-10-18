@@ -14,9 +14,10 @@ SPECSYNC="python3 <plugin>/scripts/specsync.py"   # what the specs imply
 REPORUN="python3 <plugin>/scripts/reporun.py"     # the tracker calls
 ```
 
-Run it when the user asks to track the specs, and at the hand-off of a
-pipeline stage for a feature that already has a `tracker.md` (pipeline
-rule 10). It never decides what's done: the specs do.
+Run it by default in remote mode — the platform reachable — once a
+feature's `tasks.md` exists (pipeline rule 10), when the user asks, and at
+the hand-off of a pipeline stage for a feature that already has a
+`tracker.md`. Without a reachable platform, say so and skip it. It never decides what's done: the specs do.
 
 ## 1. Where
 
