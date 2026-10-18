@@ -14,6 +14,16 @@ describe("App", () => {
 		).toBeInTheDocument();
 	});
 
+	it("skips to the content without leaving the page", () => {
+		render(<App />);
+		fireEvent.click(screen.getByRole("button", { name: /skip to content/i }));
+		expect(document.activeElement).toBe(document.getElementById("main"));
+		// Still the landing, not the not-found page "#main" would route to.
+		expect(
+			screen.getByRole("heading", { name: /find the skill for the task/i }),
+		).toBeInTheDocument();
+	});
+
 	it("renders the site version", () => {
 		render(<App />);
 		expect(screen.getByTitle("ai-gent version")).toHaveTextContent(version);
