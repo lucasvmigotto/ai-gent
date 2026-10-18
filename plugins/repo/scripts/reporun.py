@@ -306,7 +306,12 @@ def cli_is_write(cli: str, words: list[str]) -> bool:
         return False
     if cli == "az" and positional[:2] == ["boards", "query"]:
         return False
-    return not any(w in READ_VERBS for w in positional[:4])
+    # The verb sits at a fixed place: gh, glab and jira are `<noun> <verb>`
+    # (a lone word is the verb: `jira me`); az is `<group…> <verb>`, the last
+    # word before the options. Words after the verb are arguments, never verbs
+    # (`gh issue edit 12 view` edits).
+    verb = positional[-1] if cli == "az" else (positional[1] if len(positional) > 1 else positional[0])
+    return verb not in READ_VERBS
 
 
 def prepare_cli(platform: str, words: list[str], entry_arg: str | None, write: bool) -> tuple[list[str], dict]:
@@ -577,17 +582,24 @@ def lookup(results: dict, dotted: str):
     return value
 
 
-def resolve(value, results: dict):
-    """Fill {{step.field}} from earlier results; a string that is only a reference keeps its type."""
+def resolve(value, results: dict, names: set[str] | None = None):
+    """Fill {{step.field}} from earlier results; a string that is only a reference keeps its type.
+    Only the batch's own step names (and `self`) are references: other {{…}} text — an issue
+    body quoting the syntax, say — stays as written."""
+    names = set(results) if names is None else names
+
+    def ref(m):
+        return m.group(1).partition(".")[0] in names
+
     if isinstance(value, str):
         m = REF_RE.fullmatch(value.strip())
-        if m:
+        if m and ref(m):
             return lookup(results, m.group(1))
-        return REF_RE.sub(lambda m: str(lookup(results, m.group(1))), value)
+        return REF_RE.sub(lambda m: str(lookup(results, m.group(1))) if ref(m) else m.group(0), value)
     if isinstance(value, list):
-        return [resolve(v, results) for v in value]
+        return [resolve(v, results, names) for v in value]
     if isinstance(value, dict):
-        return {k: resolve(v, results) for k, v in value.items()}
+        return {k: resolve(v, results, names) for k, v in value.items()}
     return value
 
 
@@ -623,17 +635,18 @@ def cmd_batch(args) -> int:
         return EXIT_OK
 
     results: dict = {}
+    refs = set(names) | {"self"}
     report: dict = {"platform": platform, "ok": True, "steps": [], "records": []}
     for s in steps:
         name = s["name"]
         try:
             if "api" in s:
-                a = resolve(s["api"], results)
+                a = resolve(s["api"], results, set(names))
                 body = json.dumps(a["data"]).encode() if "data" in a else None
                 data = api_call(platform, a.get("method", "GET"), a["path"], body, a.get("query"),
                                 args.entry, args.write, a.get("paginate", False), a.get("max_pages", 10), args.timeout)
             else:
-                text = run_cli_capture(platform, resolve(list(s["cli"]), results), args.entry, args.write)
+                text = run_cli_capture(platform, resolve(list(s["cli"]), results, set(names)), args.entry, args.write)
                 try:  # `gh api`, `glab api`, `az … -o json` print JSON: keep it structured
                     data = json.loads(text) if text else {}
                 except json.JSONDecodeError:
@@ -641,7 +654,7 @@ def cmd_batch(args) -> int:
             results[name] = data if data is not None else {}
             results["self"] = results[name]
             if s.get("record"):
-                report["records"].append(resolve(s["record"], results))
+                report["records"].append(resolve(s["record"], results, refs))
             report["steps"].append({"name": name, "ok": True})
         except Failed as e:
             report["ok"] = False

@@ -74,7 +74,10 @@ class ClassifyTest(unittest.TestCase):
         writes = [("gh", "pr create --title list"), ("gh", "issue comment 5 --body x"), ("gh", "pr merge 3 --squash"),
                   ("gh", "api repos/o/r/issues -f title=x"), ("gh", "api -X PATCH repos/o/r/issues/1"),
                   ("gh", "-R o/r pr list"), ("gh", "run rerun 5"), ("az", "boards work-item update --id 3 --state Done"),
-                  ("az", "devops invoke --area wit --http-method PATCH"), ("glab", "mr merge 2"), ("jira", "issue move X-1 Done")]
+                  ("az", "devops invoke --area wit --http-method PATCH"), ("glab", "mr merge 2"), ("jira", "issue move X-1 Done"),
+                  # A read word in an argument position isn't the verb.
+                  ("gh", "label create status"), ("gh", "issue edit 12 view"), ("gh", "pr comment 3 list"),
+                  ("glab", "issue note 4 show"), ("jira", "issue comment add KEY-1 list")]
         for cli, words in reads:
             with self.subTest(read=words):
                 self.assertFalse(reporun.cli_is_write(cli, words.split()))
@@ -366,6 +369,17 @@ class BatchTest(Sandbox):
         self.assertFalse(report["ok"])
         self.assertEqual(report["skipped"], ["US1"])
         self.assertEqual(len(report["records"]), 1)  # what was created is still recorded
+
+    def test_text_that_quotes_the_syntax_stays(self):
+        self.entry("ai-gent/github/pat", f"{TOKEN}\n")
+        steps = [{"name": "doc", "api": {"method": "POST", "path": "/repos/{owner}/{repo}/issues",
+                                         "data": {"title": "x", "body": "Use {{step.field}} or {{self.id}} here"}}},
+                 {"name": "later", "api": {"method": "POST", "path": "/repos/o/r/issues/{{doc.number}}/comments",
+                                           "data": {"body": "refs {{doc.number}}"}}}]
+        code, out, err = self.run_cmd("batch", self.plan(steps), "--write")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(Stub.seen[0]["body"])["body"], "Use {{step.field}} or {{self.id}} here")
+        self.assertEqual(Stub.seen[1]["path"], "/repos/o/r/issues/101/comments")
 
     def test_reads_need_no_write(self):
         code, out, err = self.run_cmd("batch", self.plan([{"name": "list", "api": {"method": "GET", "path": "/repos/o/r/issues"}}]))

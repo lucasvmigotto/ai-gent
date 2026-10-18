@@ -4,8 +4,9 @@ Status: Draft
 
 ## Summary
 
-A public, bilingual documentation site for **ai-gent** (9 plugins, 36 skills
-for Claude Code and opencode) at `https://docs.lucasvmigotto.me/ai-gent/`,
+A public, English-only (i18n-ready) documentation site for **ai-gent** (12
+plugins and 44 skills today — the site generates its counts — for Claude
+Code and, opt-in, other coding agents) at `https://docs.lucasvmigotto.me/ai-gent/`,
 serving both toolkit users and contributors, kept true to the code it
 documents and readable by humans and LLM agents alike.
 
@@ -21,14 +22,14 @@ single long page.
 
 ## Problem & context
 
-ai-gent's documentation lives where its code lives: `README.md`, 36 skill
+ai-gent's documentation lives where its code lives: `README.md`, the skill
 files, shared contracts (`shared/pipeline.md`, `shared/containers.md`,
 `shared/reading-code.md`, `shared/spec-kit.md`), `CHANGELOG.md`, and
 `AGENTS.md`. That works for contributors who already know the layout, but
 three groups hurt:
 
 - **New users** face one long README to install the toolkit and find the
-  right skill among 36; there is no per-skill reference page to link to.
+  right skill among dozens; there is no per-skill reference page to link to.
 - **Contributors** must piece together the editing conventions (`AGENTS.md`),
   `scripts/check.sh`, the release flow, and the layout rules from several
   files before a first change.
@@ -50,7 +51,7 @@ docs and stable enough to document truthfully.
 
 Goals (measurable; see Success metrics):
 
-- Every one of the 36 skills has its own reference page, accurate to the
+- Every skill has its own reference page, accurate to the
   code, in English at launch, with the i18n architecture in place so a
   second locale is a content task, not a rewrite.
 - A new user can go from landing to installed toolkit and first invoked
@@ -110,7 +111,7 @@ audiences and agents end to end.
 
 - **Use area (MVP):** install/update guide per tool (Claude Code, opencode
   V2), usage (invocation, skill routing), per-skill reference pages.
-- **Skill reference (MVP):** all 36 skills, one page each, generated from
+- **Skill reference (MVP):** every skill, one page each, generated from
   the skill files' real descriptions and bodies — reason for MVP: the
   reference is the primary job for both audiences, and partial coverage
   would send readers back to the raw repo.
@@ -156,7 +157,7 @@ The site documents a fixed-shape repository. Core concepts and relations:
 ai-gent repo
  ├── plugins/<name>/            9 plugins (project, frontend, backend, qa,
  │   ├── .claude-plugin/         devcontainer, devsecops, db, git, compact)
- │   ├── skills/<skill>/        36 skills total → 36 reference pages
+ │   ├── skills/<skill>/        one reference page per skill
  │   ├── references/            on-demand detail → linked reading
  │   ├── hooks/ · scripts/      enforcement + runners → Contribute pages
  │   └── evals/                 routing tests → Contribute pages
@@ -295,7 +296,7 @@ by `project:docs` phases, not Spec Kit features — the host repo has no
 
 1. **Install & usage pages** — per-tool install, verification, invocation.
    Priority: highest. Depends on: nothing.
-2. **Skill reference (36 pages)** — generated from skill sources.
+2. **Skill reference (one page per skill)** — generated from skill sources.
    Priority: highest. Depends on: 1 (shared layout/scaffold).
 3. **Contribute pages** — conventions, checks, releases, versions.
    Priority: high. Depends on: 1.
