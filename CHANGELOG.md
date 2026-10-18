@@ -4,6 +4,37 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Forgejo, Gitea and Codeberg in the `repo` plugin.** `reporun` reaches
+  them through the REST API (`/api/v1`, `Authorization: token`), with the
+  token in `ai-gent/forgejo/pat`; the host is read from the remote when it
+  names `forgejo`, `gitea` or `codeberg.org`. Platform notes in
+  `references/platforms/forgejo.md`.
+- **`scripts/run-evals.py`**: runs the trigger or behavior eval suites,
+  prints a table and records the scores and cost in
+  `docs/product/evals.md`. Four behavior cases come with it (git merge
+  counts, secrets never read, db through dbrun).
+- **Verified for tooling.** A feature without a UI is Verified when its
+  integration suites run in CI (a scheduled run counts) and pass
+  (pipeline rule 6, `project:status`). dbrun is the first.
+- **`scripts/test-reporun-github.py`**: reporun end to end against a
+  throwaway private GitHub repository.
+- **Tests for the installer's agent picker** (a fake `fzf` and the numbered
+  prompt; `AI_GENT_NO_FZF=1` asks with the numbered prompt even when fzf is
+  installed) and for the Markdown pages keeping every section of their HTML
+  pages.
+
+### Changed
+
+- **Slimmer skill bodies.** `devcontainer:setup`, `:infra`, `:workflow` and
+  `project:docs` keep their rules and decisions; worked detail, catalogs
+  and checklists moved to `references/` with pointers.
+- Pipeline rules 7, 8 and 10 state the obligation and point to
+  `git:workflow`, `devsecops:watch` and `repo:sync` for the detail.
+
 ## 2.11.1 — 2026-10-18
 
 ### Fixed
