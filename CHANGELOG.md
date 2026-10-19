@@ -4,6 +4,26 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **The `security` plugin**: red, blue and purple team security testing
+  across applications, infrastructure and AI/LLM systems.
+  - `security:scope` records the authorization, targets, window and
+    allowed techniques before any offensive work runs — the project's
+    own local environment by default, a remote or shared target only
+    with the user's documented authorization.
+  - `security:red` simulates an attacker (OWASP ASVS/Top 10 for
+    applications, cloud/IaC misconfigurations for infrastructure, the
+    OWASP LLM Top 10 and MITRE ATLAS for AI/LLM systems) into
+    severity-ranked findings with fixes.
+  - `security:blue` designs detection and defense for those findings, or
+    a system on its own, mapped to MITRE ATT&CK/ATLAS, with hardening
+    baselines and incident runbooks.
+  - `security:purple` pairs each red finding with its blue control and
+    retests it, closing the loop with a coverage matrix.
+
 ## 2.12.0 — 2026-10-18
 
 ### Added
