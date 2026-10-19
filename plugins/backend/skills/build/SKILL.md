@@ -117,8 +117,10 @@ For each phase:
 - **Configuration** from environment, validated at startup (fail fast on
   missing/invalid); no environment-specific code paths.
 - **Observability**: structured logs with correlation id and no
-  secrets/PII, RED metrics per endpoint, traces propagated to outbound
-  calls; readiness checks real dependencies, liveness doesn't.
+  secrets/PII, in English regardless of the product's own language
+  (`../../references/language-policy.md`); RED metrics per endpoint,
+  traces propagated to outbound calls; readiness checks real
+  dependencies, liveness doesn't.
 - **Security**: input validation on every field, allow-listed binding
   (no mass assignment), rate limits where specified, dependency audit
   and secret scanning in CI.

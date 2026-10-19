@@ -29,6 +29,9 @@ stage builds on — so make them explicit, justified and consistent.
    comes later, from `backend:domain` — don't wait for it),
    `docs/product/ux-vision.md`, existing `specs/`, existing code.
    Existing features are **updated**, never duplicated.
+5. Language: en-US, unless the product's interface is confirmed
+   primarily non-English — then write every spec entirely in that
+   language instead (`../../references/language-policy.md`).
 
 ## Process
 

@@ -59,6 +59,9 @@ health), and required integrations. Don't ask what the input answers.
 
 Write each section specifically for *this* product. A section that would
 read the same for any app gets rewritten or marked N/A with a reason.
+Language: en-US, unless the product's interface is confirmed primarily
+non-English, in which case write the whole brief in that language
+instead (`../../references/language-policy.md`).
 
 1. **Summary** — one sentence (what, for whom, why it matters) and one
    paragraph.
