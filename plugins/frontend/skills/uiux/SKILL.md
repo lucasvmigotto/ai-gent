@@ -38,12 +38,18 @@ the brief's goal is explicitly conversion on that surface.
 
 ## Inputs: text or references
 
-- **Text only** — extract subject, audience, primary job and constraints;
-  propose the missing ones as `[ASSUMPTION: …]`.
+Read `../../references/intake-filter.md` first: the input was written
+for a human, not for this, and may carry personal remarks, unrelated
+tangents or internal politics that don't belong in anything committed.
+Classify before extracting — Product signal and distilled Indirect
+signal only, Noise dropped — then:
+
+- **Text only** — extract subject, audience, primary job and constraints
+  that survived the filter; propose the missing ones as `[ASSUMPTION: …]`.
 - **A references directory** (default `docs/product/references/`, or any
-  path the user gives) — open every file: read images with the Read
-  tool, read docs/notes, follow URLs only if the user provided them.
-  Record a table before designing anything:
+  path the user gives) — open every file through the same filter: read
+  images with the Read tool, read docs/notes, follow URLs only if the
+  user provided them. Record a table before designing anything:
 
   | Reference | What to take | What to avoid | Why |
   |---|---|---|---|
@@ -51,7 +57,8 @@ the brief's goal is explicitly conversion on that surface.
   References are evidence of taste and expectations, not templates —
   never reproduce a competitor's layout or copy wholesale.
 
-Then ask clarifying questions (pipeline rule 2: at most 4 per prompt, as
+Then show the filter's confirmation summary (`intake-filter.md`) and ask
+clarifying questions (pipeline rule 2: at most 4 per prompt, as
 options with a recommendation, another round only when the answers open
 one), only ones whose answer changes the vision (primary device, brand constraints that already exist,
 the single most important task, accessibility or language requirements,

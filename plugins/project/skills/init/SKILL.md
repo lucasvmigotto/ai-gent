@@ -33,14 +33,21 @@ vague prose.
 
 ## Inputs: text or references
 
-- **Text** — extract everything stated; list what's implied as
-  `[ASSUMPTION: …]`.
-- **References directory** (default `docs/product/references/`, or the
-  path given) — read every file (images via the Read tool). Summarize
-  each in one line: what it tells us about users, scope, constraints or
-  expectations.
+Read `../../references/intake-filter.md` first: the input was written
+for a human, not for this, and may carry personal remarks, unrelated
+tangents or internal politics that don't belong in anything committed.
+Classify before extracting — Product signal and distilled Indirect
+signal only, Noise dropped — then:
 
-Then ask (pipeline rule 2: at most 4 questions per prompt, as options with
+- **Text** — extract everything that survived the filter; list what's
+  implied as `[ASSUMPTION: …]`.
+- **References directory** (default `docs/product/references/`, or the
+  path given) — read every file (images via the Read tool), through the
+  same filter. Summarize each in one line: what it tells us about users,
+  scope, constraints or expectations.
+
+Then show the filter's confirmation summary (`intake-filter.md`) and ask
+(pipeline rule 2: at most 4 questions per prompt, as options with
 a recommendation, more rounds only when answers open new questions —
 and before an autonomous run too), choosing the questions whose answer
 changes scope or architecture: who is the primary user, what is
