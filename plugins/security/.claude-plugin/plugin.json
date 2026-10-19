@@ -1,0 +1,10 @@
+{
+  "name": "security",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "description": "Red, blue and purple team security testing across applications, infrastructure and AI/LLM systems — an authorization scope first, then attack simulation, detection engineering, or paired validation of both. Local targets by default; a remote or shared target only with documented authorization: scope, red, blue, purple",
+  "author": {
+    "name": "lucasvmigotto",
+    "email": "lvmigotto1@gmail.com"
+  }
+}

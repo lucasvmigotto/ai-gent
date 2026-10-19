@@ -41,6 +41,7 @@ idea text / references dir
  project:status ───────► (report only)                     where things stand, what to run next
  project:recap ────────► (report only)                     where the last session stopped, what changed since
  db:inspect, db:review, db:investigate ─► docs/product/db/  any time a database is involved (the `db` plugin)
+ security:scope, security:red, security:blue, security:purple ─► docs/product/security/  any time a security review is requested (the `security` plugin)
 ```
 
 For an existing codebase, the chain starts earlier:
@@ -104,6 +105,10 @@ is the remote-tracking refs, through `git fetch`.
 | `docs/product/db/<database>/inspection.md`, `schema.sql`, `diff-*.md` | `db:inspect` | project:introspec, db:review, backend:*, devcontainer:infra | schema discovery, labelled like introspec; a production schema export stays outside the repository unless the user approves |
 | `docs/product/db/review-<date>.md` | `db:review` | backend:build, project:architecture, qa:review | findings on the application's database usage; fixes only as migrations or code |
 | `docs/product/db/investigations/<date>-<slug>.md` | `db:investigate` | backend:build, qa:review, the person running the repair script | data problems: hypotheses, evidence, timeline, blast radius, root cause, repair script |
+| `docs/product/security/scope-<date>.md` | `security:scope` | security:red, security:blue, security:purple | targets (local/remote), authorization basis, window, allowed techniques, stop condition |
+| `docs/product/security/red-<date>.md` | `security:red` | security:blue, security:purple, devsecops:pipeline | threat model, attack plan, severity-ranked findings with fixes |
+| `docs/product/security/blue-<date>.md` | `security:blue` | security:purple, devsecops:pipeline | detection coverage matrix, hardening changes, incident runbooks |
+| `docs/product/security/purple-<date>.md` | `security:purple` | devsecops:pipeline, project:status | red finding ↔ blue control, retest evidence, closed-loop percentage |
 | `docs/product/refactor.md`, `docs/product/bcr/NNNN-*.md` | `project:refactor` | project:spec, backend:*, frontend:*, qa:* | rule classification (core / policy / accidental), findings, target, slices; business change records (proposed / accepted / rejected) |
 
 **Ownership rules**

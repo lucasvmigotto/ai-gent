@@ -7,6 +7,7 @@ They cover the whole path of a software project, from idea to docs site, plus th
 - **A product pipeline:** brief → architecture → specs → frontend, backend and QA → docs. There are also stages for existing codebases.
 - **Container-first development environments.**
 - **CI/CD and supply-chain security.**
+- **Red, blue and purple team security testing** — application, infrastructure and AI/LLM, scoped and authorized first.
 - **Safe database access**, with passwords kept in [pass](https://www.passwordstore.org/).
 - **Issues, work items and pull requests** on GitHub, Azure DevOps, GitLab, Bitbucket, Forgejo/Gitea and Jira — and the specs mirrored there, kept in step as the work moves.
 - **Token-lean code reading**, verified against the original.
@@ -177,6 +178,11 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `audit` — security and reliability review of existing pipelines
   - `migrate` — move pipelines between platforms
   - `watch` — follow CI/CD runs to the end, explain failures from their logs, and check secrets (names only), variables, environments and permissions; runs on a small model in its own context (Haiku in Claude Code) and hands any fix back
+- `plugins/security/` — red, blue and purple team security testing; local targets by default, remote or shared ones only with documented authorization
+  - `scope` — the authorization record every other skill here requires first: targets, basis, window, allowed techniques, stop condition
+  - `red` — attack simulation across application, infrastructure and AI/LLM, with a threat model and severity-ranked findings
+  - `blue` — detection and defense for red's findings or a system on its own: coverage mapped to MITRE ATT&CK/ATLAS, hardening, runbooks
+  - `purple` — pair each red finding with blue's fix or detection and retest it, closing the loop with a coverage matrix
 - `plugins/db/` — safe database access for PostgreSQL, MySQL/MariaDB, SQL Server, Oracle and SQLite (see [Databases](#databases))
   - `connect` — list, test and classify connection profiles, never showing credentials
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
