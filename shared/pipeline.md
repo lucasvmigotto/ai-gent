@@ -284,6 +284,13 @@ definition and the words **not** to use for it
    by consequence and used sparingly. It updates the README in the same
    change that alters how the project runs, builds, tests or is
    configured.
+12. **Language.** Code, comments, commit messages and log messages are
+   always English. The interface's own language is inferred from what's
+   given and confirmed with the user before `frontend:build` writes it
+   into a locale file; the pipeline's own documents — brief,
+   architecture, specs, the docs site, the README — default to en-US,
+   or write entirely in the interface's primary language once that's
+   confirmed non-English. `language-policy.md` has the detail.
 
 ## Spec Kit
 

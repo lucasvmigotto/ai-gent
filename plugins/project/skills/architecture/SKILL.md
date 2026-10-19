@@ -176,7 +176,9 @@ requirement.
   (metric, file, config) → recommendation → effort → expected gain.
 
 Mark `architecture.md` `Status: Draft` (`Accepted` once the user agrees)
-and each ADR `proposed` (MADR).
+and each ADR `proposed` (MADR). Language: en-US, unless the product's
+interface is confirmed primarily non-English — then write both entirely
+in that language instead (`../../references/language-policy.md`).
 
 ## Coverage checklist
 

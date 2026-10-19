@@ -105,8 +105,10 @@ For each phase:
   implemented and reachable (a story/fixture per state, or a dev-only
   gallery route), including focus-visible, disabled, loading and error.
 - **No hardcoded copy.** Every string comes from locale files via its key
-  from the vision. Missing copy → `[UPSTREAM GAP]` for `frontend:uiux`,
-  and a clearly marked placeholder key, never improvised prose.
+  from the vision, in the language `frontend:uiux` confirmed
+  (`../../references/language-policy.md`). Missing copy →
+  `[UPSTREAM GAP]` for `frontend:uiux`, and a clearly marked placeholder
+  key, never improvised prose.
 - **Data through the contract.** Types generated from (or checked
   against) `contracts/openapi.yaml`; develop against
   `prism mock contracts/openapi.yaml`. Never edit the contract to make

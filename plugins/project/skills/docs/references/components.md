@@ -15,8 +15,10 @@ Part of `project:docs` (`../SKILL.md`): read it when building the component set,
   navigation.** Footer, one centered row that wraps on narrow screens: the
   versions (`version-footer.md`), the license as its short name
   with a mark (`GPL v3+`, `MIT`) linked to `LICENSE` at the build's ref
-  with the full name as its title, and the theme switch, which is icon
-  buttons (sun, moon) in a `fieldset` with a hidden `legend`, each named
-  (`aria-label` + `title`) with `aria-pressed` on the current one and the
-  choice persisted. No "Source on GitHub" link or counts: the version
-  links already open the repository.
+  with the full name as its title — or, when no `LICENSE` file exists,
+  plain text reading "All rights reserved," unlinked; never assume an
+  open license the project doesn't have — and the theme switch, which is
+  icon buttons (sun, moon) in a `fieldset` with a hidden `legend`, each
+  named (`aria-label` + `title`) with `aria-pressed` on the current one
+  and the choice persisted. No "Source on GitHub" link or counts: the
+  version links already open the repository.

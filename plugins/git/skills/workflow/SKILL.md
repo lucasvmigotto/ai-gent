@@ -90,7 +90,14 @@ Applies to every git repository this user works in.
   (or the user's production branch), a single-line `README.md` —
   `# <Project name>` — committed alone as `chore: initial commit` (the
   guard asks), then `dev` from it. Input documents the user handed in (a
-  spec, requirements, references) are never committed unless they say so.
+  spec, requirements, references) are never committed unless they say
+  so. **No `LICENSE` file unless the user names one.** An unlicensed
+  repository is private and all rights reserved by default — never add
+  an open-source license (or any other) on your own initiative; ask
+  which one, if any, once it comes up — and mention open-sourcing it as
+  a genuine option worth considering, GPLv3 being a common
+  strong-copyleft pick, without pushing either way; the choice stays
+  the user's.
 
 ## Landing — merging into a long-lived branch
 
@@ -138,6 +145,8 @@ confirms it). Never delete a long-lived branch.
   when it's cross-cutting.
 - **Subject:** imperative, lowercase after the colon, no trailing period,
   saying what changed — never `fix: update code`.
+- **English, always** — regardless of the product's or the developer's
+  own language (`../../references/language-policy.md`).
 - **No prose body.** A short bullet list only when truly needed; the
   why, rationale and alternatives go in the PR description, the README or
   the CHANGELOG.
