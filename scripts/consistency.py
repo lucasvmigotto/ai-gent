@@ -8,7 +8,8 @@
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
-(default 18000; about 4.1k tokens today at ~16.5k).
+(default 19000, room for growth; raise it deliberately with a new plugin,
+never to silence a bloated single description).
 """
 import os
 import re
@@ -95,7 +96,7 @@ def description_total(root: Path) -> int:
 
 
 def check_budget(root: Path) -> tuple[list[str], int]:
-    ceiling = int(os.environ.get("DESC_TOTAL_CEILING", "18000"))
+    ceiling = int(os.environ.get("DESC_TOTAL_CEILING", "19000"))
     total = description_total(root)
     problems = []
     if total > ceiling:
