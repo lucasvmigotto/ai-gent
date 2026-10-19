@@ -4,6 +4,44 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **A shared language policy** (`shared/language-policy.md`, pipeline
+  rule 12): code, comments, commit messages and log messages are always
+  English; the interface's own language is inferred from what's given
+  and confirmed with the user before `frontend:build` writes it into a
+  locale file; the pipeline's own documents (brief, architecture, specs,
+  the docs site, the README) default to en-US, or write entirely in the
+  interface's confirmed primary language.
+- **Personal and unrelated content is filtered out of handed-in
+  specs and references** (`shared/intake-filter.md`, wired into
+  `project:init` and `frontend:uiux`): every passage is classified as
+  product signal (kept), indirect signal (distilled to the implied
+  requirement, the personal or unrelated wrapper dropped) or noise
+  (dropped entirely, never written anywhere). A sample value that looks
+  like PII is kept only if it's a recognized placeholder; anything else
+  is treated as real and abstracted. A confirmation summary — counts and
+  category labels only, never the removed content — is shown before
+  writing.
+- **A new repository is private and all rights reserved by default.**
+  `git:workflow` adds no `LICENSE` file unless the user names one, and
+  never assumes an open-source license; the docs site's footer shows
+  "All rights reserved" instead when none exists. Open-sourcing the work
+  is still named as a genuine option when licensing comes up.
+
+### Fixed
+
+- **A GitHub promotion under 4 commits no longer gets an unnecessary
+  merge commit.** GitHub's PR merge API has no fast-forward method, so
+  the old rule forced a merge commit for every promotion regardless of
+  count; it now lands by a direct fast-forward push once checks and
+  review pass, verified to actually close the PR.
+- **A local-merge remote branch delete now prunes the stale
+  remote-tracking ref** (`git fetch --prune`), matching the PR-based
+  landing path, which already did this.
+
 ## 2.13.0 — 2026-10-19
 
 ### Added
