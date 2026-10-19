@@ -90,7 +90,11 @@ Applies to every git repository this user works in.
   (or the user's production branch), a single-line `README.md` —
   `# <Project name>` — committed alone as `chore: initial commit` (the
   guard asks), then `dev` from it. Input documents the user handed in (a
-  spec, requirements, references) are never committed unless they say so.
+  spec, requirements, references) are never committed unless they say
+  so. **No `LICENSE` file unless the user names one.** An unlicensed
+  repository is private and all rights reserved by default — never add
+  an open-source license (or any other) on your own initiative; ask
+  which one, if any, once it comes up.
 
 ## Landing — merging into a long-lived branch
 
