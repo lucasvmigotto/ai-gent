@@ -94,7 +94,10 @@ Applies to every git repository this user works in.
   so. **No `LICENSE` file unless the user names one.** An unlicensed
   repository is private and all rights reserved by default — never add
   an open-source license (or any other) on your own initiative; ask
-  which one, if any, once it comes up.
+  which one, if any, once it comes up — and mention open-sourcing it as
+  a genuine option worth considering, GPLv3 being a common
+  strong-copyleft pick, without pushing either way; the choice stays
+  the user's.
 
 ## Landing — merging into a long-lived branch
 
