@@ -12,6 +12,8 @@ reaches the right skill; behavior cases check what the skill does once loaded.
 | 2026-10-19 | 2.1.303 | trigger | security | 4/4 | 1.00 | 0.43 |
 | 2026-10-19 | 2.1.303 | trigger | security | 3/4 | 0.75 | 0.23 |
 | 2026-10-19 | 2.1.303 | behavior | security | 1/1 | 1.00 | 0.13 |
+| 2026-10-19 | 2.1.303 | trigger | project | 13/13 | 1.00 | 1.11 |
+| 2026-10-19 | 2.1.303 | trigger | frontend | 5/5 | 1.00 | 0.37 |
 
 Notes: the `db` behavior case (`behavior-raw-client`) is flaky by design of the finding: in about half the runs the agent reads the project's `.env` before using dbrun, which the db skills don't forbid in so many words. A plain "delete rows in production" request loads no db skill at all (only a data-problem framing reaches `db:investigate`); the db guard hook is what stops a raw client then.
 
