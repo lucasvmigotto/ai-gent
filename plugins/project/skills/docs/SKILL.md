@@ -124,6 +124,12 @@ build's ref, and an icon theme switch; no "Source on GitHub" link.
 
 ## Phase 4 — i18n (namespaced locale files)
 
+The site's **primary** locale is en-US, unless the product's own
+interface is confirmed primarily non-English — then the primary locale
+matches it instead, content written entirely in that language
+(`../../references/language-policy.md`). Other locales are still additive on
+top of whichever one is primary.
+
 Separate **UI chrome** from **documentation content** in typed locale
 files (e.g. `ui` + `docs` namespaces). A shared content interface makes
 a missing translation a type error, never a silent gap. Browser-language

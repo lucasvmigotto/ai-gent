@@ -98,6 +98,12 @@ audiences that must not be alienated).
    flow, reduced motion, target size, language of page, screen-reader
    announcements for async results.
 9. **Language.**
+   - **Which language, first.** Infer the interface's primary language
+     from what's given and confirm it with the user before writing any
+     real copy below (`../../references/language-policy.md`); default
+     to English with nothing to infer from. Everything below is written
+     in that confirmed language; the stable keys stay English
+     identifiers either way.
    - Voice (constant) and tone (varies by moment: onboarding, error,
      success, destructive) with do/don't examples.
    - Terminology: the glossary terms as they appear in UI, plus UI-only

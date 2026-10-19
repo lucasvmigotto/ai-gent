@@ -138,6 +138,8 @@ confirms it). Never delete a long-lived branch.
   when it's cross-cutting.
 - **Subject:** imperative, lowercase after the colon, no trailing period,
   saying what changed — never `fix: update code`.
+- **English, always** — regardless of the product's or the developer's
+  own language (`../../references/language-policy.md`).
 - **No prose body.** A short bullet list only when truly needed; the
   why, rationale and alternatives go in the PR description, the README or
   the CHANGELOG.
