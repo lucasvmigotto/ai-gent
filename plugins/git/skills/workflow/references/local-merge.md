@@ -29,6 +29,8 @@ reachable, work lands through PRs instead (`repo:pr`).
    - `git branch -d <branch>` — the safe delete, which refuses unmerged
      work;
    - deleting it on a remote (`git push <remote> --delete <branch>`)
-     publishes a change: ask separately;
+     publishes a change: ask separately; once it's gone, `git fetch
+     --prune` so the local checkout's `<remote>/<branch>` doesn't linger
+     as a stale ref;
    - never delete the parent, `main`/`master`, `dev`/`develop`, or any
      branch other than the one just landed.
