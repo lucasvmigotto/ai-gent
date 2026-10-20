@@ -6,6 +6,8 @@ and dedup by message id, stage markers, the project-wide roll-up, the per-featur
 link and the Unmapped section.
 """
 
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -95,6 +97,34 @@ class TokenReportTest(unittest.TestCase):
         rollup = Path("rollup.md").read_text()
         self.assertIn("Unmapped", rollup)
         self.assertIn("Survey unrelated repo", rollup)
+
+    def test_estimate_by_role_averages_matching_cards(self):
+        tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            tr.cmd_estimate(tr.p.parse_args(["estimate", "--role=builder", "--rollup=rollup.md"]))
+        text = out.getvalue()
+        self.assertIn("2 sample(s)", text)  # both subagents ran on claude-sonnet-5-5
+
+    def test_estimate_by_label_matches_one_card(self):
+        tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            tr.cmd_estimate(tr.p.parse_args(["estimate", "--label=T001, T002", "--rollup=rollup.md"]))
+        self.assertIn("1 sample(s)", out.getvalue())
+
+    def test_estimate_with_no_history_says_so_plainly(self):
+        tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            tr.cmd_estimate(tr.p.parse_args(["estimate", "--role=scout", "--rollup=rollup.md"]))
+        self.assertIn("no history", out.getvalue())
+
+    def test_estimate_with_no_rollup_file_says_so_plainly(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            tr.cmd_estimate(tr.p.parse_args(["estimate", "--role=builder", "--rollup=missing.md"]))
+        self.assertIn("no history", out.getvalue())
 
     def test_snapshot_and_backfill_merge_without_duplicates(self):
         snaps_path = str(self.work / "snaps.json")
