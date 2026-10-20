@@ -56,3 +56,34 @@ agent, so the ledger's "tokens used" column stays manual there (whatever
 the agent's own UI reports, if anything). An API-price equivalent can
 help a manager, but say it is an order of magnitude, and take prices from
 the agent's own reference, never from memory.
+
+## Pacing
+
+Before dispatching a new wave — the next parallel group of cards, or the
+next track in `agents:parallel` — weigh what's left against what's about
+to run:
+
+1. **The remaining-budget figure is ambient, not fetched.** Claude Code
+   surfaces it as a `<total_tokens>` system reminder on its own schedule;
+   there is no tool call that returns it on demand. Use the most recent
+   one already in context.
+2. **Estimate the wave's cost from this project's own history**, not a
+   guess: `$TOKREP estimate --role builder --rollup docs/product/
+   token-usage.md` (or `--label <id>` for one specific card, `--model`
+   for a project that overrode `agent-roles.md`'s default mapping).
+   `estimate` says plainly when there's no history yet — the project's
+   first feature always falls back to the card's S/M/L size, same as
+   before this existed.
+3. **Decide, out loud to the user:**
+   - comfortably covered → dispatch the wave as planned;
+   - tight → shrink it (fewer cards this round, or a lower
+     `max_parallel`) and say why;
+   - not enough for even one more card → stop, name what's queued and
+     unestimated, and ask (resume next session, or continue anyway —
+     their call, not an automatic one).
+
+This is a heuristic, not a guarantee: past cards sharing a role or label
+are a reasonable proxy for a new one's cost, not a promise. Treat a wide
+spread in the samples (`estimate` reports the count — weigh a 2-sample
+average less than a 20-sample one) as a reason to pad the estimate, not
+to distrust the tool.

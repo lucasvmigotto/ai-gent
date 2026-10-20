@@ -15,6 +15,7 @@ transcripts on every run so it never drifts.
 
   token_report.py report --project DIR [--session ID]... --out PATH [--snapshots FILE]
   token_report.py tasks   --project DIR [--session ID]... --specs-dir specs --rollup-out PATH [--snapshots FILE]
+  token_report.py estimate (--label L | --role thinker|builder|scout | --model SUBSTR) [--rollup FILE]
   token_report.py snapshot --label "..." [--at ISO8601] [--snapshots FILE]
   token_report.py backfill-git --repo PATH|- [--ref origin/dev] [--snapshots FILE]   (- = read
       `git log --first-parent --reverse --format=%cI|%s` from stdin)
@@ -24,6 +25,12 @@ docs/product/token-usage.md. `tasks` does the same and additionally links each s
 to the Spec Kit task ids its description names, writing one specs/<feature>/tokens.md per
 touched feature (a record file beside tasks.md, never edited into it) plus an "Unmapped"
 section in the roll-up for cards that name no task id.
+
+`estimate` reads that roll-up's "By agent" table for cards matching a label or a role/model
+(the default role-to-model mapping is agent-roles.md's: thinker=opus, builder=sonnet,
+scout=haiku; pass --model directly for a project override) and prints their average cost —
+or says plainly that there's no history yet, never fabricating a number. It is a dispatch-time
+aid for agents:orchestrate / agents:parallel's pacing decision, not an automated gate.
 
 Claude Code-specific: this reads Claude Code's own on-disk transcript format and the Agent
 tool's subagent .meta.json sidecars. No equivalent exists on another agent.
@@ -40,7 +47,9 @@ from datetime import datetime, timezone
 
 FIELDS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
 DEFAULT_SNAPSHOTS = "token-snapshots.json"
+DEFAULT_ROLLUP = os.path.join("docs", "product", "token-usage.md")
 TASK_ID = re.compile(r"\bT\d{3,}\b")
+ROLE_MODEL = {"thinker": "opus", "builder": "sonnet", "scout": "haiku"}  # agent-roles.md's default mapping
 
 
 def load_snapshots(path):
@@ -322,6 +331,56 @@ def cmd_tasks(a):
           f"({len(unmapped)} unmapped cards); billable {k(grand['billable'])}, total {k(grand['total'])}")
 
 
+def parse_k(s: str) -> float:
+    s = s.strip().replace(",", "").replace("*", "")
+    if s.endswith("M"):
+        return float(s[:-1]) * 1_000_000
+    if s.endswith("k"):
+        return float(s[:-1]) * 1_000
+    return float(s) if s else 0.0
+
+
+def read_by_agent(rollup_path):
+    """Rows of the roll-up's '## By agent' table — the one place every card's own cost lands,
+    one row each. Parses our own generated table back; the markdown IS the record, there is
+    no separate structured ledger."""
+    if not os.path.exists(rollup_path):
+        return []
+    with open(rollup_path, encoding="utf-8") as fh:
+        text = fh.read()
+    m = re.search(r"## By agent\n\n(.*?)(?:\n## |\Z)", text, re.S)
+    if not m:
+        return []
+    lines = [ln for ln in m.group(1).splitlines() if ln.startswith("|")]
+    rows = []
+    for ln in lines[2:]:  # skip the header and the --- separator
+        cells = [c.strip() for c in ln.strip("|").split("|")]
+        if len(cells) < 8:
+            continue
+        started, who, label, task, model, calls, billable, total = cells[:8]
+        rows.append({"started": started, "who": who, "label": label, "task": task, "model": model,
+                     "calls": calls, "billable": parse_k(billable), "total": parse_k(total)})
+    return rows
+
+
+def cmd_estimate(a):
+    rows = read_by_agent(a.rollup)
+    if a.label:
+        sel = [r for r in rows if r["label"] == a.label]
+        how = f"label '{a.label}'"
+    else:
+        needle = ROLE_MODEL[a.role] if a.role else a.model
+        sel = [r for r in rows if needle in r["model"]]
+        how = f"role '{a.role}' ({needle})" if a.role else f"model '{a.model}'"
+    if not sel:
+        print(f"no history for {how} in {a.rollup} — fall back to S/M/L sizing")
+        return
+    avg_bill = sum(r["billable"] for r in sel) / len(sel)
+    avg_tot = sum(r["total"] for r in sel) / len(sel)
+    print(f"{how}: {len(sel)} sample(s) in {a.rollup}, average billable {k(int(avg_bill))}, "
+          f"average total {k(int(avg_tot))}")
+
+
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -336,9 +395,16 @@ def build_parser():
     t.add_argument("--project", required=True)
     t.add_argument("--session", action="append")
     t.add_argument("--specs-dir", default="specs")
-    t.add_argument("--rollup-out", default=os.path.join("docs", "product", "token-usage.md"))
+    t.add_argument("--rollup-out", default=DEFAULT_ROLLUP)
     t.add_argument("--snapshots", default=DEFAULT_SNAPSHOTS)
     t.set_defaults(fn=cmd_tasks)
+    e = sub.add_parser("estimate")
+    g = e.add_mutually_exclusive_group(required=True)
+    g.add_argument("--label", help="exact match on the roll-up's Label column (a card's own task ids)")
+    g.add_argument("--role", choices=sorted(ROLE_MODEL), help="agent-roles.md's default model for the role")
+    g.add_argument("--model", help="a model-name substring, for a project that overrode the default mapping")
+    e.add_argument("--rollup", default=DEFAULT_ROLLUP)
+    e.set_defaults(fn=cmd_estimate)
     s = sub.add_parser("snapshot")
     s.add_argument("--label", required=True)
     s.add_argument("--at")

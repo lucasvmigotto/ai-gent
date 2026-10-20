@@ -4,6 +4,21 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Budget-aware dispatch pacing for `agents:orchestrate` and
+  `agents:parallel`** — `token_report.py estimate` reads a project's
+  own `docs/product/token-usage.md` for the average cost of past cards
+  sharing a role (`agent-roles.md`'s default mapping: thinker=opus,
+  builder=sonnet, scout=haiku) or label, or says plainly there's no
+  history yet rather than fabricate a number. Before dispatching a new
+  wave or track, both skills now weigh the remaining budget — Claude
+  Code's ambient `<total_tokens>` reminder, not something fetched on
+  demand — against that estimate, and say the call out loud: proceed,
+  shrink the wave, or stop and ask.
+
 ## 2.15.0 — 2026-10-20
 
 ### Added

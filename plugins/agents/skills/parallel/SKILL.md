@@ -35,7 +35,11 @@ propose the tracks:
   conflicts.
 - **Capacity:** at most `max_parallel` tracks (default **3**; set in
   `.ai-gent/parallel.yaml`), fewer when each runs a dev stack on a small
-  machine, or the account's rate limits are near.
+  machine, or the account's rate limits are near. On Claude Code, before
+  starting a new track, weigh the remaining budget against its estimated
+  cost (`$TOKREP estimate`, `../orchestrate/references/
+  token-economy.md`'s *Pacing*) and say the call out loud — start it,
+  start fewer this round, or stop and ask.
 - When nothing is safely parallel, say so and run the work in sequence
   (or one feature with `agents:orchestrate`).
 

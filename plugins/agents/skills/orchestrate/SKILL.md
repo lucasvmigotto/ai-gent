@@ -30,7 +30,11 @@ TOKREP="python3 <plugin>/scripts/token_report.py"   # Claude Code only; see Toke
 3. Decide what runs in parallel: cards touching disjoint files, at most
    `max_parallel` at once (default 4). More than that exhausts account
    limits and costs more in retries than it saves.
-4. Show the user the plan — cards, roles, order, parallel groups — and
+4. On Claude Code, before dispatching each wave, weigh the remaining
+   budget against the wave's estimated cost (`references/
+   token-economy.md`'s *Pacing*) and say the call out loud — proceed,
+   shrink the wave, or stop and ask.
+5. Show the user the plan — cards, roles, order, parallel groups — and
    start once they agree. A plan the user approved covers the commits each
    card makes on its own branch; it never covers merges, pushes or
    releases.
