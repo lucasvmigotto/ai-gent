@@ -29,6 +29,11 @@ you could not verify and why. No file contents.
 
 ## Notes
 
+- **Name the task id(s) first in the dispatch's own short description**
+  (not the card body) — `T012, T013: routing vocabulary`, not just
+  `routing vocabulary`. `token_report.py tasks` links a card's cost back
+  to `tasks.md` by that leading id; without it the card's cost lands in
+  the roll-up's Unmapped section instead of its feature's `tokens.md`.
 - Name the tests to write first when the work is code ("tests first; show
   them failing").
 - For shared checkouts, say "do not commit; stage nothing" and commit

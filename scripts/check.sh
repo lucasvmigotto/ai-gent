@@ -244,6 +244,14 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-wt.out"
 
+if python3 -m unittest plugins/agents/scripts/test_token_report.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-token-report.out" 2>&1; then
+  pass "agents token_report.py ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-token-report.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-token-report.out"
+  fail "agents token_report.py unit tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-token-report.out"
+
 if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
   pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
 else
