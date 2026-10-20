@@ -13,7 +13,8 @@ rule 8 on CI) and `../../references/agent-roles.md`; branches follow
 `git:workflow`. The worktree tool:
 
 ```bash
-WT="python3 <plugin>/scripts/wt.py"     # plan · add · list · remove
+WT="python3 <plugin>/scripts/wt.py"               # plan · add · list · remove
+TOKREP="python3 <plugin>/scripts/token_report.py"  # Claude Code only
 ```
 
 ## 1. Decide what can run in parallel
@@ -98,7 +99,10 @@ In dependency order, then smallest first, from the main checkout on
    it lands again.
 4. Update the feature's status columns in `specs/README.md` (the owning
    stage's statuses), run `repo:sync` for a tracked feature, and after a
-   push follow CI with `devsecops:watch` (pipeline rule 8).
+   push follow CI with `devsecops:watch` (pipeline rule 8). On Claude
+   Code, `$TOKREP tasks --project=<slug> --specs-dir specs` links the
+   track's cost to the feature's `tasks.md` and the project-wide roll-up
+   (`../orchestrate/references/token-economy.md`).
 
 ## 5. Clean up
 

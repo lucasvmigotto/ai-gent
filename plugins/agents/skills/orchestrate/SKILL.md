@@ -15,6 +15,10 @@ You, the session running this skill, are the `thinker`. Several
 features or tracks at once, each in its own worktree, is
 `agents:parallel`, which may hand a feature to this skill.
 
+```bash
+TOKREP="python3 <plugin>/scripts/token_report.py"   # Claude Code only; see Token economy
+```
+
 ## 1. Plan the work
 
 1. Read the feature's `tasks.md` (or the task list the user gave). Tasks
@@ -58,9 +62,11 @@ already know. Template and examples: `references/cards.md`. Every card has:
   others, their subagent or task feature; with none, run the cards one
   after another in separate sessions and say so.
 - **Ledger.** Keep `.ai-gent/orchestrate-status.md`: cards in flight,
-  branch or worktree, state, tokens used, pending merges, decisions the
-  user owes. It lets the run survive a context compaction, a crash or an
-  account switch.
+  branch or worktree, state, pending merges, decisions the user owes. It
+  lets the run survive a context compaction, a crash or an account
+  switch. Token cost is `$TOKREP`'s job, not a hand-kept column (see
+  below) — on Claude Code; elsewhere, note here whatever the agent's own
+  UI reports.
 
 ## 4. Review
 
@@ -72,7 +78,7 @@ When a card reports:
    a fresh context for `Reviewer: reviewer` cards).
 3. Fix small issues yourself; send larger ones back to the same builder
    with a short follow-up (it keeps its context — cheaper than a new one).
-4. Record the outcome and the tokens in the ledger.
+4. Record the outcome in the ledger.
 
 ## 5. Land
 
@@ -82,6 +88,10 @@ checks. **Ask before every merge, push, promotion or release** — unless
 the user gave explicit permission beforehand to run the project on its own
 (`git:workflow`). After a merge, delete the branch with `git branch -d`
 (never `-D`) and remove its worktree.
+
+On Claude Code, once the run is done, `$TOKREP tasks --project=<slug>
+--specs-dir specs` links every card's cost to its feature's `tasks.md`
+and writes the project-wide roll-up (`references/token-economy.md`).
 
 After every push, follow CI with `devsecops:watch` (pipeline rule 8). A
 red run caused by the work becomes a card like any other: the fast model
@@ -102,8 +112,7 @@ The point of this skill. Details and measured examples:
   the cache.
 - Resume a stopped agent ("check what you already did, then finish") — never
   restart it from zero.
-- Record tokens per card and per role in the ledger, and summarize them for
-  the user at the end of the feature.
+- Run `$TOKREP` at hand-off and summarize its roll-up for the user.
 
 ## Guardrails
 

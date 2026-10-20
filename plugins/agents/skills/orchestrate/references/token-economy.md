@@ -34,9 +34,25 @@ calls, 2.5 M output tokens, 44 M written to cache and 1.35 B read from it).
 
 ## Measuring
 
-Record tokens per card in the ledger when the agent exposes them (Claude
-Code transcripts carry per-message usage: input, output, cache write, cache
-read; deduplicate by message id and take each message's final usage). At
-the end of a feature, summarize by role and by model. An API-price
-equivalent can help a manager, but say it is an order of magnitude, and
-take prices from the agent's own reference, never from memory.
+```bash
+TOKREP="python3 <plugin>/scripts/token_report.py"
+```
+
+At hand-off (`agents:orchestrate` step 5, `agents:parallel` step 4), run
+`$TOKREP tasks --project=<the session slug under ~/.claude*/projects/>
+--specs-dir specs` — it reads every session's transcripts (Claude Code
+carries per-message usage: input, output, cache write, cache read),
+dedupes by message id, and links each card's cost to the task ids its
+dispatch description names (`cards.md`). It writes `specs/<feature>/
+tokens.md` (a record file beside `tasks.md`, never written into it) and
+the project-wide roll-up at `docs/product/token-usage.md`; a card naming
+no task id lands in the roll-up's Unmapped section instead. Backfill
+stage markers from `dev` landings with `$TOKREP backfill-git --repo=.`,
+or mark one by hand with `$TOKREP snapshot --label="..."`.
+
+This reads Claude Code's own on-disk transcript format and the Agent
+tool's subagent `.meta.json` sidecars — there is no equivalent on another
+agent, so the ledger's "tokens used" column stays manual there (whatever
+the agent's own UI reports, if anything). An API-price equivalent can
+help a manager, but say it is an order of magnitude, and take prices from
+the agent's own reference, never from memory.

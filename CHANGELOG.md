@@ -19,6 +19,15 @@ changes.
   pipeline at its platform's default root path is updated in place, not
   moved, unless asked. Bitbucket Cloud is excluded — it hardcodes
   `bitbucket-pipelines.yml` at the root with no override.
+- **Token-awareness for `agents:orchestrate` and `agents:parallel`**
+  (`plugins/agents/scripts/token_report.py`, Claude Code only): at
+  hand-off, links each dispatched card's real API token cost (deduped
+  by message id) to the Spec Kit task ids its dispatch description
+  names, writing `specs/<feature>/tokens.md` — a record file beside
+  `tasks.md`, never written into it — plus a project-wide roll-up at
+  `docs/product/token-usage.md`. Both land inside the project being
+  measured, never in ai-gent. A card naming no task id is flagged in
+  the roll-up's Unmapped section instead of silently dropped.
 
 ## 2.14.0 — 2026-10-19
 
