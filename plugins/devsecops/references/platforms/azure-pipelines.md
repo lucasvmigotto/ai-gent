@@ -5,6 +5,13 @@
 - YAML pipelines (`azure-pipelines.yml` or any path registered as a
   pipeline); classic/release pipelines are legacy — migrate to YAML
   multi-stage.
+- **New pipelines default to `.azure/azure-pipelines.yaml`**, templates
+  under `.azure/templates/*.azure-pipelines-template.yaml` — set as the
+  pipeline's own **YAML file path** (Pipelines → Edit → `…` → "Change
+  path") since nothing in the repo tells Azure DevOps where to look. An
+  existing pipeline at the root `azure-pipelines.yml` is updated in
+  place, not moved, unless the user asks — moving it means changing that
+  setting too, not just the file.
 - Hierarchy: `stages` → `jobs` (or `deployment` jobs) → `steps`.
 - Reuse with **templates** (`template: templates/build.yml` for
   stages/jobs/steps/variables) and **`extends:` templates** — an extends

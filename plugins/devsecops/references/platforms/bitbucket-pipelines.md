@@ -4,7 +4,9 @@
 
 - One `bitbucket-pipelines.yml` at the root with `pipelines:` sections:
   `default`, `branches:`, `pull-requests:`, `tags:`, `custom:` (manual or
-  scheduled).
+  scheduled). **Always at the root** — Bitbucket Cloud hardcodes this
+  path with no per-repository override, so this is the one platform here
+  that can't take a dot-directory convention.
 - A `step` has an `image`, `script`, optional `caches`, `artifacts`,
   `services` (sidecar containers, e.g. a database), `size` (memory), and
   `max-time`. Group with `parallel:` and `stage:`.

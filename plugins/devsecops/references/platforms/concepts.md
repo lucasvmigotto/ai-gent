@@ -9,7 +9,7 @@ features change.
 
 | Concept | GitHub Actions | GitLab CI/CD | Azure Pipelines | Bitbucket Pipelines | Jenkins | Forgejo / Gitea Actions |
 |---|---|---|---|---|---|---|
-| Config file | `.github/workflows/*.yml` (many) | `.gitlab-ci.yml` (+ `include:`) | `azure-pipelines.yml` (per pipeline) | `bitbucket-pipelines.yml` | `Jenkinsfile` | `.forgejo/workflows/` / `.gitea/workflows/` |
+| Config file | `.github/workflows/*.yml` (many) | `.gitlab-ci.yml` (+ `include:`), or `.gitlab/**/*.yaml` via the CI/CD configuration path | `azure-pipelines.yml` (per pipeline), or `.azure/**/*.yaml` via the pipeline's YAML file path | `bitbucket-pipelines.yml` (fixed path) | `Jenkinsfile`, or `.jenkins/Jenkinsfile` via the job's Script Path | `.forgejo/workflows/` / `.gitea/workflows/` |
 | Unit of work | job → steps | job → `script` | stage → job → steps | step → `script` | stage → steps | job → steps |
 | Ordering | `needs:` | `stages:` + `needs:` (DAG) | `dependsOn:` | step order, `parallel:`, `stages:` | `stages`, `parallel` | `needs:` |
 | Conditions | `if:` | `rules:` | `condition:` | branch/PR sections, `condition: changesets` | `when { }` | `if:` |

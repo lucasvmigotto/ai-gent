@@ -37,8 +37,9 @@ the conversation, so:
 ## Before starting
 
 1. Find the platform from the repo (`.github/workflows/`,
-   `.gitlab-ci.yml`, `azure-pipelines.yml`, `bitbucket-pipelines.yml`,
-   `Jenkinsfile`, `.forgejo/workflows/`) and read the **Observe a run**
+   `.gitlab-ci.yml` or `.gitlab/`, `azure-pipelines.yml` or `.azure/`,
+   `bitbucket-pipelines.yml`, `Jenkinsfile` or `.jenkins/`,
+   `.forgejo/workflows/`) and read the **Observe a run**
    section of its file in `../../references/platforms/` — the commands
    differ per platform. A repo can have more than one.
 2. Check the CLI is signed in (`gh auth status`, `glab auth status`,
