@@ -4,6 +4,22 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **A dot-directory convention for CI/CD config on Azure Pipelines,
+  GitLab CI/CD and Jenkins** — `.azure/azure-pipelines.yaml` (templates
+  under `.azure/templates/`), `.gitlab/gitlab-ci.yaml` and
+  `.jenkins/Jenkinsfile`, matching GitHub Actions' and Forgejo/Gitea's
+  native `.github/`/`.forgejo/` layout. Each needs the path set outside
+  the repo (the pipeline's YAML file path, the project's CI/CD
+  configuration file path, the job's Script Path) since none of the
+  three platforms infers it from the file's location alone; an existing
+  pipeline at its platform's default root path is updated in place, not
+  moved, unless asked. Bitbucket Cloud is excluded — it hardcodes
+  `bitbucket-pipelines.yml` at the root with no override.
+
 ## 2.14.0 — 2026-10-19
 
 ### Added
