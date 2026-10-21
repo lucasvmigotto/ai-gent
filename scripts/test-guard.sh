@@ -44,6 +44,21 @@ feat: x
 Co-Authored-By: Someone <a@b.c>
 EOF
 )\""
+expect deny "$feat" "gh issue create --title x --body \"\$(cat <<'EOF'
+body
+
+Co-Authored-By: Someone <a@b.c>
+EOF
+)\""
+expect deny "$feat" "gh pr comment 1 --body \"\$(cat <<'EOF'
+looks good
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)\""
+expect none "$feat" 'gh issue create --title x --body "plain body"'
+expect none "$feat" 'grep -rn "co-authored-by" docs/'
+expect none "$feat" 'git commit -m "fix(git): deny Co-Authored-By trailers and generated with signatures"'
 expect deny "$feat" 'git push --force origin feat/x'
 expect deny "$feat" 'git push -f'
 expect ask "$feat" 'git push --force-with-lease origin feat/x'

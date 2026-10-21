@@ -47,11 +47,17 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "" } = {}) {
     return deny("hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again");
   }
 
+  // A real trailer or signature, not just prose that mentions one.
+  const attributed = () =>
+    /co-authored-by[ \t]*:|generated[ \t]+(with|by)[ \t]{0,3}\[?claude/i.test(cmd);
   if (
-    gitHas(segments, "(commit|merge|revert|cherry-pick|tag|notes)") &&
-    /co-authored-by/i.test(cmd)
+    (gitHas(segments, "(commit|merge|revert|cherry-pick|tag|notes)") ||
+      segments.some((s) => /^[ \t]*gh[ \t]+(issue|pr)([ \t]|$)/.test(s))) &&
+    attributed()
   ) {
-    return deny("this user's commits carry no Co-Authored-By trailers; remove it and commit again");
+    return deny(
+      "this user's commits, issues, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+    );
   }
 
   if (
@@ -249,10 +255,19 @@ export function secretsGuard(cmd) {
 const REPO_RUNNER_RE =
   /^[ \t]*([A-Za-z_][A-Za-z0-9_]*=[^ \t]*[ \t]+)*((python3?|uv[ \t]+run([ \t]+python3?)?)[ \t]+)?([^ \t]*\/)?reporun(\.py)?[ \t]/;
 
-// Every change reporun makes on a platform is confirmed by the user.
+// Every change reporun makes on a platform is confirmed by the user; a
+// --write call carrying agent attribution is denied outright, the same rule
+// git:workflow's guard enforces for commits and PRs/issues opened with `gh`.
 export function repoGuard(cmd) {
   const hit = dbSegments(cmd).some((s) => REPO_RUNNER_RE.test(s) && /[ \t]--write([ \t]|$)/.test(s));
   if (!hit) return { decision: "none" };
+  if (/co-authored-by[ \t]*:|generated[ \t]+(with|by)[ \t]{0,3}\[?claude/i.test(cmd)) {
+    return {
+      decision: "deny",
+      reason:
+        "repo guard: this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+    };
+  }
   return {
     decision: "ask",
     reason:

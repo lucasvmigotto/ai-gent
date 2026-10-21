@@ -4,6 +4,17 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **No agent attribution on issues, pull requests or comments** — the
+  same rule `git:workflow` already enforced for commits
+  (`Co-Authored-By`, a "generated with" signature) now applies there
+  too: the `git` guard denies a `gh issue`/`gh pr` call carrying one, and
+  the `repo` guard denies a `reporun --write` call carrying one, instead
+  of only asking to confirm it.
+
 ## 2.16.0 — 2026-10-20
 
 ### Added

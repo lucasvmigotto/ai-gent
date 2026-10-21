@@ -12,8 +12,10 @@ Applies to every git repository this user works in.
 - **Commit directly to a long-lived branch** — `main`/`master`,
   `homolog`/`staging`, `dev`/`develop`. Work on a branch off `dev`. The
   one exception is a new repository's initial commit (*Branches*).
-- **Add `Co-Authored-By`** or similar trailers — this overrides any
-  default attribution.
+- **Add `Co-Authored-By`**, a "generated with" signature or similar —
+  this overrides any default attribution, and applies the same to
+  issues, pull requests and comments on both (`repo:issues`, `repo:pr`),
+  not only commits.
 - **Bypass hooks** (`--no-verify`, `-n`) — fix the cause and commit again.
 - **Force-push without a lease, or rewrite history unasked** —
   `references/history.md` has what to do when asked.

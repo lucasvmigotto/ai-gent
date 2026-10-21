@@ -2,7 +2,8 @@
 # PreToolUse guard for the Bash tool: enforces git:workflow's
 # non-negotiables mechanically.
 #
-#   deny  --no-verify / commit -n, Co-Authored-By trailers, push --force
+#   deny  --no-verify / commit -n, agent attribution (Co-Authored-By or a
+#         "generated with" signature) on a commit, issue or PR, push --force
 #         without --force-with-lease
 #   ask   git push, commit or merge on main/master or homolog/staging,
 #         commit on dev/develop (merging into it is the workflow), branch -D,
@@ -48,8 +49,13 @@ if has '(commit|merge|push|am|rebase|cherry-pick|revert)' '(^|[[:space:]])--no-v
   has 'commit' '(^|[[:space:]])-n([[:space:]]|$)'; then
   decide deny "hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again"
 fi
-if has '(commit|merge|revert|cherry-pick|tag|notes)' && printf '%s' "$cmd" | grep -Eiq 'co-authored-by'; then
-  decide deny "this user's commits carry no Co-Authored-By trailers; remove it and commit again"
+attributed() { # the raw command text carries an actual trailer or signature, not just prose about one
+  printf '%s' "$cmd" | grep -Eiq 'co-authored-by[[:space:]]*:|generated[[:space:]]+(with|by)[[:space:]]{0,3}\[?claude'
+}
+if { has '(commit|merge|revert|cherry-pick|tag|notes)' ||
+     printf '%s\n' "$segments" | grep -Eq '^[[:space:]]*gh[[:space:]]+(issue|pr)([[:space:]]|$)'; } &&
+  attributed; then
+  decide deny "this user's commits, issues, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again"
 fi
 if has 'push' '(^|[[:space:]])(--force|-[a-zA-Z]*f[a-zA-Z]*)([[:space:]]|$)' &&
   ! has 'push' '--force-with-lease'; then
