@@ -42,7 +42,10 @@ Outside that, open one when the user asks:
    `.gitlab/merge_request_templates/`, `.azuredevops/pull_request_template.md`)
    filled in: what changed and why, how it was tested, and the linked
    items — `Closes #N` / `AB#N` / `KEY-12` for the ones the user confirmed
-   (`git:workflow`'s linking rules; Azure: `--work-items` too).
+   (`git:workflow`'s linking rules; Azure: `--work-items` too). No agent
+   attribution — no `Co-Authored-By`, "generated with" signature or
+   similar (`git:workflow`'s *Never*), in the body or in any comment
+   after.
 5. **Draft** when the work isn't ready for review.
 6. Show the title, target and body, then `reporun … --write`; the `repo`
    guard confirms it with the user. Report the link, then follow its
