@@ -1,7 +1,7 @@
 # Working on ai-gent
 
 Skills and plugins for Claude Code (the default) and, opt-in, opencode,
-Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf, installed
+Codex, Cursor, Antigravity, GitHub Copilot, Amp, Kiro and Windsurf, installed
 from this repo by symlink or generated entry files (`setup.sh`,
 `install.sh`). The README covers installing and the product pipeline; this
 file covers changing things.

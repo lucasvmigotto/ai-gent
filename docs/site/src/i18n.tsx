@@ -204,7 +204,7 @@ export const enUS: Messages = {
 			"Without a terminal, or with --skip-prompt, it installs your previous choice, or Claude Code alone the first time.",
 		others: "Other agents",
 		othersBody:
-			"opencode, Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Gemini CLI, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the guards (git, db, secrets, repo); elsewhere they are instructions.",
+			"opencode, Codex, Cursor, Antigravity, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the guards (git, db, secrets, repo); elsewhere they are instructions.",
 		verify: "Verify",
 		updates: "Updates",
 		updatesBody:
