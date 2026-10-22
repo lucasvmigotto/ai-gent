@@ -125,8 +125,8 @@ the background) whose card names its worktree path. Elsewhere:
 |---|---|
 | opencode | a session in the worktree directory (`opencode .worktrees/<slug>`) |
 | Codex | a session started in the worktree (`codex --cd .worktrees/<slug>`) |
-| Cursor | a window per worktree, or its parallel agents |
-| Gemini CLI, Copilot, Amp, Kiro, Windsurf | a session or window opened in the worktree directory |
+| Cursor, Antigravity | a window per worktree, or their parallel agents / subagents |
+| Copilot, Amp, Kiro, Windsurf | a session or window opened in the worktree directory |
 
 `wt.py` and the landing rules are the same everywhere. An agent that can't
 run sessions side by side runs the tracks one after another — still one

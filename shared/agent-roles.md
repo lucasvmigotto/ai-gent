@@ -53,7 +53,7 @@ How each agent gets the same:
 | opencode | `model: provider/model` on the command | `subtask: true` on the command | `setup.sh` writes `subtask: true`, and the model from `AI_GENT_OPENCODE_MODEL_SMALL` when set |
 | Codex | `model`, `model_reasoning_effort` in a custom agent (`.codex/agents/<name>.toml`) | the agent runs as a subagent | nothing yet: add a `scout` agent with the small model and ask for it by name |
 | Cursor | `model: fast` (or a model id) in a subagent (`.cursor/agents/<name>.md`) | subagents have their own context | nothing yet: a `scout` subagent with `model: fast` |
-| Gemini CLI | `model` in a subagent (`.gemini/agents/<name>.md`; experimental, `enableAgents`) | subagents have their own context | nothing yet |
+| Antigravity | `model: flash` (small) or `pro` (strong) in a subagent (`.agents/agents/<name>.md`); no mid-tier builder model | subagents have their own context | nothing yet: a `scout` subagent with `model: flash` |
 | GitHub Copilot | `model` in a prompt file (`.github/prompts/*.prompt.md`) or a custom agent | a custom agent | nothing yet |
 | Kiro | `model` in a custom agent (`.kiro/agents/`) | subagents | nothing yet |
 | Amp | no per-skill model; its built-in Search subagent already runs small | built-in subagents | nothing to do |

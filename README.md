@@ -1,6 +1,6 @@
 # ai-gent
 
-Skills and plugins for [Claude Code](https://code.claude.com/docs/en/overview) — and, opt-in, [opencode](https://opencode.ai/v2/docs), Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf — kept in one repository and linked into place, so there's one place to edit.
+Skills and plugins for [Claude Code](https://code.claude.com/docs/en/overview) — and, opt-in, [opencode](https://opencode.ai/v2/docs), Codex, Cursor, Antigravity, GitHub Copilot, Amp, Kiro and Windsurf — kept in one repository and linked into place, so there's one place to edit.
 
 They cover the whole path of a software project, from idea to docs site, plus the tooling around it:
 
@@ -71,7 +71,7 @@ Re-run it after adding, renaming or removing a skill or plugin, or after changin
 
 | Flag | Effect |
 | --: | :-- |
-| `--target <agents>` | which agents to install for, comma-separated, instead of the selector: `claude`, `opencode`, `codex`, `cursor`, `gemini`, `copilot`, `amp`, `kiro`, `windsurf`, or `all` (every agent found on this machine) |
+| `--target <agents>` | which agents to install for, comma-separated, instead of the selector: `claude`, `opencode`, `codex`, `cursor`, `antigravity`, `copilot`, `amp`, `kiro`, `windsurf`, or `all` (every agent found on this machine) |
 | `--skip-prompt` | no selector: the previous choice, or Claude Code alone the first time |
 | `--dry-run` | show what would change |
 | `--force` | back up (`<name>.bak-<timestamp>`) and replace a real directory or foreign symlink in the way |
@@ -103,13 +103,14 @@ The rules are built by `scripts/opencode-config.py`. Your own rules always stay;
 > [!NOTE]
 > A config with comments (JSONC) is never rewritten, since that would strip them: `setup.sh` prints the rules to add instead. With no terminal to ask on (a pipe, CI), it edits nothing unless you pass `--yes`, and prints what to add. `--uninstall` removes only what it added. Your own rules always stay; when one of yours has the same pattern, yours is kept and reported.
 
-**Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro, Windsurf.** These read `SKILL.md` folders but have no plugin namespaces and run no Claude Code hooks. `setup.sh` generates the same `<plugin>-<skill>` entry files as for opencode (real files, not symlinks, which Cursor skips), plus one per personal skill:
+**Codex, Cursor, GitHub Copilot, Amp, Kiro, Windsurf, Antigravity.** These read `SKILL.md` folders but have no plugin namespaces and run no Claude Code hooks. `setup.sh` generates the same `<plugin>-<skill>` entry files as for opencode (real files, not symlinks, which Cursor skips), plus one per personal skill:
 
 | Agent | Directory |
 | --: | :-- |
-| Codex, Cursor, Gemini CLI, GitHub Copilot, Amp | `~/.agents/skills/`, shared: all five read it, so choosing several installs it once and no skill is listed twice |
+| Codex, Cursor, GitHub Copilot, Amp | `~/.agents/skills/`, shared: all four read it, so choosing several installs it once and no skill is listed twice |
 | Kiro | `~/.kiro/skills/` |
 | Windsurf | `~/.codeium/windsurf/skills/` |
+| Antigravity | `~/.gemini/config/skills/` — its own native Agent Skills location |
 
 > [!WARNING]
 > On these agents the [guard hooks](#guard-hooks) are instructions only, not enforced. Some of them (Cursor, for one) also read `~/.claude/skills`, where plugin skills appear under short names (`spec`, `build`, …) next to the `<plugin>-<skill>` entries; prefer the namespaced ones.
@@ -131,7 +132,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 > claude plugin disable qa@skills-dir --scope local            # .claude/settings.local.json, not committed
 > ```
 
-**Models.** Skills run on your session's model, with one exception: `devsecops:watch` runs on the small model (Haiku in Claude Code) in a context of its own, because following CI is triage, and hands any fix back to your session. `agents:orchestrate` routes its work the same way: a strong model plans and reviews, a fast one builds, a small one searches. Both use one table, `shared/agent-roles.md`, which also says how each other agent gets the same: opencode commands as subtasks (`setup.sh` writes them, on `AI_GENT_OPENCODE_MODEL_SMALL` when you set it), and custom agents or subagents in Codex, Cursor, Gemini CLI, Copilot and Kiro.
+**Models.** Skills run on your session's model, with one exception: `devsecops:watch` runs on the small model (Haiku in Claude Code) in a context of its own, because following CI is triage, and hands any fix back to your session. `agents:orchestrate` routes its work the same way: a strong model plans and reviews, a fast one builds, a small one searches. Both use one table, `shared/agent-roles.md`, which also says how each other agent gets the same: opencode commands as subtasks (`setup.sh` writes them, on `AI_GENT_OPENCODE_MODEL_SMALL` when you set it), and custom agents or subagents in Codex, Cursor, Antigravity, Copilot and Kiro.
 
 ## Contents
 

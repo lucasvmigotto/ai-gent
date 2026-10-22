@@ -4,6 +4,19 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Antigravity support**, in place of Gemini CLI — `setup.sh` installs
+  entries at `~/.gemini/config/skills` (Antigravity's own native Agent
+  Skills location, not the shared `~/.agents/skills` directory), detected
+  by the `agy` CLI or `~/.gemini/config`.
+
+### Removed
+
+- **Gemini CLI support** — dropped from `setup.sh`'s agent registry.
+
 ## 2.16.1 — 2026-10-21
 
 ### Added
