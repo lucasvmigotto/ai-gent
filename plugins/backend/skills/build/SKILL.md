@@ -181,6 +181,15 @@ For a feature with a `tracker.md`, run `repo:sync` for it once the
 phase's tasks are ticked and its status updated (pipeline rule 10), so
 its items move with it.
 
+On Claude Code with the `agents` plugin, record what the phase cost:
+`python3 <agents plugin>/scripts/token_report.py tasks --project=<session
+slug> --specs-dir specs` writes `used` next to each card's projected tokens
+on its task lines, in the feature's `tracker.md` and in
+`docs/product/token-history.jsonl`. A subagent leaves it to the coordinator
+that dispatched it (its own transcript is still open), and work done in the
+main thread alone is not attributed to a card
+(`../../references/token-tracking.md`).
+
 Per feature: which step of the Spec Kit flow it reached, whether
 converge converged or what's left, what's Implemented, what's still
 Planned, contract changes (and whether the frontend was told), upstream
