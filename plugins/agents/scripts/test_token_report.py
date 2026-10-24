@@ -378,6 +378,91 @@ class EstimateTest(unittest.TestCase):
         self.assertIn("Tokens: projected ~300k | used —", text)
 
 
+Q = {"kind": "extend", "layer": "backend", "surface": "protocol", "lang": "rust", "novelty": "known-pattern",
+     "verification": "integration", "size": "M"}
+
+
+def trec(i, used, tags=None, **kw):
+    r = rec(i, used, **kw)
+    r["tags"] = {**Q, **(tags or {})}
+    r["executor_role"] = kw.get("role", "builder")
+    return r
+
+
+class TagEstimateTest(unittest.TestCase):
+    def est(self, recs, tags=None, model="sonnet", role="builder"):
+        return tr.estimate_card(recs, model, "medium", tags=tags or Q, role=role)
+
+    def test_full_match_is_high_confidence_with_median_and_p75(self):
+        e = self.est([trec(i, v) for i, v in enumerate([100, 200, 300, 400, 500])])
+        self.assertEqual((e["basis"], e["level"], e["confidence_label"], e["n"], e["median"], e["p75"]), ("tags", 0, "high", 5, 300, 400))
+
+    def test_backoff_drops_size_then_stack_then_verification_then_layer(self):
+        recs = [trec(i, 100 * (i + 1), tags={"size": "S"}) for i in range(5)]
+        e = self.est(recs)
+        self.assertEqual((e["level"], e["tier"]), (1, "kind+surface+novelty+lang+layer+verification"))  # size dropped; stack is only a bonus
+        self.assertEqual(e["median"], round(300 * 1.0 / 0.6))  # sizes S -> M scale by the size ratio
+        recs = [trec(i, 100, tags={"verification": "unit"}) for i in range(5)]
+        self.assertEqual(self.est(recs)["tier"], "kind+surface+novelty+lang+layer")
+        recs = [trec(i, 100, tags={"layer": "tui", "verification": "unit"}) for i in range(5)]
+        e = self.est(recs)
+        self.assertEqual((e["tier"], e["confidence_label"]), ("kind+surface+novelty+lang", "medium"))
+
+    def test_too_few_matches_even_at_the_last_level_fall_back(self):
+        recs = [trec(i, 100, tags={"kind": "fix", "lang": "go"}) for i in range(9)]
+        e = self.est(recs)
+        self.assertEqual((e["basis"], e["confidence_label"]), ("history", "low"))  # tags matched nothing: effort and model tiers
+        self.assertEqual(self.est(recs, model="opus")["basis"], "starting table")
+
+    def test_stack_overlap_adds_weight_without_excluding(self):
+        recs = [trec(i, 100, tags={"stack": ["react"]}) for i in range(3)] + [trec(i + 9, 900, tags={"stack": ["tokio", "clap"]}) for i in range(3)]
+        q = {**Q, "stack": ["tokio", "clap"]}
+        e = self.est(recs, q)
+        self.assertEqual((e["n"], e["median"]), (6, 900))  # all six match; the overlapping ones weigh 1.5x
+        self.assertEqual(self.est(recs, Q)["n"], 6)
+
+    def test_inferred_tags_weigh_half(self):
+        recs = [trec(i, 100) for i in range(2)] + [dict(trec(i + 9, 900), tags_source="inferred") for i in range(4)]
+        e = self.est(recs)
+        self.assertEqual(e["median"], 100)  # 2 planned (2.0) outweigh 4 inferred (4 x 0.5 = 2.0 only at the median boundary)
+
+    def test_context_factor_is_learned_from_peer_groups_and_applied(self):
+        recs = []
+        for g in range(5):  # five groups, each with a Sonnet builder and an Opus thinker doing the same work
+            tg = {"surface": "storage", "kind": ["extend", "fix", "refactor", "docs", "ci"][g]}
+            recs += [trec(g, 100, tags=tg), dict(trec(g + 20, 200, tags=tg), executor_model="opus", role="thinker", executor_role="thinker")]
+        learned = tr.learn_context(recs)
+        self.assertAlmostEqual(learned["opus/thinker"], 2.0)
+        self.assertEqual(tr.context_factor(learned, "opus", "thinker"), (learned["opus/thinker"], "learned"))
+        self.assertEqual(tr.context_factor({}, "opus", "thinker"), (1.3, "prior"))
+        base = [trec(i, 100) for i in range(5)]
+        self.assertEqual(self.est(base, model="opus", role="thinker")["median"], 130)  # prior until history says otherwise
+
+    def test_bias_correction_needs_five_records_per_tag(self):
+        recs = [dict(trec(i, 200), projected=100) for i in range(5)]
+        e = self.est(recs)
+        self.assertEqual(e["bias"]["factor"], 2.0)
+        self.assertEqual(e["median"], 400)
+        self.assertEqual(self.est(recs[:4] + [trec(9, 200)])["bias"]["factor"], 1.0)  # four with both numbers: no correction
+
+    def test_events_stay_out_of_task_cost(self):
+        recs = [dict(trec(i, 500), used_clean=100, events={"fix_rounds": 2}) for i in range(5)]
+        self.assertEqual(self.est(recs)["median"], 100)
+
+    def test_command_prints_level_confidence_and_context(self):
+        with tempfile.TemporaryDirectory() as d:
+            h = Path(d) / "h.jsonl"
+            h.write_text("".join(json.dumps(trec(i, 100_000 * (i + 1))) + "\n" for i in range(5)))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                tr.cmd_estimate(tr.p.parse_args(["estimate", f"--history={h}", "--tags=extend, backend, protocol, rust, known-pattern, integration, M"]))
+        text = out.getvalue()
+        self.assertIn("projection ~300k", text)
+        self.assertIn("5 record(s) at match level 0", text)
+        self.assertIn("confidence high", text)
+        self.assertIn("context: x1.00", text)
+
+
 class IndexSeedTest(TasksFixture):
     def setUp(self):
         super().setUp()

@@ -36,6 +36,7 @@ subagent .meta.json sidecars. No equivalent exists on another agent.
 import argparse
 import glob
 import json
+import math
 import os
 import re
 import subprocess
@@ -1168,17 +1169,164 @@ def load_history(paths):
             if not (r.get("source") == "seed" and measured & set(r.get("agents", [])))]
 
 
-def estimate_card(records, family_, effort=None, layer=None, tasks=None):
+# Matching levels, strictest first. A level is the facets a record must share exactly; `stack` is never
+# a filter, only a similarity bonus (Jaccard) that is switched off from the third level on.
+# Back-off drops size, then stack, then verification, then layer, then novelty.
+LEVELS = (("kind", "surface", "novelty", "lang", "layer", "verification", "size", "+stack"),
+          ("kind", "surface", "novelty", "lang", "layer", "verification", "+stack"),
+          ("kind", "surface", "novelty", "lang", "layer", "verification"),
+          ("kind", "surface", "novelty", "lang", "layer"),
+          ("kind", "surface", "novelty", "lang"),
+          ("kind", "surface", "lang"),
+          ("kind", "lang"))
+FULL_FACETS = LEVELS[0][:-1]
+NEIGHBOUR_BONUS = 0.25   # per dropped facet a record still shares
+STACK_BONUS = 0.5        # at full stack overlap
+INFERRED_WEIGHT = 0.5    # tags guessed by seed, not planned
+CONTEXT_PRIOR = {"sonnet": 1.0, "opus": 1.3, "haiku": 0.5}   # relative to a Sonnet builder, until history says otherwise
+CONTEXT_REF = "sonnet/builder"
+BIAS_MIN, BIAS_CLAMP = 5, (0.5, 2.0)
+LOGLINEAR_MIN = 300
+
+
+def rec_cost(r):
+    """What a record teaches about the task itself: its cost without resumes, fix rounds and flake hunts."""
+    return r.get("used_clean") or r.get("used") or 0
+
+
+def rec_tags(r):
+    t = dict(r.get("tags") or {})
+    if "size" not in t and r.get("tasks"):
+        t["size"] = size_of(len(r["tasks"]))
+    return t
+
+
+def ctx_key(model, role):
+    return f"{model}/{role}"
+
+
+def learn_context(records):
+    """Execution-context factors relative to a Sonnet builder, learned from history: records that share
+    kind, surface, novelty, lang and layer but ran in another context are compared with the Sonnet-builder
+    mean of their group. A key needs MIN_SAMPLES such comparisons; others fall back to the prior."""
+    groups = defaultdict(list)
+    for r in records:
+        t = rec_tags(r)
+        if rec_cost(r) and all(t.get(f) for f in ("kind", "surface", "novelty", "lang", "layer")):
+            groups[tuple(t[f] for f in ("kind", "surface", "novelty", "lang", "layer"))].append(r)
+    dev = defaultdict(list)
+    for g in groups.values():
+        ref = [math.log(rec_cost(r)) for r in g if ctx_key(r.get("executor_model"), r.get("executor_role")) == CONTEXT_REF]
+        if not ref:
+            continue
+        base = sum(ref) / len(ref)
+        for r in g:
+            k = ctx_key(r.get("executor_model"), r.get("executor_role"))
+            if k != CONTEXT_REF:
+                d = math.log(rec_cost(r)) - base
+                dev[k].append(d)
+                dev[r.get("executor_model")].append(d)
+    return {k: math.exp(sum(v) / len(v)) for k, v in dev.items() if len(v) >= MIN_SAMPLES}
+
+
+def context_factor(learned, model, role):
+    """(factor, 'learned'|'prior') for a model and role."""
+    for k in (ctx_key(model, role), model):
+        if k in learned:
+            return learned[k], "learned"
+    return (1.0 if ctx_key(model, role) == CONTEXT_REF else CONTEXT_PRIOR.get(model, 1.0)), "prior"
+
+
+def bias_factors(records):
+    """(facet, value) -> (used/projected geometric mean, records), for tags with at least BIAS_MIN
+    records that carry both a projection and a result. Corrects a planner that is systematically off."""
+    acc = defaultdict(list)
+    for r in records:
+        if r.get("projected") and rec_cost(r):
+            ratio = math.log(rec_cost(r) / r["projected"])
+            for f, v in rec_tags(r).items():
+                for x in (v if isinstance(v, list) else [v]):
+                    acc[(f, x)].append(ratio)
+    return {k: (math.exp(sum(v) / len(v)), len(v)) for k, v in acc.items() if len(v) >= BIAS_MIN}
+
+
+def loglinear_model(records):
+    """Hook for a log-linear model (log cost ~ tag indicators + context + size) once history holds
+    LOGLINEAR_MIN records. Not built: it returns None, and estimate_card falls back to the matching
+    levels. To build it, return an object with predict(query_tags, model, role) -> (median, p75)."""
+    return None
+
+
+def jaccard(a, b):
+    a, b = set(a or []), set(b or [])
+    return len(a & b) / len(a | b) if a | b else 0.0
+
+
+def estimate_by_tags(records, family_, role, tags):
+    """Weighted nearest neighbours by shared tags with hierarchical back-off; None when no level
+    reaches MIN_SAMPLES. Returns the projection, p75, the level, the records used and the factors applied."""
+    q = {f: v for f, v in tags.items() if v}
+    learned = learn_context(records)
+    qfac, qhow = context_factor(learned, family_, role)
+    seen = set()
+    for idx, level in enumerate(LEVELS):
+        facets = tuple(f for f in level if f != "+stack" and f in q)
+        use_stack = "+stack" in level and "stack" in q
+        if not facets or (facets, use_stack) in seen:
+            continue
+        seen.add((facets, use_stack))
+        dropped = [f for f in FULL_FACETS if f in q and f not in facets]
+        pairs, mix = [], defaultdict(int)
+        for r in records:
+            t = rec_tags(r)
+            if not rec_cost(r) or any(t.get(f) != q[f] for f in facets):
+                continue
+            w = CONF_WEIGHT.get(r.get("confidence"), 0.3)
+            if r.get("tags_source") == "inferred":
+                w *= INFERRED_WEIGHT
+            w *= 1 + NEIGHBOUR_BONUS * sum(1 for f in dropped if t.get(f) == q[f])
+            if use_stack:
+                w *= 1 + STACK_BONUS * jaccard(t.get("stack"), q.get("stack"))
+            v = rec_cost(r) / context_factor(learned, r.get("executor_model"), r.get("executor_role"))[0]
+            if "size" not in facets and q.get("size") in SIZE_MULT and t.get("size") in SIZE_MULT:
+                v *= SIZE_MULT[q["size"]] / SIZE_MULT[t["size"]]
+            pairs.append((v, w))
+            mix[r.get("confidence", "agent")] += 1
+        if len(pairs) < MIN_SAMPLES:
+            continue
+        med, p75 = wquantile(pairs, 0.5) * qfac, wquantile(pairs, 0.75) * qfac
+        bias = bias_factors(records)
+        used = [(f"{f}={x}", bias[(f, x)]) for f, v in q.items() for x in (v if isinstance(v, list) else [v]) if (f, x) in bias]
+        corr = 1.0
+        if used:
+            corr = min(max(math.exp(sum(math.log(b[0]) for _, b in used) / len(used)), BIAS_CLAMP[0]), BIAS_CLAMP[1])
+        label = "high" if idx <= 1 else "medium" if idx <= 4 else "low"
+        return {"median": round(med * corr), "p75": round(p75 * corr), "n": len(pairs), "basis": "tags", "tier": "+".join(facets) + ("+stack" if use_stack else ""),
+                "level": idx, "confidence_label": label, "mix": dict(mix), "context": [round(qfac, 2), qhow],
+                "bias": {"factor": round(corr, 2), "from": [f"{k} x{b[0]:.2f} (n={b[1]})" for k, b in used]}}
+    return None
+
+
+def estimate_card(records, family_, effort=None, layer=None, tasks=None, tags=None, role=None):
     """The projection for a planned card: the weighted median of similar records (p75 as the upper
-    bound), widening the match until MIN_SAMPLES records agree, else the starting table."""
-    size = size_of(tasks)
+    bound). With tags: nearest neighbours by shared tags, backing off until MIN_SAMPLES records agree;
+    otherwise (or when even that fails) effort and model tiers; else the starting table."""
+    if tags and loglinear_model(records) is not None and len(records) >= LOGLINEAR_MIN:
+        pass  # the hook: a fitted model would answer here
+    if tags:
+        got = estimate_by_tags(records, family_, role or "builder", tags)
+        if got:
+            return got
+        layer = layer or tags.get("layer")
+        tasks = tasks or None
+    size = size_of(tasks) or (tags or {}).get("size")
     tiers = [("layer+effort+model+size", {"layer": layer, "effort": effort, "size": size}),
              ("effort+model+size", {"effort": effort, "size": size}),
              ("effort+model", {"effort": effort}), ("model", {})]
 
     def match(r, crit):
-        return (r.get("used") and r.get("executor_model") == family_
-                and all(v is None or (size_of(len(r.get("tasks") or [])) if k == "size" else r.get(k)) == v for k, v in crit.items()))
+        return (rec_cost(r) and r.get("executor_model") == family_
+                and all(v is None or (rec_tags(r).get("size") if k == "size" else r.get(k)) == v for k, v in crit.items()))
 
     seen, best = set(), 0
     for name, crit in tiers:
@@ -1189,15 +1337,16 @@ def estimate_card(records, family_, effort=None, layer=None, tasks=None):
         sel = [r for r in records if match(r, crit)]
         best = max(best, len(sel))
         if len(sel) >= MIN_SAMPLES:
-            pairs = [(r["used"], CONF_WEIGHT.get(r.get("confidence"), 0.3)) for r in sel]
+            pairs = [(rec_cost(r), CONF_WEIGHT.get(r.get("confidence"), 0.3)) for r in sel]
             mix = defaultdict(int)
             for r in sel:
                 mix[r.get("confidence", "agent")] += 1
             return {"median": wquantile(pairs, 0.5), "p75": wquantile(pairs, 0.75), "n": len(sel), "basis": "history",
-                    "tier": name, "mix": dict(mix)}
+                    "tier": name, "mix": dict(mix), "confidence_label": "low" if tags else None}
     med, p75 = STARTING.get(family_, STARTING["sonnet"])[effort if effort in EFFORT_RANK else "medium"]
     mult = SIZE_MULT.get(size, 1.0)
-    return {"median": round(med * mult), "p75": round(p75 * mult), "n": best, "basis": "starting table", "tier": None, "mix": {}}
+    return {"median": round(med * mult), "p75": round(p75 * mult), "n": best, "basis": "starting table", "tier": None, "mix": {},
+            "confidence_label": "low"}
 
 
 def history_paths(extra):
@@ -1206,17 +1355,26 @@ def history_paths(extra):
 
 def cmd_estimate(a):
     fam = ROLE_MODEL.get(a.role) if a.role else family(a.model)
-    est = estimate_card(load_history(history_paths(a.history)), fam, a.effort, a.layer, a.tasks)
+    tags = parse_tags(a.tags) if a.tags else None
+    est = estimate_card(load_history(history_paths(a.history)), fam, a.effort, a.layer, a.tasks, tags, a.role or "builder")
     label = f"{fam} · effort {a.effort}" + (f" · layer {a.layer}" if a.layer else "") + (f" · {a.tasks} task(s)" if a.tasks else "")
+    if tags:
+        label += f" · tags {format_tags(tags)}"
     if a.json:
         print(json.dumps({"query": label, **est}))
         return
     print(f"estimate for {label}")
     print(f"  projection ~{fmt_tok(est['median'])} billable (median), upper bound ~{fmt_tok(est['p75'])} (p75)")
-    if est["basis"] == "history":
-        mix = ", ".join(f"{n} {c}" for c, n in sorted(est["mix"].items(), key=lambda x: -CONF_WEIGHT.get(x[0], 0)))
+    mix = ", ".join(f"{n} {c}" for c, n in sorted(est["mix"].items(), key=lambda x: -CONF_WEIGHT.get(x[0], 0)))
+    if est["basis"] == "tags":
+        print(f"  basis: {est['n']} record(s) at match level {est['level']} ({est['tier']}), confidence {est['confidence_label']} ({mix})")
+        print(f"  context: x{est['context'][0]:.2f} for {fam}/{a.role or 'builder'} ({est['context'][1]}); "
+              f"bias correction x{est['bias']['factor']:.2f}"
+              + (f" ({'; '.join(est['bias']['from'])})" if est["bias"]["from"] else " (fewer than 5 records per tag)"))
+    elif est["basis"] == "history":
         print(f"  basis: {est['n']} similar record(s) matching {est['tier']} ({mix}); exact weighs 1.0, "
-              f"feature-level {CONF_WEIGHT['feature']}, agent-only {CONF_WEIGHT['agent']}")
+              f"feature-level {CONF_WEIGHT['feature']}, agent-only {CONF_WEIGHT['agent']}"
+              + ("; tags matched too few records, so the match fell back to effort and model" if tags else ""))
     else:
         print(f"  basis: the starting table (only {est['n']} similar record(s); {MIN_SAMPLES} needed for history to take over)")
     print(f"  on the card: Tokens: projected ~{fmt_tok(est['median'])} | used —")
@@ -1457,6 +1615,7 @@ def build_parser():
     g.add_argument("--model", default="sonnet", help="a model name or family (default sonnet)")
     e.add_argument("--effort", choices=sorted(EFFORT_RANK), default="medium")
     e.add_argument("--layer", help="backend, frontend, qa or general")
+    e.add_argument("--tags", help="the card's tags, e.g. 'extend, backend, protocol, rust, tokio, known-pattern, integration, M'")
     e.add_argument("--tasks", type=int, help="how many tasks the card holds (S up to 3, M up to 6, L above)")
     e.add_argument("--history", action="append", help="a history file (default: this repo's and the local index)")
     e.add_argument("--json", action="store_true")
