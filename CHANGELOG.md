@@ -4,6 +4,45 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Container cleanup by label** (`shared/containers.md` §9a) — images,
+  volumes and containers a project creates carry
+  `me.lucasvmigotto.ai-gent.project` (and `.worktree` per worktree); the
+  `image` recipe drops the project's own dangling images, and a scaffolded
+  `clean` recipe removes this worktree's containers and volumes by label
+  and ID. Nothing prunes.
+- **`wt.py` disk check and cleanup** (`agents:parallel`,
+  `agents:orchestrate`) — `add` refuses a track when the container store
+  would drop below the floor (20 GB or 10 % of the disk, whichever is
+  larger, at `volume_estimate_gb` 10 per track; `.ai-gent/parallel.yaml`)
+  or `max_volumes` tracks already hold one; `remove` removes the landed or
+  abandoned track's labelled and compose containers and volumes and checks
+  the count dropped; `baseline`, `resources` (report only) and `finish`
+  (the project's dangling images and the buildah working containers new
+  since the baseline, never while an image build runs).
+- **`containers` guard** (`plugins/devcontainer/hooks/guard.sh`, ported to
+  the OpenCode guard) — denies any engine `prune`, `-a`/`--all` removals
+  and removals fed by an unfiltered listing.
+- **Leftovers report at session start** (devcontainer plugin) — dangling
+  images, orphaned worktree volumes, buildah working containers and a low
+  disk, reported, never removed.
+
+### Changed
+
+- Builder cards forbid extra image tags, own volumes and prunes; a
+  Containerfile is a hot spot with one owning track per wave.
+- `devcontainer:workflow` removes the project's dangling images after a
+  tools-image rebuild and allows §9a's label-scoped removals without
+  asking; `backend:build`, `frontend:build`, `qa:e2e` and `qa:load` end
+  with `clean` and report what's left.
+- `scripts/consistency.py` checks that skills creating container resources
+  say how they go, and that no prune is taught.
+- `scripts/test-dbrun-engines.py` verifies each engine's teardown and warns
+  before pulling its images onto a nearly full store.
+
 ## 2.17.0 — 2026-10-22
 
 ### Added
