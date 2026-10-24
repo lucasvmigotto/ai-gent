@@ -112,34 +112,6 @@ class TokenReportTest(unittest.TestCase):
         self.assertIn("coordinator sess1", text)
         self.assertIn("T001, T002", text)
 
-    def test_estimate_by_role_averages_matching_cards(self):
-        tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            tr.cmd_estimate(tr.p.parse_args(["estimate", "--role=builder", "--rollup=rollup.md"]))
-        text = out.getvalue()
-        self.assertIn("2 sample(s)", text)  # both subagents ran on claude-sonnet-5-5
-
-    def test_estimate_by_label_matches_one_card(self):
-        tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            tr.cmd_estimate(tr.p.parse_args(["estimate", "--label=T001, T002", "--rollup=rollup.md"]))
-        self.assertIn("1 sample(s)", out.getvalue())
-
-    def test_estimate_with_no_history_says_so_plainly(self):
-        tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            tr.cmd_estimate(tr.p.parse_args(["estimate", "--role=scout", "--rollup=rollup.md"]))
-        self.assertIn("no history", out.getvalue())
-
-    def test_estimate_with_no_rollup_file_says_so_plainly(self):
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            tr.cmd_estimate(tr.p.parse_args(["estimate", "--role=builder", "--rollup=missing.md"]))
-        self.assertIn("no history", out.getvalue())
-
     def test_snapshot_and_backfill_merge_without_duplicates(self):
         snaps_path = str(self.work / "snaps.json")
         tr.cmd_snapshot(tr.p.parse_args(["snapshot", "--label=manual one", "--at=2026-10-20T00:00:00Z",
@@ -188,7 +160,7 @@ def usage(billable_out, cache_read=1000):
             "output_tokens": billable_out}
 
 
-class TasksTest(unittest.TestCase):
+class TasksFixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.home = Path(self.tmp.name)
@@ -243,6 +215,8 @@ class TasksTest(unittest.TestCase):
         feats = tr.load_features("specs")
         return {r["aid"]: tr.attribute(r, feats) for r in rows}
 
+
+class TasksTest(TasksFixture):
     def test_attribution_levels(self):
         self.agent("a1", "T001, T002: 001-widget core", 100)
         self.agent("a2", "Review 001-polish (T003)", 50)
@@ -347,6 +321,104 @@ class TasksTest(unittest.TestCase):
         self.assertEqual(Path("specs/001-widget/tasks.md").read_text(), before)
         self.assertFalse(Path("docs/product/token-history.jsonl").exists())
         self.assertFalse(Path("specs/001-widget/tracker.md").exists())
+
+
+def rec(i, used, conf="exact", model="sonnet", effort="medium", layer="backend", tasks=("T001", "T002"), source="measured", agents=None, project="p"):
+    return {"id": f"{project}:{i}", "source": source, "confidence": conf, "project": project, "feature": "001-x", "card": f"c{i}",
+            "tasks": list(tasks), "layer": layer, "effort": effort, "executor_model": model, "used": used, "date": "2026-10-2%d" % (i % 9),
+            "agents": agents or [f"ag{i}"]}
+
+
+class EstimateTest(unittest.TestCase):
+    def test_few_records_fall_back_to_the_starting_table(self):
+        est = tr.estimate_card([rec(i, 999) for i in range(4)], "sonnet", "medium", "backend", 4)
+        self.assertEqual((est["basis"], est["median"], est["p75"], est["n"]), ("starting table", 350_000, 550_000, 4))
+        self.assertEqual(tr.estimate_card([], "opus", "high", tasks=9)["median"], round(700_000 * 1.6))
+
+    def test_history_takes_over_with_median_p75_and_widens_the_match(self):
+        recs = [rec(i, v) for i, v in enumerate([100, 200, 300, 400, 500])]
+        est = tr.estimate_card(recs, "sonnet", "medium", "backend", 2)
+        self.assertEqual((est["basis"], est["median"], est["p75"], est["n"], est["tier"]),
+                         ("history", 300, 400, 5, "layer+effort+model+size"))
+        # five records, but only three are the same layer: the match widens to effort+model+size
+        mixed = [rec(i, v, layer="backend" if i < 3 else "qa") for i, v in enumerate([100, 200, 300, 400, 500])]
+        self.assertEqual(tr.estimate_card(mixed, "sonnet", "medium", "backend", 2)["tier"], "effort+model+size")
+        self.assertEqual(tr.estimate_card(recs, "opus", "medium")["basis"], "starting table")  # other model: no match
+
+    def test_confidence_weights_pull_the_median_to_exact_records(self):
+        recs = [rec(i, 1000 + i, conf="exact") for i in range(2)] + [rec(i + 10, 100 + i, conf="agent") for i in range(3)]
+        est = tr.estimate_card(recs, "sonnet", "medium", "backend", 2)
+        self.assertEqual(est["mix"], {"exact": 2, "agent": 3})
+        self.assertEqual(est["median"], 1000)  # 2 exact (1.0 each) outweigh 3 agent-only (0.3 each)
+
+    def test_load_history_drops_a_seed_the_repo_already_measured(self):
+        with tempfile.TemporaryDirectory() as d:
+            a, b = Path(d) / "a.jsonl", Path(d) / "b.jsonl"
+            a.write_text(json.dumps(rec(1, 10, agents=["x"])) + "\n")
+            b.write_text(json.dumps(rec(2, 20, source="seed", agents=["x"])) + "\n" + json.dumps(rec(3, 30, source="seed", agents=["y"])) + "\n")
+            self.assertEqual(sorted(r["used"] for r in tr.load_history([str(a), str(b)])), [10, 30])
+
+    def test_estimate_command_prints_projection_basis_and_card_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            h = Path(d) / "h.jsonl"
+            h.write_text("".join(json.dumps(rec(i, 100 * (i + 1) * 1000)) + "\n" for i in range(5)))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                tr.cmd_estimate(tr.p.parse_args(["estimate", "--role=builder", "--effort=medium", "--layer=backend",
+                                                  "--tasks=2", f"--history={h}"]))
+            text = out.getvalue()
+        self.assertIn("projection ~300k billable (median), upper bound ~400k (p75)", text)
+        self.assertIn("5 similar record(s)", text)
+        self.assertIn("Tokens: projected ~300k | used —", text)
+
+
+class IndexSeedTest(TasksFixture):
+    def setUp(self):
+        super().setUp()
+        self.ai_home = self.home / "ai-home"
+        os.environ["AI_GENT_HOME"] = str(self.ai_home)
+        self.addCleanup(os.environ.pop, "AI_GENT_HOME", None)
+        self.codes = self.home / "codes"
+        (self.codes / "widgets").mkdir(parents=True)
+        shutil_copy(self.work / "specs", self.codes / "widgets" / "specs")
+
+    def seed(self, *extra):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            tr.cmd_seed(tr.p.parse_args(["seed", f"--project={self.slug}", f"--codes-dir={self.codes}", *extra]))
+        return buf.getvalue()
+
+    def test_seed_marks_confidence_and_writes_only_the_index(self):
+        self.agent("a1", "T001, T002: 001-widget core", 300)
+        self.agent("a2", "Do the 001 follow-ups", 200)
+        self.agent("a3", "Survey the repo", 100)
+        before = {str(p): p.read_text() for p in (self.codes / "widgets" / "specs").rglob("*.md")}
+        out = self.seed()
+        recs = tr.read_history(str(self.ai_home / "token-history.jsonl"))
+        self.assertEqual(sorted((r["confidence"], r["source"]) for r in recs),
+                         [("agent", "seed"), ("exact", "seed"), ("feature", "seed")])
+        self.assertIn("widgets | 1 | 1 | 3 | 1 exact, 1 feature, 1 agent", out)
+        self.assertEqual(before, {str(p): p.read_text() for p in (self.codes / "widgets" / "specs").rglob("*.md")})
+        self.assertFalse(Path("docs/product/token-history.jsonl").exists())
+        self.seed()  # idempotent
+        self.assertEqual(len(tr.read_history(str(self.ai_home / "token-history.jsonl"))), 3)
+
+    def test_index_merges_repo_histories_keeps_seeds_and_drops_superseded_ones(self):
+        self.agent("a1", "T001, T002: 001-widget core", 300)
+        self.agent("a3", "Survey the repo", 100)
+        self.seed()
+        self.run_tasks()  # the repo now measures a1 and a3 itself
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            tr.cmd_index(tr.p.parse_args(["index", f"--repo={self.work}", f"--index={self.ai_home / 'token-history.jsonl'}"]))
+        recs = tr.read_history(str(self.ai_home / "token-history.jsonl"))
+        self.assertEqual({r["source"] for r in recs}, {"measured"})
+        self.assertEqual(len(recs), 2)
+
+
+def shutil_copy(src, dst):
+    import shutil
+    shutil.copytree(src, dst)
 
 
 if __name__ == "__main__":

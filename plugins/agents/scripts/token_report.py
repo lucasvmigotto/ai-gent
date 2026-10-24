@@ -101,6 +101,8 @@ def discover_sessions(roots):
     for root in roots:
         for f in glob.glob(os.path.join(root, "*.jsonl")):
             sids.add(os.path.splitext(os.path.basename(f))[0])
+        for d in glob.glob(os.path.join(root, "*", "subagents")):  # a session whose main transcript is gone
+            sids.add(os.path.basename(os.path.dirname(d)))
     return sorted(sids)
 
 
@@ -490,6 +492,13 @@ def attribute(row, feats):
     mention = feature_mentions(desc, by_num)
     num = mention[0] if mention else None
     how = "feature named in description"
+    if len(mention) > 1:
+        # several features named: only a description that leads with one is read as that feature's
+        # card (the rest being an aside); a spec-wide agent ("Plan+tasks 001, 002, 014") stays unattributed
+        if re.match(rf"\W*(?:T\d+\W+)*{mention[0]}\b", desc):
+            how = "first of several features, leading the description"
+        else:
+            return res
     if num is None and ids:
         owners = [f for f in feats.values() if all(t in f["tasks"] for t in ids)]
         if len(owners) == 1:
@@ -872,54 +881,183 @@ def cmd_tasks(a):
     print(f"total: {fmt_tok(round(agent_total + coord_total))} billable ({fmt_tok(agent_total)} subagents)")
 
 
-def parse_k(s: str) -> float:
-    s = s.strip().replace(",", "").replace("*", "")
-    if s.endswith("M"):
-        return float(s[:-1]) * 1_000_000
-    if s.endswith("k"):
-        return float(s[:-1]) * 1_000
-    return float(s) if s else 0.0
+# ------------------------------------------------- estimate, index, seed
+
+MIN_SAMPLES = 5
+CONF_WEIGHT = {"exact": 1.0, "feature": 0.6, "agent": 0.3}
+SIZE_MULT = {"S": 0.6, "M": 1.0, "L": 1.6}
+# The starting table: billable tokens per dispatched card, (median, p75), by model and effort, for a
+# medium card (4-6 tasks). Calibrated on rstory's first autonomous run (2026-10): Sonnet feature
+# builders 0.3-0.8M each (median about 0.6M, a high-effort card), Opus agents 0.5-0.9M each. Haiku
+# is an assumption. It is used only while history has fewer than MIN_SAMPLES similar records.
+STARTING = {
+    "sonnet": {"low": (150_000, 250_000), "medium": (350_000, 550_000), "high": (600_000, 850_000)},
+    "opus": {"low": (250_000, 400_000), "medium": (450_000, 650_000), "high": (700_000, 950_000)},
+    "haiku": {"low": (60_000, 120_000), "medium": (120_000, 200_000), "high": (200_000, 320_000)},
+}
 
 
-def read_by_agent(rollup_path):
-    """Rows of the roll-up's '## By agent' table — the one place every card's own cost lands,
-    one row each. Parses our own generated table back; the markdown IS the record, there is
-    no separate structured ledger."""
-    if not os.path.exists(rollup_path):
-        return []
-    with open(rollup_path, encoding="utf-8") as fh:
-        text = fh.read()
-    m = re.search(r"## By agent\n\n(.*?)(?:\n## |\Z)", text, re.S)
-    if not m:
-        return []
-    lines = [ln for ln in m.group(1).splitlines() if ln.startswith("|")]
-    rows = []
-    for ln in lines[2:]:  # skip the header and the --- separator
-        cells = [c.strip() for c in ln.strip("|").split("|")]
-        if len(cells) < 8:
+def ai_gent_home():
+    return os.environ.get("AI_GENT_HOME") or os.path.expanduser("~/.ai-gent")
+
+
+def default_index():
+    return os.path.join(ai_gent_home(), "token-history.jsonl")
+
+
+def size_of(n):
+    return None if not n else "S" if n <= 3 else "M" if n <= 6 else "L"
+
+
+def wquantile(pairs, q):
+    """Weighted quantile of (value, weight) pairs: the first value whose cumulative weight reaches q."""
+    pairs = sorted(pairs)
+    total = sum(w for _, w in pairs)
+    acc = 0.0
+    for v, w in pairs:
+        acc += w
+        if acc >= q * total - 1e-9:
+            return v
+    return pairs[-1][0]
+
+
+def load_history(paths):
+    """Records from the given files, by id (the first file wins); a seeded record whose agent a
+    measured record already counts is dropped, so one agent never counts twice."""
+    by_id = {}
+    for path in paths:
+        for r in read_history(path):
+            by_id.setdefault(r["id"], r)
+    measured = {a for r in by_id.values() if r.get("source") != "seed" for a in r.get("agents", [])}
+    return [r for r in by_id.values()
+            if not (r.get("source") == "seed" and measured & set(r.get("agents", [])))]
+
+
+def estimate_card(records, family_, effort=None, layer=None, tasks=None):
+    """The projection for a planned card: the weighted median of similar records (p75 as the upper
+    bound), widening the match until MIN_SAMPLES records agree, else the starting table."""
+    size = size_of(tasks)
+    tiers = [("layer+effort+model+size", {"layer": layer, "effort": effort, "size": size}),
+             ("effort+model+size", {"effort": effort, "size": size}),
+             ("effort+model", {"effort": effort}), ("model", {})]
+
+    def match(r, crit):
+        return (r.get("used") and r.get("executor_model") == family_
+                and all(v is None or (size_of(len(r.get("tasks") or [])) if k == "size" else r.get(k)) == v for k, v in crit.items()))
+
+    seen, best = set(), 0
+    for name, crit in tiers:
+        key = tuple(sorted((k, v) for k, v in crit.items() if v is not None))
+        if key in seen:
             continue
-        started, who, label, task, model, calls, billable, total = cells[:8]
-        rows.append({"started": started, "who": who, "label": label, "task": task, "model": model,
-                     "calls": calls, "billable": parse_k(billable), "total": parse_k(total)})
-    return rows
+        seen.add(key)
+        sel = [r for r in records if match(r, crit)]
+        best = max(best, len(sel))
+        if len(sel) >= MIN_SAMPLES:
+            pairs = [(r["used"], CONF_WEIGHT.get(r.get("confidence"), 0.3)) for r in sel]
+            mix = defaultdict(int)
+            for r in sel:
+                mix[r.get("confidence", "agent")] += 1
+            return {"median": wquantile(pairs, 0.5), "p75": wquantile(pairs, 0.75), "n": len(sel), "basis": "history",
+                    "tier": name, "mix": dict(mix)}
+    med, p75 = STARTING.get(family_, STARTING["sonnet"])[effort if effort in EFFORT_RANK else "medium"]
+    mult = SIZE_MULT.get(size, 1.0)
+    return {"median": round(med * mult), "p75": round(p75 * mult), "n": best, "basis": "starting table", "tier": None, "mix": {}}
+
+
+def history_paths(extra):
+    return list(extra or []) + [p for p in (DEFAULT_HISTORY, default_index()) if os.path.exists(p)]
 
 
 def cmd_estimate(a):
-    rows = read_by_agent(a.rollup)
-    if a.label:
-        sel = [r for r in rows if r["label"] == a.label]
-        how = f"label '{a.label}'"
-    else:
-        needle = ROLE_MODEL[a.role] if a.role else a.model
-        sel = [r for r in rows if needle in r["model"]]
-        how = f"role '{a.role}' ({needle})" if a.role else f"model '{a.model}'"
-    if not sel:
-        print(f"no history for {how} in {a.rollup} — fall back to S/M/L sizing")
+    fam = ROLE_MODEL.get(a.role) if a.role else family(a.model)
+    est = estimate_card(load_history(history_paths(a.history)), fam, a.effort, a.layer, a.tasks)
+    label = f"{fam} · effort {a.effort}" + (f" · layer {a.layer}" if a.layer else "") + (f" · {a.tasks} task(s)" if a.tasks else "")
+    if a.json:
+        print(json.dumps({"query": label, **est}))
         return
-    avg_bill = sum(r["billable"] for r in sel) / len(sel)
-    avg_tot = sum(r["total"] for r in sel) / len(sel)
-    print(f"{how}: {len(sel)} sample(s) in {a.rollup}, average billable {k(int(avg_bill))}, "
-          f"average total {k(int(avg_tot))}")
+    print(f"estimate for {label}")
+    print(f"  projection ~{fmt_tok(est['median'])} billable (median), upper bound ~{fmt_tok(est['p75'])} (p75)")
+    if est["basis"] == "history":
+        mix = ", ".join(f"{n} {c}" for c, n in sorted(est["mix"].items(), key=lambda x: -CONF_WEIGHT.get(x[0], 0)))
+        print(f"  basis: {est['n']} similar record(s) matching {est['tier']} ({mix}); exact weighs 1.0, "
+              f"feature-level {CONF_WEIGHT['feature']}, agent-only {CONF_WEIGHT['agent']}")
+    else:
+        print(f"  basis: the starting table (only {est['n']} similar record(s); {MIN_SAMPLES} needed for history to take over)")
+    print(f"  on the card: Tokens: projected ~{fmt_tok(est['median'])} | used —")
+
+
+def project_records(records, project):
+    return [r for r in records if r.get("project") == project]
+
+
+def cmd_index(a):
+    a.index = a.index or default_index()
+    paths = list(a.repo or [])
+    for d in a.scan:
+        paths += sorted(glob.glob(os.path.join(os.path.expanduser(d), "*", DEFAULT_HISTORY)))
+    if os.path.exists(DEFAULT_HISTORY):
+        paths.append(DEFAULT_HISTORY)
+    paths = [os.path.join(p, DEFAULT_HISTORY) if os.path.isdir(p) else p for p in paths]
+    repo_recs = {}
+    for p in dict.fromkeys(os.path.abspath(x) for x in paths):
+        for r in read_history(p):
+            repo_recs[r["id"]] = r
+    seeds = [r for r in read_history(a.index) if r.get("source") == "seed"]
+    merged = load_history_from(list(repo_recs.values()) + seeds)
+    os.makedirs(os.path.dirname(os.path.abspath(a.index)), exist_ok=True)
+    with open(a.index, "w", encoding="utf-8") as fh:
+        for r in sorted(merged, key=lambda r: (r.get("date", ""), r["id"])):
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    counts = defaultdict(int)
+    for r in merged:
+        counts[(r.get("project"), r.get("source"))] += 1
+    print(f"wrote {a.index}: {len(merged)} record(s) from {len(set(paths))} repo history file(s) and {len(seeds)} seeded")
+    for (proj, src), n in sorted(counts.items(), key=lambda x: str(x)):
+        print(f"  {proj}: {n} {src}")
+
+
+def load_history_from(records):
+    by_id = {}
+    for r in records:
+        by_id.setdefault(r["id"], r)
+    measured = {x for r in by_id.values() if r.get("source") != "seed" for x in r.get("agents", [])}
+    return [r for r in by_id.values() if not (r.get("source") == "seed" and measured & set(r.get("agents", [])))]
+
+
+SEED_PROJECTS = ("-home-lucas-codes-llm4glpi", "-home-lucas-codes-ai-gent", "-home-lucas-codes-secrets4claude",
+                 "-home-lucas-codes-dottod", "-home-lucas-codes-rstory")
+
+
+def cmd_seed(a):
+    """Read-only on the sessions and on each repo's specs; writes only the local index."""
+    a.index = a.index or default_index()
+    projects = a.project or list(SEED_PROJECTS)
+    new, report = [], {}
+    for slug in projects:
+        name = project_name(slug)
+        roots = sorted(glob.glob(os.path.expanduser(f"~/.claude*/projects/{slug}")))
+        sessions = discover_sessions(roots)
+        _, rows, _, _ = gather(roots, sessions)
+        feats = load_features(os.path.join(os.path.expanduser(a.codes_dir), name, "specs"))
+        recs = [make_record(name, g, feats, None, source="seed") for g in build_groups(rows, feats) if g["billable"] > 0]
+        new += recs
+        c = defaultdict(int)
+        for r in recs:
+            c[r["confidence"]] += 1
+        report[name] = (len(roots), len(sessions), len(rows), dict(c), sum(r["used"] for r in recs))
+    if not a.dry_run:
+        mine = {project_name(s) for s in projects}
+        keep = [r for r in read_history(a.index) if not (r.get("source") == "seed" and r.get("project") in mine)]
+        os.makedirs(os.path.dirname(os.path.abspath(a.index)), exist_ok=True)
+        with open(a.index, "w", encoding="utf-8") as fh:
+            for r in sorted(keep + new, key=lambda r: (r.get("date", ""), r["id"])):
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    print(f"{'dry run: ' if a.dry_run else ''}seeded {len(new)} record(s) into {a.index} (sessions and specs read-only)")
+    print("project | config dirs | sessions | subagents | records by confidence | billable")
+    for name, (dirs, sess, agents, c, bill_) in report.items():
+        conf = ", ".join(f"{c.get(x, 0)} {x}" for x in ("exact", "feature", "agent"))
+        print(f"{name} | {dirs} | {sess} | {agents} | {conf} | {fmt_tok(bill_)}")
 
 
 def build_parser():
@@ -944,13 +1082,27 @@ def build_parser():
                    help="stage markers; without the file they are read from the repo's first-parent git landings")
     t.add_argument("--dry-run", action="store_true", help="read everything, write nothing, print the attribution")
     t.set_defaults(fn=cmd_tasks)
-    e = sub.add_parser("estimate")
-    g = e.add_mutually_exclusive_group(required=True)
-    g.add_argument("--label", help="exact match on the roll-up's Label column (a card's own task ids)")
+    e = sub.add_parser("estimate", help="the projection for a planned card, from history or the starting table")
+    g = e.add_mutually_exclusive_group()
     g.add_argument("--role", choices=sorted(ROLE_MODEL), help="agent-roles.md's default model for the role")
-    g.add_argument("--model", help="a model-name substring, for a project that overrode the default mapping")
-    e.add_argument("--rollup", default=DEFAULT_ROLLUP)
+    g.add_argument("--model", default="sonnet", help="a model name or family (default sonnet)")
+    e.add_argument("--effort", choices=sorted(EFFORT_RANK), default="medium")
+    e.add_argument("--layer", help="backend, frontend, qa or general")
+    e.add_argument("--tasks", type=int, help="how many tasks the card holds (S up to 3, M up to 6, L above)")
+    e.add_argument("--history", action="append", help="a history file (default: this repo's and the local index)")
+    e.add_argument("--json", action="store_true")
     e.set_defaults(fn=cmd_estimate)
+    i = sub.add_parser("index", help="rebuild ~/.ai-gent/token-history.jsonl from the repos' committed histories")
+    i.add_argument("--repo", action="append", help="a repo dir or history file (repeatable)")
+    i.add_argument("--scan", action="append", default=[], help="a folder whose subfolders are repos (e.g. ~/codes)")
+    i.add_argument("--index", help="default: ~/.ai-gent/token-history.jsonl ($AI_GENT_HOME)")
+    i.set_defaults(fn=cmd_index)
+    sd = sub.add_parser("seed", help="seed the local index from past sessions (read-only on sessions and repos)")
+    sd.add_argument("--project", action="append", help="a ~/.claude*/projects slug, repeatable (default: the owner's five)")
+    sd.add_argument("--codes-dir", default="~/codes", help="where the repos live, to read their specs")
+    sd.add_argument("--index", help="default: ~/.ai-gent/token-history.jsonl ($AI_GENT_HOME)")
+    sd.add_argument("--dry-run", action="store_true")
+    sd.set_defaults(fn=cmd_seed)
     s = sub.add_parser("snapshot")
     s.add_argument("--label", required=True)
     s.add_argument("--at")
