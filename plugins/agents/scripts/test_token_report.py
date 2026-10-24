@@ -142,7 +142,7 @@ CARDS_MD = """# Cards
 
 ## Card `001-core`: T001, T002
 
-**Route**: Executor `builder` · Effort `high` · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`
+**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`
 
 ## Card `001-polish`: T003
 
@@ -254,7 +254,7 @@ class TasksTest(TasksFixture):
         self.main(100_000)
         out = self.run_tasks()
         t = Path("specs/001-widget/tasks.md").read_text()
-        self.assertIn("Effort: high · Tokens: projected ~400k | used 400k", t)
+        self.assertIn("Effort: high · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used 400k", t)
         self.assertIn("Effort: medium · Tokens: with T001", t)
         self.assertIn("Effort: low · Tokens: projected ~100k | used —", t)  # planned only: the projection is carried over
         tracker = Path("specs/001-widget/tracker.md").read_text()
@@ -268,6 +268,8 @@ class TasksTest(TasksFixture):
         core = next(r for r in hist if r["card"] == "001-core")
         self.assertEqual((core["used"], core["projected"], core["layer"], core["effort"], core["confidence"]),
                          (400_000, 400_000, "backend", "high", "exact"))
+        self.assertEqual(core["tags"]["kind"], "extend")
+        self.assertEqual(core["tags_source"], "planned")
         self.assertEqual(core["coordinator"], 100_000)  # the only feature in the window gets all of it
         self.assertEqual(core["project"], "widgets")
         self.assertIn("unattributed (reported, not guessed): 1 agent(s)", out)
@@ -418,6 +420,54 @@ class IndexSeedTest(TasksFixture):
         recs = tr.read_history(str(self.ai_home / "token-history.jsonl"))
         self.assertEqual({r["source"] for r in recs}, {"measured"})
         self.assertEqual(len(recs), 2)
+
+
+class TagsTest(TasksFixture):
+    def test_parse_format_and_aliases(self):
+        t = tr.parse_tags("M, tokio, rust, extend, react-dom, bogus, backend")
+        self.assertEqual(t, {"size": "M", "stack": ["react", "tokio"], "lang": "rust", "kind": "extend", "layer": "backend"})
+        self.assertEqual(tr.format_tags(t), "extend, backend, rust, react, tokio, M")
+        self.assertIsNone(tr.norm_stack("left-pad"))
+        self.assertEqual(tr.norm_stack("serde_json"), "serde")
+
+    def test_repo_info_reads_manifests_read_only(self):
+        repo = self.home / "r"
+        (repo / "web").mkdir(parents=True)
+        (repo / "Cargo.toml").write_text('[package]\nname="x"\n[dependencies]\ntokio = "1"\nserde_json = "1"\nleft_pad = "1"\n[dev-dependencies.clap]\nversion="4"\n')
+        (repo / "web" / "package.json").write_text(json.dumps({"dependencies": {"react-dom": "1"}, "devDependencies": {"typescript": "5", "vitest": "1"}}))
+        info = tr.repo_info(str(repo))
+        self.assertEqual((info["lang"], info["langs"], info["stack"]), ("rust", ["rust", "typescript"], ["clap", "react", "serde", "tokio", "vitest"]))
+        self.assertEqual(tr.repo_info(str(self.home / "none"))["lang"], None)
+
+    def test_infer_tags_from_description_files_and_repo(self):
+        repo = {"lang": "rust", "stack": ["tokio", "react"]}
+        t = tr.infer_tags("Fix daemon charter findings", "backend", 0, ["src/a.rs", "src/b.rs"], 40, repo)
+        self.assertEqual((t["kind"], t["surface"], t["lang"], t["stack"], t["size"], t["layer"]),
+                         ("fix", "protocol", "rust", ["tokio"], "S", "backend"))  # react belongs to another language
+        self.assertEqual(tr.infer_tags("Write the docs", None, 0, ["a.md"], 10, repo)["lang"], "markdown")
+        self.assertNotIn("novelty", t)
+
+
+class EventsTest(TasksFixture):
+    def test_resume_after_a_limit_stop_and_fix_rounds_stay_out_of_clean_cost(self):
+        d = self.root / "s1" / "subagents"
+        stop = json.dumps({"type": "assistant", "timestamp": "2026-10-20T10:05:00Z",
+                           "message": {"id": "syn", "model": "<synthetic>", "usage": usage(0), "content": []}})
+        (d / "agent-a1.jsonl").write_text("\n".join([
+            json.dumps({"type": "user", "message": {"role": "user", "content": "p"}}),
+            msg("a1-0", "claude-sonnet-5-5", usage(1000), "2026-10-20T10:00:00Z"), stop,
+            msg("a1-1", "claude-sonnet-5-5", usage(300), "2026-10-20T11:00:00Z"),  # the resume re-reads the context
+            msg("a1-2", "claude-sonnet-5-5", usage(100), "2026-10-20T11:01:00Z")]))
+        (d / "agent-a1.meta.json").write_text(json.dumps({"description": "T003: 001-widget polish"}))
+        self.agent("a2", "Fix polish findings (T003)", 200, ts="2026-10-20T12:00:00Z")
+        self.agent("a3", "Review 001-polish", 50, ts="2026-10-20T13:00:00Z")
+        self.main(1)
+        self.run_tasks()
+        r = next(x for x in tr.read_history("docs/product/token-history.jsonl") if x["card"] == "001-polish")
+        self.assertEqual(r["used"], 1650)
+        self.assertEqual(r["events"], {"resumed": 1, "fix_rounds": 1, "reviews": 1})
+        self.assertEqual(r["used_clean"], 1650 - 300 - 200)  # minus the resume's re-read and the fix round
+        self.assertEqual(r["executor_model"], "sonnet")
 
 
 class BudgetTest(TasksFixture):

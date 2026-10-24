@@ -141,6 +141,8 @@ def collect(path, msgs, extra=None):
                         body = "\n".join(e.get("new_string", "") for e in inp.get("edits") or [])
                     extra.setdefault("edits", {})[b.get("id")] = (
                         inp.get("file_path") or inp.get("notebook_path") or "?", body.count("\n") + 1 if body else 0)
+            if extra is not None and m.get("model") == "<synthetic>" and rec.get("timestamp"):
+                extra.setdefault("stops", []).append(to_utc(rec["timestamp"]))  # a limit or error stop
             u = m.get("usage")
             if not u or not m.get("id") or m.get("model") == "<synthetic>":
                 continue
@@ -186,6 +188,18 @@ def k(n: int) -> str:
 
 def short(t: str) -> str:
     return t[:16].replace("T", " ") if t else ""
+
+
+def resume_events(stops, mlist):
+    """(resumes, their cost). A stop (a `<synthetic>` limit message) followed by more work is a resume;
+    its cost is the first message after it, which re-reads the agent's context."""
+    later = sorted((t, bill(u)) for t, _, u in mlist if t)
+    n = cost = 0
+    for stop in sorted(set(stops)):
+        nxt = next((b for t, b in later if t > stop), None)
+        if nxt is not None:
+            n, cost = n + 1, cost + nxt
+    return n, cost
 
 
 def family(model: str) -> str:
@@ -237,7 +251,8 @@ def gather(roots, sessions):
         for _, mdl, _u in mlist:
             fams[family(mdl)] += 1
         edits = extras[aid].get("edits", {})
-        rows.append({"who": f"subagent {aid[:7]}", "aid": aid, "sid": agent_sid[aid], "desc": desc,
+        resumed, resume_cost = resume_events(extras[aid].get("stops", []), mlist)
+        rows.append({"resumed": resumed, "resume_cost": resume_cost, "who": f"subagent {aid[:7]}", "aid": aid, "sid": agent_sid[aid], "desc": desc,
                      "label": label_of(desc), "prompt": extras[aid].get("prompt", ""), "msgs": mlist,
                      "family": max(fams, key=fams.get), "files": sorted({p for p, _ in edits.values()}),
                      "lines": sum(n for _, n in edits.values()), **summ})
@@ -327,10 +342,173 @@ def cmd_report(a):
           f"billable {k(grand['billable'])}, total {k(grand['total'])}")
 
 
+# ----------------------------------------------------------------- tags
+
+_VOCAB = None
+
+
+def vocab():
+    """facet -> {required, multi, values, aliases?}: shared/token-tags.json via the plugin's references/."""
+    global _VOCAB
+    if _VOCAB is None:
+        here = os.path.dirname(os.path.abspath(__file__))
+        _VOCAB = {}
+        for path in (os.path.join(here, "..", "references", "token-tags.json"),
+                     os.path.join(here, "..", "..", "..", "shared", "token-tags.json")):
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as fh:
+                    _VOCAB = json.load(fh)["facets"]
+                break
+    return _VOCAB
+
+
+def norm_stack(name):
+    """A package or crate name as the vocabulary's stack value, else None."""
+    st = vocab().get("stack", {})
+    n = name.strip().lower()
+    for cand in (n, n.replace("_", "-")):
+        if cand in st.get("values", {}):
+            return cand
+        if cand in st.get("aliases", {}):
+            return st["aliases"][cand]
+    return None
+
+
+def parse_tags(text):
+    """'extend, backend, rust, tokio, M' -> {'kind': 'extend', ..., 'stack': ['tokio']}; unknown words are ignored."""
+    tags = {}
+    for word in [w.strip() for w in (text or "").split(",") if w.strip()]:
+        for facet, d in vocab().items():
+            value = word if word in d["values"] else (norm_stack(word) if facet == "stack" else None)
+            if value is None:
+                continue
+            if d["multi"]:
+                tags[facet] = sorted(set(tags.get(facet, [])) | {value})
+            else:
+                tags.setdefault(facet, value)
+            break
+    return tags
+
+
+def format_tags(tags):
+    out = []
+    for facet in vocab():
+        v = tags.get(facet)
+        out += v if isinstance(v, list) else ([v] if v else [])
+    return ", ".join(out)
+
+
+EXT_LANG = {".rs": "rust", ".ts": "typescript", ".tsx": "typescript", ".js": "javascript", ".jsx": "javascript",
+            ".mjs": "javascript", ".cjs": "javascript", ".py": "python", ".go": "go", ".java": "java", ".kt": "kotlin",
+            ".cs": "csharp", ".php": "php", ".rb": "ruby", ".sh": "sh", ".sql": "sql", ".c": "cpp", ".h": "cpp",
+            ".cc": "cpp", ".cpp": "cpp", ".hpp": "cpp"}
+MANIFESTS = ("Cargo.toml", "package.json", "pyproject.toml", "go.mod", "pom.xml", "build.gradle")
+
+
+def repo_info(repo_dir):
+    """The repository's languages and stack, read from its manifests (Cargo.toml, package.json,
+    pyproject.toml, go.mod, pom.xml/build.gradle), at the root and one folder down. Read-only."""
+    langs, stack = [], set()
+    if not repo_dir or not os.path.isdir(repo_dir):
+        return {"lang": None, "langs": [], "stack": []}
+    paths = [os.path.join(repo_dir, m) for m in MANIFESTS]
+    for sub in sorted(glob.glob(os.path.join(repo_dir, "*"))):
+        if os.path.isdir(sub) and os.path.basename(sub) not in ("node_modules", "target", "dist", ".git", ".worktrees"):
+            paths += [os.path.join(sub, m) for m in MANIFESTS]
+    for path in paths:
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        base, names, lang = os.path.basename(path), [], None
+        if base == "Cargo.toml":
+            lang, section = "rust", ""
+            for line in text.splitlines():
+                m = re.match(r"\s*\[(.+?)\]", line)
+                if m:
+                    section = m.group(1)
+                    sub_m = re.match(r"(?:\w+-)?dependencies\.(.+)", section)
+                    if sub_m:
+                        names.append(sub_m.group(1))
+                elif "dependencies" in section and (m := re.match(r"\s*([A-Za-z0-9_\-]+)\s*=", line)):
+                    names.append(m.group(1))
+        elif base == "package.json":
+            try:
+                pkg = json.loads(text)
+            except json.JSONDecodeError:
+                pkg = {}
+            names = [*pkg.get("dependencies", {}), *pkg.get("devDependencies", {})]
+            lang = "typescript" if "typescript" in names or os.path.exists(os.path.join(os.path.dirname(path), "tsconfig.json")) else "javascript"
+        elif base == "pyproject.toml":
+            lang = "python"
+            names = re.findall(r"[\"']([A-Za-z][A-Za-z0-9_.\-]*)\s*(?:[<>=!~\[;]|[\"'])", text)
+        elif base == "go.mod":
+            lang = "go"
+            names = [m.group(1) for m in re.finditer(r"^\s*(?:require\s+)?([\w.\-]+/[\w./\-]+)\s+v", text, re.M)]
+        else:
+            lang = "java"
+            names = ["spring-boot"] if "spring-boot" in text else []
+        if lang and lang not in langs:
+            langs.append(lang)
+        stack.update(v for v in (norm_stack(n) for n in names) if v)
+    return {"lang": langs[0] if langs else None, "langs": langs, "stack": sorted(stack)}
+
+
+KIND_WORDS = (("fix", r"\b(fix|bug|repair|findings?|regression)\b"), ("refactor", r"\b(refactor|rename|restructure|cleanup)\b"),
+              ("test-only", r"\b(tests?|e2e|charters?|journeys?|perf suites?|load)\b"), ("docs", r"\b(docs?|documentation|readme|discovery)\b"),
+              ("ci", r"\b(ci|pipeline|release|workflow|dependabot)\b"),
+              ("new-module", r"\b(foundation|skeleton|scaffold|bootstrap|setup|new)\b"))
+SURFACE_WORDS = (("protocol", r"\b(protocol|ipc|socket|wire|openapi|contract|daemon)\b"), ("storage", r"\b(storage|store|database|sqlite|migration|schema)\b"),
+                 ("ui-snapshots", r"\bsnapshots?\b"), ("session-display", r"\b(picker|tui|terminal|display|tray|render|window|capture|theme|colou?r)\b"),
+                 ("workflow", r"\b(ci|pipeline|release|workflow|orchestrat\w*)\b"))
+LAYER_WORDS = (("cli", r"\bcli\b"), ("tui", r"\btui\b"), ("infra", r"\b(container|docker|devcontainer|compose|terraform)\b"))
+
+
+def agent_lang(files, repo):
+    counts = defaultdict(int)
+    for f in files:
+        lang = EXT_LANG.get(os.path.splitext(f)[1].lower())
+        if lang:
+            counts[lang] += 1
+    if counts:
+        return max(counts, key=counts.get)
+    if files and all(f.lower().endswith(".md") for f in files):
+        return "markdown"
+    return (repo or {}).get("lang")
+
+
+def infer_tags(desc, layer, ntasks, files, lines, repo):
+    """Coarse tags for work nobody tagged, from its description, the files it touched and the repo's
+    manifests. Low confidence by design (tags_source says so); novelty and verification stay unknown."""
+    d = (desc or "").lower()
+    tags = {"kind": next((k for k, rx in KIND_WORDS if re.search(rx, d)), "extend")}
+    lay = layer if layer in vocab().get("layer", {}).get("values", {}) else next((k for k, rx in LAYER_WORDS if re.search(rx, d)), None)
+    if lay:
+        tags["layer"] = lay
+    tags["surface"] = next((k for k, rx in SURFACE_WORDS if re.search(rx, d)), "other")
+    lang = agent_lang(files, repo)
+    if lang:
+        tags["lang"] = lang
+        st = [v for v in (repo or {}).get("stack", []) if vocab()["stack"]["values"].get(v) == lang]
+        if st:
+            tags["stack"] = st
+    if files or lines:
+        tags["size"] = "S" if len(files) <= 3 and lines < 150 else "M" if len(files) <= 10 and lines < 600 else "L"
+    elif ntasks:
+        tags["size"] = size_of(ntasks)
+    if layer == "qa" or re.search(r"\be2e\b", d):
+        tags["verification"] = "e2e"
+    return tags
+
+
 # ---------------------------------------------------------------- specs
 
 TASK_LINE = re.compile(r"^(\s*- \[[ xX]\] )(T\d{3,})\b")
 TOKENS_TAG = re.compile(r"\s*·\s*Tokens:[^\n]*$")
+TAGS_TAG = re.compile(r"\s*·\s*Tags:[^\n]*$")
 CONFIDENCE_ORDER = {"agent": 0, "feature": 1, "exact": 2}
 LAYER_HEADS = (("backend", "backend"), ("frontend", "frontend"), ("qa", "qa"), ("quality", "qa"))
 EFFORT_RANK = {"low": 0, "medium": 1, "high": 2}
@@ -385,8 +563,10 @@ def parse_tasks_md(path):
             ex = re.search(r"Executor:\s*(\w+)", line)
             ef = re.search(r"Effort:\s*(\w+)", line)
             tag = re.search(r"Tokens:\s*projected\s*([^|·\n]*)", line)
+            tg = re.search(r"Tags:\s*([^·|\n]*)", line)
             tasks[m.group(2)] = {"line": n, "layer": layer, "executor": ex and ex.group(1), "effort": ef and ef.group(1),
-                                 "projected": parse_tok(tag.group(1)) if tag else None}
+                                 "projected": parse_tok(tag.group(1)) if tag else None,
+                                 "tags": parse_tags(tg.group(1)) if tg else {}}
     return tasks
 
 
@@ -412,12 +592,14 @@ def parse_cards_md(path):
         if cid:
             cards[cid] = {"tasks": expand_ids(row.get("tasks", "")), "executor": row.get("executor", "").split()[0] if row.get("executor") else None,
                           "reviewer": row.get("reviewer"), "effort": (row.get("effort") or "").split()[0] or None,
-                          "projected": None, "dispatch": None}
+                          "projected": None, "dispatch": None, "tags": {}}
     for m in re.finditer(r"^## Card `([^`]+)`[^\n]*\n(.*?)(?=^## |\Z)", text, re.S | re.M):
         c = cards.setdefault(m.group(1), {"tasks": expand_ids(m.group(0).splitlines()[0]), "executor": None,
-                                          "reviewer": None, "effort": None, "projected": None, "dispatch": None})
+                                          "reviewer": None, "effort": None, "projected": None, "dispatch": None, "tags": {}})
         tk = re.search(r"Tokens:\s*projected\s*([^|·`\n]*)", m.group(2))
         c["projected"] = parse_tok(tk.group(1)) if tk else None
+        tg = re.search(r"Tags:\s*([^·|`\n]*)", m.group(2))
+        c["tags"] = parse_tags(tg.group(1)) if tg else {}
         dd = re.search(r"Dispatch description:\s*`([^`]+)`", m.group(2))
         c["dispatch"] = dd.group(1) if dd else None
         if not c["tasks"]:
@@ -516,6 +698,22 @@ def attribute(row, feats):
     return res
 
 
+FIX_RE = re.compile(r"\b(fix|address|rework|findings?)\b", re.I)
+FLAKE_RE = re.compile(r"\b(flak\w*|ci (?:watch|fail\w*|fix)|red run)\b", re.I)
+
+
+def process_kind(desc):
+    """Work that is process overhead rather than the task itself: a review, a fix round after one,
+    or a CI flake hunt. None for the task's own work."""
+    if re.match(r"\s*review", desc, re.I):
+        return "reviews"
+    if FLAKE_RE.search(desc):
+        return "ci_flake"
+    if re.match(r"\s*(fix|address|rework)\b", desc, re.I) or re.search(r"\bfindings?\b", desc, re.I):
+        return "fix_rounds"
+    return None
+
+
 def tasks_key(ids):
     return ids[0] if len(ids) == 1 else f"{ids[0]}..{ids[-1]}"
 
@@ -549,10 +747,25 @@ def build_groups(rows, feats):
         g["start"] = min(r["start"] for r in rs)
         g["files"] = sorted({p for r in rs for p in r["files"]})
         g["lines"] = sum(r["lines"] for r in rs)
-        main = [r for r in rs if not re.match(r"\s*review", r["desc"], re.I)] or rs
+        kinds = {r["aid"]: process_kind(r["desc"]) for r in rs}
+        main = [r for r in rs if kinds[r["aid"]] is None] or [r for r in rs if kinds[r["aid"]] != "fix_rounds"] or rs
         lead = max(main, key=lambda r: r["billable"])
         g["model"] = lead["family"]
         g["desc"] = lead["desc"]
+        ev = defaultdict(int)
+        extra_cost = 0
+        for r in rs:
+            k = kinds[r["aid"]]
+            if r is not lead and k in ("fix_rounds", "ci_flake"):
+                ev[k] += 1
+                extra_cost += r["billable"]
+            elif k == "reviews":
+                ev["reviews"] += 1
+            if r["resumed"]:
+                ev["resumed"] += r["resumed"]
+                extra_cost += r["resume_cost"] if not (r is not lead and k in ("fix_rounds", "ci_flake")) else 0
+        g["events"] = dict(ev)
+        g["event_cost"] = min(extra_cost, g["billable"])
     return sorted(groups.values(), key=lambda g: g["start"])
 
 
@@ -643,7 +856,18 @@ def bill(u):
 
 # ---------------------------------------------------------------- writers
 
-def make_record(project, g, feats, coord_card, source="measured"):
+def planned_tags(g, feats):
+    f = feats.get(g["feature"]) if g["feature"] else None
+    if not f:
+        return {}
+    c = f["cards"].get(g["card"]) if g["card"] else None
+    if c and c["tags"]:
+        return c["tags"]
+    first = sorted((t for t in g["tasks"] if t in f["tasks"]), key=lambda t: f["tasks"][t]["line"])
+    return f["tasks"][first[0]]["tags"] if first else {}
+
+
+def make_record(project, g, feats, coord_card, source="measured", repo=None):
     f = feats.get(g["feature"]) if g["feature"] else None
     c = f["cards"].get(g["card"]) if f and g["card"] else None
     model = g["model"]
@@ -652,10 +876,16 @@ def make_record(project, g, feats, coord_card, source="measured"):
         else f"{project}:agent:{g['rows'][0]['aid']}"
     if source == "seed":
         ident = "seed:" + ident
+    layer = layer_of(g, feats)
+    planned = planned_tags(g, feats)
+    guess = infer_tags(g["desc"], layer, len(g["tasks"]), g["files"], g["lines"], repo)
+    tags = {**guess, **planned}
     return {"id": ident, "source": source, "confidence": g["confidence"], "project": project, "feature": g["feature"],
-            "card": g["card"], "tasks": g["tasks"], "layer": layer_of(g, feats), "effort": effort_of(g, feats),
+            "card": g["card"], "tasks": g["tasks"], "layer": layer, "effort": effort_of(g, feats),
+            "tags": tags, "tags_source": ("planned+inferred" if planned and set(guess) - set(planned) else "planned") if planned else "inferred",
             "executor_role": (c and c["executor"]) or ROLE_OF_FAMILY.get(model, "builder"), "executor_model": model,
             "files": len(g["files"]), "lines": g["lines"], "projected": projected_of(g, feats), "used": g["billable"],
+            "used_clean": g["billable"] - g["event_cost"], "events": g["events"],
             "cache_read": g["cache_read"], "coordinator": round(coord_card) if coord_card is not None else None,
             "calls": g["calls"], "agents": sorted(r["aid"] for r in g["rows"]), "desc": g["desc"][:120],
             "date": g["end"][:10]}
@@ -707,7 +937,12 @@ def write_task_lines(feature, units, dry):
             continue
         for i, t in enumerate(mine):
             n = feature["tasks"][t]["line"]
-            new = TOKENS_TAG.sub("", lines[n]).rstrip() + (tag_for(u["projected"], u["used"]) if i == 0 else tag_for(0, 0, mine[0]))
+            line = TOKENS_TAG.sub("", lines[n]).rstrip()
+            if i == 0 and u.get("tags"):
+                line = TAGS_TAG.sub("", line).rstrip() + f" · Tags: {format_tags(u['tags'])}"
+            elif i and u.get("tags"):
+                line = TAGS_TAG.sub("", line).rstrip()
+            new = line + (tag_for(u["projected"], u["used"]) if i == 0 else tag_for(0, 0, mine[0]))
             if new != lines[n]:
                 lines[n], changed = new, changed + 1
     if changed and not dry:
@@ -812,6 +1047,7 @@ def cmd_tasks(a):
     snaps = load_snapshots(a.snapshots) or git_markers()
     project = a.name or project_name(a.project)
     feats = load_features(a.specs_dir)
+    repo = repo_info(os.getcwd())
     groups = build_groups(rows, feats)
     share, unassigned, coord_total = split_coordinator(main_msgs, groups, snaps)
 
@@ -831,14 +1067,15 @@ def cmd_tasks(a):
         units, extras = [], []
         for cid, c in feat["cards"].items():
             if c["projected"] is not None and not any(g["card"] == cid for g in mine):
-                units.append({"label": f"`{cid}`", "tasks": c["tasks"], "projected": c["projected"], "used": None, "cache_read": 0})
+                units.append({"label": f"`{cid}`", "tasks": c["tasks"], "projected": c["projected"], "used": None, "cache_read": 0,
+                              "tags": c["tags"]})
         for g in mine:
             cshare = share.get(fname, 0) * g["billable"] / feat_bill[fname] if feat_bill[fname] else 0
-            rec = make_record(project, g, feats, cshare)
+            rec = make_record(project, g, feats, cshare, repo=repo)
             records.append(rec)
             u = {"label": f"`{g['card']}`" if g["card"] else (f"{tasks_key(g['tasks'])}" if g["tasks"] else None),
                  "tasks": g["tasks"], "projected": rec["projected"], "used": g["billable"], "cache_read": g["cache_read"],
-                 "desc": g["desc"]}
+                 "desc": g["desc"], "tags": planned_tags(g, feats)}
             if u["label"] is None:
                 extras.append({"label": f"{g['desc'][:50]} (feature-level)", "used": g["billable"], "cache_read": g["cache_read"]})
                 continue
@@ -855,7 +1092,7 @@ def cmd_tasks(a):
         summary[fname] = {"used": feat_bill[fname], "coordinator": share.get(fname, 0), "cards": len(used_units),
                           "extras": len(extras), "lines": changed}
     unattributed = [g for g in groups if g["confidence"] == "agent" or not g["feature"]]
-    records += [make_record(project, g, feats, None) for g in unattributed]
+    records += [make_record(project, g, feats, None, repo=repo) for g in unattributed]
     if not a.dry_run:
         n = upsert_history(a.history, records)
         write_ledger(a.ledger, by_card, False)
@@ -1037,8 +1274,10 @@ def cmd_seed(a):
         roots = sorted(glob.glob(os.path.expanduser(f"~/.claude*/projects/{slug}")))
         sessions = discover_sessions(roots)
         _, rows, _, _ = gather(roots, sessions)
-        feats = load_features(os.path.join(os.path.expanduser(a.codes_dir), name, "specs"))
-        recs = [make_record(name, g, feats, None, source="seed") for g in build_groups(rows, feats) if g["billable"] > 0]
+        repo_dir = os.path.join(os.path.expanduser(a.codes_dir), name)
+        feats = load_features(os.path.join(repo_dir, "specs"))
+        repo = repo_info(repo_dir)
+        recs = [make_record(name, g, feats, None, source="seed", repo=repo) for g in build_groups(rows, feats) if g["billable"] > 0]
         new += recs
         c = defaultdict(int)
         for r in recs:
