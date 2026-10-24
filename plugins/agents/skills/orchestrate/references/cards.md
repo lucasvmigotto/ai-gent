@@ -21,6 +21,11 @@ Do:
 
 Never: <paid calls, production, other branches, secrets, personal data>.
 
+Containers: only through the project's recipes, with AI_GENT_WORKTREE=<slug>;
+no image tags or named volumes of your own, `run --rm` for anything else, no
+prune and no rm of anything you didn't start. Report every image, volume or
+container you created.
+
 Acceptance: <commands that must pass, e.g. the test suite and the linters>.
 
 Final report (concise): what changed per item, files, test results, anything

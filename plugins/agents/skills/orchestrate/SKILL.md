@@ -56,7 +56,8 @@ already know. Template and examples: `references/cards.md`. Every card has:
 ## 3. Dispatch
 
 - **Isolation.** One git worktree per parallel branch, created by you
-  before dispatch, off the chain's `dev` branch (`git:workflow`). Builders
+  before dispatch with `wt.py add` (its disk check and ownership labels,
+  `agents:parallel`), off the chain's `dev` branch (`git:workflow`). Builders
   that share a checkout never commit, and stage only explicit paths.
 - **Routing.** `builder` cards go to the builder model, `scout` lookups to
   the small model; reviews go to the reviewer in a fresh context. Never
@@ -91,7 +92,10 @@ Report to the user per branch: the commits, their count, the merge type —
 checks. **Ask before every merge, push, promotion or release** — unless
 the user gave explicit permission beforehand to run the project on its own
 (`git:workflow`). After a merge, delete the branch with `git branch -d`
-(never `-D`) and remove its worktree.
+(never `-D`) and remove its worktree with `wt.py remove`, which also
+removes its labelled containers and volumes. When the run is done,
+`wt.py finish` and `wt.py resources` (`../../references/containers.md`
+§9a); report what's still there.
 
 On Claude Code, once the run is done, `$TOKREP tasks --project=<slug>
 --specs-dir specs` links every card's cost to its feature's `tasks.md`
