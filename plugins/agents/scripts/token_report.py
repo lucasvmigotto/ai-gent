@@ -46,8 +46,11 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 FIELDS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+BILLABLE = ("input_tokens", "cache_creation_input_tokens", "output_tokens")
 DEFAULT_SNAPSHOTS = "token-snapshots.json"
 DEFAULT_ROLLUP = os.path.join("docs", "product", "token-usage.md")
+DEFAULT_HISTORY = os.path.join("docs", "product", "token-history.jsonl")
+DEFAULT_LEDGER = os.path.join(".ai-gent", "orchestrate-status.md")
 TASK_ID = re.compile(r"\bT\d{3,}\b")
 ROLE_MODEL = {"thinker": "opus", "builder": "sonnet", "scout": "haiku"}  # agent-roles.md's default mapping
 
@@ -324,65 +327,549 @@ def cmd_report(a):
           f"billable {k(grand['billable'])}, total {k(grand['total'])}")
 
 
-def feature_task_ids(specs_dir):
-    """feature dir -> set of task ids defined in its tasks.md."""
-    out = {}
-    for tasks_md in sorted(glob.glob(os.path.join(specs_dir, "[0-9][0-9][0-9]-*", "tasks.md"))):
-        feature = os.path.dirname(tasks_md)
-        with open(tasks_md, encoding="utf-8") as fh:
-            ids = set(TASK_ID.findall(fh.read()))
-        if ids:
-            out[feature] = ids
+# ---------------------------------------------------------------- specs
+
+TASK_LINE = re.compile(r"^(\s*- \[[ xX]\] )(T\d{3,})\b")
+TOKENS_TAG = re.compile(r"\s*·\s*Tokens:[^\n]*$")
+CONFIDENCE_ORDER = {"agent": 0, "feature": 1, "exact": 2}
+LAYER_HEADS = (("backend", "backend"), ("frontend", "frontend"), ("qa", "qa"), ("quality", "qa"))
+EFFORT_RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+def parse_tok(s):
+    """'~420k' -> 420000; '1.2M' -> 1200000; '391,000' -> 391000; '—' or '' -> None."""
+    s = (s or "").strip().strip("`*~ ").replace(",", "").replace("_", "")
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*([kKmM]?)", s)
+    if not m:
+        return None
+    return int(round(float(m.group(1)) * {"": 1, "k": 1_000, "m": 1_000_000}[m.group(2).lower()]))
+
+
+def fmt_tok(n):
+    """The compact form task lines and cards carry: 391k, 1.24M."""
+    if n is None:
+        return "—"
+    return f"{round(n / 1000)}k" if n < 1_000_000 else f"{n / 1_000_000:.2f}M"
+
+
+def expand_ids(text):
+    """Task ids named in text, ranges ('T006–T009') expanded, in order, without duplicates."""
+    out = []
+    spans = []
+    for m in re.finditer(r"\bT(\d{3,})\s*(?:–|—|-|\.\.|\bto\b)\s*T?(\d{3,})\b", text):
+        lo, hi = int(m.group(1)), int(m.group(2))
+        width = len(m.group(1))
+        if lo <= hi <= lo + 200:
+            out += [f"T{i:0{width}d}" for i in range(lo, hi + 1)]
+            spans.append(m.span())
+    for m in TASK_ID.finditer(text):
+        if not any(a <= m.start() < b for a, b in spans):
+            out.append(m.group(0))
+    seen = set()
+    return [t for t in sorted(set(out), key=out.index) if not (t in seen or seen.add(t))]
+
+
+def parse_tasks_md(path):
+    """task id -> {line, layer, effort, executor} for a feature's tasks.md (first definition wins)."""
+    tasks = {}
+    layer = None
+    with open(path, encoding="utf-8") as fh:
+        for n, line in enumerate(fh):
+            if line.startswith("#"):
+                head = line.lstrip("# ").strip().lower()
+                layer = next((v for key, v in LAYER_HEADS if head.startswith(key)), layer if line.startswith("###") else None)
+                continue
+            m = TASK_LINE.match(line)
+            if not m or m.group(2) in tasks:
+                continue
+            ex = re.search(r"Executor:\s*(\w+)", line)
+            ef = re.search(r"Effort:\s*(\w+)", line)
+            tag = re.search(r"Tokens:\s*projected\s*([^|·\n]*)", line)
+            tasks[m.group(2)] = {"line": n, "layer": layer, "executor": ex and ex.group(1), "effort": ef and ef.group(1),
+                                 "projected": parse_tok(tag.group(1)) if tag else None}
+    return tasks
+
+
+def parse_cards_md(path):
+    """card id -> {tasks, executor, reviewer, effort, projected, dispatch} from a feature's cards.md:
+    the summary table gives the route, each '## Card `id`' section its Tokens line and dispatch description."""
+    cards = {}
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    cols = None
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            cols = None
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if cells and cells[0].lower() == "card":
+            cols = [c.lower() for c in cells]
+            continue
+        if cols is None or set(line.replace("|", "").strip()) <= set("-: "):
+            continue
+        row = dict(zip(cols, cells))
+        cid = row.get("card", "").strip("`")
+        if cid:
+            cards[cid] = {"tasks": expand_ids(row.get("tasks", "")), "executor": row.get("executor", "").split()[0] if row.get("executor") else None,
+                          "reviewer": row.get("reviewer"), "effort": (row.get("effort") or "").split()[0] or None,
+                          "projected": None, "dispatch": None}
+    for m in re.finditer(r"^## Card `([^`]+)`[^\n]*\n(.*?)(?=^## |\Z)", text, re.S | re.M):
+        c = cards.setdefault(m.group(1), {"tasks": expand_ids(m.group(0).splitlines()[0]), "executor": None,
+                                          "reviewer": None, "effort": None, "projected": None, "dispatch": None})
+        tk = re.search(r"Tokens:\s*projected\s*([^|·`\n]*)", m.group(2))
+        c["projected"] = parse_tok(tk.group(1)) if tk else None
+        dd = re.search(r"Dispatch description:\s*`([^`]+)`", m.group(2))
+        c["dispatch"] = dd.group(1) if dd else None
+        if not c["tasks"]:
+            c["tasks"] = expand_ids(m.group(0).splitlines()[0])
+    return cards
+
+
+def load_features(specs_dir):
+    """feature dir name -> {name, num, dir, tasks, cards}; only features with a tasks.md or cards.md."""
+    feats = {}
+    for d in sorted(glob.glob(os.path.join(specs_dir, "[0-9][0-9][0-9]-*"))):
+        tasks_md, cards_md = os.path.join(d, "tasks.md"), os.path.join(d, "cards.md")
+        tasks = parse_tasks_md(tasks_md) if os.path.exists(tasks_md) else {}
+        cards = parse_cards_md(cards_md) if os.path.exists(cards_md) else {}
+        if tasks or cards:
+            name = os.path.basename(d)
+            feats[name] = {"name": name, "num": name[:3], "dir": d, "tasks": tasks, "cards": cards}
+    return feats
+
+
+# ------------------------------------------------------------ attribution
+
+def norm(s):
+    return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+
+def feature_mentions(text, by_num):
+    return [n for n in dict.fromkeys(re.findall(r"(?<![\w.])(\d{3})(?![\w.])", text)) if n in by_num]
+
+
+def prompt_feature(prompt, by_num):
+    counts = defaultdict(int)
+    for n in re.findall(r"specs/(\d{3})-", prompt) + re.findall(r"(?<![\w.])(\d{3})-[a-z]", prompt):
+        if n in by_num:
+            counts[n] += 1
+    top = sorted(counts.items(), key=lambda x: -x[1])
+    return top[0][0] if top and (len(top) == 1 or top[0][1] > top[1][1]) else None
+
+
+def attribute(row, feats):
+    """Which feature, card and task ids an agent's usage belongs to, and how sure that is.
+    exact   - its dispatch description or card id matches a card, or it names task ids of one feature;
+    feature - it names only a feature;
+    agent   - nothing in its description or prompt ties it to the specs (never guessed)."""
+    res = {"feature": None, "card": None, "tasks": [], "confidence": "agent", "how": ""}
+    if not feats:
+        return res
+    desc, prompt = row["desc"], row.get("prompt", "")
+    by_num = {f["num"]: f for f in feats.values()}
+
+    def hit(f, cid, how):
+        c = f["cards"].get(cid, {})
+        named = [t for t in expand_ids(desc) if t in c.get("tasks", [])]
+        res.update(feature=f["name"], card=cid, tasks=named or c.get("tasks", []), confidence="exact", how=how)
+        return res
+
+    for f in feats.values():
+        for cid, c in f["cards"].items():
+            if c["dispatch"] and norm(c["dispatch"]) == norm(desc):
+                return hit(f, cid, "dispatch description")
+    ids_by_len = sorted(((cid, f) for f in feats.values() for cid in f["cards"]), key=lambda x: -len(x[0]))
+    for cid, f in ids_by_len:
+        if re.search(rf"(?<![\w-]){re.escape(cid)}(?![\w-])", desc):
+            return hit(f, cid, "card id in description")
+
+    ids = expand_ids(desc)
+    if not ids:
+        goal = next((ln for ln in prompt.splitlines() if ln.lstrip().lower().startswith("goal")), "")
+        ids = expand_ids(goal)
+    mention = feature_mentions(desc, by_num)
+    num = mention[0] if mention else None
+    how = "feature named in description"
+    if num is None and ids:
+        owners = [f for f in feats.values() if all(t in f["tasks"] for t in ids)]
+        if len(owners) == 1:
+            num, how = owners[0]["num"], "task ids unique to one feature"
+    if num is None:
+        num, how = prompt_feature(prompt, by_num), "feature named in prompt"
+    if num is None:
+        return res
+    f = by_num[num]
+    known = [t for t in ids if t in f["tasks"]]
+    res.update(feature=f["name"], confidence="feature", how=how)
+    if known:
+        res.update(tasks=known, confidence="exact", how=how + " + task ids")
+        inside = [cid for cid, c in f["cards"].items() if set(known) <= set(c["tasks"])]
+        if len(inside) == 1:
+            res["card"] = inside[0]
+    return res
+
+
+def tasks_key(ids):
+    return ids[0] if len(ids) == 1 else f"{ids[0]}..{ids[-1]}"
+
+
+def build_groups(rows, feats):
+    """Group agents that worked on the same card (or task set); other agents stay one group each."""
+    groups = {}
+    for r in rows:
+        a = attribute(r, feats)
+        r["attr"] = a
+        if a["confidence"] == "agent" or not a["feature"]:
+            key = ("agent", r["aid"])
+        elif a["card"]:
+            key = (a["feature"], "card", a["card"])
+        elif a["tasks"]:
+            key = (a["feature"], "tasks", tasks_key(a["tasks"]))
+        else:
+            key = (a["feature"], "agent", r["aid"])
+        g = groups.setdefault(key, {"key": key, "feature": a["feature"], "card": a["card"], "tasks": [],
+                                    "confidence": a["confidence"], "rows": []})
+        g["rows"].append(r)
+        g["tasks"] = sorted(set(g["tasks"]) | set(a["tasks"]))
+        if CONFIDENCE_ORDER[a["confidence"]] > CONFIDENCE_ORDER[g["confidence"]]:
+            g["confidence"] = a["confidence"]
+    for g in groups.values():
+        rs = g["rows"]
+        g["billable"] = sum(r["billable"] for r in rs)
+        g["cache_read"] = sum(r["cache_read_input_tokens"] for r in rs)
+        g["calls"] = sum(r["calls"] for r in rs)
+        g["end"] = max(r["end"] for r in rs)
+        g["start"] = min(r["start"] for r in rs)
+        g["files"] = sorted({p for r in rs for p in r["files"]})
+        g["lines"] = sum(r["lines"] for r in rs)
+        main = [r for r in rs if not re.match(r"\s*review", r["desc"], re.I)] or rs
+        lead = max(main, key=lambda r: r["billable"])
+        g["model"] = lead["family"]
+        g["desc"] = lead["desc"]
+    return sorted(groups.values(), key=lambda g: g["start"])
+
+
+def layer_of(g, feats):
+    f = feats.get(g["feature"]) if g["feature"] else None
+    if f:
+        for t in g["tasks"]:
+            if f["tasks"].get(t, {}).get("layer"):
+                return f["tasks"][t]["layer"]
+    probe = (g["card"] or "") + " " + g["desc"].lower()
+    for word, layer in (("frontend", "frontend"), ("qa", "qa"), ("e2e", "qa"), ("-core", "backend"), ("backend", "backend")):
+        if word in probe:
+            return layer
+    return "general"
+
+
+def effort_of(g, feats):
+    f = feats.get(g["feature"]) if g["feature"] else None
+    if not f:
+        return None
+    c = f["cards"].get(g["card"]) if g["card"] else None
+    if c and c["effort"] in EFFORT_RANK:
+        return c["effort"]
+    efforts = [f["tasks"][t]["effort"] for t in g["tasks"] if t in f["tasks"] and f["tasks"][t]["effort"] in EFFORT_RANK]
+    return max(efforts, key=EFFORT_RANK.get) if efforts else None
+
+
+ROLE_OF_FAMILY = {"opus": "thinker", "sonnet": "builder", "haiku": "scout"}
+
+
+def projected_of(g, feats):
+    f = feats.get(g["feature"]) if g["feature"] else None
+    if not f:
+        return None
+    c = f["cards"].get(g["card"]) if g["card"] else None
+    if c and c["projected"] is not None:
+        return c["projected"]
+    first = sorted((t for t in g["tasks"] if t in f["tasks"]), key=lambda t: f["tasks"][t]["line"])
+    return f["tasks"][first[0]]["projected"] if first else None
+
+
+# ------------------------------------------------------ windows and split
+
+def git_markers(ref=None):
+    """Stage markers from the current repo's first-parent landings, in memory (nothing written)."""
+    for r in ([ref] if ref else ["origin/dev", "dev", "main", "HEAD"]):
+        try:
+            out = subprocess.run(["git", "log", "--first-parent", "--reverse", "--format=%cI|%s", r], check=True,
+                                 capture_output=True, text=True).stdout
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        return [{"at": to_utc(t), "label": label_from_subject(s), "source": "git"}
+                for t, s in (ln.split("|", 1) for ln in out.splitlines() if "|" in ln)]
+    return []
+
+
+def windows(snaps):
+    bounds = [(snaps[i - 1]["at"] if i else "", s["at"]) for i, s in enumerate(snaps)]
+    if snaps:
+        bounds.append((snaps[-1]["at"], "9999"))
+    return bounds or [("", "9999")]
+
+
+def split_coordinator(main_msgs, groups, snaps):
+    """Each window's coordinator billable, shared among the features whose subagents ran in it
+    (weighted by their billable in that window). Returns (feature -> share, unassigned, total)."""
+    coord = [(t, bill(u)) for msgs in main_msgs.values() for t, _, u in msgs.values() if t]
+    share, unassigned = defaultdict(float), 0
+    for lo, hi in windows(snaps):
+        c = sum(b for t, b in coord if lo < t <= hi)
+        w = defaultdict(int)
+        for g in groups:
+            if g["feature"]:
+                for r in g["rows"]:
+                    w[g["feature"]] += sum(bill(u) for t, _, u in r["msgs"] if t and lo < t <= hi)
+        tot = sum(w.values())
+        if not tot:
+            unassigned += c
+            continue
+        for f, v in w.items():
+            share[f] += c * v / tot
+    return dict(share), unassigned, sum(b for _, b in coord)
+
+
+def bill(u):
+    return sum(int(u.get(f) or 0) for f in BILLABLE)
+
+
+# ---------------------------------------------------------------- writers
+
+def make_record(project, g, feats, coord_card, source="measured"):
+    f = feats.get(g["feature"]) if g["feature"] else None
+    c = f["cards"].get(g["card"]) if f and g["card"] else None
+    model = g["model"]
+    key = g["card"] or (tasks_key(g["tasks"]) if g["tasks"] else g["rows"][0]["aid"])
+    ident = f"{project}:{g['feature']}:{key}" if g["feature"] and g["confidence"] != "agent" and (g["card"] or g["tasks"]) \
+        else f"{project}:agent:{g['rows'][0]['aid']}"
+    if source == "seed":
+        ident = "seed:" + ident
+    return {"id": ident, "source": source, "confidence": g["confidence"], "project": project, "feature": g["feature"],
+            "card": g["card"], "tasks": g["tasks"], "layer": layer_of(g, feats), "effort": effort_of(g, feats),
+            "executor_role": (c and c["executor"]) or ROLE_OF_FAMILY.get(model, "builder"), "executor_model": model,
+            "files": len(g["files"]), "lines": g["lines"], "projected": projected_of(g, feats), "used": g["billable"],
+            "cache_read": g["cache_read"], "coordinator": round(coord_card) if coord_card is not None else None,
+            "calls": g["calls"], "agents": sorted(r["aid"] for r in g["rows"]), "desc": g["desc"][:120],
+            "date": g["end"][:10]}
+
+
+def read_history(path):
+    out = []
+    if path and os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    try:
+                        out.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
     return out
+
+
+def upsert_history(path, records):
+    """Add or replace records by id; the file stays sorted, so re-running never duplicates a line."""
+    merged = {r["id"]: r for r in read_history(path)}
+    merged.update({r["id"]: r for r in records})
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        for r in sorted(merged.values(), key=lambda r: (r.get("date", ""), r["id"])):
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    return len(merged)
+
+
+def tag_for(projected, used, with_task=None):
+    if with_task:
+        return f" · Tokens: with {with_task}"
+    return f" · Tokens: projected {'~' + fmt_tok(projected) if projected is not None else '—'} | used {fmt_tok(used)}"
+
+
+def write_task_lines(feature, units, dry):
+    """Put each unit's tag on its first task line (file order) and 'with Txxx' on the others.
+    A unit is {tasks, projected, used}; the tag is replaced, never added twice."""
+    path = os.path.join(feature["dir"], "tasks.md")
+    if not os.path.exists(path):
+        return 0
+    with open(path, encoding="utf-8") as fh:
+        lines = fh.read().split("\n")
+    changed = 0
+    for u in units:
+        mine = sorted((t for t in u["tasks"] if t in feature["tasks"]), key=lambda t: feature["tasks"][t]["line"])
+        if not mine or (u["projected"] is None and u["used"] is None):
+            continue
+        for i, t in enumerate(mine):
+            n = feature["tasks"][t]["line"]
+            new = TOKENS_TAG.sub("", lines[n]).rstrip() + (tag_for(u["projected"], u["used"]) if i == 0 else tag_for(0, 0, mine[0]))
+            if new != lines[n]:
+                lines[n], changed = new, changed + 1
+    if changed and not dry:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
+    return changed
+
+
+TRACKER_START = "<!-- tokens:start (token_report.py tasks - regenerated on every run, do not edit) -->"
+TRACKER_END = "<!-- tokens:end -->"
+
+
+def pct_error(projected, used):
+    return f"{(used - projected) / projected * 100:+.0f}%" if projected and used is not None else "—"
+
+
+def write_tracker(feature, units, extras, coord, dry):
+    """The feature's token block in tracker.md (created if missing), replaced in place on re-runs."""
+    rows = ["| Card / tasks | Projected | Used | Error | Cache reads (reference) |", "|---|---|---|---|---|"]
+    p_tot = u_tot = c_tot = 0
+    for u in units:
+        if u["used"] is None:
+            continue
+        rows.append(f"| {u['label']} | {'~' + fmt_tok(u['projected']) if u['projected'] is not None else '—'} | "
+                    f"{fmt_tok(u['used'])} | {pct_error(u['projected'], u['used'])} | {fmt_tok(u['cache_read'])} |")
+        u_tot += u["used"]
+        c_tot += u["cache_read"]
+        if u["projected"] is not None:
+            p_tot += u["projected"]
+    for e in extras:
+        rows.append(f"| {e['label']} | — | {fmt_tok(e['used'])} | — | {fmt_tok(e['cache_read'])} |")
+        u_tot += e["used"]
+        c_tot += e["cache_read"]
+    rows.append(f"| **Subagents** | ~{fmt_tok(p_tot)} | **{fmt_tok(u_tot)}** | {pct_error(p_tot, u_tot)} | {fmt_tok(c_tot)} |")
+    rows.append(f"| Coordinator share | | {fmt_tok(round(coord))} | | |")
+    rows.append(f"| **Feature total** | | **{fmt_tok(u_tot + round(coord))}** | | |")
+    block = "\n".join([TRACKER_START, "", "## Tokens", "",
+                       "Billable tokens (uncached input + cache writes + output); cache reads are reference only. "
+                       "Projected is the card's estimate before the work, used what its subagents then cost. "
+                       "The coordinator share is the main thread's usage in the windows this feature landed, "
+                       "split by subagent share (`plugins/agents/references/token-tracking.md`).", ""] + rows + ["", TRACKER_END])
+    path = os.path.join(feature["dir"], "tracker.md")
+    text = f"# Tracker — {feature['name']}\n"
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    pat = re.compile(re.escape(TRACKER_START) + r".*?" + re.escape(TRACKER_END), re.S)
+    new = pat.sub(lambda _m: block, text) if pat.search(text) else text.rstrip("\n") + "\n\n" + block + "\n"
+    if new != text and not dry:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(new)
+    return new != text
+
+
+def ledger_cell(u):
+    if not u or (u["projected"] is None and u["used"] is None):
+        return None
+    p = f"~{fmt_tok(u['projected'])}" if u["projected"] is not None else "—"
+    return f"{p} / {fmt_tok(u['used'])}"
+
+
+def write_ledger(path, by_card, dry):
+    """Add or refresh a Tokens column (projected / used) on the orchestration ledger's card table."""
+    if not os.path.exists(path):
+        return False
+    with open(path, encoding="utf-8") as fh:
+        lines = fh.read().split("\n")
+    out, state, idx = [], None, 0
+    for ln in lines:
+        if not ln.startswith("|"):
+            state = None
+            out.append(ln)
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if state is None:
+            if any(c.lower() == "card" for c in cells):
+                if "Tokens" not in cells:
+                    cells.append("Tokens")
+                idx, state = cells.index("Tokens"), "sep"
+                ln = "| " + " | ".join(cells) + " |"
+            out.append(ln)
+            continue
+        if state == "sep":
+            out.append("|" + "|".join(["---"] * max(len(cells), idx + 1)) + "|")
+            state = "body"
+            continue
+        cid = next((c.strip("`") for c in cells if c.startswith("`") and c.endswith("`")), None)
+        cells += [""] * (idx + 1 - len(cells))
+        cells[idx] = ledger_cell(by_card.get(cid)) or cells[idx] or "—"
+        out.append("| " + " | ".join(cells) + " |")
+    new = "\n".join(out)
+    if new != "\n".join(lines) and not dry:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(new)
+    return new != "\n".join(lines)
 
 
 def cmd_tasks(a):
     roots = sorted(glob.glob(os.path.expanduser(f"~/.claude*/projects/{a.project}")))
     sessions = a.session or discover_sessions(roots)
-    coords, rows, tagged, _ = gather(roots, sessions)
-    snaps = load_snapshots(a.snapshots)
-    L, grand = render(project_name(a.project), sessions, roots, coords, rows, tagged, snaps)
-    with open(a.rollup_out, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(L))
+    coords, rows, tagged, main_msgs = gather(roots, sessions)
+    snaps = load_snapshots(a.snapshots) or git_markers()
+    project = a.name or project_name(a.project)
+    feats = load_features(a.specs_dir)
+    groups = build_groups(rows, feats)
+    share, unassigned, coord_total = split_coordinator(main_msgs, groups, snaps)
 
-    by_feature = feature_task_ids(a.specs_dir)
-    feature_of = {tid: feature for feature, ids in by_feature.items() for tid in ids}
-    per_feature = defaultdict(list)
-    unmapped = []
-    for r in rows:
-        ids = TASK_ID.findall(r["desc"])
-        features = {feature_of[i] for i in ids if i in feature_of}
-        if not features:
-            unmapped.append(r)
-            continue
-        feature = sorted(features)[0]  # a card spanning features attributes its full cost to the first
-        per_feature[feature].append(r)
+    if a.rollup_out:
+        L, grand = render(project, sessions, roots, coords, rows, tagged, snaps)
+        if not a.dry_run:
+            with open(a.rollup_out, "w", encoding="utf-8") as fh:
+                fh.write("\n".join(L))
 
-    for feature, feat_rows in sorted(per_feature.items()):
-        bill = sum(r["billable"] for r in feat_rows)
-        tot = sum(r["total"] for r in feat_rows)
-        out = [f"# Token usage — {os.path.basename(feature)}", "",
-               f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}. Linked to `tasks.md` by task id; "
-               "a record file, never written into it. Cards spanning several features attribute their "
-               "full cost to the first feature their task ids name.", "",
-               "| Task(s) | Who | Model(s) | Calls | Billable | Total |",
-               "|---|---|---|---|---|---|"]
-        for r in sorted(feat_rows, key=lambda r: r["start"]):
-            ids = ", ".join(TASK_ID.findall(r["desc"])) or "—"
-            out.append(f"| {ids} | {r['who']} | {r['models']} | {r['calls']} | {k(r['billable'])} | {k(r['total'])} |")
-        out += [f"| **Feature total** | | | | **{k(bill)}** | **{k(tot)}** |", ""]
-        with open(os.path.join(feature, "tokens.md"), "w", encoding="utf-8") as fh:
-            fh.write("\n".join(out))
+    feat_bill = defaultdict(int)
+    for g in groups:
+        if g["feature"]:
+            feat_bill[g["feature"]] += g["billable"]
+    records, by_card, summary = [], {}, {}
+    for fname, feat in feats.items():
+        mine = [g for g in groups if g["feature"] == fname]
+        units, extras = [], []
+        for cid, c in feat["cards"].items():
+            if c["projected"] is not None and not any(g["card"] == cid for g in mine):
+                units.append({"label": f"`{cid}`", "tasks": c["tasks"], "projected": c["projected"], "used": None, "cache_read": 0})
+        for g in mine:
+            cshare = share.get(fname, 0) * g["billable"] / feat_bill[fname] if feat_bill[fname] else 0
+            rec = make_record(project, g, feats, cshare)
+            records.append(rec)
+            u = {"label": f"`{g['card']}`" if g["card"] else (f"{tasks_key(g['tasks'])}" if g["tasks"] else None),
+                 "tasks": g["tasks"], "projected": rec["projected"], "used": g["billable"], "cache_read": g["cache_read"],
+                 "desc": g["desc"]}
+            if u["label"] is None:
+                extras.append({"label": f"{g['desc'][:50]} (feature-level)", "used": g["billable"], "cache_read": g["cache_read"]})
+                continue
+            units.append(u)
+            if g["card"]:
+                by_card[g["card"]] = u
+        for u in units:
+            if u["used"] is None and u["tasks"]:
+                by_card[u["label"].strip("`")] = u
+        used_units = [u for u in units if u["used"] is not None]
+        changed = write_task_lines(feat, units, a.dry_run)
+        if used_units or extras:
+            write_tracker(feat, units, extras, share.get(fname, 0), a.dry_run)
+        summary[fname] = {"used": feat_bill[fname], "coordinator": share.get(fname, 0), "cards": len(used_units),
+                          "extras": len(extras), "lines": changed}
+    unattributed = [g for g in groups if g["confidence"] == "agent" or not g["feature"]]
+    records += [make_record(project, g, feats, None) for g in unattributed]
+    if not a.dry_run:
+        n = upsert_history(a.history, records)
+        write_ledger(a.ledger, by_card, False)
+    else:
+        n = len(records)
 
-    if unmapped:
-        with open(a.rollup_out, "a", encoding="utf-8") as fh:
-            fh.write("\n## Unmapped\n\nCards whose description names no task id, so their cost isn't linked "
-                      "to any feature's `tasks.md`:\n\n| Who | Task | Billable | Total |\n|---|---|---|---|\n")
-            for r in unmapped:
-                fh.write(f"| {r['who']} | {r['desc']} | {k(r['billable'])} | {k(r['total'])} |\n")
-
-    print(f"wrote {a.rollup_out} and {len(per_feature)} specs/*/tokens.md "
-          f"({len(unmapped)} unmapped cards); billable {k(grand['billable'])}, total {k(grand['total'])}")
+    print(f"{project}: {len(rows)} subagent(s) in {len(sessions)} session(s); "
+          f"{'dry run, nothing written' if a.dry_run else 'wrote ' + a.history + f' ({n} records)'}")
+    print("feature | used (subagents) | coordinator share | total | cards | task lines")
+    for fname, s in sorted(summary.items()):
+        if s["used"] or s["cards"]:
+            print(f"{fname} | {fmt_tok(s['used'])} | {fmt_tok(round(s['coordinator']))} | "
+                  f"{fmt_tok(s['used'] + round(s['coordinator']))} | {s['cards']} | {s['lines']}")
+    un = sum(g["billable"] for g in unattributed)
+    print(f"unattributed (reported, not guessed): {len(unattributed)} agent(s), {fmt_tok(un)}")
+    for g in unattributed:
+        print(f"  {fmt_tok(g['billable']):>7}  {g['model']:<6} {g['desc'][:80]}")
+    print(f"coordinator: {fmt_tok(round(coord_total))} billable in all, {fmt_tok(round(unassigned))} in windows "
+          f"with no attributed subagents")
+    agent_total = sum(r["billable"] for r in rows)
+    print(f"total: {fmt_tok(round(agent_total + coord_total))} billable ({fmt_tok(agent_total)} subagents)")
 
 
 def parse_k(s: str) -> float:
@@ -449,8 +936,13 @@ def build_parser():
     t.add_argument("--project", required=True)
     t.add_argument("--session", action="append")
     t.add_argument("--specs-dir", default="specs")
-    t.add_argument("--rollup-out", default=DEFAULT_ROLLUP)
-    t.add_argument("--snapshots", default=DEFAULT_SNAPSHOTS)
+    t.add_argument("--rollup-out", help="also write the project-wide report here (docs/product/token-usage.md)")
+    t.add_argument("--history", default=DEFAULT_HISTORY)
+    t.add_argument("--ledger", default=DEFAULT_LEDGER)
+    t.add_argument("--name", help="project name for the history (default: derived from --project)")
+    t.add_argument("--snapshots", default=DEFAULT_SNAPSHOTS,
+                   help="stage markers; without the file they are read from the repo's first-parent git landings")
+    t.add_argument("--dry-run", action="store_true", help="read everything, write nothing, print the attribution")
     t.set_defaults(fn=cmd_tasks)
     e = sub.add_parser("estimate")
     g = e.add_mutually_exclusive_group(required=True)

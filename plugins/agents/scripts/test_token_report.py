@@ -112,16 +112,6 @@ class TokenReportTest(unittest.TestCase):
         self.assertIn("coordinator sess1", text)
         self.assertIn("T001, T002", text)
 
-    def test_tasks_links_feature_and_flags_unmapped(self):
-        tr.cmd_tasks(tr.p.parse_args(["tasks", f"--project={self.slug}", "--specs-dir=specs",
-                                       "--rollup-out=rollup.md"]))
-        feature = Path("specs/001-widget/tokens.md").read_text()
-        self.assertIn("T001, T002", feature)
-        self.assertIn("Feature total", feature)
-        rollup = Path("rollup.md").read_text()
-        self.assertIn("Unmapped", rollup)
-        self.assertIn("Survey unrelated repo", rollup)
-
     def test_estimate_by_role_averages_matching_cards(self):
         tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
         out = io.StringIO()
@@ -161,6 +151,202 @@ class TokenReportTest(unittest.TestCase):
         self.assertIn("backfilled", proc.stdout)
         snaps = tr.load_snapshots(snaps_path)
         self.assertEqual(len(snaps), 2)  # the duplicate (same at+label) merges, not triples
+
+
+TASKS_MD = """# Tasks
+## Phase 1
+- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high
+- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium
+- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low
+## Backend
+- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium
+"""
+CARDS_MD = """# Cards
+| Card | Tasks | Executor | Reviewer | Effort |
+|---|---|---|---|---|
+| `001-core` | T001, T002 | builder | thinker | high |
+| `001-polish` | T003 | builder | thinker | low |
+
+## Card `001-core`: T001, T002
+
+**Route**: Executor `builder` · Effort `high` · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`
+
+## Card `001-polish`: T003
+
+**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`
+"""
+LEDGER = """# Ledger
+| Wave | Feature | Card | State |
+|---|---|---|---|
+| 0 | 001-widget | `001-core` | done |
+| 0 | 001-widget | `001-polish` | planned |
+"""
+
+
+def usage(billable_out, cache_read=1000):
+    return {"input_tokens": 0, "cache_creation_input_tokens": 0, "cache_read_input_tokens": cache_read,
+            "output_tokens": billable_out}
+
+
+class TasksTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name)
+        self.work = self.home / "work"
+        (self.work / "specs" / "001-widget").mkdir(parents=True)
+        (self.work / "specs" / "002-gadget").mkdir(parents=True)
+        (self.work / "specs" / "001-widget" / "tasks.md").write_text(TASKS_MD)
+        (self.work / "specs" / "001-widget" / "cards.md").write_text(CARDS_MD)
+        (self.work / "specs" / "002-gadget" / "tasks.md").write_text("- [ ] T001 gadget — Executor: builder\n")
+        (self.work / ".ai-gent").mkdir()
+        (self.work / ".ai-gent" / "orchestrate-status.md").write_text(LEDGER)
+        self.slug = "-tmp-widgets"
+        self.root = self.home / ".claude" / "projects" / self.slug
+        self.sub = self.root / "s1" / "subagents"
+        self.sub.mkdir(parents=True)
+        self.n = 0
+        self.old_home, self.old_cwd = os.environ.get("HOME"), os.getcwd()
+        os.environ["HOME"] = str(self.home)
+        os.chdir(self.work)
+
+    def tearDown(self):
+        os.chdir(self.old_cwd)
+        if self.old_home is None:
+            os.environ.pop("HOME", None)
+        else:
+            os.environ["HOME"] = self.old_home
+        self.tmp.cleanup()
+
+    def agent(self, aid, desc, out, prompt="", ts="2026-10-20T10:00:00Z", root=None, calls=1, model="claude-sonnet-5-5"):
+        root = root or self.root
+        d = root / "s1" / "subagents"
+        d.mkdir(parents=True, exist_ok=True)
+        lines = [json.dumps({"type": "user", "message": {"role": "user", "content": prompt}})]
+        for i in range(calls):
+            lines.append(msg(f"{aid}-{i}", model, usage(out), ts))
+        (d / f"agent-{aid}.jsonl").write_text("\n".join(lines))
+        (d / f"agent-{aid}.meta.json").write_text(json.dumps({"description": desc}))
+
+    def main(self, out, ts="2026-10-20T09:00:00Z", root=None):
+        root = root or self.root
+        (root / "s1.jsonl").write_text(msg("c1", "claude-opus-5-5", usage(out), ts))
+
+    def run_tasks(self, *extra):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            tr.cmd_tasks(tr.p.parse_args(["tasks", f"--project={self.slug}", "--specs-dir=specs",
+                                           "--snapshots=none.json", *extra]))
+        return buf.getvalue()
+
+    def attrs(self):
+        _, rows, _, _ = tr.gather([str(self.root)], ["s1"])
+        feats = tr.load_features("specs")
+        return {r["aid"]: tr.attribute(r, feats) for r in rows}
+
+    def test_attribution_levels(self):
+        self.agent("a1", "T001, T002: 001-widget core", 100)
+        self.agent("a2", "Review 001-polish (T003)", 50)
+        self.agent("a3", "T001: 002-gadget build", 40)
+        self.agent("a4", "T001 something", 30)  # T001 exists in two features: ambiguous, not guessed
+        self.agent("a5", "Do the 001 follow-ups", 20)
+        self.agent("a6", "Survey the repo", 10, prompt="no specs here")
+        self.agent("a7", "Implement it", 10, prompt="Read specs/002-gadget/tasks.md and specs/002-gadget/spec.md")
+        self.agent("a8", "T001–T003: 001-widget build", 10)
+        at = self.attrs()
+        self.assertEqual((at["a1"]["card"], at["a1"]["confidence"]), ("001-core", "exact"))
+        self.assertEqual((at["a2"]["card"], at["a2"]["feature"]), ("001-polish", "001-widget"))
+        self.assertEqual((at["a3"]["feature"], at["a3"]["card"], at["a3"]["confidence"]), ("002-gadget", None, "exact"))
+        self.assertEqual(at["a4"]["confidence"], "agent")
+        self.assertEqual((at["a5"]["feature"], at["a5"]["confidence"]), ("001-widget", "feature"))
+        self.assertEqual(at["a6"]["confidence"], "agent")
+        self.assertEqual((at["a7"]["feature"], at["a7"]["confidence"]), ("002-gadget", "feature"))
+        self.assertEqual(at["a8"]["tasks"], ["T001", "T002", "T003"])  # a range expands
+
+    def test_expand_ids_and_tokens_format(self):
+        self.assertEqual(tr.expand_ids("T001–T003, T007 and T001"), ["T001", "T002", "T003", "T007"])
+        self.assertEqual(tr.parse_tok("~420k"), 420000)
+        self.assertEqual(tr.parse_tok("1.5M"), 1500000)
+        self.assertIsNone(tr.parse_tok("—"))
+        self.assertEqual((tr.fmt_tok(391_400), tr.fmt_tok(1_240_000)), ("391k", "1.24M"))
+
+    def test_tasks_writes_lines_tracker_history_ledger(self):
+        self.agent("a1", "T001, T002: 001-widget core", 391_000)
+        self.agent("a2", "Review 001-core", 9_000, ts="2026-10-20T11:00:00Z")
+        self.agent("a3", "Survey the repo", 5_000)
+        self.main(100_000)
+        out = self.run_tasks()
+        t = Path("specs/001-widget/tasks.md").read_text()
+        self.assertIn("Effort: high · Tokens: projected ~400k | used 400k", t)
+        self.assertIn("Effort: medium · Tokens: with T001", t)
+        self.assertIn("Effort: low · Tokens: projected ~100k | used —", t)  # planned only: the projection is carried over
+        tracker = Path("specs/001-widget/tracker.md").read_text()
+        self.assertIn("`001-core` | ~400k | 400k | +0%", tracker)
+        self.assertIn("Coordinator share", tracker)
+        ledger = Path(".ai-gent/orchestrate-status.md").read_text()
+        self.assertIn("| Tokens |", ledger)
+        self.assertIn("~400k / 400k", ledger)
+        self.assertIn("~100k / —", ledger)
+        hist = tr.read_history("docs/product/token-history.jsonl")
+        core = next(r for r in hist if r["card"] == "001-core")
+        self.assertEqual((core["used"], core["projected"], core["layer"], core["effort"], core["confidence"]),
+                         (400_000, 400_000, "backend", "high", "exact"))
+        self.assertEqual(core["coordinator"], 100_000)  # the only feature in the window gets all of it
+        self.assertEqual(core["project"], "widgets")
+        self.assertIn("unattributed (reported, not guessed): 1 agent(s)", out)
+        self.assertIn("Survey the repo", out)
+
+    def test_rerun_updates_numbers_without_duplicating(self):
+        self.agent("a1", "T001, T002: 001-widget core", 100_000)
+        self.main(10_000)
+        self.run_tasks()
+        first = [Path(f).read_text() for f in ("specs/001-widget/tasks.md", "specs/001-widget/tracker.md",
+                                                 ".ai-gent/orchestrate-status.md", "docs/product/token-history.jsonl")]
+        self.run_tasks()
+        self.assertEqual(first, [Path(f).read_text() for f in ("specs/001-widget/tasks.md", "specs/001-widget/tracker.md",
+                                                                  ".ai-gent/orchestrate-status.md", "docs/product/token-history.jsonl")])
+        self.agent("a1", "T001, T002: 001-widget core", 250_000)
+        self.run_tasks()
+        t = Path("specs/001-widget/tasks.md").read_text()
+        self.assertEqual(t.count("Tokens:"), 3)  # T001, T002 (with T001) and T003: one tag per line
+        self.assertIn("used 250k", t)
+        self.assertNotIn("used 100k", t)
+        self.assertEqual(Path("specs/001-widget/tracker.md").read_text().count(tr.TRACKER_START), 1)
+        self.assertEqual(len([r for r in tr.read_history("docs/product/token-history.jsonl") if r["card"] == "001-core"]), 1)
+
+    def test_resumed_agent_counts_once_across_config_dirs(self):
+        other = self.home / ".claude-b" / "projects" / self.slug
+        self.agent("a1", "T003: 001-widget polish", 100, calls=2)
+        self.agent("a1", "T003: 001-widget polish", 100, calls=3, root=other, ts="2026-10-21T10:00:00Z")  # resumed on another account
+        self.main(1)
+        self.run_tasks()
+        rec = next(r for r in tr.read_history("docs/product/token-history.jsonl") if r["card"] == "001-polish")
+        self.assertEqual(rec["agents"], ["a1"])
+        self.assertEqual(rec["calls"], 3)  # message ids a1-0..a1-2: the shared ones dedupe, the extra one adds
+        self.assertEqual(rec["used"], 300)
+
+    def test_coordinator_split_by_window_weights(self):
+        self.agent("a1", "T001: 002-gadget build", 300, ts="2026-10-20T10:00:00Z")
+        self.agent("a2", "T003: 001-widget polish", 100, ts="2026-10-20T10:30:00Z")
+        self.agent("a3", "T003: 001-widget polish", 50, ts="2026-10-21T10:30:00Z")
+        (self.root / "s1.jsonl").write_text("\n".join([
+            msg("c1", "claude-opus-5-5", usage(80), "2026-10-20T09:00:00Z"),
+            msg("c2", "claude-opus-5-5", usage(500), "2026-10-22T09:00:00Z")]))
+        snaps = [{"at": "2026-10-20T12:00:00", "label": "landed"}, {"at": "2026-10-21T12:00:00", "label": "landed 2"}]
+        _, rows, _, main_msgs = tr.gather([str(self.root)], ["s1"])
+        feats = tr.load_features("specs")
+        share, unassigned, total = tr.split_coordinator(main_msgs, tr.build_groups(rows, feats), snaps)
+        self.assertEqual(round(share["002-gadget"]), 60)  # 80 shared 300:100
+        self.assertEqual(round(share["001-widget"]), 20)
+        self.assertEqual((unassigned, total), (500, 580))  # no subagent ran in the last window
+
+    def test_dry_run_writes_nothing(self):
+        self.agent("a1", "T001, T002: 001-widget core", 100)
+        before = Path("specs/001-widget/tasks.md").read_text()
+        out = self.run_tasks("--dry-run")
+        self.assertIn("dry run", out)
+        self.assertEqual(Path("specs/001-widget/tasks.md").read_text(), before)
+        self.assertFalse(Path("docs/product/token-history.jsonl").exists())
+        self.assertFalse(Path("specs/001-widget/tracker.md").exists())
 
 
 if __name__ == "__main__":
