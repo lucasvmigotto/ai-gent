@@ -494,6 +494,23 @@ class IndexSeedTest(TasksFixture):
         self.seed()  # idempotent
         self.assertEqual(len(tr.read_history(str(self.ai_home / "token-history.jsonl"))), 3)
 
+    def test_seed_infers_coarse_low_confidence_tags_from_manifests_and_touched_files(self):
+        (self.codes / "widgets" / "Cargo.toml").write_text('[dependencies]\ntokio = "1"\nreact-dom = "1"\n')
+        d = self.root / "s1" / "subagents"
+        (d / "agent-a1.jsonl").write_text("\n".join([
+            json.dumps({"type": "user", "message": {"role": "user", "content": "p"}}),
+            edit_msg("a1m", "claude-sonnet-5-5", USAGE, "2026-10-20T10:01:00Z")]))  # writes src/a.py
+        (d / "agent-a1.meta.json").write_text(json.dumps({"description": "Fix socket protocol findings"}))
+        self.seed()
+        r = tr.read_history(str(self.ai_home / "token-history.jsonl"))[0]
+        self.assertEqual(r["tags_source"], "inferred")
+        self.assertEqual((r["tags"]["kind"], r["tags"]["surface"], r["tags"]["lang"], r["tags"]["size"]), ("fix", "protocol", "python", "S"))
+        self.assertNotIn("stack", r["tags"])  # tokio is a Rust crate, the agent wrote Python
+        (d / "agent-a1.jsonl").write_text(open(d / "agent-a1.jsonl").read().replace("src/a.py", "src/a.rs"))
+        self.seed()
+        r = tr.read_history(str(self.ai_home / "token-history.jsonl"))[0]
+        self.assertEqual((r["tags"]["lang"], r["tags"]["stack"]), ("rust", ["tokio"]))
+
     def test_index_merges_repo_histories_keeps_seeds_and_drops_superseded_ones(self):
         self.agent("a1", "T001, T002: 001-widget core", 300)
         self.agent("a3", "Survey the repo", 100)
