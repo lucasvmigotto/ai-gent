@@ -56,12 +56,18 @@ changes.
   images, orphaned worktree volumes, buildah working containers and a low
   disk, reported, never removed.
 
+### Deprecated
+
+- `token_report.py tasks` still writes `specs/<feature>/tokens.md` and the
+  roll-up's Unmapped section (`--no-legacy` turns them off), and `estimate`
+  still falls back to the roll-up's average (`--rollup`, `--label`) when
+  there is no history. The tags, `tracker.md` and `token-history.jsonl`
+  replace them; both legacy outputs go in a later major.
+
 ### Changed
 
-- `token_report.py tasks` no longer writes `specs/<feature>/tokens.md` or an
-  Unmapped roll-up section; `estimate` no longer reads `token-usage.md`
-  (`report` still writes it, and `tasks --rollup-out` too). Concurrency
-  defaults on Claude Code are 2 subagents and 1 Opus (`.ai-gent/budget.yaml`).
+- On Claude Code the default concurrency is 2 subagents and 1 on Opus
+  (`.ai-gent/budget.yaml`'s `max_agents` and `max_opus`).
 - Builder cards forbid extra image tags, own volumes and prunes; a
   Containerfile is a hot spot with one owning track per wave.
 - `devcontainer:workflow` removes the project's dangling images after a

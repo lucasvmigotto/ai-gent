@@ -1052,11 +1052,16 @@ def cmd_tasks(a):
     groups = build_groups(rows, feats)
     share, unassigned, coord_total = split_coordinator(main_msgs, groups, snaps)
 
-    if a.rollup_out:
+    rollup = a.rollup_out or (None if a.no_legacy else DEFAULT_ROLLUP)
+    if rollup:
         L, grand = render(project, sessions, roots, coords, rows, tagged, snaps)
         if not a.dry_run:
-            with open(a.rollup_out, "w", encoding="utf-8") as fh:
+            os.makedirs(os.path.dirname(os.path.abspath(rollup)), exist_ok=True)
+            with open(rollup, "w", encoding="utf-8") as fh:
                 fh.write("\n".join(L))
+    legacy = (0, 0)
+    if not a.no_legacy and not a.dry_run:
+        legacy = write_legacy(rows, a.specs_dir, rollup)
 
     feat_bill = defaultdict(int)
     for g in groups:
@@ -1107,6 +1112,9 @@ def cmd_tasks(a):
         if s["used"] or s["cards"]:
             print(f"{fname} | {fmt_tok(s['used'])} | {fmt_tok(round(s['coordinator']))} | "
                   f"{fmt_tok(s['used'] + round(s['coordinator']))} | {s['cards']} | {s['lines']}")
+    if not a.no_legacy:
+        print(f"deprecated legacy output: {legacy[0]} specs/*/tokens.md, {legacy[1]} unmapped card(s) in {rollup} "
+              "(--no-legacy turns it off; both go in a later major)")
     un = sum(g["billable"] for g in unattributed)
     print(f"unattributed (reported, not guessed): {len(unattributed)} agent(s), {fmt_tok(un)}")
     for g in unattributed:
@@ -1115,6 +1123,92 @@ def cmd_tasks(a):
           f"with no attributed subagents")
     agent_total = sum(r["billable"] for r in rows)
     print(f"total: {fmt_tok(round(agent_total + coord_total))} billable ({fmt_tok(agent_total)} subagents)")
+
+
+# --------------------------------------------------- legacy outputs (deprecated)
+# Kept for projects that read them; `tasks --no-legacy` turns the first off. Both go in a later major.
+
+def feature_task_ids(specs_dir):
+    """feature dir -> set of task ids defined in its tasks.md (the legacy attribution)."""
+    out = {}
+    for tasks_md in sorted(glob.glob(os.path.join(specs_dir, "[0-9][0-9][0-9]-*", "tasks.md"))):
+        with open(tasks_md, encoding="utf-8") as fh:
+            ids = set(TASK_ID.findall(fh.read()))
+        if ids:
+            out[os.path.dirname(tasks_md)] = ids
+    return out
+
+
+def write_legacy(rows, specs_dir, rollup_path):
+    """specs/<feature>/tokens.md per touched feature, and an Unmapped section in the roll-up for
+    cards whose description names no task id. Attribution is the old one: the first feature whose
+    tasks.md defines a named task id. Returns (features written, unmapped cards)."""
+    feature_of = {t: f for f, ids in feature_task_ids(specs_dir).items() for t in ids}
+    per_feature, unmapped = defaultdict(list), []
+    for r in rows:
+        features = {feature_of[i] for i in TASK_ID.findall(r["desc"]) if i in feature_of}
+        if features:
+            per_feature[sorted(features)[0]].append(r)
+        else:
+            unmapped.append(r)
+    for feature, feat_rows in sorted(per_feature.items()):
+        out = [f"# Token usage — {os.path.basename(feature)}", "",
+               f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}. Deprecated output of `token_report.py tasks` "
+               "(use the `Tokens:` tags on tasks.md, tracker.md and docs/product/token-history.jsonl); "
+               "turn it off with `--no-legacy`. Linked to `tasks.md` by task id; a record file, never written into it. "
+               "Cards spanning several features attribute their full cost to the first feature their task ids name.", "",
+               "| Task(s) | Who | Model(s) | Calls | Billable | Total |", "|---|---|---|---|---|---|"]
+        for r in sorted(feat_rows, key=lambda r: r["start"]):
+            out.append(f"| {', '.join(TASK_ID.findall(r['desc'])) or '—'} | {r['who']} | {r['models']} | {r['calls']} | "
+                       f"{k(r['billable'])} | {k(r['total'])} |")
+        out += [f"| **Feature total** | | | | **{k(sum(r['billable'] for r in feat_rows))}** | "
+                f"**{k(sum(r['total'] for r in feat_rows))}** |", ""]
+        with open(os.path.join(feature, "tokens.md"), "w", encoding="utf-8") as fh:
+            fh.write("\n".join(out))
+    if unmapped:
+        with open(rollup_path, "a", encoding="utf-8") as fh:
+            fh.write("\n## Unmapped\n\nCards whose description names no task id, so their cost isn't linked "
+                     "to any feature's `tasks.md`:\n\n| Who | Task | Billable | Total |\n|---|---|---|---|\n")
+            for r in unmapped:
+                fh.write(f"| {r['who']} | {r['desc']} | {k(r['billable'])} | {k(r['total'])} |\n")
+    return len(per_feature), len(unmapped)
+
+
+def parse_k(s: str) -> float:
+    s = s.strip().replace(",", "").replace("*", "")
+    if s.endswith("M"):
+        return float(s[:-1]) * 1_000_000
+    if s.endswith("k"):
+        return float(s[:-1]) * 1_000
+    return float(s) if s else 0.0
+
+
+def read_by_agent(rollup_path):
+    """Rows of a roll-up's '## By agent' table (the legacy estimate source)."""
+    if not rollup_path or not os.path.exists(rollup_path):
+        return []
+    with open(rollup_path, encoding="utf-8") as fh:
+        text = fh.read()
+    m = re.search(r"## By agent\n\n(.*?)(?:\n## |\Z)", text, re.S)
+    if not m:
+        return []
+    rows = []
+    for ln in [ln for ln in m.group(1).splitlines() if ln.startswith("|")][2:]:
+        cells = [c.strip() for c in ln.strip("|").split("|")]
+        if len(cells) >= 8:
+            rows.append({"label": cells[2], "model": cells[4], "billable": parse_k(cells[6]), "total": parse_k(cells[7])})
+    return rows
+
+
+def legacy_estimate(a, fam):
+    """Average billable of the roll-up's cards for a label or model, or None when it has none."""
+    rows = read_by_agent(a.rollup)
+    sel = [r for r in rows if r["label"] == a.label] if a.label else [r for r in rows if fam in r["model"]]
+    if not sel:
+        return None
+    how = f"label '{a.label}'" if a.label else f"model '{fam}'"
+    return (f"{how}: {len(sel)} sample(s) in {a.rollup}, average billable {k(int(sum(r['billable'] for r in sel) / len(sel)))}, "
+            f"average total {k(int(sum(r['total'] for r in sel) / len(sel)))} (deprecated roll-up fallback)")
 
 
 # ------------------------------------------------- estimate, index, seed
@@ -1357,6 +1451,14 @@ def cmd_estimate(a):
     fam = ROLE_MODEL.get(a.role) if a.role else family(a.model)
     tags = parse_tags(a.tags) if a.tags else None
     est = estimate_card(load_history(history_paths(a.history)), fam, a.effort, a.layer, a.tasks, tags, a.role or "builder")
+    if a.label or (est["basis"] == "starting table" and not a.json):
+        old = legacy_estimate(a, fam)
+        if old:
+            print(old)
+            return
+        if a.label:
+            print(f"no history for label '{a.label}' in {a.rollup} — fall back to S/M/L sizing")
+            return
     label = f"{fam} · effort {a.effort}" + (f" · layer {a.layer}" if a.layer else "") + (f" · {a.tasks} task(s)" if a.tasks else "")
     if tags:
         label += f" · tags {format_tags(tags)}"
@@ -1656,6 +1758,8 @@ def build_parser():
     t.add_argument("--name", help="project name for the history (default: derived from --project)")
     t.add_argument("--snapshots", default=DEFAULT_SNAPSHOTS,
                    help="stage markers; without the file they are read from the repo's first-parent git landings")
+    t.add_argument("--no-legacy", action="store_true",
+                   help="skip the deprecated specs/*/tokens.md files and roll-up (docs/product/token-usage.md)")
     t.add_argument("--dry-run", action="store_true", help="read everything, write nothing, print the attribution")
     t.set_defaults(fn=cmd_tasks)
     e = sub.add_parser("estimate", help="the projection for a planned card, from history or the starting table")
@@ -1667,6 +1771,8 @@ def build_parser():
     e.add_argument("--tags", help="the card's tags, e.g. 'extend, backend, protocol, rust, tokio, known-pattern, integration, M'")
     e.add_argument("--tasks", type=int, help="how many tasks the card holds (S up to 3, M up to 6, L above)")
     e.add_argument("--history", action="append", help="a history file (default: this repo's and the local index)")
+    e.add_argument("--label", help="deprecated: a card label in the roll-up (--rollup), averaged")
+    e.add_argument("--rollup", default=DEFAULT_ROLLUP, help="deprecated fallback when there is no history")
     e.add_argument("--json", action="store_true")
     e.set_defaults(fn=cmd_estimate)
     i = sub.add_parser("index", help="rebuild ~/.ai-gent/token-history.jsonl from the repos' committed histories")

@@ -524,6 +524,44 @@ class IndexSeedTest(TasksFixture):
         self.assertEqual(len(recs), 2)
 
 
+class LegacyTest(TasksFixture):
+    def test_tasks_still_writes_tokens_md_and_the_unmapped_section_unless_no_legacy(self):
+        self.agent("a1", "T001, T002: build widget", 100)
+        self.agent("a2", "Survey unrelated repo", 50)
+        self.main(1)
+        out = self.run_tasks()
+        feature = Path("specs/001-widget/tokens.md").read_text()
+        self.assertIn("T001, T002", feature)
+        self.assertIn("Feature total", feature)
+        self.assertIn("Deprecated", feature)
+        rollup = Path("docs/product/token-usage.md").read_text()
+        self.assertIn("## Unmapped", rollup)
+        self.assertIn("Survey unrelated repo", rollup)
+        self.assertIn("deprecated legacy output: 1 specs/*/tokens.md, 1 unmapped", out)
+        Path("specs/001-widget/tokens.md").unlink()
+        Path("docs/product/token-usage.md").unlink()
+        self.assertNotIn("deprecated legacy", self.run_tasks("--no-legacy"))
+        self.assertFalse(Path("specs/001-widget/tokens.md").exists())
+        self.assertFalse(Path("docs/product/token-usage.md").exists())
+
+    def test_estimate_falls_back_to_the_rollup_when_history_is_empty(self):
+        self.agent("a1", "T001, T002: build widget", 1000)
+        self.agent("a2", "T003: polish", 3000)
+        self.main(1)
+        tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
+
+        def est(*args):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                tr.cmd_estimate(tr.p.parse_args(["estimate", "--rollup=rollup.md", "--history=none.jsonl", *args]))
+            return out.getvalue()
+
+        self.assertIn("2 sample(s) in rollup.md, average billable 2.0k", est("--role=builder"))
+        self.assertIn("1 sample(s)", est("--label=T003"))
+        self.assertIn("no history for label 'Nope'", est("--label=Nope"))
+        self.assertIn("starting table", est("--role=scout"))  # nothing in the roll-up either
+
+
 class TagsTest(TasksFixture):
     def test_parse_format_and_aliases(self):
         t = tr.parse_tags("M, tokio, rust, extend, react-dom, bogus, backend")

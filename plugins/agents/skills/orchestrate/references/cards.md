@@ -54,9 +54,10 @@ table, then for each card its route and the prompt above.
 
 ## Notes
 
-- **Name the task id(s) first in the dispatch's own short description**
-  (not the card body) — `T012, T013: routing vocabulary`, not just
-  `routing vocabulary`. `token_report.py tasks` attributes a card's cost
+- **Name the task id(s) and the card id or feature number first in the
+  dispatch's own short description** (not the card body) —
+  `T012, T013: 005-routing-vocabulary core`, not just `routing vocabulary`
+  (task ids repeat across features). `token_report.py tasks` attributes a card's cost
   from that description (a card id, or task ids plus the feature number);
   without them the cost is reported as unattributed, never guessed.
 - Name the tests to write first when the work is code ("tests first; show
