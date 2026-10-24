@@ -327,7 +327,7 @@ export const enUS: Messages = {
 					{
 						title: "Plan and build with the right model",
 						skills: ["agents-orchestrate", "compact-code"],
-						body: "A strong model plans and reviews, a fast one builds, a small one searches; long code is read in a compact form.",
+						body: "A strong model plans and reviews, a fast one builds, a small one searches; each card is tagged and projected in tokens, checked against your budget before a wave, and its real cost recorded afterwards. Long code is read in a compact form.",
 					},
 					{
 						title: "Implement, tests first",
