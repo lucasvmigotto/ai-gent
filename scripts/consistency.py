@@ -10,6 +10,9 @@
      (`containers.md` §9/§9a, `wt.py remove`, the `clean` recipe).
   5. No prune is taught as a command: a line naming an engine and a
      `prune` must also say "never" (shared/containers.md §9).
+  6. Every card in a cards.md (outside code fences) carries a
+     `Tokens: projected` line, and the card template shows it
+     (plugins/agents/references/token-tracking.md).
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -119,6 +122,39 @@ def check_prune(root: Path) -> list[str]:
     return problems
 
 
+CARD_HEAD = re.compile(r"^## Card\b.*$")
+SKIP_DIRS = {".git", ".worktrees", "node_modules", "dist"}
+
+
+def card_files(root: Path):
+    for p in sorted(root.rglob("cards.md")):
+        if not SKIP_DIRS & set(p.relative_to(root).parts):
+            yield p
+
+
+def check_cards(root: Path) -> list[str]:
+    """Each '## Card' section of a cards.md names its projection; the template does too."""
+    problems = []
+    for f in card_files(root):
+        rel = f.relative_to(root)
+        sections: list[tuple[int, str, list[str]]] = []
+        fenced = False
+        for n, line in enumerate(f.read_text().splitlines(), 1):
+            if line.lstrip().startswith("```"):
+                fenced = not fenced
+            elif not fenced and line.startswith("## "):
+                sections.append((n, line, []) if CARD_HEAD.match(line) else (n, "", []))
+            if sections:
+                sections[-1][2].append(line)
+        for n, head, body in sections:
+            if head and "Tokens: projected" not in "\n".join(body):
+                problems.append(f"{rel}:{n}: {head[:60]} has no `Tokens: projected` line "
+                                f"(estimate it: token_report.py estimate)")
+        if "/references/" in rel.as_posix() and "Tokens: projected" not in f.read_text():
+            problems.append(f"{rel}: the card template doesn't show a `Tokens: projected` line")
+    return problems
+
+
 def description_total(root: Path) -> int:
     total = 0
     for f in sorted(root.glob("skills/*/SKILL.md")) + sorted(root.glob("plugins/*/skills/*/SKILL.md")):
@@ -139,13 +175,13 @@ def check_budget(root: Path) -> tuple[list[str], int]:
 
 
 def main(root: Path = ROOT) -> int:
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

@@ -74,6 +74,34 @@ class Containers(unittest.TestCase):
         self.assertEqual(consistency.check_prune(root), [])
 
 
+CARDS = "specs/004-daemon/cards.md"
+
+
+class Cards(unittest.TestCase):
+    def test_every_card_has_a_projection(self):
+        ok = "# Cards\n\n## Card `a`: T001\n\n**Route**: Effort `low` · Tokens: projected ~100k | used —\n"
+        self.assertEqual(consistency.check_cards(tree({CARDS: ok})), [])
+
+    def test_card_without_a_projection_fails(self):
+        bad = ("# Cards\n\n## Card `a`: T001\n\n**Route**: Tokens: projected ~1k\n\n"
+               "## Card `b`: T002\n\n**Route**: Effort `low`\n")
+        problems = consistency.check_cards(tree({CARDS: bad}))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("cards.md:7", problems[0])
+
+    def test_fenced_examples_and_other_headings_are_not_cards(self):
+        text = "# Cards\n\n```markdown\n## Card `x`\n```\n\n## Notes\n\nnothing\n"
+        self.assertEqual(consistency.check_cards(tree({CARDS: text})), [])
+
+    def test_template_must_show_the_line(self):
+        ref = "plugins/agents/skills/orchestrate/references/cards.md"
+        self.assertEqual(len(consistency.check_cards(tree({ref: "# Cards\n\n## Template\n"}))), 1)
+        self.assertEqual(consistency.check_cards(tree({ref: "# Cards\n\nTokens: projected ~420k\n"})), [])
+
+    def test_worktrees_are_not_linted(self):
+        self.assertEqual(consistency.check_cards(tree({".worktrees/x/" + CARDS: "## Card `a`\n"})), [])
+
+
 class Budget(unittest.TestCase):
     def test_ceiling(self):
         root = tree({"skills/a/SKILL.md": "---\nname: a\ndescription: " + "x" * 100 + "\n---\n"})

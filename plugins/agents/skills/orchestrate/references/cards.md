@@ -32,13 +32,30 @@ Final report (concise): what changed per item, files, test results, anything
 you could not verify and why. No file contents.
 ```
 
+## The card in `cards.md`
+
+The plan keeps one section per card in `specs/NNN-*/cards.md`: a summary
+table, then for each card its route and the prompt above.
+
+```markdown
+## Card `004-foundation`: T001, T002
+
+**Route**: Executor `builder` · Reviewer `thinker` · Effort `high` · Tokens: projected ~420k | used — · Dispatch description: `T001, T002: 004-daemon foundation`
+```
+
+- **`Tokens: projected` is required** on every card (`scripts/consistency.py`
+  fails a `cards.md` without it). Project it at planning with
+  `$TOKREP estimate --role builder --effort high --layer backend --tasks 2`
+  (`../../../references/token-tracking.md`); `$TOKREP tasks` later fills
+  `used` and copies both onto the card's first task line in `tasks.md`.
+
 ## Notes
 
 - **Name the task id(s) first in the dispatch's own short description**
   (not the card body) — `T012, T013: routing vocabulary`, not just
-  `routing vocabulary`. `token_report.py tasks` links a card's cost back
-  to `tasks.md` by that leading id; without it the card's cost lands in
-  the roll-up's Unmapped section instead of its feature's `tokens.md`.
+  `routing vocabulary`. `token_report.py tasks` attributes a card's cost
+  from that description (a card id, or task ids plus the feature number);
+  without them the cost is reported as unattributed, never guessed.
 - Name the tests to write first when the work is code ("tests first; show
   them failing").
 - For shared checkouts, say "do not commit; stage nothing" and commit
