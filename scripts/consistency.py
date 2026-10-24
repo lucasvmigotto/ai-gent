@@ -5,6 +5,11 @@
      lead-in) in that skill or its references.
   2. Phrasings the toolkit retired don't come back.
   3. The skill descriptions every session loads stay under a ceiling.
+  4. A skill that tells an agent to create container resources (volumes,
+     tools images, compose stacks, worktrees) also says how they're removed
+     (`containers.md` §9/§9a, `wt.py remove`, the `clean` recipe).
+  5. No prune is taught as a command: a line naming an engine and a
+     `prune` must also say "never" (shared/containers.md §9).
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -85,6 +90,35 @@ def check_retired(root: Path) -> list[str]:
     return problems
 
 
+# 4. What creates container resources, and what says how they go.
+CREATES = re.compile(r"volume create|compose[^`\n]{0,40}\bup\b|\bbuild (--target|-t)\b|named (cache )?volumes?|wt\.py add", re.I)
+CLEANS = re.compile(r"containers\.md`? §9a?|wt\.py remove|`clean`", re.I)
+# 5. A prune written as a command.
+PRUNE = re.compile(r"(podman|docker|nerdctl|buildah|CONTAINER_ENGINE)[^\n]*\b(system|image|volume|container|builder|network) prune\b")
+
+
+def check_cleanup(root: Path) -> list[str]:
+    problems = []
+    for skill in sorted(root.glob("plugins/*/skills/*")):
+        files = [skill / "SKILL.md", *sorted((skill / "references").rglob("*.md"))]
+        text = "\n".join(f.read_text() for f in files if f.is_file() and not f.is_symlink())
+        m = CREATES.search(text)
+        if m and not CLEANS.search(text):
+            problems.append(f"{skill.relative_to(root)}: creates container resources ('{m.group(0)}') "
+                            f"but never says how they're removed (containers.md §9a, wt.py remove, `clean`)")
+    return problems
+
+
+def check_prune(root: Path) -> list[str]:
+    problems = []
+    for f in prose_files(root):
+        for n, line in enumerate(f.read_text().splitlines(), 1):
+            if PRUNE.search(line) and not re.search(r"\bnever\b", line, re.I):
+                problems.append(f"{f.relative_to(root)}:{n}: a prune taught as a command — say never, "
+                                f"or remove by ID or label (containers.md §9)")
+    return problems
+
+
 def description_total(root: Path) -> int:
     total = 0
     for f in sorted(root.glob("skills/*/SKILL.md")) + sorted(root.glob("plugins/*/skills/*/SKILL.md")):
@@ -105,13 +139,13 @@ def check_budget(root: Path) -> tuple[list[str], int]:
 
 
 def main(root: Path = ROOT) -> int:
-    problems = check_sections(root) + check_retired(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

@@ -52,6 +52,28 @@ class Retired(unittest.TestCase):
                 self.assertEqual(len(consistency.check_retired(tree({"README.md": text + "\n"}))), 1)
 
 
+class Containers(unittest.TestCase):
+    def test_creating_without_cleanup_fails(self):
+        root = tree({"plugins/x/skills/y/SKILL.md": "Give each track a named cache volume.\n"})
+        self.assertEqual(len(consistency.check_cleanup(root)), 1)
+
+    def test_creating_with_cleanup_passes(self):
+        for text in ("remove them per `../../references/containers.md` §9a", "then `wt.py remove <branch>`",
+                     "run the project's `clean` recipe"):
+            with self.subTest(text=text):
+                root = tree({"plugins/x/skills/y/SKILL.md": "Start one with `wt.py add`.\n",
+                             "plugins/x/skills/y/references/r.md": text + "\n"})
+                self.assertEqual(consistency.check_cleanup(root), [])
+
+    def test_prune_taught_as_a_command_fails(self):
+        self.assertEqual(len(consistency.check_prune(tree({"shared/a.md": "Run `podman system prune -a`.\n"}))), 1)
+        self.assertEqual(len(consistency.check_prune(tree({"shared/a.md": "`$CONTAINER_ENGINE image prune`\n"}))), 1)
+
+    def test_prune_said_never_passes(self):
+        root = tree({"shared/a.md": "Never `podman system prune`; `git fetch --prune` is fine.\n"})
+        self.assertEqual(consistency.check_prune(root), [])
+
+
 class Budget(unittest.TestCase):
     def test_ceiling(self):
         root = tree({"skills/a/SKILL.md": "---\nname: a\ndescription: " + "x" * 100 + "\n---\n"})
