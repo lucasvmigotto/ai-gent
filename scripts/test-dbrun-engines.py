@@ -20,7 +20,9 @@ containers, and the others exist only in this process (dbrun's profile loader
 is replaced). dbrun's log, plans and backups go to a temporary
 AI_GENT_DB_STATE. Needs Podman or Docker with compose, and uv (dbrun fetches
 drivers with it). Images are pulled on first use and kept; `--engine` limits
-which. Not part of scripts/check.sh: run it before pushing a change to dbrun.
+which, and a warning says when the store's free space is short for them. A
+teardown that leaves a container is reported, with its compose project kept.
+Not part of scripts/check.sh: run it before pushing a change to dbrun.
 """
 
 from __future__ import annotations
@@ -281,8 +283,14 @@ def run_engine(name: str, spec: dict, rep: Report, engine: str, compose: list[st
         if keep:
             print(f"      kept {container} (compose project in {root})")
         else:
-            subprocess.run(compose + ["down", "-v"], cwd=root, capture_output=True)
-            shutil.rmtree(root, ignore_errors=True)
+            down = subprocess.run(compose + ["down", "-v"], cwd=root, capture_output=True, text=True)
+            left = subprocess.run([engine, "ps", "-aq", "--filter", f"label=com.docker.compose.project=dbrun-e2e-{name}"],
+                                  capture_output=True, text=True).stdout.split()
+            if down.returncode != 0 or left:  # an exit code isn't evidence (containers.md §9): count what's left
+                print(f"      WARN  teardown left {len(left)} container(s) of dbrun-e2e-{name}: "
+                      f"{down.stderr.strip()[-300:]}; compose project kept in {root}")
+            else:
+                shutil.rmtree(root, ignore_errors=True)
 
 
 def profiles_for(name: str, spec: dict, host_port: int, engine: str) -> dict[str, dict]:
@@ -314,6 +322,16 @@ def main() -> int:
     if not shutil.which("uv"):
         sys.exit("error: uv not found (dbrun fetches database drivers with it)")
     compose = compose_cmd(engine)
+    store = (subprocess.run([engine, "info", "--format", "{{.Store.GraphRoot}}"], capture_output=True, text=True).stdout.strip()
+             or subprocess.run([engine, "info", "--format", "{{.DockerRootDir}}"], capture_output=True, text=True).stdout.strip())
+    try:
+        usage = shutil.disk_usage(store or "/")
+        floor = max(20 * 10**9, usage.total // 10) + 6 * 10**9  # the images (about 5.5 GB) on top of the floor
+        if usage.free < floor:
+            print(f"warn  {usage.free / 10**9:.1f} GB free on the container store; pulling every engine's image "
+                  f"needs about {floor / 10**9:.0f} GB to stay above the floor (containers.md §9a)")
+    except OSError:
+        pass
     state = tempfile.mkdtemp(prefix="dbrun-e2e-state-")
     os.environ["AI_GENT_DB_STATE"] = state
     rep = Report()

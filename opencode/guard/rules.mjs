@@ -1,8 +1,8 @@
-// ai-gent guard rules — the OpenCode side of the git, db, secrets and repo guards.
+// ai-gent guard rules — the OpenCode side of the git, db, secrets, repo and containers guards.
 //
 // These are a faithful TypeScript/JavaScript port of plugins/git/hooks/guard.sh,
-// plugins/db/hooks/guard.sh, plugins/secrets/hooks/guard.sh and
-// plugins/repo/hooks/guard.sh, which stay the Claude Code enforcement. The
+// plugins/db/hooks/guard.sh, plugins/secrets/hooks/guard.sh,
+// plugins/repo/hooks/guard.sh and plugins/devcontainer/hooks/guard.sh, which stay the Claude Code enforcement. The
 // two are kept from drifting by opencode/guard/test/rules.test.mjs, which runs
 // both against the same vectors and asserts identical decisions.
 //
@@ -275,6 +275,58 @@ export function repoGuard(cmd) {
   };
 }
 
+// ----------------------------------------------------------- containers
+
+const CTR_PREFIX =
+  "^[ \\t]*((sudo([ \\t]+-[^ \\t]+([ \\t]+[^- \\t][^ \\t]*)?)*|env|exec|nice|do|then|else|xargs([ \\t]+-[^ \\t]+)*|timeout[ \\t]+[0-9smh]+|[A-Za-z_][A-Za-z0-9_]*=[^ \\t]*)[ \\t]+)*";
+const CTR_ENGINE = "(([^ \\t]*/)?(podman|docker|nerdctl)|\\$\\{?CONTAINER_ENGINE\\}?)";
+const CTR_BUILDAH = "([^ \\t]*/)?buildah";
+const CTR_WORDS = "([ \\t]+[^ \\t]+)*";
+const CTR_PRUNE_RE = new RegExp(CTR_PREFIX + "(" + CTR_ENGINE + "|" + CTR_BUILDAH + ")" + CTR_WORDS + "[ \\t]+prune([ \\t]|$)");
+const CTR_REMOVAL =
+  CTR_PREFIX + "(" + CTR_ENGINE + "[ \\t]+((container|image|volume)[ \\t]+)?(rm|rmi)|" + CTR_BUILDAH + "[ \\t]+(rm|rmi))";
+const CTR_REMOVE_RE = new RegExp(CTR_REMOVAL + "([ \\t]|$)");
+const CTR_ALL_RE = new RegExp(CTR_REMOVAL + CTR_WORDS + "[ \\t]+(--all|-[a-zA-Z]*a[a-zA-Z]*)([ \\t]|$)");
+const CTR_BUILDAH_PRUNE_RE = new RegExp(CTR_PREFIX + CTR_BUILDAH + "[ \\t]+rmi" + CTR_WORDS + "[ \\t]+(--prune|-p)([ \\t]|$)");
+const CTR_LISTING_RE = new RegExp(
+  CTR_PREFIX + CTR_ENGINE + "[ \\t]+((container|image|volume)[ \\t]+)?(ps|ls|list|images)" + CTR_WORDS +
+    "[ \\t]+(--quiet|-[a-zA-Z]*q[a-zA-Z]*)([ \\t]|$)",
+);
+const CTR_DENY = (reason) => ({ decision: "deny", reason: `containers guard: ${reason}` });
+
+function ctrSegments(cmd) {
+  return cmd
+    .replace(/"\$\{?CONTAINER_ENGINE\}?"/g, "$CONTAINER_ENGINE")
+    .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    .replace(/'[^']*'/g, "''")
+    .replace(/\\n/g, "\n")
+    .replace(/[;&|()`]/g, "\n")
+    .split("\n");
+}
+
+// Container resources go by ID, own prefix or this project's label, never by
+// a broad sweep (shared/containers.md §9, §9a).
+export function containersGuard(cmd) {
+  const segments = ctrSegments(cmd);
+  const has = (re) => segments.some((s) => re.test(s));
+  if (has(CTR_PRUNE_RE)) {
+    return CTR_DENY(
+      "prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+    );
+  }
+  if (has(CTR_ALL_RE) || has(CTR_BUILDAH_PRUNE_RE)) {
+    return CTR_DENY(
+      "removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+    );
+  }
+  if (has(CTR_REMOVE_RE) && has(CTR_LISTING_RE) && !/(label|name|id)=/.test(cmd)) {
+    return CTR_DENY(
+      "that removes whatever an unfiltered listing returns, other projects' included; filter the listing by label=me.lucasvmigotto.ai-gent.project=<project> (or your own name= prefix) (containers.md §9a)",
+    );
+  }
+  return { decision: "none" };
+}
+
 // ----------------------------------------------------------- adapter
 
 // Map one OpenCode permission evaluation to a guard decision. The strictest
@@ -290,6 +342,7 @@ export function evaluate(event, { cwd = ".", branchOf = () => "" } = {}) {
       candidates.push(dbCredsShell(cmd));
       candidates.push(secretsGuard(cmd));
       candidates.push(repoGuard(cmd));
+      candidates.push(containersGuard(cmd));
     }
   } else if (event.action === "read" || event.action === "edit") {
     for (const r of resources) candidates.push(dbCredsPath(r));

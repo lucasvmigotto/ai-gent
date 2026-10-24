@@ -186,4 +186,6 @@ converge converged or what's left, what's Implemented, what's still
 Planned, contract changes (and whether the frontend was told), upstream
 gaps, and next steps (next feature, or `project:docs`). Stop any servers
 and containers you started only for verification, then remove them and
-their images per `../../references/containers.md` §9.
+their images per `../../references/containers.md` §9; run the project's
+`clean` recipe (or `wt.py remove` in a worktree) and report the labelled
+resources still left (§9a).

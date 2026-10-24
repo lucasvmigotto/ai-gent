@@ -196,4 +196,6 @@ converge converged or what's left, what's Implemented, what's still
 Planned, gaps reported upstream, screenshots location, and next steps
 (next feature, or `project:docs`). Stop any dev servers you started, and
 remove any container you started for them per
-`../../references/containers.md` §9.
+`../../references/containers.md` §9; run the project's `clean` recipe (or
+`wt.py remove` in a worktree) and report the labelled resources still
+left (§9a).

@@ -67,8 +67,15 @@ file covers changing things.
   ever reads a value. A skill that needs a secret follows it, and the
   `secrets` guard keeps values out of the agent's reach.
 - Hook scripts are POSIX `sh`, tested by `scripts/test-guard.sh` (git),
-  `scripts/test-db-guard.sh`, `scripts/test-secrets-guard.sh` and
-  `scripts/test-repo-guard.sh`.
+  `scripts/test-db-guard.sh`, `scripts/test-secrets-guard.sh`,
+  `scripts/test-repo-guard.sh` and `scripts/test-containers-guard.sh`
+  (the devcontainer guard and its SessionStart leftovers report).
+- Container resources a skill creates carry the project's ownership label
+  and go by ID or label, never by a prune (`shared/containers.md` §9a).
+  `scripts/consistency.py` fails a skill that creates volumes, tools
+  images, compose stacks or worktrees without saying how they're removed,
+  and a line that teaches a prune. `wt.py`'s container code is tested
+  against a fake `CONTAINER_ENGINE`; never point its tests at a real one.
 
 ## Releases
 

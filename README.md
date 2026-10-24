@@ -47,6 +47,8 @@ When a Claude Code session starts in a checkout with the git plugin installed, a
 
 Pinned checkouts stay silent, and `AI_GENT_NO_UPDATE_CHECK=1` disables the check. An update rewrites the agent's own instructions, so the session that notices it only proposes — applying it (`scripts/ai-gent-update.sh`, then re-running `setup.sh`) takes effect next session. (opencode has no session-start hook point yet, so the notice is Claude-only for now.)
 
+With the devcontainer plugin installed, a second SessionStart hook reports the project's container leftovers — dangling images and volumes carrying its `me.lucasvmigotto.ai-gent.project` label, volumes of worktrees that are gone, buildah working containers from interrupted builds — and a container store under its disk floor (20 GB or 10 % of the disk, whichever is larger). It only reports, never removes; it's silent when there's nothing to say, and `AI_GENT_NO_LEFTOVERS_CHECK=1` disables it. Removal stays label-scoped and in the skills (`wt.py remove`, `wt.py finish`, the project's `clean` recipe, `containers.md` §9a).
+
 > [!TIP]
 > Piping a script into `sh` runs it unseen. To read it first, download, inspect, then run:
 
@@ -168,7 +170,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 **Environment and delivery**
 
 - `plugins/devcontainer/` — container-first development (see [Containers](#containers))
-  - `setup` — per-module multi-stage Containerfiles with a thin `tools` layer that agents and CI run, task recipes and resource limits, plus devcontainers for people (API and client apart by default)
+  - `setup` — per-module multi-stage Containerfiles with a thin `tools` layer that agents and CI run, task recipes (with a label-scoped `clean`) and resource limits, plus devcontainers for people (API and client apart by default)
   - `infra` — simulate databases, queues, storage, SMTP/mail, OAuth2/OIDC/LDAP and more
   - `proxy` — simulate the production reverse proxy
   - `workflow` — run tasks through the tools recipes, or operate the devcontainer day to day
@@ -197,7 +199,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `pass` — check pass is ready, list entries by name, give the exact `pass insert` for a database password or a platform token under `ai-gent/<area>/<name>`, and move plain-text secrets into pass
 - `plugins/agents/`
   - `orchestrate` — run a spec'd feature with role-separated agents: a strong model plans and reviews, a fast model builds, a small one searches; self-contained cards, a worktree per parallel branch, merges asked first, routed for token-efficient use. Agent-agnostic, Claude by default; roles in `shared/agent-roles.md`
-  - `parallel` — several features, or a feature's frontend, backend and QA tracks, at once: each on its own branch in a git worktree under `.worktrees/` (kept out of git locally), only where dependencies and file ownership allow, with its own compose project and ports; branches land on `dev` one at a time in dependency order, checks after each, merges asked first
+  - `parallel` — several features, or a feature's frontend, backend and QA tracks, at once: each on its own branch in a git worktree under `.worktrees/` (kept out of git locally), only where dependencies and file ownership allow, with its own compose project, ports and ownership labels, after a disk check of the container store; branches land on `dev` one at a time in dependency order, checks after each, merges asked first, and each landed track's containers and volumes are removed by label
 - `plugins/compact/`
   - `code` — read source code token-lean: a verified compact view (no indentation, newlines or optional spaces; strings and comments kept) and an outline with original line numbers. Read-only. In testing, 29–39% fewer tokens than a line-numbered Read
 - `plugins/git/`
@@ -372,7 +374,7 @@ Credentials live in [pass](https://www.passwordstore.org/), the standard Unix pa
 
 ## Guard hooks
 
-Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules mechanically, not just as instructions. They load in a new session after `setup.sh`.
+Five plugins install `PreToolUse` hooks in Claude Code. They enforce their rules mechanically, not just as instructions. They load in a new session after `setup.sh`.
 
 | Hook | Blocks | Asks first |
 | --: | :-- | :-- |
@@ -380,6 +382,7 @@ Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 | `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool or command whose target is a credentials file (text that merely names one is fine) | any other direct client use |
 | `secrets` (`plugins/secrets/hooks/guard.sh`) | a `pass` command that shows, copies or searches a value (`show`, a bare `pass <entry>`, `-c`, `-q`, `edit`, `grep`, `generate`, `otp`), `pass insert`, `gpg` on the password store, `pass-run` with an `ai-gent/db/` entry or with a command that prints its environment | `pass rm`, `mv`, `cp`, `init`, `git` |
 | `repo` (`plugins/repo/hooks/guard.sh`) | — (`reporun` itself refuses token-printing CLI commands, other hosts and writes without `--write`) | every `reporun … --write`: a change to an issue, work item or pull request |
+| `containers` (`plugins/devcontainer/hooks/guard.sh`) | any `prune` through `podman`, `docker`, `nerdctl`, `buildah` or `$CONTAINER_ENGINE` (system, image, volume, builder, …, even filtered); `rm`/`rmi`/`volume rm` with `-a`/`--all`; a removal fed by an unfiltered `-q` listing (removal by ID, `name=` or `label=` passes) | — |
 
 > [!NOTE]
 > opencode doesn't run Claude Code hooks. `setup.sh` offers to add native V2 `permissions` rules **and** an OpenCode V2 guard plugin (`opencode/guard/`) that enforces the same git, db, secrets and repo guards — including `ask` decisions and the current-branch check, which a shell pattern cannot express. A parity test keeps the plugin's rules identical to the shell guards'. The rules are appended after your own, so they win; the last matching rule counts:
@@ -403,7 +406,9 @@ Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 >   { "action": "shell", "resource": "pass insert*", "effect": "deny" },
 >   { "action": "shell", "resource": "pass edit*", "effect": "deny" },
 >   { "action": "shell", "resource": "pass -c*", "effect": "deny" },
->   { "action": "shell", "resource": "*reporun*--write*", "effect": "ask" }
+>   { "action": "shell", "resource": "*reporun*--write*", "effect": "ask" },
+>   { "action": "shell", "resource": "podman *prune*", "effect": "deny" },
+>   { "action": "shell", "resource": "docker *prune*", "effect": "deny" }
 > ]
 > ```
 > Plus a `plugins` entry for the guard plugin and one `skill` deny per plugin skill's short name.
