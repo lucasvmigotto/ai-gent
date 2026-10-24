@@ -27,6 +27,17 @@ def msg(mid, model, usage, ts):
                         "message": {"id": mid, "model": model, "usage": usage}})
 
 
+def re_slug(path):
+    import re
+    return re.sub(r"[^A-Za-z0-9-]", "-", str(path))
+
+
+def edit_msg(mid, model, usage, ts):
+    block = {"type": "tool_use", "id": "tu1", "name": "Write", "input": {"file_path": "src/a.py", "content": "a\nb\nc"}}
+    return json.dumps({"type": "assistant", "timestamp": ts,
+                        "message": {"id": mid, "model": model, "usage": usage, "content": [block]}})
+
+
 class TokenReportTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -42,7 +53,8 @@ class TokenReportTest(unittest.TestCase):
             msg("m1", "claude-opus-5-5", USAGE, "2026-10-20T10:00:00Z") + "\n"  # repeated id: deduped, not doubled
         )
         (self.root / "sess1" / "subagents" / "agent-a1.jsonl").write_text(
-            msg("a1m1", "claude-sonnet-5-5", USAGE, "2026-10-20T10:01:00Z"))
+            json.dumps({"type": "user", "message": {"role": "user", "content": "Goal: complete T001, T002 of specs/001-widget/tasks.md"}}) + "\n" +
+            edit_msg("a1m1", "claude-sonnet-5-5", USAGE, "2026-10-20T10:01:00Z"))
         (self.root / "sess1" / "subagents" / "agent-a1.meta.json").write_text(
             json.dumps({"description": "T001, T002: build widget"}))
         (self.root / "sess1" / "subagents" / "agent-a2.jsonl").write_text(
@@ -81,10 +93,22 @@ class TokenReportTest(unittest.TestCase):
         self.assertEqual(tr.label_of("C4: Oracle Free and runner placeholder"), "C4")
         self.assertEqual(tr.label_of("Survey unrelated repo"), "Survey unrelated repo")
 
+    def test_gather_row_carries_prompt_and_edit_size(self):
+        _, rows, _, _ = tr.gather([str(self.root)], ["sess1"])
+        row = next(r for r in rows if r["aid"] == "a1")
+        self.assertIn("specs/001-widget", row["prompt"])
+        self.assertEqual((row["files"], row["lines"], row["family"]), (["src/a.py"], 3, "sonnet"))
+
+    def test_project_name_comes_from_the_slug_not_a_hardcoded_project(self):
+        self.assertEqual(tr.project_name("-home-lucas-codes-rstory"), "rstory")
+        self.assertEqual(tr.project_name("-home-x-codes-my-repo"), "my-repo")
+        self.assertEqual(tr.project_name(re_slug(self.work)), "work")
+
     def test_report_writes_project_wide_rollup(self):
         tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=rollup.md"]))
         text = Path("rollup.md").read_text()
-        self.assertIn("Token usage report", text)
+        self.assertIn("Token usage report — project", text)  # derived from the slug, whatever the project
+        self.assertNotIn("llm4glpi", text)
         self.assertIn("coordinator sess1", text)
         self.assertIn("T001, T002", text)
 

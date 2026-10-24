@@ -101,17 +101,43 @@ def discover_sessions(roots):
     return sorted(sids)
 
 
-def collect(path, msgs):
-    """msgs: id -> (utc timestamp, model, usage); keeps the most complete record per message id."""
+def _text(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+    return ""
+
+
+EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
+
+
+def collect(path, msgs, extra=None):
+    """msgs: id -> (utc timestamp, model, usage); keeps the most complete record per message id.
+    extra (optional dict) also gets the agent's first user message as "prompt" and, as "edits",
+    tool_use id -> (file, lines written) for its Edit/Write calls — a size signal for the history."""
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if rec.get("type") != "assistant":
+            kind = rec.get("type")
+            if extra is not None and kind == "user" and "prompt" not in extra:
+                extra["prompt"] = _text((rec.get("message") or {}).get("content"))[:8000]
+            if kind != "assistant":
                 continue
             m = rec.get("message") or {}
+            if extra is not None and isinstance(m.get("content"), list):
+                for b in m["content"]:
+                    if not (isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") in EDIT_TOOLS):
+                        continue
+                    inp = b.get("input") or {}
+                    body = inp.get("content") or inp.get("new_string") or inp.get("new_source") or ""
+                    if b.get("name") == "MultiEdit":
+                        body = "\n".join(e.get("new_string", "") for e in inp.get("edits") or [])
+                    extra.setdefault("edits", {})[b.get("id")] = (
+                        inp.get("file_path") or inp.get("notebook_path") or "?", body.count("\n") + 1 if body else 0)
             u = m.get("usage")
             if not u or not m.get("id") or m.get("model") == "<synthetic>":
                 continue
@@ -159,18 +185,38 @@ def short(t: str) -> str:
     return t[:16].replace("T", " ") if t else ""
 
 
+def family(model: str) -> str:
+    return next((x for x in ("opus", "sonnet", "haiku") if x in (model or "").lower()), "other")
+
+
+def project_name(slug: str) -> str:
+    """The repository name behind a ~/.claude*/projects/ slug (the cwd with every non-alphanumeric
+    character turned into '-'): the current directory's name when it encodes to the slug, else the
+    part after a '-codes-', '-projects-', '-src-' or '-repos-' folder, else the last word."""
+    cwd = os.getcwd()
+    if re.sub(r"[^A-Za-z0-9-]", "-", cwd) == slug:
+        return os.path.basename(cwd)
+    for marker in ("-codes-", "-projects-", "-src-", "-repos-", "-work-"):
+        if marker in slug:
+            return slug.split(marker, 1)[1]
+    return slug.rsplit("-", 1)[-1] or slug
+
+
 def gather(roots, sessions):
-    """Returns (coords, rows, tagged) — coords/rows are per-agent summaries, tagged is every
-    (description, timestamp, model, usage) tuple, for stage windows."""
-    main_msgs, agents, meta = defaultdict(dict), defaultdict(dict), {}
+    """Returns (coords, rows, tagged, main_msgs). coords/rows are per-agent summaries (a row also
+    carries its aid, session, prompt, edits and raw messages); tagged is every (who, timestamp,
+    model, usage) tuple for stage windows; main_msgs is session id -> {message id: message}.
+    One row per agent id: a resumed agent keeps its id, so every resume lands in the same row."""
+    main_msgs, agents, meta, extras, agent_sid = defaultdict(dict), defaultdict(dict), {}, defaultdict(dict), {}
     for root in roots:
         for sid in sessions:
             main = os.path.join(root, f"{sid}.jsonl")
             if os.path.exists(main):
                 collect(main, main_msgs[sid])
-            for f in glob.glob(os.path.join(root, sid, "subagents", "agent-*.jsonl")):
+            for f in sorted(glob.glob(os.path.join(root, sid, "subagents", "agent-*.jsonl"))):
                 aid = os.path.basename(f)[len("agent-"):-len(".jsonl")]
-                collect(f, agents[aid])
+                collect(f, agents[aid], extras[aid])
+                agent_sid.setdefault(aid, sid)
                 mf = f[:-len(".jsonl")] + ".meta.json"
                 if os.path.exists(mf) and aid not in meta:
                     with open(mf, encoding="utf-8") as fh:
@@ -182,15 +228,23 @@ def gather(roots, sessions):
         if not msgs:
             continue
         desc = meta.get(aid, {}).get("description") or "(no description)"
-        rows.append({"who": f"subagent {aid[:7]}", "desc": desc, "label": label_of(desc),
-                     **summarize(list(msgs.values()))})
-        tagged += [(desc, t, mdl, u) for t, mdl, u in msgs.values()]
+        mlist = list(msgs.values())
+        summ = summarize(mlist)
+        fams = defaultdict(int)
+        for _, mdl, _u in mlist:
+            fams[family(mdl)] += 1
+        edits = extras[aid].get("edits", {})
+        rows.append({"who": f"subagent {aid[:7]}", "aid": aid, "sid": agent_sid[aid], "desc": desc,
+                     "label": label_of(desc), "prompt": extras[aid].get("prompt", ""), "msgs": mlist,
+                     "family": max(fams, key=fams.get), "files": sorted({p for p, _ in edits.values()}),
+                     "lines": sum(n for _, n in edits.values()), **summ})
+        tagged += [(desc, t, mdl, u) for t, mdl, u in mlist]
     rows.sort(key=lambda r: r["start"])
     coords = [{"who": f"coordinator {sid[:8]} (main thread)",
                "desc": "Planning, interviews, reconciliation, reviews, merges, CI follow-up",
                "label": "Coordination", **summarize(list(main_msgs[sid].values()))}
               for sid in sessions if main_msgs.get(sid)]
-    return coords, rows, tagged
+    return coords, rows, tagged, main_msgs
 
 
 def render(project, sessions, roots, coords, rows, tagged, snaps):
@@ -261,9 +315,9 @@ def render(project, sessions, roots, coords, rows, tagged, snaps):
 def cmd_report(a):
     roots = sorted(glob.glob(os.path.expanduser(f"~/.claude*/projects/{a.project}")))
     sessions = a.session or discover_sessions(roots)
-    coords, rows, tagged = gather(roots, sessions)
+    coords, rows, tagged, _ = gather(roots, sessions)
     snaps = load_snapshots(a.snapshots)
-    L, grand = render(a.project, sessions, roots, coords, rows, tagged, snaps)
+    L, grand = render(project_name(a.project), sessions, roots, coords, rows, tagged, snaps)
     with open(a.out, "w", encoding="utf-8") as fh:
         fh.write("\n".join(L))
     print(f"wrote {a.out}: {len(rows)} subagents, {len(snaps)} stage markers, "
@@ -285,9 +339,9 @@ def feature_task_ids(specs_dir):
 def cmd_tasks(a):
     roots = sorted(glob.glob(os.path.expanduser(f"~/.claude*/projects/{a.project}")))
     sessions = a.session or discover_sessions(roots)
-    coords, rows, tagged = gather(roots, sessions)
+    coords, rows, tagged, _ = gather(roots, sessions)
     snaps = load_snapshots(a.snapshots)
-    L, grand = render(a.project, sessions, roots, coords, rows, tagged, snaps)
+    L, grand = render(project_name(a.project), sessions, roots, coords, rows, tagged, snaps)
     with open(a.rollup_out, "w", encoding="utf-8") as fh:
         fh.write("\n".join(L))
 
