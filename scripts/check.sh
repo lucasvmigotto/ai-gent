@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git, db, secrets and repo guard hooks, dbrun, reporun,
+# shell scripts, the git, db, secrets, repo and containers guard hooks, dbrun, reporun,
 # the project scripts, compact:code, the prose consistency checks, the release
 # script, and installer tests
 # in a throwaway HOME.
@@ -218,6 +218,14 @@ else
   fail "repo guard hook"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-repoguard.out"
+
+if scripts/test-containers-guard.sh >"${TMPDIR:-/tmp}/ai-gent-ctrguard.out" 2>&1; then
+  pass "containers guard and leftovers hooks ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-ctrguard.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-ctrguard.out"
+  fail "containers guard and leftovers hooks"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-ctrguard.out"
 
 if python3 -m unittest plugins/repo/scripts/test_reporun.py plugins/repo/scripts/test_specsync.py \
   </dev/null >"${TMPDIR:-/tmp}/ai-gent-reporun.out" 2>&1; then
