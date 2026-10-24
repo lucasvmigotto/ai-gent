@@ -28,12 +28,17 @@ TOKREP="python3 <plugin>/scripts/token_report.py"   # Claude Code only; see Toke
    split only where cards can run in parallel or one would overflow a
    context.
 3. Decide what runs in parallel: cards touching disjoint files, at most
-   `max_parallel` at once (default 4). More than that exhausts account
-   limits and costs more in retries than it saves.
-4. On Claude Code, before dispatching each wave, weigh the remaining
-   budget against the wave's estimated cost (`references/
-   token-economy.md`'s *Pacing*) and say the call out loud — proceed,
-   shrink the wave, or stop and ask.
+   `max_parallel` at once (default 4) and, on Claude Code, no more than the
+   budget's `max_agents` subagents (default 2) and `max_opus` on Opus
+   (default 1). More exhausts account limits and costs more in retries
+   than it saves.
+4. On Claude Code, **project every card** — `$TOKREP estimate --role
+   <executor> --effort <e> --layer <l> --tasks <n>` — and write it on the
+   card as `Tokens: projected ~420k` (`references/cards.md`; a lint requires
+   it). Then, before dispatching each wave, run `$TOKREP budget --cards
+   <ids>` against `.ai-gent/budget.yaml` (`references/token-economy.md`'s
+   *Pacing*) and say the call out loud — proceed, shrink the wave, or stop
+   and ask.
 5. Show the user the plan — cards, roles, order, parallel groups — and
    start once they agree. A plan the user approved covers the commits each
    card makes on its own branch; it never covers merges, pushes or
@@ -69,9 +74,9 @@ already know. Template and examples: `references/cards.md`. Every card has:
 - **Ledger.** Keep `.ai-gent/orchestrate-status.md`: cards in flight,
   branch or worktree, state, pending merges, decisions the user owes. It
   lets the run survive a context compaction, a crash or an account
-  switch. Token cost is `$TOKREP`'s job, not a hand-kept column (see
-  below) — on Claude Code; elsewhere, note here whatever the agent's own
-  UI reports.
+  switch. Its Tokens column (`~projected / used`) is `$TOKREP tasks`'s job,
+  not hand-kept — on Claude Code; elsewhere, note here whatever the agent's
+  own UI reports.
 
 ## 4. Review
 
@@ -97,9 +102,13 @@ removes its labelled containers and volumes. When the run is done,
 `wt.py finish` and `wt.py resources` (`../../references/containers.md`
 §9a); report what's still there.
 
-On Claude Code, once the run is done, `$TOKREP tasks --project=<slug>
---specs-dir specs` links every card's cost to its feature's `tasks.md`
-and writes the project-wide roll-up (`references/token-economy.md`).
+On Claude Code, **record `used` after each landing**: `$TOKREP tasks
+--project=<slug> --specs-dir specs` puts each card's real cost on its task
+line, in the feature's `tracker.md`, the ledger and the repo's
+`docs/product/token-history.jsonl` (`references/token-economy.md`). In the
+final handoff, report the **estimation error** per card and for the run
+(projected against used, and the coordinator's share), and say what the
+history now knows that it didn't.
 
 After every push, follow CI with `devsecops:watch` (pipeline rule 8). A
 red run caused by the work becomes a card like any other: the fast model
@@ -116,16 +125,24 @@ The point of this skill. Details and measured examples:
   small model for finding.
 - Self-contained cards and short reports; read diffs, not trees.
 - Effort per card; `low` for mechanical work.
+- Project each card before dispatch, check the wave against the budget
+  (`$TOKREP budget`), cap concurrent subagents (default 2, 1 on Opus),
+  Sonnet builders with inline thinker reviews.
+- After a limit, resume an agent only if its remaining work justifies
+  re-reading its context (a resume roughly doubled its cost in the run
+  behind these defaults); otherwise redispatch a narrower card.
 - A stable shared preamble per role, varying text last, so prompts reuse
   the cache.
 - Resume a stopped agent ("check what you already did, then finish") — never
   restart it from zero.
-- Run `$TOKREP` at hand-off and summarize its roll-up for the user.
+- Record `used` after each landing and summarize the projection error for
+  the user (`../../references/token-tracking.md`).
 
 ## Guardrails
 
 - **Limits.** On a rate or session limit: record state in the ledger, wait,
-  then resume each stopped agent from where it was.
+  then resume a stopped agent from where it was if what remains justifies
+  re-reading its context, else redispatch a narrower card (*Token economy*).
 - **Approval gates.** Anything that spends money or reaches outside — paid
   eval runs, production writes, publishing, releases — waits for the user's
   explicit OK, per run.

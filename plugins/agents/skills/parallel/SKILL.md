@@ -37,11 +37,15 @@ propose the tracks:
   worktree, or every rebuild leaves the previous image dangling.
 - **Capacity:** at most `max_parallel` tracks (default **3**; set in
   `.ai-gent/parallel.yaml`), fewer when each runs a dev stack on a small
-  machine, or the account's rate limits are near. On Claude Code, before
-  starting a new track, weigh the remaining budget against its estimated
-  cost (`$TOKREP estimate`, `../orchestrate/references/
-  token-economy.md`'s *Pacing*) and say the call out loud — start it,
-  start fewer this round, or stop and ask.
+  machine, or the account's rate limits are near. On Claude Code the
+  budget caps it further: at most `max_agents` subagents at once (default
+  **2**) and `max_opus` on Opus (default **1**), from `.ai-gent/budget.yaml`
+  — three or four Opus agents together hit the session limit twice in the
+  run these defaults come from. Before starting a track, project its cards
+  (`$TOKREP estimate`, a `Tokens: projected` line each) and run `$TOKREP
+  budget --cards <ids>` (`../orchestrate/references/token-economy.md`'s
+  *Pacing*); say the call out loud — proceed, shrink the wave, or stop
+  and ask. Prefer Sonnet builders and inline thinker reviews.
 - **Disk:** each track's build cache is a volume of several gigabytes.
   `wt.py add` refuses a track when the container store's free space, less
   one `volume_estimate_gb` (default 10) per live track, falls below the
@@ -118,9 +122,10 @@ In dependency order, then smallest first, from the main checkout on
 4. Update the feature's status columns in `specs/README.md` (the owning
    stage's statuses), run `repo:sync` for a tracked feature, and after a
    push follow CI with `devsecops:watch` (pipeline rule 8). On Claude
-   Code, `$TOKREP tasks --project=<slug> --specs-dir specs` links the
-   track's cost to the feature's `tasks.md` and the project-wide roll-up
-   (`../orchestrate/references/token-economy.md`).
+   Code, `$TOKREP tasks --project=<slug> --specs-dir specs` records the
+   track's cost: `used` on the feature's task lines, its `tracker.md`, the
+   ledger and `docs/product/token-history.jsonl`; report the projection
+   error per track (`../../references/token-tracking.md`).
 
 ## 5. Clean up
 
