@@ -32,10 +32,12 @@ TOKREP="python3 <plugin>/scripts/token_report.py"   # Claude Code only; see Toke
    budget's `max_agents` subagents (default 2) and `max_opus` on Opus
    (default 1). More exhausts account limits and costs more in retries
    than it saves.
-4. On Claude Code, **project every card** — `$TOKREP estimate --role
-   <executor> --effort <e> --layer <l> --tasks <n>` — and write it on the
-   card as `Tokens: projected ~420k` (`references/cards.md`; a lint requires
-   it). Then, before dispatching each wave, run `$TOKREP budget --cards
+4. On Claude Code, **tag and project every card**. Tag it from the list in
+   `../../references/token-tags.md` (one value per facet; `lang` required,
+   `stack` optional) and project it — `$TOKREP estimate --role <executor>
+   --effort <e> --tags "<tags>"` — then write both on the card
+   (`Tags: …  · Tokens: projected ~420k`, `references/cards.md`; a lint
+   requires them). Then, before dispatching each wave, run `$TOKREP budget --cards
    <ids>` against `.ai-gent/budget.yaml` (`references/token-economy.md`'s
    *Pacing*) and say the call out loud — proceed, shrink the wave, or stop
    and ask.

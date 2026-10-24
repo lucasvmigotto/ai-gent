@@ -32,8 +32,8 @@ uncached input, cache writes, cache reads and output.
 
 | Where | What | Who writes it |
 |---|---|---|
-| `tasks.md` task line | `· Tokens: projected ~420k \| used 391k`, next to `Executor · Reviewer · Effort` | `tasks` |
-| `specs/NNN-*/cards.md` | `Tokens: projected` on every card's route line (a lint requires it) | the planner, from `estimate` |
+| `tasks.md` task line | `· Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~420k \| used 391k`, next to `Executor · Reviewer · Effort` | the planner (Tags), `tasks` (Tokens) |
+| `specs/NNN-*/cards.md` | `Tags:` and `Tokens: projected` on every card's route line (a lint requires both; `token-tags.md` lists the tags) | the planner, from `estimate --tags` |
 | `specs/NNN-*/tracker.md` | a `Tokens` block: per card projected, used, error, then the subagent total, the coordinator share and the feature total | `tasks` |
 | `.ai-gent/orchestrate-status.md` | a `Tokens` column, `~projected / used` per card | `tasks` |
 | `docs/product/token-history.jsonl` | one JSON line per finished card, committed | `tasks` |
@@ -93,6 +93,19 @@ the feature's; in a history record, a card's `coordinator` is the feature's
 share by the card's part of the feature's subagent usage. `used` itself is
 the card's subagents only.
 
+## Tags
+
+Every card is tagged at planning with one value per facet, from the
+controlled list in `token-tags.md` (`shared/token-tags.json`): `kind`,
+`layer`, `surface`, `lang`, `novelty`, `verification`, `size`, plus any
+number of `stack` values (normalized crate and framework names; aliases such
+as `react-dom` fold into `react`). The planner (`agents:orchestrate`, the
+Spec Kit tasks step) writes them on the card and its first task line:
+`· Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M`.
+`scripts/consistency.py` fails a `cards.md` card without exactly one valid
+value per facet (`lang` required, `stack` optional). To add a value, add it
+to the JSON and to `token-tags.md`.
+
 ## History and estimates
 
 Each repo commits its `docs/product/token-history.jsonl`. `index` rebuilds
@@ -101,15 +114,51 @@ so estimates draw on experience from every project. `estimate` reads this
 repo's history and that index.
 
 ```bash
-$TOKREP estimate --role builder --effort high --layer backend --tasks 5
+$TOKREP estimate --role builder --effort high \
+  --tags "extend, backend, protocol, rust, tokio, known-pattern, integration, M"
 ```
 
 It prints the **median** (the projection) and the **p75** (the upper bound),
-and how many similar records it used. Records match on layer, effort, model
-family and size (S up to 3 tasks, M up to 6, L above); the match widens
-(layer, then size, then effort) until at least 5 records agree. With fewer
-than 5 even at the widest, it falls back to the **starting table**, per model
-and effort, for a medium card:
+how many similar records it used, at which match level, and a confidence.
+
+**With tags**, it is a weighted nearest-neighbour search over history:
+
+- A record is a neighbour when it shares every facet of the current match
+  level. The strictest level is `kind`, `surface`, `novelty`, `lang`, `layer`,
+  `verification` and `size`; with fewer than 5 neighbours it **backs off**,
+  dropping `size`, then `stack`, then `verification`, then `layer`, then
+  `novelty`. The level reached is the confidence: levels 0-1 are `high`, 2-4
+  `medium`, deeper `low`.
+- `stack` is never a filter. While it is in play, each shared value raises a
+  neighbour's weight by its Jaccard overlap with the card's stack (up to
+  +50%); a record that lacks the stack is not excluded.
+- A neighbour's weight is its confidence (below), halved if its tags were
+  inferred rather than planned, plus 25% for each dropped facet it still
+  shares.
+- When `size` was dropped, a neighbour's cost is scaled by the size ratio
+  (S x0.6, M x1, L x1.6) to the card's size.
+- Costs are task costs: a record's `used_clean`, without resumes, fix rounds
+  and flake hunts (next section).
+- **Execution context** is a separate factor, not a tag: how much more or less
+  a model and role costs than a Sonnet builder. Neighbours' costs are divided
+  by their own context factor, and the median is multiplied by the card's.
+  Factors are learned from history (groups that share kind, surface, novelty,
+  lang and layer but ran in different contexts; a context needs 5 such
+  comparisons), with a prior until then (Opus x1.3, Haiku x0.5).
+- **Bias correction.** Each record with a projection and a result gives
+  `used / projected` per tag. Once a tag has at least 5 such records, the
+  geometric mean of the card's tags' ratios (clamped to 0.5-2.0) corrects the
+  projection, and `estimate` prints which tags did. It fixes a planner that is
+  systematically off; it is not a second estimate.
+- **Hook.** `loglinear_model()` in `token_report.py` is the place for a
+  log-linear model (log cost against tag indicators, context and size) once
+  history holds a few hundred records (`LOGLINEAR_MIN`). It is not built; it
+  returns nothing and the levels above answer.
+
+Without `--tags`, or when even the loosest level has fewer than 5 records,
+the older match applies: records of the same model with the same layer,
+effort and size, widening until 5 agree. With still fewer than 5, it falls
+back to the **starting table**, per model and effort, for a medium card:
 
 | Model | low | medium | high |
 |---|---|---|---|
@@ -122,15 +171,35 @@ autonomous run (Sonnet feature builders 0.3-0.8M each, Opus agents 0.5-0.9M
 each) and is only a start; history takes over as records accumulate.
 
 Records carry a **confidence**: `exact` (a card or its task ids matched),
-`feature` (only the feature matched) and `agent` (nothing did). `estimate`
-weights them 1.0, 0.6 and 0.3 when taking the median and p75, so a handful of
-exact cards outweigh many coarse ones. A record some repo has measured
-supersedes a seeded record of the same agent.
+`feature` (only the feature matched) and `agent` (nothing did). Estimates
+weight them 1.0, 0.6 and 0.3, so a handful of exact cards outweigh many
+coarse ones. A record some repo has measured supersedes a seeded record of
+the same agent.
 
 `seed` backfills the local index from past sessions of projects that never
 tracked tokens, so the first estimates are not blind. It is read-only on the
-sessions and on each repo's specs and writes only `~/.ai-gent/token-history.jsonl`
-(`source: seed`); the owner decides per repo whether to run `tasks` there.
+sessions and on each repo's specs and writes only
+`~/.ai-gent/token-history.jsonl` (`source: seed`); the owner decides per repo
+whether to run `tasks` there. Seeded records carry **inferred, low-confidence
+tags** (`tags_source: inferred`): `kind`, `surface` and `layer` from the
+agent's description, `size` from the files and lines it wrote, `lang` from
+the files it touched (else the repo's manifests: `Cargo.toml`,
+`package.json`, `pyproject.toml`, `go.mod`, `pom.xml`) and `stack` from those
+manifests' dependencies that belong to that language. `novelty` is never
+inferred.
+
+## Process events, kept out of task cost
+
+Some spend is not the task: an agent **resumed after a limit** (the first call
+after the stop re-reads its whole context), the **fix rounds** that follow a
+review (an agent whose description is a fix or names findings) and **CI flake
+hunts**. `tasks` records them in the history record as
+`events: {resumed: 1, fix_rounds: 2, ci_flake: 0, reviews: 1}`, keeps `used`
+as the full real cost, and adds `used_clean`, the task without the resumes,
+fix rounds and flake hunts. Estimates learn from `used_clean`. The budget
+adds the events back as risk: the share of spend they took in history (8%
+until history knows), plus 12% for each Opus agent running beyond the first,
+because parallel Opus agents are what hit the limits.
 
 ## The budget
 
@@ -153,20 +222,26 @@ Before dispatching a wave:
 $TOKREP budget --cards 004-foundation,004-us1-core
 ```
 
-It sums the cards' projections (from `cards.md`, else `estimate`), adds the
-coordinator overhead, subtracts what the session (from the transcripts) and
-the week have already used from the caps, keeps the reserve, and says
-**proceed**, **shrink** (the first N cards fit; dispatch those) or **stop**
-(not even one fits: name what is queued and ask). It also states the
-concurrency limits. The weekly figure counts every project of the account.
+It sums the cards' projections (their `Tokens: projected` lines, else
+`estimate` from the card's tags), adds the coordinator overhead and the event
+risk, subtracts what the session (from the transcripts) and the week have
+already used from the caps, keeps the reserve, and says **proceed**, **shrink**
+(the first N cards fit; dispatch those) or **stop** (not even one fits: name
+what is queued and ask). The weekly figure counts every project of the
+account. It then packs the cards that fit, in dependency order, into
+**batches** of at most `max_agents` subagents and `max_opus` on Opus, and it
+suggests moving an expensive Opus card, whose projection is at high or medium
+confidence, to a Sonnet builder with the thinker reviewing inline (with the
+cost the learned context factor predicts).
 
-Rules that go with it: no more than `max_opus` Opus subagents and `max_agents`
-subagents at once (rstory hit the session limit twice running three or four
-Opus agents together); Sonnet builders, with the thinker's review done
-inline unless the card needs a fresh context; a subagent stopped by a limit is
-**resumed only when its remaining work justifies re-reading its whole context**
-(a resume re-reads everything; in rstory it roughly doubled those agents'
-cost), otherwise redispatch a narrower card with only what is left.
+Rules that go with it: Sonnet builders carry the confident, expensive cards
+and the thinker reviews inline unless a card needs a fresh context; no more
+than `max_opus` Opus subagents and `max_agents` subagents at once (rstory hit
+the session limit twice running three or four Opus agents together); a
+subagent stopped by a limit is **resumed only when its remaining work
+justifies re-reading its whole context** (a resume re-reads everything; in
+rstory it roughly doubled those agents' cost), otherwise redispatch a
+narrower card with only what is left.
 
 ## Limits and caveats
 

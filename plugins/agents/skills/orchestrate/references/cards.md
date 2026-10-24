@@ -43,11 +43,14 @@ table, then for each card its route and the prompt above.
 **Route**: Executor `builder` · Reviewer `thinker` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~420k | used — · Dispatch description: `T001, T002: 004-daemon foundation`
 ```
 
-- **`Tokens: projected` is required** on every card (`scripts/consistency.py`
-  fails a `cards.md` without it). Project it at planning with
-  `$TOKREP estimate --role builder --effort high --layer backend --tasks 2`
-  (`../../../references/token-tracking.md`); `$TOKREP tasks` later fills
-  `used` and copies both onto the card's first task line in `tasks.md`.
+- **`Tags:` and `Tokens: projected` are required** on every card
+  (`scripts/consistency.py` fails a `cards.md` without them, or with other
+  than one value per facet). Tags come from the controlled list in
+  `../../../references/token-tags.md`; project at planning with
+  `$TOKREP estimate --role builder --effort high --tags "<the card's tags>"`
+  (`../../../references/token-tracking.md`). `$TOKREP tasks` later fills
+  `used` and copies tags, projection and result onto the card's first task
+  line in `tasks.md`.
 
 ## Notes
 
