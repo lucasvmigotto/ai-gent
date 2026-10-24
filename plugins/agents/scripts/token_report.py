@@ -1,39 +1,37 @@
 #!/usr/bin/env python3
-"""Token usage report for a project's Claude Code sessions: the coordinator (main thread),
-every subagent, and stage snapshots — the concrete tool behind orchestrate's token-economy
-ledger (../skills/orchestrate/references/token-economy.md).
+"""Token tracking for a project's Claude Code sessions: what each card cost, what the next one
+should, and whether the budget covers the next wave. The tool behind agents:orchestrate's and
+agents:parallel's token economy (../references/token-tracking.md explains the method).
 
-Reads the session JSONL transcripts in every Claude config dir (~/.claude*/projects/<project>/),
-deduplicates assistant messages by message id (streamed chunks and account switches repeat
-them; local `<synthetic>` placeholders are skipped), and sums each message's final usage
-(input, output, cache write, cache read — the API's own numbers, never an estimate).
+Counts billable tokens (uncached input + cache writes + output); cache reads are reported for
+reference only. Reads the session JSONL transcripts in every Claude config dir
+(~/.claude*/projects/<slug>/), deduplicates assistant messages by message id (streamed chunks and
+account switches repeat them; local `<synthetic>` placeholders are skipped), and sums each
+message's final usage - the API's own numbers, never an estimate. Python standard library only.
 
-Sessions are auto-discovered from the project's own transcript directories unless named with
---session. Stages are markers (label + timestamp) kept in a snapshots file; a stage's usage is
-every message timestamped after the previous marker and up to its own, recomputed from the
-transcripts on every run so it never drifts.
+  token_report.py tasks    --project=SLUG [--specs-dir specs] [--dry-run]
+      attribute each subagent to its card and task ids; write `used` on tasks.md task lines
+      (`· Tokens: projected ~420k | used 391k`), a Tokens block in specs/NNN-*/tracker.md, a Tokens
+      column in .ai-gent/orchestrate-status.md and records in docs/product/token-history.jsonl.
+      Re-running updates the numbers; it never duplicates them.
+  token_report.py estimate [--role builder|--model sonnet] [--effort E] [--layer L] [--tasks N]
+      the projection for a planned card: median and p75 of similar history, else the starting table
+  token_report.py budget   --cards ID,ID | --projected [model:]400k,...
+      proceed, shrink or stop against .ai-gent/budget.yaml, less what the session already used
+  token_report.py index    [--repo DIR]... [--scan ~/codes]
+      rebuild ~/.ai-gent/token-history.jsonl from the repos' committed histories
+  token_report.py seed     [--project SLUG]...
+      seed that index from past sessions (read-only on sessions and repos), with a confidence each
+  token_report.py report   --project=SLUG --out PATH     the project-wide roll-up (by stage, label, agent)
+  token_report.py snapshot --label "..." [--at ISO8601]  a stage marker by hand
+  token_report.py backfill-git --repo PATH|- [--ref origin/dev]   stage markers from first-parent landings
 
-  token_report.py report --project DIR [--session ID]... --out PATH [--snapshots FILE]
-  token_report.py tasks   --project DIR [--session ID]... --specs-dir specs --rollup-out PATH [--snapshots FILE]
-  token_report.py estimate (--label L | --role thinker|builder|scout | --model SUBSTR) [--rollup FILE]
-  token_report.py snapshot --label "..." [--at ISO8601] [--snapshots FILE]
-  token_report.py backfill-git --repo PATH|- [--ref origin/dev] [--snapshots FILE]   (- = read
-      `git log --first-parent --reverse --format=%cI|%s` from stdin)
+Stage markers split the coordinator's (main thread's) usage by landing window; without a snapshots
+file `tasks` reads them from the repo's git history in memory. A project slug starts with '-', so
+give it as --project=<slug>.
 
-`report` writes the project-wide roll-up (by stage, by label, by agent) a project keeps at
-docs/product/token-usage.md. `tasks` does the same and additionally links each subagent's cost
-to the Spec Kit task ids its description names, writing one specs/<feature>/tokens.md per
-touched feature (a record file beside tasks.md, never edited into it) plus an "Unmapped"
-section in the roll-up for cards that name no task id.
-
-`estimate` reads that roll-up's "By agent" table for cards matching a label or a role/model
-(the default role-to-model mapping is agent-roles.md's: thinker=opus, builder=sonnet,
-scout=haiku; pass --model directly for a project override) and prints their average cost —
-or says plainly that there's no history yet, never fabricating a number. It is a dispatch-time
-aid for agents:orchestrate / agents:parallel's pacing decision, not an automated gate.
-
-Claude Code-specific: this reads Claude Code's own on-disk transcript format and the Agent
-tool's subagent .meta.json sidecars. No equivalent exists on another agent.
+Claude Code-specific: this reads Claude Code's own on-disk transcript format and the Agent tool's
+subagent .meta.json sidecars. No equivalent exists on another agent.
 """
 import argparse
 import glob
@@ -43,7 +41,7 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 FIELDS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
 BILLABLE = ("input_tokens", "cache_creation_input_tokens", "output_tokens")
@@ -1060,6 +1058,138 @@ def cmd_seed(a):
         print(f"{name} | {dirs} | {sess} | {agents} | {conf} | {fmt_tok(bill_)}")
 
 
+# ---------------------------------------------------------------- budget
+
+BUDGET_DEFAULTS = {"max_opus": 1, "max_agents": 2, "reserve_pct": 10, "coordinator_overhead_pct": 35}
+
+
+def parse_budget(path):
+    """.ai-gent/budget.yaml: flat 'key: value' lines (12M, 800k or plain numbers; # comments).
+    Caps are session_billable and week_billable; absent caps mean no cap."""
+    cfg = dict(BUDGET_DEFAULTS)
+    if path and os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                m = re.match(r"^\s*([a-z_]+)\s*:\s*([^#\s]+)", line)
+                if m and parse_tok(m.group(2)) is not None:
+                    cfg[m.group(1)] = parse_tok(m.group(2))
+    return cfg
+
+
+def config_dirs():
+    env = os.environ.get("CLAUDE_CONFIG_DIR")
+    return [os.path.expanduser(env)] if env else sorted(glob.glob(os.path.expanduser("~/.claude*")))
+
+
+def usage_since(cutoff_iso, dirs, now=None):
+    """Billable tokens across every project of the given config dirs since a UTC timestamp
+    (dedupe by message id over all of them, so an account switch is not counted twice)."""
+    msgs = {}
+    floor = datetime.fromisoformat(cutoff_iso).replace(tzinfo=timezone.utc).timestamp() - 3600
+    for cfg in dirs:
+        for f in (glob.glob(os.path.join(cfg, "projects", "*", "*.jsonl")) +
+                  glob.glob(os.path.join(cfg, "projects", "*", "*", "subagents", "agent-*.jsonl"))):
+            if os.path.getmtime(f) >= floor:
+                collect(f, msgs)
+    return sum(bill(u) for t, _, u in msgs.values() if t and t >= cutoff_iso)
+
+
+def roles_models(path=os.path.join(".ai-gent", "orchestrate.yaml")):
+    """role -> model family: agent-roles.md's defaults, overridden by the project's orchestrate.yaml."""
+    out = dict(ROLE_MODEL)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            for m in re.finditer(r"^\s{2}(\w+):\s*\{[^}]*model:\s*(\w+)", fh.read(), re.M):
+                out[m.group(1)] = family(m.group(2))
+    return out
+
+
+def wave_cards(a, feats, history):
+    """[(label, model family, projected, how)] for the cards of the wave."""
+    roles = roles_models()
+    out = []
+    for item in (a.projected or "").split(","):
+        if item.strip():
+            fam, _, amt = item.strip().rpartition(":")
+            out.append((item.strip(), family(fam) if fam else "sonnet", parse_tok(amt) or 0, "given"))
+    for cid in [c for c in (a.cards or "").split(",") if c.strip()]:
+        cid = cid.strip()
+        feat = next((f for f in feats.values() if cid in f["cards"]), None)
+        if not feat:
+            out.append((cid, "sonnet", 0, "card not found"))
+            continue
+        c = feat["cards"][cid]
+        fam = roles.get(c["executor"] or "builder", "sonnet")
+        if c["projected"] is not None:
+            out.append((cid, fam, c["projected"], "cards.md"))
+        else:
+            layer = layer_of({"card": cid, "desc": "", "tasks": c["tasks"], "feature": feat["name"]}, feats)
+            est = estimate_card(history, fam, c["effort"] or "medium", layer, len(c["tasks"]))
+            out.append((cid, fam, est["median"], f"estimated ({est['basis']})"))
+    return out
+
+
+def cmd_budget(a):
+    cfg = parse_budget(a.budget)
+    slug = a.project or re.sub(r"[^A-Za-z0-9-]", "-", os.getcwd())
+    dirs = config_dirs()
+    roots = sorted(r for d in dirs for r in glob.glob(os.path.join(d, "projects", slug)))
+    sid = (a.session or [None])[0]
+    if not sid and roots:
+        files = [f for r in roots for f in glob.glob(os.path.join(r, "*.jsonl"))]
+        sid = os.path.splitext(os.path.basename(max(files, key=os.path.getmtime)))[0] if files else None
+    now = datetime.now(timezone.utc)
+    if cfg.get("session_window_hours"):
+        since = (now - timedelta(hours=cfg["session_window_hours"])).strftime("%Y-%m-%dT%H:%M:%S")
+        used_session, scope = usage_since(since, dirs), f"the last {cfg['session_window_hours']:g}h, all projects"
+    elif sid:
+        coords, rows, _, _ = gather(roots, [sid])
+        used_session, scope = sum(r["billable"] for r in coords + rows), f"session {sid[:8]}"
+    else:
+        used_session, scope = 0, "no session found"
+    used_week = usage_since((now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S"), dirs)
+    feats = load_features(a.specs_dir)
+    cards = wave_cards(a, feats, load_history(history_paths(a.history)))
+    if not cards:
+        sys.exit("budget: name the wave's cards with --cards ID,ID or --projected [model:]400k,...")
+
+    overhead = cfg["coordinator_overhead_pct"] / 100
+    reserve = cfg["reserve_pct"] / 100
+    caps = [(n, cfg[k], u) for n, k, u in (("session", "session_billable", used_session), ("week", "week_billable", used_week)) if k in cfg]
+    room = min((c - u for _, c, u in caps), default=None)
+    avail = None if room is None else max(0, room) * (1 - reserve)
+
+    print(f"wave: {len(cards)} card(s)")
+    for label, fam, proj, how in cards:
+        print(f"  {label:<24} {fam:<7} ~{fmt_tok(proj):>6}  ({how})")
+    total = sum(p for _, _, p, _ in cards)
+    need = total * (1 + overhead)
+    print(f"projected {fmt_tok(total)} + coordinator {cfg['coordinator_overhead_pct']:g}% = {fmt_tok(round(need))} billable")
+    for name, cap, used in caps:
+        print(f"{name}: cap {fmt_tok(cap)}, used {fmt_tok(used)} ({scope if name == 'session' else 'last 7 days, all projects'}), "
+              f"left {fmt_tok(max(0, cap - used))}")
+    if not caps:
+        print(f"no caps in {a.budget}: set session_billable and week_billable to enable the check")
+    if avail is None:
+        verdict, why = "proceed", "no caps set"
+    elif need <= avail:
+        verdict, why = "proceed", f"within the {fmt_tok(round(avail))} left after a {cfg['reserve_pct']:g}% reserve"
+    else:
+        fit, acc = 0, 0.0
+        for _, _, p, _ in cards:
+            if (acc + p) * (1 + overhead) > avail:
+                break
+            acc, fit = acc + p, fit + 1
+        verdict = "shrink" if fit else "stop"
+        why = (f"only {fmt_tok(round(avail))} usable; the first {fit} card(s) fit ({fmt_tok(round(acc * (1 + overhead)))})"
+               if fit else f"{fmt_tok(round(avail))} usable is less than the first card needs")
+    opus = sum(1 for _, f, _, _ in cards if f == "opus")
+    print(f"verdict: {verdict} - {why}")
+    print(f"concurrency: at most {int(cfg['max_agents'])} subagent(s) at once, {int(cfg['max_opus'])} on Opus"
+          + (f"; {opus} Opus card(s) in the wave run one after another" if opus > cfg["max_opus"] else "")
+          + ". Prefer Sonnet builders and review inline.")
+
+
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1103,6 +1233,15 @@ def build_parser():
     sd.add_argument("--index", help="default: ~/.ai-gent/token-history.jsonl ($AI_GENT_HOME)")
     sd.add_argument("--dry-run", action="store_true")
     sd.set_defaults(fn=cmd_seed)
+    bd = sub.add_parser("budget", help="proceed, shrink or stop: a wave's projections against .ai-gent/budget.yaml")
+    bd.add_argument("--cards", help="card ids of the wave, comma separated (looked up in specs/*/cards.md)")
+    bd.add_argument("--projected", help="or projections by hand: [model:]400k,[model:]300k")
+    bd.add_argument("--specs-dir", default="specs")
+    bd.add_argument("--budget", default=os.path.join(".ai-gent", "budget.yaml"))
+    bd.add_argument("--project", help="the session slug (default: this directory's)")
+    bd.add_argument("--session", action="append", help="the session whose usage counts (default: the newest)")
+    bd.add_argument("--history", action="append")
+    bd.set_defaults(fn=cmd_budget)
     s = sub.add_parser("snapshot")
     s.add_argument("--label", required=True)
     s.add_argument("--at")

@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -178,10 +179,13 @@ class TasksFixture(unittest.TestCase):
         self.sub.mkdir(parents=True)
         self.n = 0
         self.old_home, self.old_cwd = os.environ.get("HOME"), os.getcwd()
+        self.old_cfg = os.environ.pop("CLAUDE_CONFIG_DIR", None)  # the fake HOME's ~/.claude* is the whole world
         os.environ["HOME"] = str(self.home)
         os.chdir(self.work)
 
     def tearDown(self):
+        if self.old_cfg is not None:
+            os.environ["CLAUDE_CONFIG_DIR"] = self.old_cfg
         os.chdir(self.old_cwd)
         if self.old_home is None:
             os.environ.pop("HOME", None)
@@ -414,6 +418,55 @@ class IndexSeedTest(TasksFixture):
         recs = tr.read_history(str(self.ai_home / "token-history.jsonl"))
         self.assertEqual({r["source"] for r in recs}, {"measured"})
         self.assertEqual(len(recs), 2)
+
+
+class BudgetTest(TasksFixture):
+    def stamp(self, **delta):
+        return (datetime.now(timezone.utc) - timedelta(**delta)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def budget(self, *extra, yaml="session_billable: 1M\nweek_billable: 5M\n"):
+        Path("budget.yaml").write_text(yaml)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            tr.cmd_budget(tr.p.parse_args(["budget", f"--project={self.slug}", "--budget=budget.yaml", "--specs-dir=specs", *extra]))
+        return out.getvalue()
+
+    def test_parse_budget_reads_flat_keys_with_suffixes_and_defaults(self):
+        Path("b.yaml").write_text("# caps\nsession_billable: 12M  # per session\nweek_billable: 800k\nmax_opus: 2\n")
+        cfg = tr.parse_budget("b.yaml")
+        self.assertEqual((cfg["session_billable"], cfg["week_billable"], cfg["max_opus"], cfg["max_agents"]),
+                         (12_000_000, 800_000, 2, 2))
+
+    def test_verdicts_proceed_shrink_stop_after_what_the_session_used(self):
+        self.agent("a1", "T001: 002-gadget build", 400_000, ts=self.stamp(minutes=5))
+        self.main(100_000, ts=self.stamp(minutes=10))  # the session has used 500k of its 1M
+        proceed = self.budget("--projected=sonnet:200k")
+        self.assertIn("used 500k", proceed)
+        self.assertIn("verdict: proceed", proceed)
+        shrink = self.budget("--projected=sonnet:200k,sonnet:200k,sonnet:200k")
+        self.assertIn("verdict: shrink", shrink)
+        self.assertIn("the first 1 card(s) fit", shrink)
+        stop = self.budget("--projected=opus:900k")
+        self.assertIn("verdict: stop", stop)
+        self.assertIn("1 on Opus", stop)
+
+    def test_cards_come_from_cards_md_and_the_week_cap_counts_too(self):
+        self.agent("a1", "T001: 002-gadget build", 4_900_000, ts=self.stamp(days=3))  # old enough for the week, not the session
+        self.main(1, ts=self.stamp(minutes=1))
+        out = self.budget("--cards=001-core,001-polish")
+        self.assertIn("001-core", out)
+        self.assertIn("~  400k  (cards.md)", out)
+        self.assertIn("week: cap 5.00M, used 4.90M", out)
+        self.assertIn("verdict: stop", out)  # 500k + 35% against ~100k left
+
+    def test_no_caps_means_proceed_with_a_hint(self):
+        out = self.budget("--projected=300k", yaml="max_agents: 3\n")
+        self.assertIn("verdict: proceed - no caps set", out)
+        self.assertIn("at most 3 subagent(s)", out)
+
+    def test_two_opus_cards_are_queued_beyond_the_cap(self):
+        out = self.budget("--projected=opus:1k,opus:1k")
+        self.assertIn("2 Opus card(s) in the wave run one after another", out)
 
 
 def shutil_copy(src, dst):
