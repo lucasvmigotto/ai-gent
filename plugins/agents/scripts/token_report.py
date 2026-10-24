@@ -1502,28 +1502,58 @@ def roles_models(path=os.path.join(".ai-gent", "orchestrate.yaml")):
 
 
 def wave_cards(a, feats, history):
-    """[(label, model family, projected, how)] for the cards of the wave."""
+    """One dict per card of the wave: label, model family, role, projected, p75, how, confidence."""
     roles = roles_models()
     out = []
     for item in (a.projected or "").split(","):
         if item.strip():
             fam, _, amt = item.strip().rpartition(":")
-            out.append((item.strip(), family(fam) if fam else "sonnet", parse_tok(amt) or 0, "given"))
+            out.append({"label": item.strip(), "model": family(fam) if fam else "sonnet", "role": "builder",
+                        "projected": parse_tok(amt) or 0, "p75": None, "how": "given", "conf": None})
     for cid in [c for c in (a.cards or "").split(",") if c.strip()]:
         cid = cid.strip()
         feat = next((f for f in feats.values() if cid in f["cards"]), None)
         if not feat:
-            out.append((cid, "sonnet", 0, "card not found"))
+            out.append({"label": cid, "model": "sonnet", "role": "builder", "projected": 0, "p75": None,
+                        "how": "card not found", "conf": None})
             continue
         c = feat["cards"][cid]
-        fam = roles.get(c["executor"] or "builder", "sonnet")
+        role = c["executor"] or "builder"
+        fam = roles.get(role, "sonnet")
+        layer = layer_of({"card": cid, "desc": "", "tasks": c["tasks"], "feature": feat["name"]}, feats)
+        est = estimate_card(history, fam, c["effort"] or "medium", layer, len(c["tasks"]), c["tags"] or None, role)
         if c["projected"] is not None:
-            out.append((cid, fam, c["projected"], "cards.md"))
+            out.append({"label": cid, "model": fam, "role": role, "projected": c["projected"], "p75": est["p75"],
+                        "how": "cards.md", "conf": est.get("confidence_label")})
         else:
-            layer = layer_of({"card": cid, "desc": "", "tasks": c["tasks"], "feature": feat["name"]}, feats)
-            est = estimate_card(history, fam, c["effort"] or "medium", layer, len(c["tasks"]))
-            out.append((cid, fam, est["median"], f"estimated ({est['basis']})"))
+            out.append({"label": cid, "model": fam, "role": role, "projected": est["median"], "p75": est["p75"],
+                        "how": f"estimated, {est['basis']}", "conf": est.get("confidence_label")})
     return out
+
+
+PRIOR_EVENT_RATE = 0.08      # resumes, fix rounds and flake hunts as a share of cost, until history knows
+OPUS_PARALLEL_RISK = 0.12    # per extra concurrent Opus agent: more limit stops, more resumes
+
+
+def event_rate(history):
+    """(share of spend that went to process events, 'history'|'prior')."""
+    recs = [r for r in history if r.get("used")]
+    if len(recs) >= MIN_SAMPLES and any("used_clean" in r for r in recs):
+        total = sum(r["used"] for r in recs)
+        return (total - sum(rec_cost(r) for r in recs)) / total, "history"
+    return PRIOR_EVENT_RATE, "prior"
+
+
+def pack_batches(cards, max_agents, max_opus):
+    """In dependency (given) order: batches of at most max_agents subagents, at most max_opus on Opus."""
+    batches, cur = [], []
+    for c in cards:
+        opus = sum(1 for x in cur if x["model"] == "opus")
+        if cur and (len(cur) >= max_agents or (c["model"] == "opus" and opus >= max_opus)):
+            batches.append(cur)
+            cur = []
+        cur.append(c)
+    return batches + ([cur] if cur else [])
 
 
 def cmd_budget(a):
@@ -1546,45 +1576,64 @@ def cmd_budget(a):
         used_session, scope = 0, "no session found"
     used_week = usage_since((now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S"), dirs)
     feats = load_features(a.specs_dir)
-    cards = wave_cards(a, feats, load_history(history_paths(a.history)))
+    history = load_history(history_paths(a.history))
+    cards = wave_cards(a, feats, history)
     if not cards:
         sys.exit("budget: name the wave's cards with --cards ID,ID or --projected [model:]400k,...")
 
     overhead = cfg["coordinator_overhead_pct"] / 100
     reserve = cfg["reserve_pct"] / 100
+    max_agents, max_opus = int(cfg["max_agents"]), int(cfg["max_opus"])
+    rate, rate_src = event_rate(history)
+    n_opus = sum(1 for c in cards if c["model"] == "opus")
+    extra_opus = max(0, min(n_opus, max_opus) - 1)
+    risk = rate + OPUS_PARALLEL_RISK * extra_opus
+    factor = (1 + overhead) * (1 + risk)
     caps = [(n, cfg[k], u) for n, k, u in (("session", "session_billable", used_session), ("week", "week_billable", used_week)) if k in cfg]
     room = min((c - u for _, c, u in caps), default=None)
     avail = None if room is None else max(0, room) * (1 - reserve)
 
     print(f"wave: {len(cards)} card(s)")
-    for label, fam, proj, how in cards:
-        print(f"  {label:<24} {fam:<7} ~{fmt_tok(proj):>6}  ({how})")
-    total = sum(p for _, _, p, _ in cards)
-    need = total * (1 + overhead)
-    print(f"projected {fmt_tok(total)} + coordinator {cfg['coordinator_overhead_pct']:g}% = {fmt_tok(round(need))} billable")
+    for c in cards:
+        up = f", p75 ~{fmt_tok(c['p75'])}" if c["p75"] else ""
+        cf = f", confidence {c['conf']}" if c["conf"] else ""
+        print(f"  {c['label']:<24} {c['model']:<7} ~{fmt_tok(c['projected']):>6}  ({c['how']}{up}{cf})")
+    total = sum(c["projected"] for c in cards)
+    need = total * factor
+    print(f"projected {fmt_tok(total)} + coordinator {cfg['coordinator_overhead_pct']:g}% + event risk {risk * 100:.0f}% "
+          f"({rate_src}: resumes, fix rounds, flake hunts" + (f"; +{OPUS_PARALLEL_RISK * extra_opus * 100:.0f}% for {extra_opus + 1} Opus in parallel" if extra_opus else "")
+          + f") = {fmt_tok(round(need))} billable")
     for name, cap, used in caps:
         print(f"{name}: cap {fmt_tok(cap)}, used {fmt_tok(used)} ({scope if name == 'session' else 'last 7 days, all projects'}), "
               f"left {fmt_tok(max(0, cap - used))}")
     if not caps:
         print(f"no caps in {a.budget}: set session_billable and week_billable to enable the check")
+    fit, acc = len(cards), total
     if avail is None:
         verdict, why = "proceed", "no caps set"
     elif need <= avail:
         verdict, why = "proceed", f"within the {fmt_tok(round(avail))} left after a {cfg['reserve_pct']:g}% reserve"
     else:
         fit, acc = 0, 0.0
-        for _, _, p, _ in cards:
-            if (acc + p) * (1 + overhead) > avail:
+        for c in cards:
+            if (acc + c["projected"]) * factor > avail:
                 break
-            acc, fit = acc + p, fit + 1
+            acc, fit = acc + c["projected"], fit + 1
         verdict = "shrink" if fit else "stop"
-        why = (f"only {fmt_tok(round(avail))} usable; the first {fit} card(s) fit ({fmt_tok(round(acc * (1 + overhead)))})"
+        why = (f"only {fmt_tok(round(avail))} usable; the first {fit} card(s) fit ({fmt_tok(round(acc * factor))})"
                if fit else f"{fmt_tok(round(avail))} usable is less than the first card needs")
-    opus = sum(1 for _, f, _, _ in cards if f == "opus")
     print(f"verdict: {verdict} - {why}")
-    print(f"concurrency: at most {int(cfg['max_agents'])} subagent(s) at once, {int(cfg['max_opus'])} on Opus"
-          + (f"; {opus} Opus card(s) in the wave run one after another" if opus > cfg["max_opus"] else "")
-          + ". Prefer Sonnet builders and review inline.")
+    if fit:
+        print(f"dispatch (at most {max_agents} subagent(s) at once, {max_opus} on Opus):")
+        for i, batch in enumerate(pack_batches(cards[:fit], max_agents, max_opus), 1):
+            print(f"  batch {i}: " + ", ".join(f"{c['label']} ({c['model']})" for c in batch))
+    learned = learn_context(history)
+    for c in cards:
+        if c["model"] == "opus" and c["role"] != "reviewer" and c["conf"] in ("high", "medium") and c["projected"] >= 400_000:
+            f_opus = context_factor(learned, "opus", c["role"])[0]
+            print(f"  suggest: {c['label']} is expensive on Opus at confidence {c['conf']}; a Sonnet builder with the thinker "
+                  f"reviewing inline would cost about ~{fmt_tok(round(c['projected'] / f_opus))}")
+    print("Prefer Sonnet builders, review inline unless the card needs a fresh context.")
 
 
 def build_parser():

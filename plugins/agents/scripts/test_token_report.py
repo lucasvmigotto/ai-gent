@@ -583,14 +583,14 @@ class BudgetTest(TasksFixture):
         self.assertIn("the first 1 card(s) fit", shrink)
         stop = self.budget("--projected=opus:900k")
         self.assertIn("verdict: stop", stop)
-        self.assertIn("1 on Opus", stop)
+        self.assertIn("event risk 8%", stop)
 
     def test_cards_come_from_cards_md_and_the_week_cap_counts_too(self):
         self.agent("a1", "T001: 002-gadget build", 4_900_000, ts=self.stamp(days=3))  # old enough for the week, not the session
         self.main(1, ts=self.stamp(minutes=1))
         out = self.budget("--cards=001-core,001-polish")
         self.assertIn("001-core", out)
-        self.assertIn("~  400k  (cards.md)", out)
+        self.assertIn("~  400k  (cards.md", out)
         self.assertIn("week: cap 5.00M, used 4.90M", out)
         self.assertIn("verdict: stop", out)  # 500k + 35% against ~100k left
 
@@ -601,7 +601,20 @@ class BudgetTest(TasksFixture):
 
     def test_two_opus_cards_are_queued_beyond_the_cap(self):
         out = self.budget("--projected=opus:1k,opus:1k")
-        self.assertIn("2 Opus card(s) in the wave run one after another", out)
+        self.assertIn("batch 1: opus:1k (opus)", out)  # one Opus at a time: two batches
+        self.assertIn("batch 2: opus:1k (opus)", out)
+
+    def test_parallel_opus_adds_event_risk_and_tags_drive_the_card_projection(self):
+        out = self.budget("--projected=opus:1k,opus:1k,sonnet:1k", yaml="max_opus: 2\nmax_agents: 3\n")
+        self.assertIn("event risk 20% (prior: resumes, fix rounds, flake hunts; +12% for 2 Opus in parallel)", out)
+        self.assertIn("batch 1: opus:1k (opus), opus:1k (opus), sonnet:1k (sonnet)", out)
+        h = Path("h.jsonl")
+        h.write_text("".join(json.dumps(trec(i, 100_000 * (i + 1))) + "\n" for i in range(5)))
+        Path("specs/001-widget/cards.md").write_text(CARDS_MD.replace("Tokens: projected ~400k | used — · ", "").replace(
+            "Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M", "Tags: extend, backend, protocol, rust, known-pattern, integration, M"))
+        out = self.budget("--cards=001-core", f"--history={h}")
+        self.assertIn("estimated, tags, p75 ~400k, confidence high", out)
+        self.assertIn("~  300k", out)
 
 
 def shutil_copy(src, dst):
