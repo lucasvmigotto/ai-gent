@@ -91,4 +91,5 @@ Results vs. SLOs, bottlenecks and evidence, environment caveats,
 recommendations, CI jobs, and statuses changed. Stop generators and any
 stack started only for the run, then clean up per
 `../../references/containers.md` §9 — images included, and verify the
-counts dropped. Commits follow `git:workflow`.
+counts dropped; then the project's `clean` recipe, and report the
+labelled resources still left (§9a). Commits follow `git:workflow`.

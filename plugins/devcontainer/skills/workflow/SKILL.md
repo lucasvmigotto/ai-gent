@@ -204,12 +204,16 @@ process. The rules:
   after the fact.
 - **Ask first:** `$CONTAINER_ENGINE stop` / `devcontainer` stop-like teardown,
   `up --remove-existing`, `$CONTAINER_ENGINE rm` / `$CONTAINER_ENGINE volume rm` /
-  `$CONTAINER_ENGINE system prune` / `$CONTAINER_ENGINE network rm` on the project's container
+  `$CONTAINER_ENGINE network rm` on the project's container
   or its volumes — the container likely holds dependency caches,
   in-progress state, or open connections, and destroying it is expensive
-  to rebuild and hard to reverse. Exception: stopping a verification
-  process you started yourself (tracked PID/port) is autonomous — clean
-  it up without asking.
+  to rebuild and hard to reverse. Exceptions, autonomous: stopping a
+  verification process you started yourself (tracked PID/port), and the
+  label-scoped removals of `containers.md` §9a — the project's dangling
+  images, a landed worktree's volumes and containers (`clean`, `wt.py
+  remove`), a wave's new buildah working containers (`wt.py finish`).
+- **Never:** any `prune` (`system`, `image`, `volume`, even filtered) —
+  remove by ID or label (`containers.md` §9).
 - Don't edit files by shelling into the container (`devcontainer exec ...
   vi`, `$CONTAINER_ENGINE exec ... vi`, `sed -i`, `tee`, heredocs) — see the file-vs-environment split above. If
   you catch yourself reaching for exec to change file content,
@@ -230,6 +234,19 @@ When tests or builds need a Docker daemon inside the devcontainer
 `docker-in-docker`, the both-configured trap, the verification checklist
 after changing the access mode, and why Testcontainers cleanup lag isn't
 an orphan leak.
+
+## Rebuilding the tools image
+
+A changed Containerfile makes the next `image` recipe build a new image
+under the same tag and leaves the previous one dangling, a few gigabytes
+each time. The recipe removes the project's own dangling images by label
+(`containers.md` §6); when it doesn't yet, remove them yourself —
+`$CONTAINER_ENGINE images -q --filter dangling=true --filter
+label=me.lucasvmigotto.ai-gent.project=<project>`, then `rmi` each ID
+without `-f` — and suggest adding it. Unlabelled dangling images aren't
+attributable: list them and ask. An interrupted build leaves buildah
+working containers (`ps -a --external`) that pin layers; they go at the
+end of the task through `wt.py finish` (`containers.md` §9a).
 
 ## Rebuilding after a `devcontainer.json` change
 
