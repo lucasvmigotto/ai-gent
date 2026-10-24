@@ -40,7 +40,7 @@ table, then for each card its route and the prompt above.
 ```markdown
 ## Card `004-foundation`: T001, T002
 
-**Route**: Executor `builder` · Reviewer `thinker` · Effort `high` · Tokens: projected ~420k | used — · Dispatch description: `T001, T002: 004-daemon foundation`
+**Route**: Executor `builder` · Reviewer `thinker` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~420k | used — · Dispatch description: `T001, T002: 004-daemon foundation`
 ```
 
 - **`Tokens: projected` is required** on every card (`scripts/consistency.py`

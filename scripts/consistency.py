@@ -11,8 +11,9 @@
   5. No prune is taught as a command: a line naming an engine and a
      `prune` must also say "never" (shared/containers.md §9).
   6. Every card in a cards.md (outside code fences) carries a
-     `Tokens: projected` line, and the card template shows it
-     (plugins/agents/references/token-tracking.md).
+     `Tokens: projected` line and a `Tags:` line with one valid value per
+     facet (lang required, stack optional), and the card template shows both;
+     every tag value is documented (shared/token-tags.md, token-tracking.md).
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -122,6 +123,56 @@ def check_prune(root: Path) -> list[str]:
     return problems
 
 
+VOCAB = "shared/token-tags.json"
+TAGS_LINE = re.compile(r"Tags:\s*([^·|`\n]*)")
+
+
+def load_vocab(root: Path) -> dict:
+    import json
+    return json.loads((root / VOCAB).read_text())["facets"] if (root / VOCAB).is_file() else {}
+
+
+def tag_problems(text: str, vocab: dict) -> list[str]:
+    """Why a `Tags:` list is not one valid value per facet (stack: any number, aliases allowed)."""
+    flat = {v: f for f, d in vocab.items() for v in d["values"]}
+    flat.update({a: "stack" for a in vocab.get("stack", {}).get("aliases", {})})
+    seen: dict[str, list[str]] = {}
+    problems = []
+    for tag in [t.strip() for t in text.split(",") if t.strip()]:
+        facet = flat.get(tag)
+        if facet is None:
+            problems.append(f"unknown tag '{tag}' (shared/token-tags.json)")
+        else:
+            seen.setdefault(facet, []).append(tag)
+    for facet, d in vocab.items():
+        n = len(seen.get(facet, []))
+        if d["required"] and n == 0:
+            problems.append(f"no {facet} tag")
+        if not d["multi"] and n > 1:
+            problems.append(f"{n} {facet} tags ({', '.join(seen[facet])}), want one")
+    return problems
+
+
+def check_vocab(root: Path) -> list[str]:
+    """Every tag value is documented in shared/token-tags.md and belongs to one facet."""
+    vocab = load_vocab(root)
+    if not vocab:
+        return []
+    doc = (root / "shared/token-tags.md").read_text() if (root / "shared/token-tags.md").is_file() else ""
+    problems, owner = [], {}
+    for facet, d in vocab.items():
+        for v in d["values"]:
+            if v in owner:
+                problems.append(f"{VOCAB}: '{v}' is in both {owner[v]} and {facet}")
+            owner[v] = facet
+            if f"`{v}`" not in doc:
+                problems.append(f"shared/token-tags.md: '{v}' ({facet}) isn't documented")
+        for a, target in d.get("aliases", {}).items():
+            if target not in d["values"]:
+                problems.append(f"{VOCAB}: alias '{a}' points to unknown '{target}'")
+    return problems
+
+
 CARD_HEAD = re.compile(r"^## Card\b.*$")
 SKIP_DIRS = {".git", ".worktrees", "node_modules", "dist"}
 
@@ -146,12 +197,24 @@ def check_cards(root: Path) -> list[str]:
                 sections.append((n, line, []) if CARD_HEAD.match(line) else (n, "", []))
             if sections:
                 sections[-1][2].append(line)
+        vocab = load_vocab(root)
         for n, head, body in sections:
-            if head and "Tokens: projected" not in "\n".join(body):
+            if not head:
+                continue
+            text = "\n".join(body)
+            if "Tokens: projected" not in text:
                 problems.append(f"{rel}:{n}: {head[:60]} has no `Tokens: projected` line "
                                 f"(estimate it: token_report.py estimate)")
-        if "/references/" in rel.as_posix() and "Tokens: projected" not in f.read_text():
-            problems.append(f"{rel}: the card template doesn't show a `Tokens: projected` line")
+            m = TAGS_LINE.search(text)
+            if vocab and not m:
+                problems.append(f"{rel}:{n}: {head[:60]} has no `Tags:` line (shared/token-tags.md)")
+            elif vocab:
+                for why in tag_problems(m.group(1), vocab):
+                    problems.append(f"{rel}:{n}: {head[:60]} Tags: {why}")
+        if "/references/" in rel.as_posix():
+            body = f.read_text()
+            if "Tokens: projected" not in body or (vocab and "Tags:" not in body):
+                problems.append(f"{rel}: the card template doesn't show `Tags:` and `Tokens: projected` on the route line")
     return problems
 
 
@@ -175,7 +238,7 @@ def check_budget(root: Path) -> tuple[list[str], int]:
 
 
 def main(root: Path = ROOT) -> int:
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
