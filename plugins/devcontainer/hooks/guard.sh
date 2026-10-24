@@ -42,18 +42,18 @@ words='([[:space:]]+[^[:space:]]+)*'
 
 has() { printf '%s\n' "$segments" | grep -Eq "$1"; }
 
-if has "$prefix($engine|$buildah)$words[[:space:]]+prune([[:space:]]|\$)"; then
+if has "$prefix($engine|$buildah)${words}[[:space:]]+prune([[:space:]]|\$)"; then
   decide deny "prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)"
 fi
 
-removal="$prefix($engine[[:space:]]+((container|image|volume)[[:space:]]+)?(rm|rmi)|$buildah[[:space:]]+(rm|rmi))"
+removal="$prefix(${engine}[[:space:]]+((container|image|volume)[[:space:]]+)?(rm|rmi)|${buildah}[[:space:]]+(rm|rmi))"
 remove="$removal([[:space:]]|\$)"
-if has "$removal$words[[:space:]]+(--all|-[a-zA-Z]*a[a-zA-Z]*)([[:space:]]|\$)" ||
-  has "$prefix$buildah[[:space:]]+rmi$words[[:space:]]+(--prune|-p)([[:space:]]|\$)"; then
+if has "$removal${words}[[:space:]]+(--all|-[a-zA-Z]*a[a-zA-Z]*)([[:space:]]|\$)" ||
+  has "$prefix${buildah}[[:space:]]+rmi${words}[[:space:]]+(--prune|-p)([[:space:]]|\$)"; then
   decide deny "removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)"
 fi
 
-listing="$prefix$engine[[:space:]]+((container|image|volume)[[:space:]]+)?(ps|ls|list|images)$words[[:space:]]+(--quiet|-[a-zA-Z]*q[a-zA-Z]*)([[:space:]]|\$)"
+listing="$prefix${engine}[[:space:]]+((container|image|volume)[[:space:]]+)?(ps|ls|list|images)${words}[[:space:]]+(--quiet|-[a-zA-Z]*q[a-zA-Z]*)([[:space:]]|\$)"
 if has "$remove" && has "$listing" && ! printf '%s' "$cmd" | grep -Eq '(label|name|id)='; then
   decide deny "that removes whatever an unfiltered listing returns, other projects' included; filter the listing by label=me.lucasvmigotto.ai-gent.project=<project> (or your own name= prefix) (containers.md §9a)"
 fi

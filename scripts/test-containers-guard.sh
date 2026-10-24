@@ -84,19 +84,22 @@ exit 0
 FAKE
 chmod +x "$tmp/engine"
 leftovers() { (cd "$tmp/shop" && CONTAINER_ENGINE="$tmp/engine" FAKE_LOG="$tmp/log" FAKE_STORE="$tmp" sh "$LEFTOVERS" </dev/null); }
-check() { # check <label> <condition result>
-  if [[ "$2" == 0 ]]; then printf '      ok    leftovers: %s\n' "$1"; else printf '      FAIL  leftovers: %s\n' "$1"; failures=$((failures + 1)); fi
+check() { # check <label> <command...>: the command must succeed
+  local label="$1"
+  shift
+  if "$@"; then printf '      ok    leftovers: %s\n' "$label"; else printf '      FAIL  leftovers: %s\n' "$label"; failures=$((failures + 1)); fi
 }
+removed() { grep -Eq '(^| )(rm|rmi|prune)( |$)' "$tmp/log"; }
 out="$(FAKE_DANGLING=1 leftovers)"
-grep -q '2 dangling image(s) of shop' <<<"$out"; check "dangling images counted" $?
-grep -q '1 volume(s) of shop belong to worktrees that are gone' <<<"$out"; check "orphan volume found" $?
-! grep -Eq '(^| )(rm|rmi|prune)( |$)' "$tmp/log"; check "nothing removed or pruned" $?
+check "dangling images counted" grep -q '2 dangling image(s) of shop' <<<"$out"
+check "orphan volume found" grep -q '1 volume(s) of shop belong to worktrees that are gone' <<<"$out"
+check "nothing removed or pruned" test "$(removed && echo yes)" != yes
 : >"$tmp/log"
 out="$(leftovers)"
 if [[ "$(df -Pk "$tmp" | awk 'NR == 2 { print ($4 / 1000000 >= 20 && $4 * 10 >= $2) }')" == 1 ]]; then
-  [[ -z "$out" ]]; check "silent when clean" $?
+  check "silent when clean" test -z "$out"
 fi
 out="$(AI_GENT_NO_LEFTOVERS_CHECK=1 FAKE_DANGLING=1 leftovers)"
-[[ -z "$out" ]]; check "AI_GENT_NO_LEFTOVERS_CHECK=1 disables it" $?
+check "AI_GENT_NO_LEFTOVERS_CHECK=1 disables it" test -z "$out"
 
 exit $((failures > 0))

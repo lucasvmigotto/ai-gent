@@ -20,7 +20,7 @@ fi
 common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || exit 0
 [ -n "$common" ] || exit 0
 top="$(dirname "$common")"
-project="$(basename "$top" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
+project="$(basename "$top" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
 label="me.lucasvmigotto.ai-gent.project=$project"
 
 lines=""
