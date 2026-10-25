@@ -135,7 +135,7 @@ describe("pages", () => {
 		if (!released) throw new Error("no released changelog entry to check");
 		expect(
 			screen.getByRole("heading", {
-				level: 2,
+				level: 3,
 				name: new RegExp(released.version.replace(/\./g, "\\.")),
 			}),
 		).toBeInTheDocument();
