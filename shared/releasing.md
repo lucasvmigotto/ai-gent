@@ -78,6 +78,38 @@ off to `devsecops:supply-chain` for signing and SLSA. A source-only
 release (ai-gent) ships no files, so it has nothing to checksum — the
 obligation is conditional on the artifact shape, not a ritual.
 
+## If the release ships a container image
+
+Tag the already-built, already-promoted digest with the release's
+SemVer — never rebuild it; "build once, promote the same artifact"
+holds through the release too (`principles.md`). The release job's last
+step retags that digest in the registry:
+
+- `X.Y.Z` always.
+- `latest` for the newest release on the default/stable track — skip it
+  on a pre-release or a maintenance-branch patch.
+- `X` and `X.Y` (floating major and major.minor tags), moved to point
+  at the newest release in that line, only when the project publishes
+  them — decide once per project and record it in `delivery.md`.
+
+Retagging a digest is a registry push of a new manifest reference, not
+a build step: no Containerfile runs again, no new layer, same digest.
+It reuses the registry logins and image-naming conventions
+`devsecops:pipeline`'s Render step already sets up (`containers.md` §3,
+§8).
+
+## Other platforms
+
+The flow above, and its exact mechanics (`GITHUB_TOKEN` not
+retriggering workflows, `gh release create`), are GitHub Actions'
+rendering of it. The bump-and-changelog core (Conventional Commits
+decide it, a plan-then-apply script, an unskippable gate) is the same
+everywhere; what differs is how the CI workflow publishes the tag as a
+platform object — `concepts.md`'s "Release / tag publishing" row maps
+each platform's equivalent (and says plainly where there isn't one) for
+`devsecops:pipeline` to render from and `devsecops:migrate` to carry
+over.
+
 ## The gate must be unskippable
 
 The check job runs the same suite CI and humans run (one script), and it
