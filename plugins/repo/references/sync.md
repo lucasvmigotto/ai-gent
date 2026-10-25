@@ -63,6 +63,28 @@ The state names differ; map by **category**, never by a guessed name.
 the repository already has status labels (`in progress`, `in review`),
 keep them in step; don't create labels unasked. Ref: `#<number>`.
 
+**GitHub Projects v2 (optional board)** — when the user wants a Project
+v2 board kept in step too, the same `todo`/`doing`/`review`/`done` that
+drives open/close also drives the board's status column, one call per
+item alongside the issue write, through `reporun project-status`
+(`runner.md` → *Projects v2*; GraphQL-only, no REST path, so there's no
+`api` equivalent):
+
+| State | Board column (by live option, not a guessed name) | Comes from |
+|---|---|---|
+| `todo` | an option meaning "not started" (`To do`, `Backlog`, …) | nothing of the feature's/story's work has landed yet |
+| `doing` | an option meaning "in progress" | `tasks.md` shows checked-off work on a branch not yet merged — the side is In progress/Partial |
+| `review` | an option meaning "in review" | a pull request for the work is open against the integration branch |
+| `done` | an option meaning "done" | the work is merged to the integration branch (the same gate as closing the issue — see *States* above) and the tasks are checked |
+
+`project-status` maps the canonical state to whichever option the board
+actually has for it (`runner.md`'s alias matching); when the board uses
+a name odd enough that nothing matches, it lists the real options and
+asks for `--value <exact name>` instead of guessing one — never invent
+an option or create one unasked. The item must already be on the board
+(`reporun cli github --write -- project item-add <number> --owner
+<owner> --url <issue url>`) before its status can be set.
+
 **Azure Boards** — the process decides the types: read
 `GET /{project}/_apis/wit/workitemtypes` once. Feature item: `Feature`
 (Agile, Scrum, CMMI) or `Epic` (Basic). Story item: `User Story`
@@ -123,7 +145,9 @@ asks once (`--write`, confirmed by the `repo` guard) for the whole set:
                 "url": "{{self.html_url}}", "state": "doing", "hash": "…"}},
     {"name": "US1-parent",
      "api": {"method": "POST", "path": "/repos/{owner}/{repo}/issues/{{feature.number}}/sub_issues",
-             "data": {"sub_issue_id": "{{US1.id}}"}}}
+             "data": {"sub_issue_id": "{{US1.id}}"}}},
+    {"name": "US1-board",
+     "project_status": {"number": 3, "url": "{{US1.html_url}}", "state": "doing"}}
   ]
 }
 ```
@@ -135,6 +159,16 @@ asks once (`--write`, confirmed by the `repo` guard) for the whole set:
 - Steps can also be `"cli": [...]` (the platform's CLI, output captured
   as `stdout`), but API steps return structured results — prefer them
   in batches.
+- A `"project_status": {...}` step (GitHub only) keeps a Projects v2
+  board in step alongside the issue writes, in the same batch and the
+  same confirmation — `runner.md` → *Projects v2*. Its fields are
+  `project-status`'s own: `number`, `url`, one of `state` or `value`,
+  and optionally `owner` (default: the remote's owner) and `field`
+  (default `Status`); any of them can be a `{{step.field}}` reference,
+  typically the issue's own `html_url` from the step that created or
+  looked it up — `{owner}`-style remote placeholders aren't filled here,
+  only in `api` paths. It's always a write, counted the same as an
+  `api`/`cli` write for the one confirmation.
 - `--dry-run` lists the steps; `--out FILE` keeps the result, whose
   `records` feed `specsync record`. A failed batch still reports what it
   created: record that, fix the cause, and the next plan picks up the
