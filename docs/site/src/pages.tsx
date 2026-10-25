@@ -534,14 +534,14 @@ function ChangelogEntryBody({
 			id={`v${entry.version.replace(/\./g, "-")}`}
 			className="scroll-mt-24"
 		>
-			<h2 className="font-display text-base">
+			<h3 className="font-display text-base">
 				{entry.version}
 				{entry.date ? (
 					<span className="ml-2 font-body text-sm text-muted">
 						{entry.date}
 					</span>
 				) : null}
-			</h2>
+			</h3>
 			<div className="prose prose-invert mt-1 max-w-3xl">
 				<Markdown>{entry.body}</Markdown>
 			</div>
@@ -559,6 +559,9 @@ export function ChangelogPage() {
 		<>
 			<h1 className="font-display text-3xl">{t.changelog.title}</h1>
 			<p className="mt-2 text-muted">{t.changelog.lede}</p>
+			<h2 id="changelog-releases" className="sr-only">
+				{t.changelog.releases}
+			</h2>
 			{unreleased ? (
 				<div className="mt-6 max-w-3xl">
 					<ChangelogEntryBody entry={unreleased} />

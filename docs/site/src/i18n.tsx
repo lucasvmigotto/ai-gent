@@ -109,7 +109,7 @@ export interface Messages {
 		trackerSync: string;
 		guardsBody: string;
 	};
-	changelog: { title: string; lede: string };
+	changelog: { title: string; lede: string; releases: string };
 	flow: {
 		title: string;
 		lede: string;
@@ -279,7 +279,11 @@ export const enUS: Messages = {
 		guardsBody:
 			"Five PreToolUse hooks enforce the git, db, secrets, repo and containers rules in Claude Code; an OpenCode V2 plugin enforces the same rules there. The git plugin also runs a SessionStart check that prints one line when a newer ai-gent release is known, and the devcontainer plugin one that reports the project's container leftovers and a low disk, never removing anything.",
 	},
-	changelog: { title: "Changelog", lede: "Releases and what changed." },
+	changelog: {
+		title: "Changelog",
+		lede: "Releases and what changed.",
+		releases: "Releases",
+	},
 	flow: {
 		title: "The autonomous flow",
 		lede: "From an idea to a released, documented product: what runs on its own, what asks you, and the skills that do each part.",
