@@ -35,8 +35,9 @@ import {
 	SkillRow,
 } from "./components";
 import {
-	changelog as changelogText,
+	changelogVersions,
 	command,
+	groupChangelog,
 	pluginOf,
 	plugins,
 	skillById,
@@ -523,14 +524,76 @@ export function FlowPage() {
 	);
 }
 
+function ChangelogEntryBody({
+	entry,
+}: {
+	entry: (typeof changelogVersions)[number];
+}) {
+	return (
+		<article
+			id={`v${entry.version.replace(/\./g, "-")}`}
+			className="scroll-mt-24"
+		>
+			<h2 className="font-display text-base">
+				{entry.version}
+				{entry.date ? (
+					<span className="ml-2 font-body text-sm text-muted">
+						{entry.date}
+					</span>
+				) : null}
+			</h2>
+			<div className="prose prose-invert mt-1 max-w-3xl">
+				<Markdown>{entry.body}</Markdown>
+			</div>
+		</article>
+	);
+}
+
 export function ChangelogPage() {
 	const { t } = useI18n();
+	const unreleased = changelogVersions.find((e) => e.version === "Unreleased");
+	const released = changelogVersions.filter((e) => e.version !== "Unreleased");
+	const majors = groupChangelog(released);
+	const latestMajor = majors[0]?.major;
 	return (
 		<>
 			<h1 className="font-display text-3xl">{t.changelog.title}</h1>
 			<p className="mt-2 text-muted">{t.changelog.lede}</p>
-			<div className="prose prose-invert mt-4 max-w-3xl">
-				<Markdown>{changelogText}</Markdown>
+			{unreleased ? (
+				<div className="mt-6 max-w-3xl">
+					<ChangelogEntryBody entry={unreleased} />
+				</div>
+			) : null}
+			<div className="mt-6 max-w-3xl space-y-3">
+				{majors.map((g) => (
+					<details
+						key={g.major}
+						open={g.major === latestMajor}
+						className="rounded-[0.375rem] border border-muted/30"
+					>
+						<summary className="cursor-pointer px-4 py-3 font-display text-lg">
+							{g.major}.x
+						</summary>
+						<div className="space-y-3 border-t border-muted/30 px-4 py-3">
+							{g.minors.map((m) => (
+								<details
+									key={m.minor}
+									open={g.major === latestMajor && m === g.minors[0]}
+									className="rounded-[0.375rem] border border-muted/15"
+								>
+									<summary className="cursor-pointer px-3 py-2 font-medium">
+										{g.major}.{m.minor}.x
+									</summary>
+									<div className="space-y-4 border-t border-muted/15 px-3 py-3">
+										{m.entries.map((entry) => (
+											<ChangelogEntryBody key={entry.version} entry={entry} />
+										))}
+									</div>
+								</details>
+							))}
+						</div>
+					</details>
+				))}
 			</div>
 		</>
 	);
