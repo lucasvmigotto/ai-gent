@@ -4,6 +4,81 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Token tracking and budget-awareness** (`agents`, Claude Code only;
+  `shared/token-tracking.md`) — `token_report.py` now counts billable tokens
+  (uncached input + cache writes + output; cache reads reported, not
+  counted) and: `tasks` attributes each subagent to its card and task ids
+  and writes `· Tokens: projected ~420k | used 391k` on the task lines, a
+  Tokens block with the coordinator's share (split by landing window) in
+  `tracker.md`, a Tokens column in the orchestration ledger and one record
+  per card in `docs/product/token-history.jsonl` (idempotent; unattributable
+  usage is reported, not guessed; resumed agents count once); `estimate`
+  projects a planned card by weighted nearest neighbours over tags
+  (`shared/token-tags.json`: kind, layer, surface, lang, stack, novelty,
+  verification, size) with back-off, a learned model/role factor and bias
+  correction, falling back to a starting table calibrated on rstory;
+  `index` builds `~/.ai-gent/token-history.jsonl` across repos; `seed`
+  backfills it from past sessions (read-only, low-confidence tags); `budget`
+  checks a wave against `.ai-gent/budget.yaml` (proceed, shrink or stop),
+  packs it into batches within `max_agents` (default 2) and `max_opus`
+  (default 1), and adds event risk for resumes, fix rounds and flake hunts,
+  which are kept out of the task cost the estimates learn from. The report
+  heading no longer names a project, and `agents:orchestrate`'s promised
+  `tasks --specs-dir specs` is real.
+- **Cards carry `Tags:` and `Tokens: projected`**; `scripts/consistency.py`
+  fails a `cards.md` card without them or with other than one value per
+  facet. `agents:orchestrate`, `agents:parallel`, `backend:build`,
+  `frontend:build`, `qa:e2e`, `qa:load`, `project:spec` and `project:status`
+  use them.
+- **Container cleanup by label** (`shared/containers.md` §9a) — images,
+  volumes and containers a project creates carry
+  `me.lucasvmigotto.ai-gent.project` (and `.worktree` per worktree); the
+  `image` recipe drops the project's own dangling images, and a scaffolded
+  `clean` recipe removes this worktree's containers and volumes by label
+  and ID. Nothing prunes.
+- **`wt.py` disk check and cleanup** (`agents:parallel`,
+  `agents:orchestrate`) — `add` refuses a track when the container store
+  would drop below the floor (20 GB or 10 % of the disk, whichever is
+  larger, at `volume_estimate_gb` 10 per track; `.ai-gent/parallel.yaml`)
+  or `max_volumes` tracks already hold one; `remove` removes the landed or
+  abandoned track's labelled and compose containers and volumes and checks
+  the count dropped; `baseline`, `resources` (report only) and `finish`
+  (the project's dangling images and the buildah working containers new
+  since the baseline, never while an image build runs).
+- **`containers` guard** (`plugins/devcontainer/hooks/guard.sh`, ported to
+  the OpenCode guard) — denies any engine `prune`, `-a`/`--all` removals
+  and removals fed by an unfiltered listing.
+- **Leftovers report at session start** (devcontainer plugin) — dangling
+  images, orphaned worktree volumes, buildah working containers and a low
+  disk, reported, never removed.
+
+### Deprecated
+
+- `token_report.py tasks` still writes `specs/<feature>/tokens.md` and the
+  roll-up's Unmapped section (`--no-legacy` turns them off), and `estimate`
+  still falls back to the roll-up's average (`--rollup`, `--label`) when
+  there is no history. The tags, `tracker.md` and `token-history.jsonl`
+  replace them; both legacy outputs go in a later major.
+
+### Changed
+
+- On Claude Code the default concurrency is 2 subagents and 1 on Opus
+  (`.ai-gent/budget.yaml`'s `max_agents` and `max_opus`).
+- Builder cards forbid extra image tags, own volumes and prunes; a
+  Containerfile is a hot spot with one owning track per wave.
+- `devcontainer:workflow` removes the project's dangling images after a
+  tools-image rebuild and allows §9a's label-scoped removals without
+  asking; `backend:build`, `frontend:build`, `qa:e2e` and `qa:load` end
+  with `clean` and report what's left.
+- `scripts/consistency.py` checks that skills creating container resources
+  say how they go, and that no prune is taught.
+- `scripts/test-dbrun-engines.py` verifies each engine's teardown and warns
+  before pulling its images onto a nearly full store.
+
 ## 2.17.0 — 2026-10-22
 
 ### Added

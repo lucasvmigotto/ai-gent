@@ -60,6 +60,15 @@ tracker (pending creates, updates or state moves) — an open item that
 read-only; an item closed there while the specs say otherwise is drift
 to report.
 
+**Tokens.** Where tasks carry `Tokens:` tags or a feature has a `Tokens`
+block in its `tracker.md` (`../../references/token-tracking.md`), show per
+feature the projected and used billable tokens and the estimation error
+(used against projected, signed), the coordinator's share, and the budget
+left: `.ai-gent/budget.yaml`'s caps less the session's and the week's use
+(`python3 <agents plugin>/scripts/token_report.py budget --projected 0`
+prints them). Read-only; a feature with no figures says so, it isn't an
+error.
+
 Also flag features whose dependencies are less advanced than they are,
 and features with a `ui.md` or `backend.md` missing although the other
 side has one.
@@ -110,6 +119,7 @@ Features    table: NNN name | priority | frontend | backend | QA | notes
 CI          dev ✓ · main ✗ <workflow> — the failing job, if any
 Open items  N gaps, N clarifications, N assumptions — the ones that matter, with file:line
 Contradictions  each with its evidence and the owning stage
+Tokens      per feature: projected → used (error), coordinator share; budget left
 Next        /<stage> — why; alternatives in parallel
 ```
 

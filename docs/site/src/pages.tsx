@@ -30,22 +30,30 @@ import {
 	CodeBlock,
 	Markdown,
 	SearchBox,
+	SectionBlocks,
 	SkillIndex,
 	SkillRow,
 } from "./components";
 import {
-	changelog as changelogText,
+	changelogVersions,
 	command,
+	groupChangelog,
 	pluginOf,
 	plugins,
 	skillById,
 	skills,
 	skillsOf,
-	sourceUrl,
 	triggers,
 	version,
 } from "./content";
-import { type FlowStep, useI18n } from "./i18n";
+import {
+	contributeSections,
+	flowSections,
+	installSections,
+	referenceSections,
+	sectionKey,
+} from "./content/sections";
+import { type FlowStep, type Messages, useI18n } from "./i18n";
 
 export function LandingPage() {
 	const { t } = useI18n();
@@ -209,40 +217,7 @@ export function InstallPage() {
 		<>
 			<h1 className="font-display text-3xl">{t.install.title}</h1>
 			<p className="mt-2 max-w-2xl text-muted">{t.install.lede}</p>
-			<h2 className="mt-6 font-display text-xl">{t.install.choose}</h2>
-			<h3 className="mt-4 font-medium">{t.install.claude}</h3>
-			<CodeBlock
-				label="shell"
-				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh`}
-			/>
-			<p className="mt-2 max-w-2xl text-muted">{t.install.claudeBody}</p>
-			<h3 className="mt-4 font-medium">{t.install.others}</h3>
-			<CodeBlock
-				label="shell"
-				code={`curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,opencode,codex,cursor`}
-			/>
-			<p className="mt-2 max-w-2xl text-muted">{t.install.othersBody}</p>
-			<h2 className="mt-6 font-display text-xl">{t.install.verify}</h2>
-			<CodeBlock
-				label="shell"
-				code={`claude plugin details project@skills-dir\nopencode plugin list`}
-			/>
-			<h2 className="mt-6 font-display text-xl">{t.install.updates}</h2>
-			<p className="mt-2 max-w-2xl text-muted">{t.install.updatesBody}</p>
-			<h2 className="mt-6 font-display text-xl">{t.install.firstSkill}</h2>
-			<p className="mt-2 max-w-2xl text-muted">{t.install.firstSkillBody}</p>
-			<h2 className="mt-6 font-display text-xl">{t.install.troubleshooting}</h2>
-			<dl className="mt-2 max-w-2xl space-y-4">
-				{t.install.troubleshootingItems.map((item) => (
-					<div key={item.problem}>
-						<dt className="font-medium">{item.problem}</dt>
-						<dd className="mt-1 text-muted">
-							{item.fix}
-							{item.command && <CodeBlock label="shell" code={item.command} />}
-						</dd>
-					</div>
-				))}
-			</dl>
+			<SectionBlocks sections={installSections(t)} />
 			<p className="mt-4">
 				<Link to="/use/skills" className="text-signal underline">
 					{t.install.next}
@@ -258,118 +233,18 @@ export function ContributePage() {
 		<>
 			<h1 className="font-display text-3xl">{t.contribute.title}</h1>
 			<p className="mt-2 max-w-2xl text-muted">{t.contribute.lede}</p>
-			<section className="mt-6">
-				<h2 className="font-display text-xl">{t.contribute.conventions}</h2>
-				<p className="mt-1 max-w-2xl text-sm text-muted">
-					{t.contribute.conventionsBody}
-				</p>
-			</section>
-			<section className="mt-6">
-				<h2 className="font-display text-xl">{t.contribute.checks}</h2>
-				<p className="mt-1 max-w-2xl text-sm text-muted">
-					{t.contribute.checksBody}
-				</p>
-				<CodeBlock label="shell" code="./scripts/check.sh" />
-			</section>
-			<section className="mt-6">
-				<h2 className="font-display text-xl">{t.contribute.layout}</h2>
-				<p className="mt-1 max-w-2xl text-sm text-muted">
-					{t.contribute.layoutBody}
-				</p>
-			</section>
-			<section className="mt-6">
-				<h2 className="font-display text-xl">{t.contribute.releases}</h2>
-				<p className="mt-1 max-w-2xl text-sm text-muted">
-					{t.contribute.releasesBody}
-				</p>
-			</section>
-			<section className="mt-6">
-				<h2 className="font-display text-xl">{t.contribute.versions}</h2>
-				<table className="mt-2 w-full max-w-xl text-left text-sm">
-					<thead>
-						<tr className="border-b border-muted/30">
-							<th scope="col" className="py-1">
-								plugin
-							</th>
-							<th scope="col" className="py-1">
-								version
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						{plugins.map((p) => (
-							<tr key={p.name} className="border-b border-muted/15">
-								<td className="py-1 font-code">{p.name}</td>
-								<td className="py-1">{p.version}</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</section>
+			<SectionBlocks sections={contributeSections(t, plugins)} />
 		</>
 	);
 }
 
 export function ReferencePage() {
 	const { t } = useI18n();
-	const entries = [
-		{
-			key: "pipeline",
-			title: t.reference.pipeline,
-			path: "shared/pipeline.md",
-		},
-		{
-			key: "containers",
-			title: t.reference.containers,
-			path: "shared/containers.md",
-		},
-		{ key: "guards", title: t.reference.guards, body: t.reference.guardsBody },
-		{
-			key: "databases",
-			title: t.reference.databases,
-			path: "plugins/db/references/safety.md",
-		},
-		{
-			key: "reading-code",
-			title: t.reference.readingCode,
-			path: "shared/reading-code.md",
-		},
-		{ key: "spec-kit", title: t.reference.specKit, path: "shared/spec-kit.md" },
-		{ key: "secrets", title: t.reference.secrets, path: "shared/secrets.md" },
-		{
-			key: "agent-roles",
-			title: t.reference.agentRoles,
-			path: "shared/agent-roles.md",
-		},
-		{
-			key: "tracker-sync",
-			title: t.reference.trackerSync,
-			path: "plugins/repo/references/sync.md",
-		},
-	];
 	return (
 		<>
 			<h1 className="font-display text-3xl">{t.reference.title}</h1>
 			<p className="mt-2 max-w-2xl text-muted">{t.reference.lede}</p>
-			<dl className="mt-6 space-y-4">
-				{entries.map((e) => (
-					<div key={e.key}>
-						<dt className="font-display text-xl">{e.title}</dt>
-						<dd className="mt-1 text-sm text-muted">
-							{e.body ?? ""}
-							{e.path && (
-								<a
-									className="ml-1 text-signal underline"
-									href={sourceUrl(e.path)}
-									rel="noreferrer"
-								>
-									{e.path}
-								</a>
-							)}
-						</dd>
-					</div>
-				))}
-			</dl>
+			<SectionBlocks sections={referenceSections(t)} />
 		</>
 	);
 }
@@ -548,6 +423,61 @@ function Glance({ steps }: { steps: FlowStep[] }) {
 	);
 }
 
+// Each custom block keyed by flowSections' id, rendered with the icons and
+// landmarks Markdown has no use for; the heading text and the sequence
+// itself come from flowSections(t), the same list generate-llms.ts reads.
+function FlowCustomBlock({ id, t }: { id: string; t: Messages }) {
+	const f = t.flow;
+	switch (id) {
+		case "glance":
+			return (
+				<section aria-labelledby="glance" className="mt-6">
+					<h2 id="glance" className="sr-only">
+						{f.glance}
+					</h2>
+					<Glance steps={f.steps} />
+				</section>
+			);
+		case "loop":
+			return (
+				<ol className="relative mt-6 before:absolute before:top-2 before:bottom-2 before:left-4 before:w-px before:bg-muted/30">
+					{f.steps.map((s, i) => (
+						<FlowStepItem key={s.key} step={s} n={i + 1} />
+					))}
+				</ol>
+			);
+		case "support":
+			return (
+				<>
+					<ul className="mt-4 grid gap-4 sm:grid-cols-2">
+						{f.support.map((x) => {
+							const Icon = supportIcon(x.skills);
+							return (
+								<li
+									key={x.skills.join()}
+									className="flex gap-3 rounded-[0.375rem] border border-muted/30 p-4"
+								>
+									<Icon
+										size={20}
+										aria-hidden="true"
+										className="mt-1 shrink-0 text-signal"
+									/>
+									<div>
+										<SkillChips ids={x.skills} />
+										<p className="mt-2 text-sm text-muted">{x.body}</p>
+									</div>
+								</li>
+							);
+						})}
+					</ul>
+					<p className="mt-4 max-w-2xl text-sm text-muted">{f.guards}</p>
+				</>
+			);
+		default:
+			return null;
+	}
+}
+
 export function FlowPage() {
 	const { t } = useI18n();
 	const f = t.flow;
@@ -556,70 +486,117 @@ export function FlowPage() {
 			<h1 className="font-display text-3xl">{f.title}</h1>
 			<p className="mt-2 max-w-2xl text-muted">{f.lede}</p>
 
-			<section aria-labelledby="glance" className="mt-6">
-				<h2 id="glance" className="sr-only">
-					{f.glance}
-				</h2>
-				<Glance steps={f.steps} />
-			</section>
-
-			<section aria-labelledby="loop" className="mt-8">
-				<h2 id="loop" className="font-display text-2xl">
-					{f.loop}
-				</h2>
-				<ol className="relative mt-6 before:absolute before:top-2 before:bottom-2 before:left-4 before:w-px before:bg-muted/30">
-					{f.steps.map((s, i) => (
-						<FlowStepItem key={s.key} step={s} n={i + 1} />
-					))}
-				</ol>
-			</section>
-
-			<section aria-labelledby="autonomy" className="mt-10 max-w-2xl">
-				<h2 id="autonomy" className="font-display text-2xl">
-					{f.autonomyTitle}
-				</h2>
-				<p className="mt-2 text-sm text-muted">{f.autonomy}</p>
-			</section>
-
-			<section aria-labelledby="support" className="mt-10">
-				<h2 id="support" className="font-display text-2xl">
-					{f.supportTitle}
-				</h2>
-				<ul className="mt-4 grid gap-4 sm:grid-cols-2">
-					{f.support.map((x) => {
-						const Icon = supportIcon(x.skills);
-						return (
-							<li
-								key={x.skills.join()}
-								className="flex gap-3 rounded-[0.375rem] border border-muted/30 p-4"
-							>
-								<Icon
-									size={20}
-									aria-hidden="true"
-									className="mt-1 shrink-0 text-signal"
-								/>
-								<div>
-									<SkillChips ids={x.skills} />
-									<p className="mt-2 text-sm text-muted">{x.body}</p>
-								</div>
-							</li>
-						);
-					})}
-				</ul>
-				<p className="mt-4 max-w-2xl text-sm text-muted">{f.guards}</p>
-			</section>
+			{flowSections(t).map((s) => {
+				const key = sectionKey(s);
+				if (s.kind === "custom" && s.id === "glance")
+					return <FlowCustomBlock key={key} id="glance" t={t} />;
+				if (s.kind === "heading" && s.text === f.loop)
+					return (
+						<h2 key={key} className="mt-8 font-display text-2xl">
+							{s.text}
+						</h2>
+					);
+				if (s.kind === "custom" && s.id === "loop")
+					return <FlowCustomBlock key={key} id="loop" t={t} />;
+				if (s.kind === "heading" && s.text === f.autonomyTitle)
+					return (
+						<h2 key={key} className="mt-10 max-w-2xl font-display text-2xl">
+							{s.text}
+						</h2>
+					);
+				if (s.kind === "paragraph" && s.text === f.autonomy)
+					return (
+						<p key={key} className="mt-2 max-w-2xl text-sm text-muted">
+							{s.text}
+						</p>
+					);
+				if (s.kind === "heading" && s.text === f.supportTitle)
+					return (
+						<h2 key={key} className="mt-10 font-display text-2xl">
+							{s.text}
+						</h2>
+					);
+				if (s.kind === "custom" && s.id === "support")
+					return <FlowCustomBlock key={key} id="support" t={t} />;
+				return null;
+			})}
 		</>
+	);
+}
+
+function ChangelogEntryBody({
+	entry,
+}: {
+	entry: (typeof changelogVersions)[number];
+}) {
+	return (
+		<article
+			id={`v${entry.version.replace(/\./g, "-")}`}
+			className="scroll-mt-24"
+		>
+			<h3 className="font-display text-base">
+				{entry.version}
+				{entry.date ? (
+					<span className="ml-2 font-body text-sm text-muted">
+						{entry.date}
+					</span>
+				) : null}
+			</h3>
+			<div className="prose prose-invert mt-1 max-w-3xl">
+				<Markdown>{entry.body}</Markdown>
+			</div>
+		</article>
 	);
 }
 
 export function ChangelogPage() {
 	const { t } = useI18n();
+	const unreleased = changelogVersions.find((e) => e.version === "Unreleased");
+	const released = changelogVersions.filter((e) => e.version !== "Unreleased");
+	const majors = groupChangelog(released);
+	const latestMajor = majors[0]?.major;
 	return (
 		<>
 			<h1 className="font-display text-3xl">{t.changelog.title}</h1>
 			<p className="mt-2 text-muted">{t.changelog.lede}</p>
-			<div className="prose prose-invert mt-4 max-w-3xl">
-				<Markdown>{changelogText}</Markdown>
+			<h2 id="changelog-releases" className="sr-only">
+				{t.changelog.releases}
+			</h2>
+			{unreleased ? (
+				<div className="mt-6 max-w-3xl">
+					<ChangelogEntryBody entry={unreleased} />
+				</div>
+			) : null}
+			<div className="mt-6 max-w-3xl space-y-3">
+				{majors.map((g) => (
+					<details
+						key={g.major}
+						open={g.major === latestMajor}
+						className="rounded-[0.375rem] border border-muted/30"
+					>
+						<summary className="cursor-pointer px-4 py-3 font-display text-lg">
+							{g.major}.x
+						</summary>
+						<div className="space-y-3 border-t border-muted/30 px-4 py-3">
+							{g.minors.map((m) => (
+								<details
+									key={m.minor}
+									open={g.major === latestMajor && m === g.minors[0]}
+									className="rounded-[0.375rem] border border-muted/15"
+								>
+									<summary className="cursor-pointer px-3 py-2 font-medium">
+										{g.major}.{m.minor}.x
+									</summary>
+									<div className="space-y-4 border-t border-muted/15 px-3 py-3">
+										{m.entries.map((entry) => (
+											<ChangelogEntryBody key={entry.version} entry={entry} />
+										))}
+									</div>
+								</details>
+							))}
+						</div>
+					</details>
+				))}
 			</div>
 		</>
 	);

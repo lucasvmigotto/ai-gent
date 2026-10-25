@@ -90,7 +90,7 @@ is the remote-tracking refs, through `git fetch`.
 | `specs/NNN-<feature>/ui.md` | `frontend:spec` | frontend:build | screens, components, states, tokens used |
 | `specs/NNN-<feature>/tui.md` | `frontend:spec`, only when the user asked for a terminal interface | frontend:tui, qa:e2e | screens in cells, keymap, focus, states, CLI equivalents |
 | `specs/NNN-<feature>/backend.md` | `backend:spec` | backend:build | endpoints, authz, errors, persistence, jobs |
-| `specs/NNN-<feature>/tracker.md` | `repo:sync` (through `specsync record`) | build stages, qa:*, git:workflow, project:status | the tracker items mirroring the feature and its stories: refs for branches, commits and PRs; only when the project tracks its specs (rule 10) |
+| `specs/NNN-<feature>/tracker.md` | `repo:sync` (through `specsync record`); its `Tokens` block by token tracking | build stages, qa:*, git:workflow, project:status | the tracker items mirroring the feature and its stories: refs for branches, commits and PRs; only when the project tracks its specs (rule 10) |
 | `specs/000-design-system/` | `frontend:spec` | frontend:build | the one feature `frontend:spec` may create itself |
 | `contracts/openapi.yaml` (+ `asyncapi.yaml` if events leave the service) | skeleton by `project:spec`, canonical by `backend:spec` | frontend:*, backend:* | the frontend/backend seam |
 | `docs/product/test-strategy.md` | `qa:strategy` | build stages, qa:*, devsecops:pipeline | test layers, risks, environments, test data, gates |
@@ -130,7 +130,9 @@ is the remote-tracking refs, through `git fetch`.
   `## Frontend`, backend tasks under `## Backend` and QA tasks under
   `## QA` headings appended by their stages, using Spec Kit's task format
   (`- [ ] T0NN [P] [USn] Description with file path`), numbering after the
-  last existing ID.
+  last existing ID. Task lines also carry token tags and figures, written
+  by token tracking (`token-tracking.md`) — a tooling layer on top of this
+  contract, not a stage with its own section.
 - **A stage ticks only its own tasks.** The build stages flip `- [ ]` to
   `- [x]` inside their own section only, and `/speckit-converge`'s
   appended phase carries the layer in its heading so it has an owner too.
@@ -173,29 +175,17 @@ definition and the words **not** to use for it
    change the output — the audience, a scope boundary, a hard
    constraint, a rule — and none the inputs already answer.
    - **At most 4 questions per prompt, no limit on rounds** (4 is what
-     Claude Code's question tool takes at once). Answers
-     often raise new questions, so ask in rounds, each building on what
-     the last one settled. Stop only when nothing that would change the
-     output is open — or when the user declines to answer ("you decide",
-     "skip", no answer): then the decisions are yours. Make them, and
-     record each as `[DECIDED: … — delegated by the user]` with its
-     reason, so it reads as a decision, not a guess.
-   - **Options first.** Give each question 2–4 concrete choices, the
-     recommended one first with its reason in a line (Claude Code's
-     question tool; elsewhere a numbered list answered by number). Free
-     text only when the choices can't be listed.
-   - **Autonomy doesn't answer questions.** Permission to run the project
-     on its own covers doing the work, not deciding the product. The
-     stages that shape it — `project:init`, `project:architecture`,
-     `frontend:uiux`, `backend:domain`, `project:spec` (its clarify step),
-     `qa:strategy` — ask their rounds before they write, also under that
-     permission; once the specs are clarified, the build stages run
-     without new questions, and a gap they find becomes an
-     `[UPSTREAM GAP: …]` note. Delegated decisions are listed in the
-     handoff, so the user can revisit any of them.
-   - Inside a Spec Kit step, `/speckit-clarify` asks at most five per
-     session: run it again (or ask the rest the same way) until every
-     `[NEEDS CLARIFICATION]` is answered or delegated.
+     Claude Code's question tool takes at once). Answers often raise new
+     questions, so ask in rounds, each building on what the last one
+     settled. Stop only when nothing that would change the output is
+     open — or when the user declines to answer ("you decide", "skip",
+     no answer): then the decisions are yours. Make them, and record
+     each as `[DECIDED: … — delegated by the user]` with its reason, so
+     it reads as a decision, not a guess.
+   - `asking.md` has the question format and which stages ask even under
+     full permission to run the project unattended.
+   - Inside a Spec Kit step, `/speckit-clarify` has its own per-session
+     cap; `spec-kit.md` has the number.
 3. **Never invent silently.** Mark every assumption `[ASSUMPTION: …]` and
    every open question `[NEEDS CLARIFICATION: …]` (Spec Kit's marker)
    inline. A reader must be able to tell a decision from a guess.
@@ -218,64 +208,58 @@ definition and the words **not** to use for it
      (tooling: an installer, a runner, a script) has no e2e journeys: its
      integration suites, named in its `qa.md` or `tasks.md`, take their
      place — they run in CI (a scheduled run counts) and pass there.
-   Only the named stage moves a status forward; any stage moves it back
-   when it finds the claim no longer holds. The one exception is
-   `project:introspec` on existing code, which sets Implemented or
-   Verified from evidence (code that runs; passing e2e tests). `project:docs` depends on this.
+   Only the named stage moves a status forward; any stage that writes
+   moves it back when it finds the claim no longer holds. A read-only
+   stage (`project:status`, `project:recap`, `project:survey`) never
+   writes the regression itself — it reports the contradiction and names
+   the stage that should move it back. The one exception to forward
+   moves is `project:introspec` on existing code, which sets Implemented
+   or Verified from evidence (code that runs; passing e2e tests).
+   `project:docs` depends on this.
    These statuses are for features only. Documents (`brief.md`,
    `architecture.md`, `ux-vision.md`, `domain-model.md`) carry `Status:
    Draft` until the user accepts them, then `Accepted`; ADRs use MADR's
    `proposed` / `accepted` / `superseded`; Spec Kit's own `Status: Draft`
    in `spec.md` stays as Spec Kit writes it.
-7. **Versioning** follows `git:workflow`: a branch per stage or phase,
-   started from `dev`/`develop` and merged back into it; small
-   Conventional Commits made as each task or phase finishes, without
-   stopping to ask (a stage the user started is an approved development
-   workflow) and listed in the handoff; ask before merging; promoting
-   `dev` up the chain needs its own explicit request. A **new repository**
-   starts the same way every time (`project:init` does it): a single-line
-   `README.md` committed alone as `chore: initial commit`, then
-   `dev`/`develop`, and every stage's work on branches off that. Input
-   documents the user hands in are never committed unless they say so.
-   **Remote mode:** when the code platform is reachable (its CLI signed in
-   or a token in pass) and the user hasn't said merges are local, every
-   merge into a long-lived branch goes through a PR the agent opens and
-   merges on the platform (`repo:pr`; `git:workflow` has the asks, merge
-   style and cleanup).
+7. **Versioning** follows `git:workflow`: a branch per stage or phase off
+   `dev`/`develop`, small Conventional Commits made as each task or phase
+   finishes without stopping to ask (a stage the user started is an
+   approved development workflow) and listed in the handoff; ask before
+   merging; promoting the chain needs its own explicit request. A **new
+   repository** starting the same way every time, and **remote mode** —
+   the platform reachable, merges not said to be local — landing every
+   merge through a PR, are `git:workflow`'s own rules, followed here too.
 8. **Pushed means watched.** After every push, merge to a pushed branch
-   or promotion, the stage that made it follows the CI runs it started
-   with `devsecops:watch` until they finish, chained runs included: done
-   means green in CI, not only locally. The watch runs as the small
-   `scout` role in its own context (`agent-roles.md`); the stage keeps the
-   fix, on its own model. On a red run `devsecops:watch` classifies the
-   cause and the stage acts on it: **this change's fault** — fix it on the
-   same work branch, run the failing check locally, commit, then **ask
-   before pushing the fix** (unless the user gave explicit permission to
-   carry out the project on its own, in which case push and watch again);
-   **flaky, runner or outage** — report it, re-run only when asked, never a
-   job that deploys, publishes or tags; **already red** before the change —
-   report it, don't fix it unasked. Three fix rounds that leave CI red end
-   the loop: report and ask. In remote mode a red run the loop won't fix
-   also becomes one issue per failing workflow (`repo:issues`;
-   `devsecops:watch` has the title and dedupe rules). A feature whose CI is red
-   is not Implemented or Verified — move it back (rule 6) until green.
+   or promotion, the stage that made it follows CI with `devsecops:watch`
+   until it finishes, chained runs included: done means green in CI, not
+   only locally. Watch runs as the small `scout` role in its own context
+   (`agent-roles.md`); the stage keeps the fix, on its own model. On a
+   red run, act on watch's classification: **this change's fault** — fix
+   it on the same branch, run the failing check locally, commit, then
+   **ask before pushing the fix** (or push and watch again, with
+   explicit permission to carry out the project on its own); **flaky,
+   runner or outage** — report it, re-run only when asked, never a job
+   that deploys, publishes or tags; **already red** before the change —
+   report it, don't fix it unasked. Three fix rounds that leave CI red
+   end the loop: report and ask. In remote mode, a red run the loop won't
+   fix also becomes one issue per failing workflow (`repo:issues`;
+   `devsecops:watch` has the classification detail, the title and the
+   dedupe rules). A feature whose CI is red is not Implemented or
+   Verified — move it back (rule 6) until green.
 9. **Finish with a handoff line**: what was written, what's still open,
    CI's state for anything pushed, and the next stage to run.
-10. **Tracked features stay in step.** In remote mode — or when the user
-   asks — the specs go on the tracker (GitHub, Azure Boards, GitLab, Jira,
-   Bitbucket): `repo:sync` mirrors each feature as an item and each user
-   story as a child item, and records them in the feature's `tracker.md`.
-   For a feature with a `tracker.md`: a stage that ticks tasks or moves a
-   status (the build stages, `qa:e2e`, `qa:load`, `project:spec` after
-   changing stories) runs `repo:sync` at its hand-off — item states follow
-   `tasks.md` and `specs/README.md`, never the other way round; a story's
-   work goes on a branch named with its ref and its commits and PRs into
-   the integration branch carry `Refs <ref>` (`git:workflow`); items close
-   at **Verified**, once the work is on the integration branch. Tracker
-   writes are remote changes: one confirmation per sync batch, covered by
-   the user's up-front permission to run the project on its own. Without a
-   `tracker.md`, nothing here applies. `repo:sync` has the states and the
-   per-platform mapping.
+10. **Tracked features stay in step.** In remote mode, or when the user
+   asks, the specs go on the tracker (GitHub, Azure Boards, GitLab, Jira,
+   Bitbucket). For a feature with a `tracker.md`: a stage that ticks
+   tasks or moves a status (the build stages, `qa:e2e`, `qa:load`,
+   `project:spec` after changing stories) runs `repo:sync` at its
+   hand-off — item states follow `tasks.md` and `specs/README.md`, never
+   the other way round, and items close at **Verified**, once the work
+   is on the integration branch. Tracker writes are remote changes: one
+   confirmation per sync batch, covered by the user's up-front permission
+   to run the project on its own. Without a `tracker.md`, nothing here
+   applies. `repo:sync` has the items, the states, the per-platform
+   mapping and the refs branches and commits use.
 11. **READMEs follow `readme.md`.** A stage that writes or updates a
    README — the project's or a folder's — follows the shared
    conventions: the sections in order, setting names never values, and

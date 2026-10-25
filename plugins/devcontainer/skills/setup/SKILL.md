@@ -137,8 +137,12 @@ Per module, following `containers.md` §2–§7:
   optional parts.
 - **Task recipes** (`justfile`, or the runner the project already uses)
   with the standard names — `fmt`, `lint`, `typecheck`, `test`, `build`,
-  `doctor`, `shell` — each running in the tools service; `--network=none`
-  for unit tests and builds once dependencies are resolved.
+  `doctor`, `shell`, `clean` — each running in the tools service;
+  `--network=none` for unit tests and builds once dependencies are
+  resolved. `image` builds with the ownership label and drops the
+  project's own dangling images; volumes are created labelled before
+  they're mounted, named per worktree from `AI_GENT_WORKTREE`; `clean`
+  removes by label and ID (`containers.md` §6, §9a).
 - **One source for versions** (build args, `.tool-versions`, `.nvmrc`,
   the manifest's engines field) that the Containerfile and the
   devcontainer both read; `doctor` prints the versions from both layers
@@ -221,9 +225,9 @@ app reaches infra **by network alias**; in a split, the browser reaches the
 API through the dev-server proxy, and **rebuilding one side leaves the
 other running**; app-level checks (auth, validation) still behave through
 the full chain; hot-reload works both directions; the proxy smoke test
-passes with the real backend; and every container, volume and image made
-only for verification is removed (`containers.md` §9) and the counts
-re-checked.
+passes with the real backend; `clean dry=1` lists nothing after `clean`;
+and every container, volume and image made only for verification is
+removed (`containers.md` §9) and the counts re-checked.
 
 ## Phase 9 — Document the decisions, not just the commands
 

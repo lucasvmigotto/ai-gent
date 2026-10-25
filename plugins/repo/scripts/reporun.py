@@ -12,6 +12,8 @@ redacted). Writes need --write, which the guard turns into a question.
   reporun cli <platform> [--write] -- <cli args...>
   reporun api <platform> METHOD PATH [--data FILE|-] [--query k=v ...] [--write]
                                      [--paginate] [--max-pages N]
+  reporun project-status NUMBER --url URL (--state todo|doing|review|done | --value NAME)
+                                           [--owner LOGIN] [--field NAME] [--write]
   reporun batch FILE [--write] [--dry-run] [--out FILE]
   reporun chain [--json]
 
@@ -62,6 +64,7 @@ PLATFORMS = {
 READ_VERBS = {
     "list", "ls", "view", "show", "status", "checks", "diff", "search", "query", "get",
     "watch", "download", "issues", "comments", "me", "serverinfo", "help", "--help", "version", "--version",
+    "field-list", "item-list",  # gh project
 }
 # Subcommands that print a token, run arbitrary code or log auth headers.
 BLOCKED_CLI = {
@@ -386,6 +389,94 @@ def cmd_cli(args) -> int:
     return proc.wait()
 
 
+# ----------------------------------------------------------------- project (GitHub Projects v2)
+
+# GitHub's REST API has no Projects v2 support (GraphQL only); `gh project` wraps the
+# GraphQL for us — field-list and item-edit --field/--value resolve names to the live
+# node IDs themselves, right before the mutation, which is the "look it up live" that
+# references/sync.md asks for. No REST fallback: without `gh`, there's no path here.
+
+# A Spec Kit sync state (references/sync.md § States) to the live option names a board
+# might use for it. Matched after lowercasing and collapsing punctuation to spaces, so
+# "To do", "to-do" and "To Do" all match "todo"; first alias found on the board wins,
+# then a loose substring match. No match: the caller passes --value with the board's
+# exact option name instead of guessing one.
+PROJECT_STATE_ALIASES = {
+    "todo": ("to do", "todo", "backlog", "not started", "new", "open"),
+    "doing": ("in progress", "doing", "in-progress", "started", "active", "working"),
+    "review": ("in review", "review", "in-review", "ready for review", "testing", "qa"),
+    "done": ("done", "closed", "complete", "completed", "finished"),
+}
+
+
+def _project_norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", s.casefold()).strip()
+
+
+def resolve_project_field(fields: list, field_name: str) -> dict:
+    """The single-select field named `field_name` (case-insensitive) from a
+    `gh project field-list --format json` response's `fields` list."""
+    for f in fields:
+        if isinstance(f, dict) and f.get("name", "").casefold() == field_name.casefold():
+            if not isinstance(f.get("options"), list):
+                raise Failed(f"{f['name']!r} isn't a single-select field (no options to map a state to)")
+            return f
+    names = ", ".join(f.get("name", "?") for f in fields if isinstance(f, dict)) or "(none)"
+    raise Failed(f"no field named {field_name!r} on this project; fields: {names}")
+
+
+def resolve_project_option(field: dict, state: str) -> dict:
+    """The field's live option that matches a sync state, by alias then substring —
+    never a guessed id: both come from the field dict `resolve_project_field` just read."""
+    options = [o for o in field.get("options", []) if isinstance(o, dict) and o.get("name")]
+    by_norm = {_project_norm(o["name"]): o for o in options}
+    for alias in PROJECT_STATE_ALIASES[state]:
+        hit = by_norm.get(_project_norm(alias))
+        if hit:
+            return hit
+    aliases_normed = [_project_norm(a) for a in PROJECT_STATE_ALIASES[state]]
+    for o in options:
+        n = _project_norm(o["name"])
+        if any(a in n or n in a for a in aliases_normed):
+            return o
+    names = ", ".join(o["name"] for o in options) or "(none)"
+    raise Failed(f"no option on {field.get('name')!r} matches sync state {state!r}; options: {names}; "
+                 f"pass --value with the exact option name instead")
+
+
+def project_status_call(number: int, url: str, owner: str | None, field_name: str, state: str | None,
+                        value: str | None, entry_arg: str | None, write: bool) -> dict:
+    """Read the board's field, map `state` to its live option (unless `value` gives the
+    option outright), and set the item's field. The one function both `project-status`
+    and a batch's `project_status` step call, so they behave identically."""
+    if not state and not value:
+        raise Failed("pass --state <todo|doing|review|done> (references/sync.md) or --value <exact option name>", EXIT_USAGE)
+    owner = owner or detect_repo().get("owner")
+    if not owner:
+        raise Failed("no project owner: pass --owner <login> — a Projects v2 board belongs to a user or an "
+                     "organization, never to a repository", EXIT_USAGE)
+    text = run_cli_capture("github", ["project", "field-list", str(number), "--owner", owner, "--format", "json"],
+                          entry_arg, False)
+    try:
+        data = json.loads(text) if text else {}
+    except json.JSONDecodeError:
+        raise Failed(f"gh project field-list didn't return JSON: {text[:500]}")
+    field = resolve_project_field(data.get("fields") or [], field_name)
+    chosen = value or resolve_project_option(field, state)["name"]
+    print(f"reporun: project {number} ({owner}) · {field['name']} -> {chosen!r}"
+          + (f" for state {state}" if state and not value else ""), file=sys.stderr)
+    run_cli_capture("github", ["project", "item-edit", str(number), "--owner", owner, "--url", url,
+                               "--field", field["name"], "--value", chosen], entry_arg, write)
+    return {"owner": owner, "number": number, "url": url, "field": field["name"], "state": state, "value": chosen}
+
+
+def cmd_project_status(args) -> int:
+    result = project_status_call(args.number, args.url, args.owner, args.field, args.state, args.value,
+                                 args.entry, args.write)
+    print(json.dumps(result, indent=2))
+    return EXIT_OK
+
+
 # ----------------------------------------------------------------------- api
 
 
@@ -621,7 +712,9 @@ def step_is_write(platform: str, step: dict) -> bool:
         return api_is_write(platform, a.get("method", "GET").upper(), a.get("path", ""), body)
     if "cli" in step:
         return cli_is_write(PLATFORMS[platform]["cli"] or "", list(step["cli"]))
-    raise Failed(f"step {step.get('name')!r} has neither api nor cli")
+    if "project_status" in step:
+        return True  # always ends in an item-edit mutation
+    raise Failed(f"step {step.get('name')!r} has neither api, cli nor project_status")
 
 
 def cmd_batch(args) -> int:
@@ -634,15 +727,19 @@ def cmd_batch(args) -> int:
     names = [s.get("name") for s in steps]
     if any(not n for n in names) or len(set(names)) != len(names):
         raise Failed("every step needs a unique name", EXIT_USAGE)
+    if platform != "github" and any("project_status" in s for s in steps):
+        raise Failed("project_status steps need \"platform\": \"github\" — Projects v2 is GitHub-only", EXIT_USAGE)
     writes = [s["name"] for s in steps if step_is_write(platform, s)]
     if writes and not args.write and not args.dry_run:
         raise Refused(f"{len(writes)} of {len(steps)} steps change something on {platform} ({', '.join(writes[:8])}"
                       f"{'…' if len(writes) > 8 else ''}); after the user confirmed this batch, re-run with --write")
     if args.dry_run:
         for s in steps:
-            print(f"{s['name']:<16} {'write' if s['name'] in writes else 'read ':<5} "
-                  + (f"{s['api'].get('method', 'GET')} {s['api'].get('path')}" if "api" in s else
-                     " ".join(w.replace("\n", " ")[:48] + ("…" if len(w) > 48 else "") for w in s["cli"])))
+            desc = (f"{s['api'].get('method', 'GET')} {s['api'].get('path')}" if "api" in s else
+                    f"project item-edit #{s['project_status'].get('number')} -> "
+                    f"{s['project_status'].get('state') or s['project_status'].get('value')}" if "project_status" in s else
+                    " ".join(w.replace("\n", " ")[:48] + ("…" if len(w) > 48 else "") for w in s["cli"]))
+            print(f"{s['name']:<16} {'write' if s['name'] in writes else 'read ':<5} {desc}")
         return EXIT_OK
 
     results: dict = {}
@@ -656,6 +753,10 @@ def cmd_batch(args) -> int:
                 body = json.dumps(a["data"]).encode() if "data" in a else None
                 data = api_call(platform, a.get("method", "GET"), a["path"], body, a.get("query"),
                                 args.entry, args.write, a.get("paginate", False), a.get("max_pages", 10), args.timeout)
+            elif "project_status" in s:
+                p = resolve(s["project_status"], results, set(names))
+                data = project_status_call(int(p["number"]), p["url"], p.get("owner"), p.get("field", "Status"),
+                                           p.get("state"), p.get("value"), args.entry, args.write)
             else:
                 text = run_cli_capture(platform, resolve(list(s["cli"]), results, set(names)), args.entry, args.write)
                 try:  # `gh api`, `glab api`, `az … -o json` print JSON: keep it structured
@@ -742,6 +843,17 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--entry", help="another pass entry under the prefix (default ai-gent/<platform>/...)")
     s.add_argument("args", nargs=argparse.REMAINDER)
     s.set_defaults(func=cmd_cli)
+
+    s = sub.add_parser("project-status", help="read a GitHub Projects v2 board's status field and set an item's option (references/sync.md)")
+    s.add_argument("number", type=int, help="the project's number (gh project list --owner <owner>)")
+    s.add_argument("--owner", help="login of the project's owner — a user or an org; default: the remote's owner")
+    s.add_argument("--url", required=True, help="the issue or pull request's URL")
+    s.add_argument("--field", default="Status", help="the single-select field's name (default Status)")
+    s.add_argument("--state", choices=sorted(PROJECT_STATE_ALIASES), help="a sync state, mapped to a live option")
+    s.add_argument("--value", help="the exact option name to set, instead of mapping --state")
+    s.add_argument("--write", action="store_true", help="the user asked for this specific change")
+    s.add_argument("--entry", help="another pass entry under the prefix (default ai-gent/github/...)")
+    s.set_defaults(func=cmd_project_status)
 
     s = sub.add_parser("batch", help="several calls from a JSON plan, one confirmation (references/sync.md)")
     s.add_argument("file")

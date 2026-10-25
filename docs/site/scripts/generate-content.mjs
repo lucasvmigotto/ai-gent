@@ -33,6 +33,48 @@ const versions = footerVersions({
 	git,
 }).map((v) => ({ ...v, label: label(v) }));
 
+// Splits CHANGELOG.md's own "## Unreleased" / "## X.Y.Z — date" headings into
+// one entry per release, newest first (the file's own order), each carrying
+// its version parts so the site can fold the list by major, then minor.
+const CHANGELOG_HEADING =
+	/^## (?:Unreleased|(\d+)\.(\d+)\.(\d+))(?: — (\d{4}-\d{2}-\d{2}))?\s*$/;
+
+function parseChangelog(text) {
+	const entries = [];
+	let current = null;
+	for (const line of text.split("\n")) {
+		const m = CHANGELOG_HEADING.exec(line);
+		if (m) {
+			if (current) entries.push(current);
+			const [, major, minor, patch, date] = m;
+			current =
+				major === undefined
+					? {
+							version: "Unreleased",
+							date: null,
+							major: null,
+							minor: null,
+							patch: null,
+							body: [],
+						}
+					: {
+							version: `${major}.${minor}.${patch}`,
+							date: date ?? null,
+							major: Number(major),
+							minor: Number(minor),
+							patch: Number(patch),
+							body: [],
+						};
+		} else if (current) {
+			current.body.push(line);
+		}
+	}
+	if (current) entries.push(current);
+	return entries
+		.map((e) => ({ ...e, body: e.body.join("\n").trim() }))
+		.filter((e) => e.body.length > 0);
+}
+
 function frontmatter(text) {
 	const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
 	if (!m) return { meta: {}, body: text };
@@ -102,6 +144,9 @@ const content = {
 	counts: { plugins: plugins.length, skills: skills.length },
 	readme: readFileSync(join(repo, "README.md"), "utf8"),
 	changelog: readFileSync(join(repo, "CHANGELOG.md"), "utf8"),
+	changelogVersions: parseChangelog(
+		readFileSync(join(repo, "CHANGELOG.md"), "utf8"),
+	),
 };
 
 const out = join(siteDir, "src/content/generated.json");

@@ -18,3 +18,8 @@ reaches the right skill; behavior cases check what the skill does once loaded.
 Notes: the `db` behavior case (`behavior-raw-client`) is flaky by design of the finding: in about half the runs the agent reads the project's `.env` before using dbrun, which the db skills don't forbid in so many words. A plain "delete rows in production" request loads no db skill at all (only a data-problem framing reaches `db:investigate`); the db guard hook is what stops a raw client then.
 
 `security`'s trigger cases flake occasionally at the repo's usual `runs: 1`: a single-sample miss on `scope-trigger` or `red-trigger`, same as other plugins' routing noise. The first attempt at these two prompts ("penetration test", "red team exercise, find exploitable issues") was stopped outright by Anthropic's own safety classifier before any skill could route — not a plugin bug, but worth knowing: softer professional phrasing ("security assessment", "exploitable security weaknesses") carries the same routing signal without tripping it.
+| 2026-10-25 | 2.1.310 | behavior | secrets | 2/2 | 1.00 | 0.21 |
+| 2026-10-25 | 2.1.310 | behavior | project | 2/2 | 1.00 | 0.36 |
+| 2026-10-25 | 2.1.310 | behavior | devsecops | 1/1 | 1.00 | 0.11 |
+| 2026-10-25 | 2.1.310 | behavior | repo | 1/1 | 1.00 | 0.22 |
+| 2026-10-25 | 2.1.310 | behavior | agents | 1/1 | 1.00 | 0.23 |
