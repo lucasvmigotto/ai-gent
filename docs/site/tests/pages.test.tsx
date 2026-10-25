@@ -2,9 +2,15 @@ import { render, screen } from "@testing-library/react";
 import { axe } from "jest-axe";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
-import { skillById } from "../src/content";
+import { changelogVersions, skillById } from "../src/content";
 import { enUS, I18nProvider } from "../src/i18n";
-import { FlowPage, InstallPage, LandingPage, SkillPage } from "../src/pages";
+import {
+	ChangelogPage,
+	FlowPage,
+	InstallPage,
+	LandingPage,
+	SkillPage,
+} from "../src/pages";
 
 function renderPage(node: React.ReactNode) {
 	return render(
@@ -98,6 +104,45 @@ describe("pages", () => {
 	it("has no accessibility violations on a skill page", async () => {
 		const { container } = renderSkill("qa-load");
 		await screen.findByRole("navigation", { name: "Breadcrumb" });
+		const results = await axe(container);
+		expect(results.violations).toEqual([]);
+	});
+
+	it("folds the changelog by major and minor, newest open", () => {
+		renderPage(<ChangelogPage />);
+		const released = changelogVersions.filter(
+			(e) => e.version !== "Unreleased",
+		);
+		const majors = [
+			...new Set(
+				released.map((e) => e.major).filter((m): m is number => m !== null),
+			),
+		];
+		const latest = Math.max(...majors);
+		const group = screen.getByText(`${latest}.x`).closest("details");
+		expect(group).toHaveAttribute("open");
+		// an older major, if there is one, starts folded
+		const older = majors.find((m) => m !== latest);
+		if (older !== undefined) {
+			const olderGroup = screen.getByText(`${older}.x`).closest("details");
+			expect(olderGroup).not.toHaveAttribute("open");
+		}
+	});
+
+	it("shows a released version's heading inside its folded groups", () => {
+		renderPage(<ChangelogPage />);
+		const released = changelogVersions.find((e) => e.version !== "Unreleased");
+		if (!released) throw new Error("no released changelog entry to check");
+		expect(
+			screen.getByRole("heading", {
+				level: 2,
+				name: new RegExp(released.version.replace(/\./g, "\\.")),
+			}),
+		).toBeInTheDocument();
+	});
+
+	it("has no accessibility violations on the changelog page", async () => {
+		const { container } = renderPage(<ChangelogPage />);
 		const results = await axe(container);
 		expect(results.violations).toEqual([]);
 	});
