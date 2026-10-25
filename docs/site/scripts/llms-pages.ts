@@ -1,7 +1,15 @@
 // The LLM-readable pages, built from the same content the pages render. Pure
 // functions: generate-llms.ts writes them, tests/llms.test.tsx checks them.
 import generated from "../src/content/generated.json";
-import { type Locale, messages } from "../src/i18n";
+import {
+	contributeSections,
+	flowSections,
+	installSections,
+	referenceSections,
+	type Section,
+	sectionsToMarkdown,
+} from "../src/content/sections";
+import { type Locale, type Messages, messages } from "../src/i18n";
 
 export interface Page {
 	slug: string;
@@ -40,6 +48,35 @@ function pluginVersion(plugin: string): string {
 	return generated.plugins.find((p) => p.name === plugin)?.version ?? "?";
 }
 
+// flow's step loop and support grid are markdown-only here (no Section
+// variant fits their icons-and-tooltips JSX); flowSections(t) still decides
+// where they fall relative to the headings, so both renderers share one
+// sequence even though the body of these two blocks is written once, here.
+function flowCustomMarkdown(id: string, t: Messages): string[] {
+	switch (id) {
+		case "loop":
+			return [
+				...t.flow.steps.flatMap((s, i) => [
+					`${i + 1}. **${s.title}**${s.asks ? ` (${t.flow.asks})` : ""} — ${s.skills.join(", ")}. ${s.body}`,
+					...(s.track ?? []).map(
+						(x) => `   - ${x.title} — ${x.skills.join(", ")}. ${x.body}`,
+					),
+					...(s.loop ? [`   - ${t.flow.whenRed}: ${s.loop}`] : []),
+				]),
+				"",
+			];
+		case "support":
+			return [
+				...t.flow.support.map((x) => `- ${x.skills.join(", ")}: ${x.body}`),
+				"",
+				t.flow.guards,
+				"",
+			];
+		default:
+			return [];
+	}
+}
+
 export function staticPages(locale: Locale): Page[] {
 	const t = messages[locale];
 	return [
@@ -52,48 +89,7 @@ export function staticPages(locale: Locale): Page[] {
 				"",
 				t.install.lede,
 				"",
-				`## ${t.install.choose}`,
-				"",
-				`### ${t.install.claude}`,
-				"",
-				"```sh",
-				"curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh",
-				"```",
-				"",
-				t.install.claudeBody,
-				"",
-				`### ${t.install.others}`,
-				"",
-				"```sh",
-				"curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,opencode,codex,cursor",
-				"```",
-				"",
-				t.install.othersBody,
-				"",
-				`## ${t.install.verify}`,
-				"",
-				"```sh",
-				"claude plugin details project@skills-dir",
-				"opencode plugin list",
-				"```",
-				"",
-				`## ${t.install.updates}`,
-				"",
-				t.install.updatesBody,
-				"",
-				`## ${t.install.firstSkill}`,
-				"",
-				t.install.firstSkillBody,
-				"",
-				`## ${t.install.troubleshooting}`,
-				"",
-				...t.install.troubleshootingItems.flatMap((item) => [
-					`### ${item.problem}`,
-					"",
-					item.fix,
-					"",
-					...(item.command ? ["```sh", item.command, "```", ""] : []),
-				]),
+				...sectionsToMarkdown(installSections(t)),
 			].join("\n"),
 		},
 		{
@@ -105,26 +101,11 @@ export function staticPages(locale: Locale): Page[] {
 				"",
 				t.flow.lede,
 				"",
-				`## ${t.flow.loop}`,
-				"",
-				...t.flow.steps.flatMap((s, i) => [
-					`${i + 1}. **${s.title}**${s.asks ? ` (${t.flow.asks})` : ""} — ${s.skills.join(", ")}. ${s.body}`,
-					...(s.track ?? []).map(
-						(x) => `   - ${x.title} — ${x.skills.join(", ")}. ${x.body}`,
-					),
-					...(s.loop ? [`   - ${t.flow.whenRed}: ${s.loop}`] : []),
-				]),
-				"",
-				`## ${t.flow.autonomyTitle}`,
-				"",
-				t.flow.autonomy,
-				"",
-				`## ${t.flow.supportTitle}`,
-				"",
-				...t.flow.support.map((x) => `- ${x.skills.join(", ")}: ${x.body}`),
-				"",
-				t.flow.guards,
-				"",
+				...flowSections(t).flatMap((s: Section) =>
+					s.kind === "custom"
+						? flowCustomMarkdown(s.id, t)
+						: sectionsToMarkdown([s]),
+				),
 			].join("\n"),
 		},
 		{
@@ -136,32 +117,7 @@ export function staticPages(locale: Locale): Page[] {
 				"",
 				t.contribute.lede,
 				"",
-				`## ${t.contribute.conventions}`,
-				"",
-				t.contribute.conventionsBody,
-				"",
-				`## ${t.contribute.checks}`,
-				"",
-				t.contribute.checksBody,
-				"",
-				"```sh",
-				"./scripts/check.sh",
-				"```",
-				"",
-				`## ${t.contribute.layout}`,
-				"",
-				t.contribute.layoutBody,
-				"",
-				`## ${t.contribute.releases}`,
-				"",
-				t.contribute.releasesBody,
-				"",
-				`## ${t.contribute.versions}`,
-				"",
-				"| plugin | version |",
-				"|---|---|",
-				...generated.plugins.map((pl) => `| ${pl.name} | ${pl.version} |`),
-				"",
+				...sectionsToMarkdown(contributeSections(t, generated.plugins)),
 			].join("\n"),
 		},
 		{
@@ -173,16 +129,7 @@ export function staticPages(locale: Locale): Page[] {
 				"",
 				t.reference.lede,
 				"",
-				`- ${t.reference.pipeline}: shared/pipeline.md`,
-				`- ${t.reference.containers}: shared/containers.md`,
-				`- ${t.reference.databases}: plugins/db/references/safety.md`,
-				`- ${t.reference.guards}: ${t.reference.guardsBody}`,
-				`- ${t.reference.readingCode}: shared/reading-code.md`,
-				`- ${t.reference.specKit}: shared/spec-kit.md`,
-				`- ${t.reference.secrets}: shared/secrets.md`,
-				`- ${t.reference.agentRoles}: shared/agent-roles.md`,
-				`- ${t.reference.trackerSync}: plugins/repo/references/sync.md`,
-				"",
+				...sectionsToMarkdown(referenceSections(t)),
 			].join("\n"),
 		},
 		{
