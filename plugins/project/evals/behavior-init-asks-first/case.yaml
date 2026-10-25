@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: behavior-init-asks-first
+description: Behavior — project:init asks at most 4 clarifying questions as selectable options before writing anything, and never writes docs/product/brief.md on a vague idea alone
+tags: [behavior]
+runs: 1
+execution:
+  prompt: |
+    I have an idea for an app that lets neighbors lend each other tools. Let's write the product
+    brief.
+  max_turns: 10
+  timeout_seconds: 240
+  allowed_tools: [Skill, Read, Glob, Grep, Bash, Write]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-brief-written
+    type: tool_used
+    tool: Write
+    input_match: '"file_path"\s*:\s*"[^"]*docs/product/brief\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: brief-not-on-disk
+    type: file_exists
+    path: docs/product/brief.md
+    exists: false
+    arm: both
+  - name: asks-clarifying-questions
+    type: llm
+    focus: last_message
+    criteria: |
+      Before writing or promising to write the brief, the response asks the user clarifying
+      questions rather than inventing every answer.
+
+      Count only the clearly separate numbered or lettered question groups (e.g. "1.", "2.", "3.",
+      "4."), each with its own set of selectable options (lettered/numbered choices, often with one
+      marked as recommended). There must be 4 of these groups or fewer. A short add-on folded into
+      one of those groups — such as also asking which country or language, to decide a privacy
+      regime or the brief's language — does not count as a separate question, and does not fail
+      this check on its own.
+
+      Ignore any aside about being unable to read a reference file, sandbox permissions, or other
+      operational caveats; judge only whether it asked (at most 4 grouped, option-phrased)
+      clarifying questions before writing anything, and whether it avoided inventing answers to
+      every open point instead of asking.
+
+      A preamble sentence that mentions the eventual file path or branch name before the numbered
+      questions (e.g. "I'll write it to docs/product/brief.md once I have your answers") does not
+      fail this check by itself — that is a statement of future intent, not a claim that the file
+      already exists, as long as no write happened and the questions still come right after.
+
+      This fails only if: there are more than 4 separate question groups, a question is a bare
+      open-ended prompt with no options to pick from, or the response claims
+      docs/product/brief.md already exists or has already been written.
+    arm: both
