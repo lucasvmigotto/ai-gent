@@ -47,7 +47,13 @@ rendering any YAML:
      implement `../../references/releasing.md` as-is: Conventional
      Commits decide the bump, a plan script plans and applies it, a
      push-to-main workflow checks then releases, plain SemVer annotated
-     tags cut by the automation.
+     tags cut by the automation. A container image ships: the release
+     job's last step retags the already-promoted digest with the
+     release SemVer (`../../references/releasing.md`'s "If the release
+     ships a container image") — never a rebuild. On a platform other
+     than GitHub Actions, render the tag/release publishing step from
+     `../../references/platforms/concepts.md`'s "Release / tag
+     publishing" row.
    - **Scheduled** — full SAST/SCA/container scans, DAST baseline against
      staging, load tests (`qa:load`), dependency update PRs, cache warmup
      if useful.
