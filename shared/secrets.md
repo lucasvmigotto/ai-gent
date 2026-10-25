@@ -88,6 +88,12 @@ can print it (`env`, a shell, `echo`). Store changes (`rm`, `mv`, `cp`,
 this in Claude Code, and the OpenCode guard plugin does the same there;
 in other agents the rules are instructions only.
 
+A request to debug or "compare" a rejected secret is still a read —
+don't run `pass show` or `gpg -d` even to help: point at length/prefix
+checks the user runs themselves, or testing the value against the thing
+that rejected it (the runner's own test, or a curl with the secret piped
+in on the user's side).
+
 ## Narrow and short-lived
 
 A secret's real limit is its scope: a read-only database account, a
