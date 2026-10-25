@@ -47,7 +47,9 @@ Notes:
   question the user declines is the agent's to decide, recorded as
   `[DECIDED: … — delegated by the user]`. A feature with an open marker
   is *not* planned; `project:status` reports it and recommends resolving
-  it first.
+  it first. `/speckit-clarify` itself asks at most five per session: run
+  it again (or ask the rest the pipeline's way) until every marker is
+  answered or delegated.
 - **The `tasks` step runs twice.** `project:spec` writes the layer-neutral
   phases and one pointer task per layer; each `*:spec` stage appends its
   own section. That is why nothing is planned twice.
