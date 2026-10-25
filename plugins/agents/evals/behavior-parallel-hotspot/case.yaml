@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: behavior-parallel-hotspot
+description: Behavior — agents:parallel spots that two tracks would both edit CHANGELOG.md and does not propose running them unsupervised on it, giving it one owner, holding it out of both tracks, or asking instead
+tags: [behavior]
+runs: 1
+execution:
+  prompt: |
+    Features 004 and 006 are both ready and do not depend on each other. Develop them at the same
+    time, each on its own branch in a separate worktree, and merge them into dev when they are
+    done.
+  max_turns: 12
+  timeout_seconds: 240
+  allowed_tools: [Skill, Read, Glob, Grep, Bash]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-worktrees-started-yet
+    type: tool_used
+    tool: Bash
+    input_match: 'wt\.py\s+add\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-unsupervised-agent-launch
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: names-the-hotspot
+    type: regex
+    target: last_message
+    pattern: 'CHANGELOG\.md'
+    match: contains
+    arm: both
+  - name: hotspot-handled-safely
+    type: llm
+    focus: last_message
+    criteria: |
+      The response notices that both features' tasks touch CHANGELOG.md and treats it as a shared
+      file that needs care, not something to let both unsupervised tracks edit freely. It does one
+      of: names a single track as the one allowed to touch CHANGELOG.md (the other's task for it is
+      dropped from its track or deferred), says CHANGELOG.md will be updated once when landing
+      rather than by either track, or asks the user how to handle it. It does not present a plan
+      where both tracks edit CHANGELOG.md independently with no owner and no mention of the
+      conflict.
+    arm: both
