@@ -4,6 +4,17 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **`project:checkpoint`** (`plugins/project/skills/checkpoint`, `scripts/checkpoint.py`) keeps a hand-off file for long or multi-repository work. It writes `.ai-gent/checkpoint.md`, kept out of git through `.git/info/exclude`. The file holds the user's open requests and standing rules verbatim, what is on hold, each repository's state and the next steps. It is rewritten whole at each milestone, so another account, tool or session resumes exactly there. `checkpoint.py init|show|stamp` creates the skeleton, shows the file with staleness warnings and refreshes its timestamp.
+
+### Changed
+
+- **`project:recap` reads the checkpoint first**, then reads the sessions of every local Claude Code account. `sessions.py` now scans `~/.claude*`, and the folders next to `CLAUDE_CONFIG_DIR`. A session cut short by a usage limit is therefore found from the account that continues it. `list` marks sessions that belong to another account, and when a session was resumed on another account the newest copy wins.
+- **ai-gent's own release merges the release back into `dev`.** `release.yml` does this, as `shared/release-platforms.md` already asks of every project. It only warns while `dev`'s ruleset doesn't let `github-actions` bypass pull requests.
+
 ## 2.19.0 — 2026-10-27
 
 ### Changed
