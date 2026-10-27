@@ -175,11 +175,11 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `proxy` — simulate the production reverse proxy
   - `workflow` — run tasks through the tools recipes, or operate the devcontainer day to day
 - `plugins/devsecops/` — GitHub Actions by default; GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins, Forgejo/Gitea
-  - `pipeline` — design and create CI/CD pipelines, gates, environments and promotion
+  - `pipeline` — design and create CI/CD pipelines, gates, environments and promotion; every new project gets automatic releases (`scripts/release.py` reading the commits, a `CHANGELOG.md`, a release job per platform)
   - `supply-chain` — pinning, updates, SCA/SAST/secret scanning, hardened images, SBOM, signing, provenance
   - `iac` — infrastructure as code (OpenTofu/Terraform by default) for the environments the architecture chose
   - `audit` — security and reliability review of existing pipelines
-  - `migrate` — move pipelines between platforms
+  - `migrate` — move pipelines between platforms, the release job included
   - `watch` — follow CI/CD runs to the end, explain failures from their logs, and check secrets (names only), variables, environments and permissions; runs on a small model in its own context (Haiku in Claude Code) and hands any fix back
 - `plugins/security/` — red, blue and purple team security testing; local targets by default, remote or shared ones only with documented authorization
   - `scope` — the authorization record every other skill here requires first: targets, basis, window, allowed techniques, stop condition
@@ -425,7 +425,7 @@ plugins/<name>/skills/<skill>/scripts/          tools one skill runs (compact:co
 plugins/<name>/scripts/                         tools a plugin's skills run (db: dbrun; project: sessions, repo_state)
 plugins/<name>/evals/                           trigger and behavior evals
 skills/<name>/SKILL.md                          personal skills (skill-docs)     → /<name>
-shared/                                         pipeline, container and code-reading rules, symlinked into plugins' references/
+shared/                                         pipeline, container, release and code-reading rules, symlinked into plugins' references/
 opencode/guard/                                 the OpenCode V2 guard plugin, its rules and parity test
 scripts/                                        check.sh, release.py, opencode-config.py, test-dbrun-engines.py and the tests
 .github/workflows/                              check (pull requests), release (pushes to main)
@@ -465,6 +465,8 @@ A release:
 
 > [!TIP]
 > Preview the next release with `python3 scripts/release.py --dry-run`.
+
+The projects the skills set up work the same way: `devsecops:pipeline` gives each a `scripts/release.py` (single-version template, or this repository's script for several versioned packages), a `CHANGELOG.md` with `## Unreleased` and a release job on pushes to the default branch, rendered for GitHub Actions, Azure Pipelines, GitLab CI, Bitbucket Pipelines, Forgejo/Gitea Actions or Jenkins (`shared/release-platforms.md`). Nobody tags by hand; `scripts/release.sh` is the fallback when CI cannot push.
 
 > [!IMPORTANT]
 > The bot pushes the release commit and tag straight to `main`, so branch protection must let `github-actions[bot]` push. After each release your local branch is one commit behind: run `git pull --ff-only` before new work.

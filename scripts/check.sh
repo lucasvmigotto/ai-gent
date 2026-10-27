@@ -2,7 +2,7 @@
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
 # shell scripts, the git, db, secrets, repo and containers guard hooks, dbrun, reporun,
 # the project scripts, compact:code, the prose consistency checks, the release
-# script, and installer tests
+# script and its single-version template, and installer tests
 # in a throwaway HOME.
 # Run before every commit; CI runs the same script.
 #
@@ -314,6 +314,14 @@ else
   fail "release script"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-release.out"
+
+if scripts/test-release-single.sh >"${TMPDIR:-/tmp}/ai-gent-release-single.out" 2>&1; then
+  pass "single-version release template ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-release-single.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-release-single.out"
+  fail "single-version release template"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-release-single.out"
 
 # ------------------------------------------------------- opencode guard
 

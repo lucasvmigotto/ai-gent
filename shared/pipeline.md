@@ -229,6 +229,9 @@ definition and the words **not** to use for it
    repository** starting the same way every time, and **remote mode** —
    the platform reachable, merges not said to be local — landing every
    merge through a PR, are `git:workflow`'s own rules, followed here too.
+   **Releases are automatic**: the project's pipeline reads the commits
+   and cuts the version, changelog and tag on the default branch
+   (`releasing.md`, set up by `devsecops:pipeline`); no stage tags by hand.
 8. **Pushed means watched.** After every push, merge to a pushed branch
    or promotion, the stage that made it follows CI with `devsecops:watch`
    until it finishes, chained runs included: done means green in CI, not
