@@ -107,3 +107,9 @@ token or app password the user already has (`curl -u <user>:<token>`).
 
 - UUIDs include their braces; percent-encode them (`%7B…%7D`) in the path
   or the API answers that the value is not a valid UUID.
+
+## Release job
+
+Every project's default release job (Conventional Commits decide the bump,
+the pipeline tags) for Bitbucket Pipelines — snippet, push identity, loop guard, tag
+pipeline and the one-time grants — is in `../release-platforms.md`.
