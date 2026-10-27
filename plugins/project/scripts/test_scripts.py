@@ -1,7 +1,8 @@
 """Unit tests for the project plugin's scripts: python3 -m unittest plugins/project/scripts/test_scripts.py
 
 sessions.py against a fake Claude Code home and a fake `opencode` executable;
-repo_state.py against a throwaway repository with a bare remote.
+repo_state.py against a throwaway repository with a bare remote;
+checkpoint.py against a throwaway repository.
 """
 
 import contextlib
@@ -16,6 +17,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import checkpoint  # noqa: E402
 import repo_state  # noqa: E402
 import sessions  # noqa: E402
 
@@ -121,6 +123,23 @@ class SessionsTest(unittest.TestCase):
         ids = {s["id"] for s in json.loads(run(sessions, "list", "--repo", str(self.repo), "--tool", "claude", "--json")[1])}
         self.assertEqual(ids, {"in"})
 
+    def test_other_accounts_are_read_too(self):
+        os.utime(self.claude_session(), (1790000005, 1790000005))
+        other = self.tmp / ".claude-work" / "projects" / self.proj.name
+        other.mkdir(parents=True)
+        path = other / "elsewhere.jsonl"
+        path.write_text(json.dumps({"type": "user", "cwd": str(self.repo), "message": {"content": "continue the cart"}}) + "\n")
+        os.utime(path, (1790000009, 1790000009))
+        dup = other / "old.jsonl"  # the same session under both accounts is listed once, the newest copy
+        dup.write_text(json.dumps({"type": "user", "cwd": str(self.repo), "message": {"content": "dup"}}) + "\n")
+        os.utime(dup, (1790000001, 1790000001))
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            listed = json.loads(run(sessions, "list", "--repo", str(self.repo), "--tool", "claude", "--json")[1])
+            d = json.loads(run(sessions, "digest", "--repo", str(self.repo), "--tool", "claude", "--json")[1])
+        self.assertEqual([(s["id"], s["account"]) for s in sorted(listed, key=lambda s: s["id"])],
+                         [("elsewhere", ".claude-work"), ("old", "")])
+        self.assertEqual((d["id"], d["account"]), ("elsewhere", ".claude-work"))
+
     def test_opencode_digest(self):
         self.fake_opencode(
             [{"id": "ses_1", "title": "Fix login", "updated": 1790000000000, "directory": str(self.repo)},
@@ -213,3 +232,56 @@ class RepoStateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CheckpointTest(unittest.TestCase):
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp()) / "shop"
+        self.repo.mkdir()
+        git(self.repo, "init", "-q")
+        commit(self.repo, "a.txt")
+        self.env = mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": "/x/.claude-work", "CLAUDE_CODE_SESSION_ID": "s1"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.path = self.repo / ".ai-gent" / "checkpoint.md"
+
+    def test_init_creates_and_excludes_once(self):
+        self.assertEqual(run(checkpoint, "init", "--repo", str(self.repo))[0], 0)
+        text = self.path.read_text()
+        for section in checkpoint.SECTIONS:
+            self.assertIn(f"## {section}\n", text)
+        self.assertIn("claude session s1 · account .claude-work", text)
+        status = subprocess.run(["git", "-C", str(self.repo), "status", "--porcelain"], capture_output=True, text=True).stdout
+        self.assertNotIn("checkpoint", status)
+        self.path.write_text(text + "kept\n")
+        run(checkpoint, "init", "--repo", str(self.repo))
+        self.assertTrue(self.path.read_text().endswith("kept\n"))  # never overwritten
+        exclude = (self.repo / ".git" / "info" / "exclude").read_text()
+        self.assertEqual(exclude.count(checkpoint.EXCLUDE_LINE), 1)
+
+    def test_already_ignored_is_left_alone(self):
+        (self.repo / ".gitignore").write_text(".ai-gent/\n")
+        out = run(checkpoint, "init", "--repo", str(self.repo))[1]
+        self.assertNotIn("exclude", out)
+
+    def test_show_missing_and_stale(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(run(checkpoint, "show", "--repo", str(self.repo))[0], 1)
+        run(checkpoint, "init", "--repo", str(self.repo))
+        os.utime(self.path, (1000, 1000))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code, out = run(checkpoint, "show", "--repo", str(self.repo))
+        self.assertEqual(code, 0)
+        self.assertIn("## Next", out)
+        self.assertIn("newer than the checkpoint", err.getvalue())
+        self.assertIn("is not mentioned", err.getvalue())
+
+    def test_stamp_rewrites_the_updated_line(self):
+        run(checkpoint, "init", "--repo", str(self.repo))
+        self.path.write_text(self.path.read_text().replace("claude session s1", "claude session old"))
+        run(checkpoint, "stamp", "--repo", str(self.repo))
+        text = self.path.read_text()
+        self.assertEqual(text.count("Updated "), 1)
+        self.assertIn("claude session s1", text)

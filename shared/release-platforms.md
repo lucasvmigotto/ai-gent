@@ -172,6 +172,13 @@ jobs:
   protection that requires pull requests, add `github-actions` (or the
   App) to the bypass list; allow the workflow write permission under
   Settings → Actions → General if the org default is read-only.
+- **Repositories owned by a personal account** can't list the
+  `github-actions` integration as a ruleset bypass actor (GitHub answers
+  "must be part of the ruleset source or owner organization"). Either
+  push with a deploy key (a write key whose private half is a secret;
+  the ruleset bypasses deploy keys), or a GitHub App the account owns,
+  or keep the protected branch's push as a warning and merge by hand —
+  the owner can bypass.
 - Lint with `actionlint` and `zizmor`; the `Release` step touches no
   untrusted input (the version comes from the script).
 

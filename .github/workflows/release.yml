@@ -5,7 +5,8 @@ name: release
 # refactor → patch; "type!:" or BREAKING CHANGE → major; anything else → no
 # release. A release bumps the changed plugins' versions, promotes
 # CHANGELOG.md's "## Unreleased" (or generates a section), commits
-# "chore(release): X.Y.Z", tags X.Y.Z and publishes a GitHub Release.
+# "chore(release): X.Y.Z", tags X.Y.Z, publishes a GitHub Release and merges
+# the release back into dev.
 #
 # The bot pushes that commit and tag straight to main with GITHUB_TOKEN:
 # branch protection or a ruleset that requires pull requests (or doesn't let
@@ -73,6 +74,20 @@ jobs:
           # the next run releases those commits too.
           git push --atomic origin HEAD:refs/heads/main "refs/tags/$version"
           gh release create "$version" --title "$version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+          # Back-merge: bring the release commit and tag into dev, so its
+          # plugin versions and CHANGELOG don't lag. dev's ruleset requires
+          # pull requests and a personal-account repo can't let
+          # github-actions bypass it, so this push is refused and warns with
+          # the command the owner runs (on purpose: no deploy key or PAT).
+          integ=dev
+          if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
+            git fetch -q origin "$integ"
+            git switch -q -C "$integ" "origin/$integ"
+            if ! { git merge --no-ff -m "chore(release): merge $version back into $integ" "$version" && git push origin "$integ"; }; then
+              git merge --abort 2>/dev/null || true
+              echo "::warning::back-merge of $version into $integ failed; run: git switch $integ && git merge --no-ff $version && git push"
+            fi
+          fi
 
   report-failure:
     needs: [check, release]
