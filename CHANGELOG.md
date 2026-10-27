@@ -4,6 +4,28 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **Automatic release is the default for every project** (`devsecops`, `git`;
+  `shared/releasing.md`, new `shared/release-platforms.md` and
+  `shared/release-single.py`) — `devsecops:pipeline` now gives each new
+  project a `scripts/release.py` (a single-version template that finds
+  `pyproject.toml`, `package.json`, `Cargo.toml` or `VERSION`, or
+  ai-gent's own script for several versioned packages), a `CHANGELOG.md`
+  with `## Unreleased` and a release job on pushes to the default branch.
+  The commits since the last tag decide the bump. `release-platforms.md`
+  renders the job for GitHub Actions, Azure Pipelines, GitLab CI,
+  Bitbucket Pipelines, Forgejo/Gitea Actions and Jenkins, and for each
+  says how it pushes with the CI identity, its loop guard (never `[skip
+  ci]`, which would skip the tag's pipeline), whether the tag it pushes
+  starts the tag pipeline, and the one-time permissions a human grants. A
+  manual `scripts/release.sh` stays as the fallback when CI cannot push.
+  `devsecops:migrate` carries the release job across platforms,
+  `git:workflow` says the pipeline cuts releases and nobody tags by hand,
+  and every platform file points at the new reference.
+
 ## 2.18.0 — 2026-10-25
 
 ### Added
