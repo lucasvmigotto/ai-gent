@@ -75,8 +75,10 @@ jobs:
           git push --atomic origin HEAD:refs/heads/main "refs/tags/$version"
           gh release create "$version" --title "$version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
           # Back-merge: bring the release commit and tag into dev, so its
-          # plugin versions and CHANGELOG don't lag. dev's ruleset must let
-          # github-actions bypass pull requests; otherwise this only warns.
+          # plugin versions and CHANGELOG don't lag. dev's ruleset requires
+          # pull requests and a personal-account repo can't let
+          # github-actions bypass it, so this push is refused and warns with
+          # the command the owner runs (on purpose: no deploy key or PAT).
           integ=dev
           if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
             git fetch -q origin "$integ"

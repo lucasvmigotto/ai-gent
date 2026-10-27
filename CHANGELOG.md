@@ -13,7 +13,7 @@ changes.
 ### Changed
 
 - **`project:recap` reads the checkpoint first**, then reads the sessions of every local Claude Code account. `sessions.py` now scans `~/.claude*`, and the folders next to `CLAUDE_CONFIG_DIR`. A session cut short by a usage limit is therefore found from the account that continues it. `list` marks sessions that belong to another account, and when a session was resumed on another account the newest copy wins.
-- **ai-gent's own release merges the release back into `dev`.** `release.yml` does this, as `shared/release-platforms.md` already asks of every project. It only warns while `dev`'s ruleset doesn't let `github-actions` bypass pull requests.
+- **ai-gent's own release merges the release back into `dev`.** `release.yml` does this, as `shared/release-platforms.md` already asks of every project. Here `dev` requires pull requests, and on a repository owned by a personal account `github-actions` can't bypass that, so the step warns with the command to run by hand. `shared/release-platforms.md` now names that limit and the alternatives: a deploy key or an owned GitHub App.
 
 ## 2.19.0 — 2026-10-27
 
