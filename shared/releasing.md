@@ -1,15 +1,25 @@
 # The release flow
 
-Shared by the `git` and `devsecops` plugins. This is the default way a
-project in this context versions, tags and releases: Conventional
-Commits decide the bump, a script plans and applies it, GitHub Actions
-runs it on every push to `main`. It is the pattern both ai-gent and
-dottod run in production, adapted to whatever the project ships.
+Shared by the `git` and `devsecops` plugins. **The default: the pipeline
+cuts every release, and nobody tags by hand.** Conventional Commits
+decide the bump, a script plans and applies it, and the CI platform runs
+it on every push to the default branch. This is the pattern ai-gent and
+dottod run in production, adapted to the platform and to whatever the
+project ships.
+
+Every new project gets it from `devsecops:pipeline`: a `scripts/release.py`,
+a `CHANGELOG.md` with `## Unreleased`, and a release job on pushes to the
+default branch. The script, the choice between its single-version and
+multi-package forms, and the job for GitHub Actions, Azure Pipelines,
+GitLab CI, Bitbucket Pipelines, Forgejo/Gitea Actions and Jenkins are in
+`release-platforms.md`; this file is the model they implement. A project
+that opts out says so in `docs/product/delivery.md`; a project that cannot
+let CI push uses the manual fallback in `release-platforms.md` instead.
 
 Read this when designing or setting up the release stage, when asked
-about tagging, or when a release misbehaves. The portable model and the
-pipeline a release runs in live in `devsecops:pipeline`; the branch and
-commit discipline in `git:workflow`.
+about tagging, or when a release misbehaves. The pipeline a release runs
+in lives in `devsecops:pipeline`; the branch and commit discipline in
+`git:workflow`.
 
 ## The one flow
 
@@ -39,12 +49,14 @@ push to main
   nothing to do, `1` error, `2` bad arguments. A release commit that
   lands while the run is in flight is rejected by the atomic push and
   released on the next run — nothing half-publishes.
-- **No loop, twice over.** The bot pushes with `GITHUB_TOKEN`, whose
-  pushes do not trigger workflows, so the `chore(release)` commit cannot
-  re-enter; the `chore(release)` prefix check on the check job is the
-  second guard.
-- **The release never races itself.** `concurrency: group: release,
-  cancel-in-progress: false` — a slow run finishes, the next queues,
+- **No loop.** The release commit must not release again. On GitHub
+  Actions the bot pushes with `GITHUB_TOKEN`, whose pushes trigger no
+  workflow, and the `chore(release)` prefix check on the check job is the
+  second guard; on every other platform that prefix check is the guard
+  (`release-platforms.md`).
+- **The release never races itself.** On GitHub Actions
+  `concurrency: group: release, cancel-in-progress: false` (other
+  platforms: `release-platforms.md`) — a slow run finishes, the next queues,
   and a moved `main` is caught by the atomic push instead of a merge
   conflict.
 
@@ -100,15 +112,23 @@ It reuses the registry logins and image-naming conventions
 
 ## Other platforms
 
-The flow above, and its exact mechanics (`GITHUB_TOKEN` not
-retriggering workflows, `gh release create`), are GitHub Actions'
-rendering of it. The bump-and-changelog core (Conventional Commits
-decide it, a plan-then-apply script, an unskippable gate) is the same
-everywhere; what differs is how the CI workflow publishes the tag as a
-platform object — `concepts.md`'s "Release / tag publishing" row maps
-each platform's equivalent (and says plainly where there isn't one) for
-`devsecops:pipeline` to render from and `devsecops:migrate` to carry
-over.
+The flow above is the platform-neutral model; its exact mechanics are in
+`release-platforms.md`, which renders it for each platform and answers,
+per platform, how the job pushes with the CI identity, how it avoids
+looping, whether the tag it pushes starts the tag pipeline, and which
+permissions a human grants once. Two points hold everywhere and bite when
+forgotten:
+
+- **Never `[skip ci]` in the release commit.** Most platforms skip the tag
+  pipeline with it; the `chore(release):` check on the head commit is the
+  loop guard instead.
+- **GitHub Actions is the odd one out**: pushes made with `GITHUB_TOKEN`
+  start no workflows, tags included. If something must run for the tag
+  (package, publish, deploy), do it in the release workflow itself or push
+  with a GitHub App token.
+
+`concepts.md`'s "Release / tag publishing" row maps each platform's
+release object (and says plainly where there isn't one).
 
 ## The gate must be unskippable
 
