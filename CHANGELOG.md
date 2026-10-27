@@ -22,6 +22,9 @@ changes.
   ci]`, which would skip the tag's pipeline), whether the tag it pushes
   starts the tag pipeline, and the one-time permissions a human grants. A
   manual `scripts/release.sh` stays as the fallback when CI cannot push.
+  After tagging, the job merges the release commit back into the
+  integration branch (`dev`/`develop`); a conflict or refused push warns
+  with the manual command and does not fail the release.
   `devsecops:migrate` carries the release job across platforms,
   `git:workflow` says the pipeline cuts releases and nobody tags by hand,
   and every platform file points at the new reference.

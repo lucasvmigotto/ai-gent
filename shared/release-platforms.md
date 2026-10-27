@@ -38,7 +38,7 @@ release job reads what arrived.
 
 ## The contract each platform must meet
 
-Every rendering below does the same eight things; a platform that cannot
+Every rendering below does the same nine things; a platform that cannot
 do one says so in `delivery.md` and names the workaround.
 
 1. **Trigger** on pushes to the default branch, after the checks pass
@@ -62,6 +62,22 @@ do one says so in `delivery.md` and names the workaround.
 8. **Fail clearly on missing permissions.** The push is where an
    ungranted permission surfaces; the job prints which permission and where
    a human grants it (the table below) instead of a bare `403`.
+
+9. **Back-merge** into the integration branch (`dev`/`develop`), when
+   the project has one. The release commit and tag land on the default
+   branch only; unless they come back, the integration branch's version
+   file and CHANGELOG lag behind and `release.py` run there counts from an
+   older tag. After the push of step 6, in the same job: fetch the
+   integration branch, check it out from `origin/<integ>`, run
+   `git merge --no-ff -m "chore(release): merge X.Y.Z back into <integ>" X.Y.Z`
+   and push it. A conflict or a refused push **warns** with the manual
+   command (`git switch <integ> && git merge --no-ff X.Y.Z && git push`)
+   and leaves the job **succeeded**: the release is already done, so a
+   warning (not a silent pass, not a failure) is the right outcome. The
+   merge message starts with `chore(release):`, so the loop guard already
+   covers it. The identity that pushed the default branch pushes this too,
+   and needs the same permission on the integration branch; each platform
+   section says which.
 
 ### At a glance
 
@@ -127,6 +143,15 @@ jobs:
           git tag -a "$version" -m "$version"
           git push --atomic origin HEAD:refs/heads/main "refs/tags/$version"
           gh release create "$version" --title "$version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+          integ=dev                                        # the integration branch; skip when the project has none
+          if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
+            git fetch -q origin "$integ"
+            git switch -q -C "$integ" "origin/$integ"
+            if ! { git merge --no-ff -m "chore(release): merge $version back into $integ" "$version" && git push origin "$integ"; }; then
+              git merge --abort 2>/dev/null || true
+              echo "::warning::back-merge of $version into $integ failed; run: git switch $integ && git merge --no-ff $version && git push"
+            fi
+          fi
 ```
 
 - **Loop guard.** Pushes made with `GITHUB_TOKEN` start no workflow, so
@@ -139,6 +164,10 @@ jobs:
   token (`actions/create-github-app-token`, pinned) instead of
   `GITHUB_TOKEN` — then the tag workflow runs and the `chore(release)`
   guard is the only loop guard, so keep it.
+- **Back-merge.** The same `GITHUB_TOKEN` pushes the integration branch
+  (`contents: write`); if `dev` is protected, add `github-actions` to its
+  bypass list too, or the step only warns. The merge push starts no
+  workflow, so `dev` gets no CI run for it.
 - **Human grants, once.** If `main` is protected by a ruleset or branch
   protection that requires pull requests, add `github-actions` (or the
   App) to the bypass list; allow the workflow write permission under
@@ -187,6 +216,15 @@ stages:
               git push origin HEAD:refs/heads/main "refs/tags/$version" || {
                 echo "##vso[task.logissue type=error]push rejected: grant the Build Service Contribute, Create tag and (if main has policies) Bypass policies on this repository" >&2
                 exit 1; }
+              integ=dev                                        # the integration branch; skip when the project has none
+              if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
+                git fetch -q origin "$integ"
+                git switch -q -C "$integ" "origin/$integ"
+                if ! { git merge --no-ff -m "chore(release): merge $version back into $integ" "$version" && git push origin "$integ"; }; then
+                  git merge --abort 2>/dev/null || true
+                  echo "##vso[task.logissue type=warning]back-merge of $version into $integ failed; run: git switch $integ && git merge --no-ff $version && git push"
+                fi
+              fi
             displayName: Plan and release
   # on refs/tags/*.*.*: Package -> Publish stages, gated on the tag equalling the version
 ```
@@ -198,6 +236,10 @@ stages:
 - **Tag pipeline.** A tag pushed with `System.AccessToken` starts a build
   for the tag trigger. Check in the tag build that the tag equals the
   version source before packaging.
+- **Back-merge.** The same Build Service identity pushes the integration
+  branch, so it also needs **Contribute** there and, if that branch has
+  policies, **Bypass policies when pushing**. A failure is a warning
+  (`task.logissue type=warning`), and the stage stays green.
 - **Human grants, once per repository.** Project settings → Repositories →
   the repo → Security, for "`<Project>` Build Service (`<org>`)":
   **Contribute: Allow**, **Create tag: Allow**, and **Bypass policies when
@@ -232,6 +274,16 @@ release-commit:
     - git commit -m "chore(release): $version"
     - git tag -a "$version" -m "$version"
     - git push "https://release-bot:${RELEASE_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:"$CI_DEFAULT_BRANCH" "refs/tags/$version"
+    - |
+      integ=dev                                        # the integration branch; skip when the project has none
+      if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
+        git fetch -q origin "$integ"
+        git switch -q -C "$integ" "origin/$integ"
+        if ! { git merge --no-ff -m "chore(release): merge $version back into $integ" "$version" && git push "https://release-bot:${RELEASE_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "$integ"; }; then
+          git merge --abort 2>/dev/null || true
+          echo "WARNING: back-merge of $version into $integ failed; run: git switch $integ && git merge --no-ff $version && git push"
+        fi
+      fi
 
 release-publish:                                 # runs in the tag's pipeline
   stage: release
@@ -253,6 +305,9 @@ release-publish:                                 # runs in the tag's pipeline
   create a **project access token** (role Maintainer, scope
   `write_repository`) and store it as a masked, protected CI/CD variable
   `RELEASE_TOKEN` (`secrets:pass` names it `ai-gent/gitlab/<project>-release`).
+- **Back-merge.** The same `RELEASE_TOKEN` pushes the integration branch;
+  add its user to that branch's "Allowed to push" if it is protected.
+  Failure prints a warning and the job stays green.
 - **Loop guard.** The `rules:` regex on `$CI_COMMIT_MESSAGE`.
 - **`[skip ci]` caveat.** It, and `git push -o ci.skip`, skip the pipeline
   of the pushed commit and of a tag on it — never use them here.
@@ -294,6 +349,16 @@ pipelines:
             - git commit -m "chore(release): $version"
             - git tag -a "$version" -m "$version"
             - git push "https://x-token-auth:${RELEASE_TOKEN}@bitbucket.org/${BITBUCKET_REPO_FULL_NAME}.git" HEAD:main "refs/tags/$version"
+            - |
+              integ=dev                                        # the integration branch; skip when the project has none
+              if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
+                git fetch -q origin "$integ"
+                git switch -q -C "$integ" "origin/$integ"
+                if ! { git merge --no-ff -m "chore(release): merge $version back into $integ" "$version" && git push "https://x-token-auth:${RELEASE_TOKEN}@bitbucket.org/${BITBUCKET_REPO_FULL_NAME}.git" "$integ"; }; then
+                  git merge --abort 2>/dev/null || true
+                  echo "WARNING: back-merge of $version into $integ failed; run: git switch $integ && git merge --no-ff $version && git push"
+                fi
+              fi
   tags:
     '*.*.*':
       - step:
@@ -309,6 +374,9 @@ pipelines:
 - **Tag pipeline.** The `tags:` pipeline runs for the tag the token
   pushes (any push does). No Release object: the tag is the release;
   attach files through the repository Downloads API if needed.
+- **Back-merge.** The same repository access token pushes the integration
+  branch; if branch restrictions protect it, let the token's user push
+  there too. Failure prints a warning and the step stays green.
 - **Human grants, once.** If branch restrictions protect `main`, let the
   token's user push to it (and bypass the merge-check requirement);
   create the secured variable.
@@ -328,6 +396,11 @@ Start from the GitHub Actions job: same workflow syntax, under
             -d "$(python3 -c 'import json,sys; print(json.dumps({"tag_name": sys.argv[1], "name": sys.argv[1], "body": open(sys.argv[2]).read()}))' "$version" "$RUNNER_TEMP/notes.md")"
 ```
 
+- **Back-merge.** After the release push, add the block from the GitHub
+  section (same `git` commands; warn with `echo "::warning::…"`, which the
+  runner shows as an annotation) in the same step, pushing with the same
+  bot user's token. Whitelist that user on the integration branch too, or
+  the step only warns.
 - **Push identity.** Push with a bot user's token (stored as the secret
   `RELEASE_TOKEN`) over HTTPS rather than the job token, so branch
   protection can whitelist exactly that user and the tag's pipeline is
@@ -371,6 +444,15 @@ stage('release') {
         git commit -m "chore(release): $version"
         git tag -a "$version" -m "$version"
         git push origin HEAD:main "refs/tags/$version"
+        integ=dev                                        # the integration branch; skip when the project has none
+        if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
+          git fetch -q origin "$integ"
+          git switch -q -C "$integ" "origin/$integ"
+          if ! { git merge --no-ff -m "chore(release): merge $version back into $integ" "$version" && git push origin "$integ"; }; then
+            git merge --abort 2>/dev/null || true
+            echo "WARNING: back-merge of $version into $integ failed; run: git switch $integ && git merge --no-ff $version && git push"
+          fi
+        fi
       '''
     }
   }
@@ -388,6 +470,10 @@ stage('release') {
   has *Discover tags* and receives a webhook (or the scan interval finds
   it). Without it, do the tag's work in the same pipeline after the push
   (`when { buildingTag() }` stages never run for it).
+- **Back-merge.** The same bot credential pushes the integration branch;
+  grant it push there too. A failure prints a warning (use
+  `unstable('…')` in a `script` step if the build should show yellow); the
+  build stays green.
 - **Release object.** Jenkins has none; call the SCM's release API from
   the pipeline (GitHub, GitLab or Forgejo section above) or stop at the
   tag.
@@ -425,6 +511,13 @@ git add CHANGELOG.md <version files> <lock file>
 git commit -q -m "chore(release): $version"
 git tag -a "$version" -m "$version"
 git push --atomic origin "HEAD:refs/heads/$branch" "refs/tags/$version"
+integ=dev                                         # skip when there is no integration branch
+if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
+  git fetch -q origin "$integ"; git switch -q -C "$integ" "origin/$integ"
+  git merge --no-ff -m "chore(release): merge $version back into $integ" "$version" && git push origin "$integ" \
+    || { git merge --abort 2>/dev/null; echo "back-merge failed; run: git switch $integ && git merge --no-ff $version && git push" >&2; }
+  git switch -q "$branch"
+fi
 ```
 
 It pushes, so `git:workflow` applies: only on an explicit request. The

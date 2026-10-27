@@ -49,6 +49,14 @@ push to main
   nothing to do, `1` error, `2` bad arguments. A release commit that
   lands while the run is in flight is rejected by the atomic push and
   released on the next run — nothing half-publishes.
+- **Back-merge.** The release commit and tag land on the default branch
+  only, so the job then merges the release commit back into the
+  integration branch (`dev`/`develop`) with
+  `git merge --no-ff -m "chore(release): merge X.Y.Z back into <integ>"`
+  and pushes it, when the project has one — otherwise the integration
+  branch's version and CHANGELOG lag and the next plan counts from an old
+  tag. A conflict or refused push warns with the manual command and does
+  not fail the release (`release-platforms.md`).
 - **No loop.** The release commit must not release again. On GitHub
   Actions the bot pushes with `GITHUB_TOKEN`, whose pushes trigger no
   workflow, and the `chore(release)` prefix check on the check job is the
