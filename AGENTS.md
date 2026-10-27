@@ -101,6 +101,11 @@ files (or the shared files it links) changed, promotes `CHANGELOG.md`'s
 - Don't bump plugin versions or tag by hand; a version already changed by
   hand since the last tag is left alone.
 - Preview with `scripts/release.py --dry-run`.
+- The same flow is what the skills set up in other projects: the
+  single-version template is `shared/release-single.py` (tested by
+  `scripts/test-release-single.sh`) and the per-platform release jobs are
+  in `shared/release-platforms.md`. Change the bump rules in both
+  scripts together.
 - After pushing, the bot's release commit lands on `main`: run
   `git pull --ff-only` before the next local commit.
 

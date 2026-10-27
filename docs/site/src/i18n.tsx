@@ -375,7 +375,7 @@ export const enUS: Messages = {
 				key: "release",
 				title: "Release",
 				skills: ["git-workflow", "devsecops-pipeline"],
-				body: "dev is promoted to main through a pull request; the release workflow picks the version from the Conventional Commits, writes the changelog, tags and publishes.",
+				body: "dev is promoted to main through a pull request; the pipeline's release job picks the version from the Conventional Commits, writes the changelog and tags, with no manual tagging, on any CI platform.",
 				asks: true,
 			},
 			{

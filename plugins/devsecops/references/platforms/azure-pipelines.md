@@ -122,3 +122,9 @@ signed in, with the organization and project set (`az devops configure
 
 - A run waiting on an environment's approvals and checks shows as in
   progress; read the timeline's checkpoint records before calling it stuck.
+
+## Release job
+
+Every project's default release job (Conventional Commits decide the bump,
+the pipeline tags) for Azure Pipelines — snippet, push identity, loop guard, tag
+pipeline and the one-time grants — is in `../release-platforms.md`.

@@ -11,7 +11,9 @@ description: Design and write CI/CD pipelines — pull request, main, release, s
    default, principles), `../../references/platforms/concepts.md`, and the
    detected platform's file in `../../references/platforms/`.
 2. Read `../../references/pipeline.md`, `../../references/releasing.md`
-   (the default release flow), and the inputs that exist:
+   (the default release flow), `../../references/release-platforms.md`
+   (the script and the release job per platform), and the inputs that
+   exist:
    - `docs/product/architecture.md` / ADRs — environments, hosting,
      deploy targets, deployment strategy, regions;
    - `docs/product/test-strategy.md` and `specs/*/qa.md` — which suites
@@ -24,8 +26,9 @@ description: Design and write CI/CD pipelines — pull request, main, release, s
    user may not want the GitHub Actions default, deploy targets and
    environments, who approves production, the cloud account/subscription
    structure for OIDC. The release scheme defaults to
-   `../../references/releasing.md` — ask only if the user wants
-   something different.
+   `../../references/releasing.md`, automatic on every platform — ask
+   only if the user wants something different, and whether the CI
+   identity may push to the default branch (else the manual fallback).
 
 ## Design — the portable model first
 
@@ -42,12 +45,33 @@ rendering any YAML:
      the `devcontainer:infra` images), e2e (`qa:e2e`), package, SBOM,
      sign, provenance, deploy to staging, smoke test, then promotion to
      production behind approval.
-   - **Release** — tags/versions, changelog, publishing, production
-     deploy of the already-built digest. Unless the user overrides,
-     implement `../../references/releasing.md` as-is: Conventional
-     Commits decide the bump, a plan script plans and applies it, a
-     push-to-main workflow checks then releases, plain SemVer annotated
-     tags cut by the automation.
+   - **Release** — **automatic by default: every new project gets it,
+     and nobody tags by hand.** Unless the user overrides, implement
+     `../../references/releasing.md` as-is:
+     - add `scripts/release.py` (the single-version template
+       `../../references/release-single.py`, or for several versioned
+       packages ai-gent's own script, both described in
+       `../../references/release-platforms.md`) and a `CHANGELOG.md`
+       with an empty `## Unreleased`;
+     - add a release job to the pipeline that runs on pushes to the
+       default branch, after the checks, from the detected platform's
+       section of `release-platforms.md` (GitHub Actions, Azure
+       Pipelines, GitLab CI, Bitbucket, Forgejo/Gitea, Jenkins): the
+       commits since the last tag decide the bump (`feat` → minor,
+       `fix`/`perf`/`refactor` → patch, `!`/`BREAKING CHANGE` → major,
+       else no release), the job commits `chore(release): X.Y.Z`, tags
+       `X.Y.Z` and publishes the platform's release object where one
+       exists;
+     - record in `delivery.md` the push identity, the loop guard, whether
+       the tag starts the tag pipeline and the one-time grants a human
+       must make (they cannot be done from the repository);
+     - a container image ships: the release job's last step retags the
+       already-promoted digest with the release SemVer
+       (`releasing.md`'s "If the release ships a container image") —
+       never a rebuild;
+     - if CI cannot be allowed to push, say so in `delivery.md` and add
+       the manual `scripts/release.sh` fallback instead; the default stays
+       the pipeline.
    - **Scheduled** — full SAST/SCA/container scans, DAST baseline against
      staging, load tests (`qa:load`), dependency update PRs, cache warmup
      if useful.
@@ -145,6 +169,7 @@ rendering any YAML:
 - [ ] production deploy: protected environment, approval, protected ref only, concurrency lock
 - [ ] one artifact/digest promoted through environments; rollback documented
 - [ ] SBOM, signing and provenance on release artifacts
+- [ ] `scripts/release.py`, `CHANGELOG.md` (`## Unreleased`) and a release job on the default branch, with its loop guard and the human grants listed
 - [ ] every job has a timeout; PR pipeline duration measured
 - [ ] `delivery.md` lists every required secret/variable by name and where it's configured
 

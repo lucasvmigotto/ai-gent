@@ -100,3 +100,9 @@ Used by `devsecops:watch`. Use the REST API with the user's API token
 
 - The commit a build used is in its `actions` (Git plugin build data);
   match it to the pushed SHA before trusting "last build".
+
+## Release job
+
+Every project's default release job (Conventional Commits decide the bump,
+the pipeline tags) for Jenkins — snippet, push identity, loop guard, tag
+pipeline and the one-time grants — is in `../release-platforms.md`.

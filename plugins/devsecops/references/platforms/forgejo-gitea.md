@@ -70,3 +70,9 @@ limited Actions support depending on version.
   differs between them (some take a task ID, not a job ID). Check the
   instance's `/api/swagger` before relying on one; the web UI's log
   download works everywhere.
+
+## Release job
+
+Every project's default release job (Conventional Commits decide the bump,
+the pipeline tags) for Forgejo/Gitea Actions — snippet, push identity, loop guard, tag
+pipeline and the one-time grants — is in `../release-platforms.md`.
