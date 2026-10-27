@@ -147,7 +147,8 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run
   - `docs` — static documentation site in `docs/site/`, plus `llms.txt` and Markdown pages for LLMs
   - `survey` — first contact with a repository: stack, layout, history, how the main branches drift, red flags, and what to run next
-  - `recap` — back to a project: where the last Claude Code or OpenCode session left off, what changed since (you, the remote, others), the next step
+  - `recap` — back to a project: the hand-off checkpoint, where the last Claude Code or OpenCode session left off (from any local account), what changed since (you, the remote, others), the next step
+  - `checkpoint` — a git-excluded hand-off file (`.ai-gent/checkpoint.md`) with the user's requests and rules verbatim, holds, each repository's state and next steps, rewritten at each milestone so another account or session resumes there
   - `pitch` — the project's presentation page (short, medium or large; non-tech, basic-tech or tech team) as a Claude Artifact, a ChatGPT Canvas or a static page, every number sourced
   - `introspec` — reverse-engineer an existing codebase into the full pipeline spec, every claim Observed, Inferred or Assumed
   - `retrofit` — upgrade in place with behavior frozen: `patch` (CVEs), `minor` (adapt code), `major` (breaking upgrades)
@@ -260,6 +261,7 @@ flowchart LR
         direction TB
         status["<b>project:status</b><br/>where things stand, what's next"]
         recap["<b>project:recap</b><br/>back after a pause: last session, what changed"]
+        checkpoint["<b>project:checkpoint</b><br/>hand-off for another account or session"]
         devcontainer["<b>devcontainer:*</b><br/>containers, simulated infra"]
         devsecops["<b>devsecops:*</b><br/>CI/CD, supply chain, IaC"]
         db["<b>db:*</b><br/>inspect, review, investigate"]
@@ -267,7 +269,7 @@ flowchart LR
     end
 ```
 
-In plain text: init → architecture → spec → frontend, backend and QA in parallel (each build stage is the `implement` step, converged before Implemented) → e2e and load → docs. For an existing codebase: survey → introspec → retrofit or refactor. Returning to any project: recap.
+In plain text: init → architecture → spec → frontend, backend and QA in parallel (each build stage is the `implement` step, converged before Implemented) → e2e and load → docs. For an existing codebase: survey → introspec → retrofit or refactor. Long work keeps a checkpoint; returning to any project: recap.
 
 Every feature's status, per side, in `specs/README.md`:
 
@@ -326,7 +328,7 @@ flowchart TD
     watch -- green --> verify --> close --> release --> docs
 ```
 
-Alongside every step: `secrets:pass` (tokens and passwords never shown), `db:*` (one audited runner), `devcontainer:*`, `devsecops:*`, `repo:issues` and `repo:pr`, `project:status` and `project:recap`, and the guard hooks. Thick borders ask you (unless your up-front permission covers them).
+Alongside every step: `secrets:pass` (tokens and passwords never shown), `db:*` (one audited runner), `devcontainer:*`, `devsecops:*`, `repo:issues` and `repo:pr`, `project:status`, `project:recap` and `project:checkpoint`, and the guard hooks. Thick borders ask you (unless your up-front permission covers them).
 
 ## Containers
 

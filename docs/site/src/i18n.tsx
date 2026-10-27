@@ -411,8 +411,8 @@ export const enUS: Messages = {
 				body: "Issues, work items and pull requests on any of the platforms.",
 			},
 			{
-				skills: ["project-status", "project-recap"],
-				body: "Where things stand and what's next; back after a pause.",
+				skills: ["project-status", "project-recap", "project-checkpoint"],
+				body: "Where things stand and what's next; back after a pause; a hand-off another account resumes from.",
 			},
 		],
 		guards:
