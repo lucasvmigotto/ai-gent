@@ -20,6 +20,10 @@
      them exactly (`--sync-secret-data` rewrites it).
   8. Every artifact path the project plugin's pipeline pane lists
      (hooks/pipeline-model.ts) is in shared/pipeline.md's artifact table.
+  9. The guard plugins' hooks modules import a COPY of shared/guard-ux.ts (the
+     engine refuses an import through a symlink that leaves the plugin). The
+     copies are identical to it (`--sync-guard-ux` rewrites them), and every
+     reason a guard.sh can print has an entry in its table.
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -294,18 +298,71 @@ def check_pipeline_paths(root: Path) -> list[str]:
     return problems
 
 
+GUARD_UX = "shared/guard-ux.ts"
+GUARD_PLUGINS = {"git": "git:workflow guard:", "db": "db guard:", "secrets": "secrets guard:", "repo": "repo guard:",
+                 "devcontainer": "containers guard:"}
+
+
+def guard_reasons(text: str) -> list[str]:
+    """Every reason a guard.sh can print: `decide deny|ask "…"`, its named reason variables, and repo's printf arguments."""
+    named = dict(re.findall(r'^(\w+_reason)="((?:[^"\\]|\\.)*)"', text, re.M))
+    out = []
+    for kind, arg in re.findall(r'decide\s+(deny|ask)\s+("(?:[^"\\]|\\.)*"|\$\w+)', text):
+        body = arg.strip('"')
+        out.append(named.get(body[1:], "") if re.fullmatch(r"\$\w+", body) else body)
+    out += re.findall(r'^\s{4,}"((?:[^"\\]|\\.)*)"\s*$', text, re.M)  # repo guard: the printf's reason argument
+    return list(dict.fromkeys(r for r in out if r))
+
+
+def guard_matches(root: Path) -> dict[str, list[str]]:
+    """The `match` fragments of each guard's entries in shared/guard-ux.ts, by marker."""
+    src = (root / GUARD_UX).read_text(encoding="utf-8")
+    out: dict[str, list[str]] = {}
+    for block in re.finditer(r"marker: '([^']+)',.*?entries: \[(.*?)\n    \],", src, re.S):
+        out[block[1]] = [m.replace("\\'", "'") for m in re.findall(r"match: '((?:[^'\\]|\\.)*)'", block[2])]
+    return out
+
+
+def check_guard_ux(root: Path) -> list[str]:
+    source = root / GUARD_UX
+    if not source.is_file():
+        return []
+    problems = []
+    for plugin in GUARD_PLUGINS:
+        copy = root / "plugins" / plugin / "hooks" / "guard-ux.ts"
+        if not copy.is_file() or copy.read_bytes() != source.read_bytes():
+            problems.append(f"plugins/{plugin}/hooks/guard-ux.ts differs from {GUARD_UX} (run python3 scripts/consistency.py --sync-guard-ux)")
+    matches = guard_matches(root)
+    for plugin, marker in GUARD_PLUGINS.items():
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        if not guard.is_file():
+            continue
+        reasons = guard_reasons(guard.read_text(encoding="utf-8"))
+        if not reasons:
+            problems.append(f"plugins/{plugin}/hooks/guard.sh: no reasons found (the check reads `decide deny|ask \"…\"`)")
+        for reason in reasons:
+            if not any(m in reason for m in matches.get(marker, [])):
+                problems.append(f"plugins/{plugin}/hooks/guard.sh: '{reason[:70]}…' has no entry in {GUARD_UX}")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
+    if "--sync-guard-ux" in sys.argv[1:]:
+        for plugin in GUARD_PLUGINS:
+            (root / "plugins" / plugin / "hooks" / "guard-ux.ts").write_bytes((root / GUARD_UX).read_bytes())
+        print(f"copied {GUARD_UX} into {len(GUARD_PLUGINS)} plugins")
+        return 0
     if "--sync-secret-data" in sys.argv[1:]:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, descriptions ({total} characters)")
     return 1 if problems else 0
 
 
