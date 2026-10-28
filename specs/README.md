@@ -21,6 +21,7 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 009 | repo-runner | reporun: detect, cli, api, batch, chain | P1 | 007 | N/A | Implemented | — | 27 test methods pass; write misclassification found |
 | 010 | spec-sync | specsync: plan, record, features | P2 | 009 | N/A | Implemented | — | parses this file |
 | 011 | worktrees | wt.py: plan, add, list, remove | P3 | — | N/A | Implemented | — | parses this file |
+| 012 | checkpoint-band | project mod: checkpoint holds band, ask before push/merge/tag/release under a hold | P1 | — | Implemented | N/A | — | first Claude Code mod; `claude plugin test` in check.sh |
 
 Verified needs suites covering every story, running and passing in CI; for tooling without a UI the integration suites stand in for e2e journeys (pipeline rule 6). 008 is Verified: its unit tests run on every pull request and the real-engine suite weekly. The closest others are 006 (all stories but the interactive selector) and 002 (two of four stories).
 
