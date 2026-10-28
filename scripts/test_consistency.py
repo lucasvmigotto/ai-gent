@@ -116,6 +116,42 @@ class PipelinePaths(unittest.TestCase):
         self.assertEqual(consistency.check_pipeline_paths(consistency.ROOT), [])
 
 
+class GuardUx(unittest.TestCase):
+    SHARED = ("export const GUARDS = {\n  git: {\n    marker: 'git:workflow guard:',\n    skill: 'git:workflow',\n    entries: [\n"
+              "      { match: 'hooks must not be bypassed', say: 'x' },\n    ],\n  },\n}\n")
+    GUARD = 'decide deny "hooks must not be bypassed (--no-verify); fix it"\n'
+
+    def files(self, shared=SHARED, guard=GUARD, copy=None):
+        files = {consistency.GUARD_UX: shared, "plugins/git/hooks/guard.sh": guard}
+        for plugin in consistency.GUARD_PLUGINS:
+            files[f"plugins/{plugin}/hooks/guard-ux.ts"] = shared if copy is None else copy
+        return files
+
+    def problems(self, **kw):
+        # only the git guard has a guard.sh in these throwaway trees
+        return consistency.check_guard_ux(tree(self.files(**kw)))
+
+    def test_identical_copies_and_a_covered_reason_pass(self):
+        self.assertEqual(self.problems(), [])
+
+    def test_a_copy_that_differs_fails(self):
+        problems = self.problems(copy=self.SHARED + "// edited\n")
+        self.assertEqual(len(problems), len(consistency.GUARD_PLUGINS))
+        self.assertIn("--sync-guard-ux", problems[0])
+
+    def test_a_reason_with_no_entry_fails(self):
+        problems = self.problems(guard='decide ask "a brand new question"\ndecide deny "hooks must not be bypassed"\n')
+        self.assertEqual(len(problems), 1)
+        self.assertIn("a brand new question", problems[0])
+
+    def test_reasons_come_from_decide_lines_variables_and_printf_arguments(self):
+        text = 'creds_reason="that is a creds file"\ndecide deny "$creds_reason"\ndecide ask "plain"\nprintf x \\\n    "from printf"\n'
+        self.assertEqual(consistency.guard_reasons(text), ["that is a creds file", "plain", "from printf"])
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_guard_ux(consistency.ROOT), [])
+
+
 class Cards(unittest.TestCase):
     def test_every_card_has_a_projection(self):
         ok = "# Cards\n\n## Card `a`: T001\n\n**Route**: Effort `low` · Tokens: projected ~100k | used —\n"
