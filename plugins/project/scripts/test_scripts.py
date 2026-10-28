@@ -198,6 +198,36 @@ class SessionsTest(unittest.TestCase):
                     self.assertEqual(sessions.redact(expand(case["input"])), expand(case["expected"]))
 
 
+class PipelinePaneParityTest(unittest.TestCase):
+    """The pipeline pane's model (hooks/pipeline-model.ts) reads specs/README.md as these two scripts do."""
+
+    def test_scripts_agree_with_the_pane_fixture(self):
+        root = Path(__file__).resolve().parents[3]
+        fixture = (root / "plugins" / "project" / "hooks" / "pipeline-fixtures.ts").read_text()
+        readme = re.search(r"export const README_TEXT = `(.*?)`", fixture, re.S)[1]
+        expected = json.loads(fixture.split("export const EXPECTED = ", 1)[1])
+        tmp = Path(tempfile.mkdtemp())
+        git(tmp, "init", "-q")
+        (tmp / "specs").mkdir()
+        (tmp / "specs" / "README.md").write_text(readme)
+        for m in re.finditer(r"^\| (\d{3}) \| ([\w-]+) \|", readme, re.M):
+            d = tmp / "specs" / f"{m[1]}-{m[2]}"
+            d.mkdir()
+            (d / "spec.md").write_text(f"# Feature Specification: {m[2]}\n")
+
+        def run_json(script, *args):
+            out = subprocess.run([sys.executable, str(root / "plugins" / script), *args], cwd=tmp, capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            return json.loads(out.stdout)
+
+        features = run_json("repo/scripts/specsync.py", "features", "--json")
+        self.assertEqual({f["feature"][:3]: f["state"] for f in features}, expected["states"])
+        plan = run_json("agents/scripts/wt.py", "plan", "--json")
+        self.assertEqual([x["number"] for x in plan["ready"]], expected["ready"])
+        self.assertEqual([x["number"] for x in plan["blocked"]], expected["blocked"])
+        self.assertEqual(plan["done"], expected["done"])
+
+
 class RepoStateTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
