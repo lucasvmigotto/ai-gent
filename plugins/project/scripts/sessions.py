@@ -31,15 +31,19 @@ from pathlib import Path
 
 EDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit", "patch", "apply_patch"}
 SHELL_TOOLS = {"bash", "shell"}
-SECRET_PATTERNS = [
-    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), "<private key>"),
-    (re.compile(r"(?i)\b([A-Z0-9_]*(?:PASSWORD|PASSWD|PWD|SECRET|TOKEN|API_?KEY|ACCESS_?KEY|PAT))\b(\s*[=:]\s*)(\"[^\"]*\"|'[^']*'|\S+)"),
-     r"\1\2<redacted>"),
-    (re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{12,}"), r"\1 <redacted>"),
-    (re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,})"),
-     "<token>"),
-    (re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://[^:/@\s]+):[^@\s]+@"), r"\1:<redacted>@"),
-]
+PATTERNS_FILE = Path(__file__).resolve().parent.parent / "references" / "secret-patterns.json"
+
+
+def load_patterns(path: Path = PATTERNS_FILE) -> list[tuple[re.Pattern[str], str]]:
+    """The credential patterns, shared with the secrets plugin's Claude Code mod (shared/secret-patterns.json)."""
+    flags = {"i": re.I, "s": re.S}
+    return [
+        (re.compile(p["source"], sum(flags[f] for f in p.get("flags", ""))), p["replacement"])
+        for p in json.loads(path.read_text(encoding="utf-8"))["patterns"]
+    ]
+
+
+SECRET_PATTERNS = load_patterns()
 
 
 def redact(text: str) -> str:
