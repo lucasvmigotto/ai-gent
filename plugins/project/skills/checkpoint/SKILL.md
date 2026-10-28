@@ -59,6 +59,11 @@ A checkpoint that grew by appending contradicts itself.
   can verify instead of trust.
 - Multi-repo work keeps **one** checkpoint, in the repository the session
   runs in; `State` lists the others by path.
+- One hold per top-level `- ` bullet, and an empty section left empty (or
+  `- none`). In Claude Code the `project` plugin's mod reads them: a band
+  above the prompt shows them, and a push, merge, tag or release asks
+  first while any is listed. Delete a hold the user lifted, so the band
+  and the question stop.
 
 ## Reading one
 

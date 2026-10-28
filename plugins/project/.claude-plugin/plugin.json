@@ -6,5 +6,20 @@
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "holdsBand": {
+      "type": "boolean",
+      "title": "Checkpoint holds band",
+      "description": "Show the holds recorded in .ai-gent/checkpoint.md above the prompt",
+      "default": true
+    },
+    "holdsGate": {
+      "type": "boolean",
+      "title": "Ask before a push, merge, tag or release under a hold",
+      "description": "While the checkpoint lists holds, ask before git push, git merge, git tag, gh pr merge or gh release create",
+      "default": true
+    }
   }
 }
