@@ -22,7 +22,7 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 010 | spec-sync | specsync: plan, record, features | P2 | 009 | N/A | Implemented | — | parses this file |
 | 011 | worktrees | wt.py: plan, add, list, remove | P3 | — | N/A | Implemented | — | parses this file |
 | 012 | checkpoint-band | project mod: checkpoint holds band, ask before push/merge/tag/release under a hold | P1 | — | Implemented | N/A | — | first Claude Code mod; `claude plugin test` in check.sh |
-| 013 | pipeline-pane | project:status as a live pane: artifacts, feature statuses, open markers, next stage | P2 | 012 | Planned | N/A | — | mod in `project`; read-only, $.fs plus git log |
+| 013 | pipeline-pane | project:status as a live pane: artifacts, feature statuses, open markers, next stage | P2 | 012 | Implemented | N/A | — | mod in `project`; `/pipeline-pane`; read-only, $.fs plus git log; parity-tested against specsync and wt; closing the pane is untested (the kit can't raise ui.close) |
 | 014 | token-status | status line and toasts: cards in flight, projected vs used, budget verdict | P3 | 012 | Planned | Planned | — | mod in `agents`; Backend is `token_report.py budget --json` |
 | 015 | guard-ux | richer deny/ask presentation for the git, db, secrets, repo and devcontainer guards | P2 | 012 | Planned | Planned | — | guard.sh stays the decider; importing rules.mjs rejected (research.md R3) |
 | 016 | secret-mask | mask pasted credentials at prompt.submit, command.run and skill.prompt | P1 | 012 | N/A | Implemented | — | mod in `secrets`; patterns shared with sessions.py; `claude plugin test` 11 cases; checked live in a headless run |
