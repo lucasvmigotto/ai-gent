@@ -21,7 +21,8 @@ The `secrets` plugin's hooks module hooks `prompt.submit`, `command.run` and `sk
 | `plugins/secrets/hooks/register.tsx` | module entry (shared with 015) |
 | `plugins/secrets/hooks/secret-mask.ts` | load patterns (`$.fs` read of `../references/secret-patterns.json` at register), pre-filter, mask, toast |
 | `plugins/secrets/hooks/secret-mask.test.ts` | per-pattern fixtures on the three events; fail-safe; no value in any toast or log |
-| `plugins/secrets/hooks/fixtures/secret-cases.json` | case templates → expected output, expanded at test time so no full token shape is committed; also read by a new case in `test_scripts.py` (SC-003) |
+| `shared/secret-cases.json` | case templates → expected output, expanded at test time so no full token shape is committed; read by `test_scripts.py` (SC-003) |
+| `plugins/secrets/hooks/secret-data.ts` | generated copy of the two shared JSON files for the module's tests (they can import only code files); `scripts/consistency.py` keeps it equal |
 | `plugins/secrets/.claude-plugin/plugin.json` | `userConfig` `secretMask`, `maskAssignments` |
 
 ## Testing
