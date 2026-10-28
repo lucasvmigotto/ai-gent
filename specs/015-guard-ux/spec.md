@@ -78,7 +78,7 @@ The explanation table lives once, in `shared/guard-ux.ts`, keyed by guard prefix
 - **FR-004**: The dialog path (`$.ui.ask`) MUST be off by default and MAY only be enabled if R2 confirms an `allow` returned from `classic.PreToolUse` does not skip permission rules (`deny` rules in settings, managed policy) the person has set.
 - **FR-005**: Each plugin's module MUST act only on reasons with its own guard prefix.
 - **FR-006**: Every reason string in `plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh` MUST map to an explanation entry or be marked generic, enforced by test.
-- **FR-007**: The shared file MUST be `shared/guard-ux.ts`, linked into the five plugins by relative symlink, following CLAUDE.md's rule for files several plugins share.
+- **FR-007**: The shared file MUST be `shared/guard-ux.ts`, linked into each of the five plugins' `hooks/` by relative symlink and imported as `./guard-ux`; CLAUDE.md's layout rule is amended with this feature to allow shared hooks-module code in `hooks/`.
 - **FR-008**: No change to any `guard.sh`, `rules.mjs`, the shell guard tests or the parity test.
 
 ## Success Criteria *(mandatory)*
@@ -95,10 +95,10 @@ The explanation table lives once, in `shared/guard-ux.ts`, keyed by guard prefix
 - OpenCode's guard UX (`opencode/guard/index.ts`).
 - Making `rules.mjs` the Claude Code decider.
 
-## Open questions
+## Decisions (2026-10-28, with the maintainer)
 
-- [NEEDS CLARIFICATION: Ship the opt-in dialog at all (FR-004), or keep asks as the engine's prompt with better text only? Default here: text only in the first cut; the dialog waits for R2.]
-- [NEEDS CLARIFICATION: CLAUDE.md says shared files are symlinked into each plugin's `references/`; a TypeScript module imported by `register.tsx` fits `hooks/` better. Link into `references/` (rule as written, import `../references/guard-ux.ts`) or amend the rule to allow `hooks/`? Default here: `references/`, no rule change.]
+- Asks keep the engine's own permission prompt with a fuller reason; the opt-in Allow/Deny dialog (FR-004) is out of the first cut and waits for research R2.
+- The shared module `shared/guard-ux.ts` is symlinked into each owning plugin's `hooks/` (imported as `./guard-ux`). CLAUDE.md's layout rule is amended with this feature: shared files go into `references/`, except shared hooks-module code, which goes into `hooks/`.
 
 ## Assumptions
 

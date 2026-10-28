@@ -38,7 +38,7 @@ None beyond 012: `check.sh` already runs `claude plugin test` for each plugin wi
 ## Risks
 
 - **API churn**: early access; `Pane` props, `$.ui.open` placement widths and `$.clock.every` may move. Mitigation: `claude plugin validate` in check.sh, pin bumped deliberately, the pure model kept separate from drawing.
-- **Third README parser** (after `specsync.py` and `wt.py`): drift if the README format changes. Mitigated by the parity fixture; the open question in the spec offers a shared script instead.
+- **Third README parser** (after `specsync.py` and `wt.py`): drift if the README format changes. Mitigated by the parity fixture; a shared script was considered and declined (decided 2026-10-28: parse in TypeScript).
 - **Cost on big repos**: marker scanning is capped; staleness spawns at most one `git log` per artifact per refresh, and only when the file's `mtimeMs` changed.
 - **Two features in one module** (012 and 013): a failing 013 hook must not take 012 down — each feature registers its own hooks, and a render hook that throws is skipped alone.
 

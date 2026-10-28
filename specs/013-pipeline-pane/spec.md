@@ -113,10 +113,10 @@ A line counts `[UPSTREAM GAP: …]`, `[NEEDS CLARIFICATION: …]` and `[ASSUMPTI
 - Any other agent (opencode, Codex, …).
 - Changing `shared/pipeline.md` or `plugins/project/skills/status/SKILL.md`.
 
-## Open questions
+## Decisions (2026-10-28, with the maintainer)
 
-- [NEEDS CLARIFICATION: Parse in TypeScript or call a script? Default here: the module parses with `$.fs` (no python needed at draw time) and FR-003's parity test keeps it equal to specsync. The alternative is a new `plugins/project/scripts/pipeline_state.py --json` that both the skill and the pane use, at the cost of a process per redraw.]
-- [NEEDS CLARIFICATION: Open the pane unasked on a wide fullscreen terminal at session start, or only through `/pipeline`? Default here: only when `specs/README.md` exists and the surface docks panes.]
+- Parsing: the module parses `specs/README.md` and the artifacts itself with `$.fs` (no Python at draw time); FR-003's parity test keeps it equal to `specsync features --json` and `wt.py plan --json`.
+- Opening: unasked at session start only when `specs/README.md` exists and the surface docks panes; otherwise through `/pipeline`.
 
 ## Assumptions
 
