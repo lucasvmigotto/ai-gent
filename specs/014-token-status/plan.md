@@ -38,8 +38,8 @@ The `agents` plugin gets a hooks module that, on `session.start`, throttled `tur
 ## Risks
 
 - **API churn** (early access): `turn.complete`'s input and `$.ui.status` may change. Validate in check.sh; keep the parsing pure and separately tested.
-- **Cost**: `budget` scans a week of transcripts across projects. Throttled refresh; the open question on live usage stays closed by default.
-- **Ledger shape**: the ledger is hand-kept by the coordinator except its Tokens column; FR-004's tolerant parse skips what it can't read.
+- **Cost**: `budget` scans a week of transcripts across projects. Throttled refresh; live usage is `/tokens --live` (User Story 5, projected), never on a timer.
+- **Ledger shape**: the ledger is hand-kept by the coordinator except its Tokens column. Prerequisite: `agents:orchestrate` fixes its state vocabulary (`queued`, `running`, `review`, `landed`) in its own change, landed before this feature; rows with another state are skipped.
 - **Exposure**: the status shows only figures and card ids, never prompts or descriptions from transcripts.
 
 ## Constitution Check

@@ -96,14 +96,14 @@ After a push to `main`, the release job lands `chore(release): X.Y.Z` on `origin
 
 ## Out of scope
 
-- Fetching (see the open question), pulling or fixing anything.
+- Fetching (decided: never), pulling or fixing anything.
 - Branch protection, CI status (`devsecops:watch`), PRs.
 - Changing `update-check.sh`, `leftovers.sh` or `release.py`.
 
-## Open questions
+## Decisions (2026-10-28, with the maintainer)
 
-- [NEEDS CLARIFICATION: Should the band be able to refresh remote-tracking refs itself (`git fetch --quiet origin` in the background, opt-in with an interval)? It changes only remote-tracking refs, as `project:recap` does, but it is network and credentials in the background. Default here: never fetch.]
-- [NEEDS CLARIFICATION: Name of the command: `/release-preview` (as asked) or `/git:release-preview` style? Plugin-registered commands are plain names; check that 2.1.312 does not prefix them before settling.]
+- The band never fetches; it reads what the last fetch left and says how old `FETCH_HEAD` is.
+- The command is `/release-preview`: `$.command.register` declares a plain `/<name>` with no plugin prefix (Claude Code 2.1.312 types).
 
 ## Assumptions
 

@@ -15,7 +15,8 @@ Five small hooks modules (git, db, secrets, repo, devcontainer), each hooking `c
 | Path | What |
 |---|---|
 | `shared/guard-ux.ts` | the explanation table (prefix → rule, skill, alternative), `decorate(result, prefix)`, the `.catch` helper |
-| `plugins/{git,db,secrets,repo,devcontainer}/references/guard-ux.ts` | relative symlinks to `../../../shared/guard-ux.ts` (R4, open question) |
+| `plugins/{git,db,secrets,repo,devcontainer}/hooks/guard-ux.ts` | relative symlinks to `../../../shared/guard-ux.ts` (R4; decided 2026-10-28) |
+| `CLAUDE.md` | layout rule amended: shared hooks-module code is linked into `hooks/`, other shared files into `references/` |
 | `plugins/{git,db,secrets,repo,devcontainer}/hooks/register.tsx` | one per plugin; `git` and `secrets` and `devcontainer` share theirs with 017 and 016 |
 | `plugins/{git,db,secrets,repo,devcontainer}/hooks/hooks.json` | gain `"modules": ["./register.tsx"]` beside the existing command hooks |
 | `plugins/<p>/hooks/guard-ux.test.ts` | deny, ask, fail-safe, reason coverage (reads `hooks/guard.sh`) |

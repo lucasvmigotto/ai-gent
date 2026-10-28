@@ -64,6 +64,17 @@ When the in-flight cards' projections no longer fit what is left, the user gets 
 
 `/tokens` re-runs the budget, re-reads the ledger and prints the full `budget` text in the transcript as the command's output (not a model turn).
 
+---
+
+### User Story 5 - Refresh used figures live (Priority: P3, projected)
+
+Projected for after the first cut. `/tokens --live` runs `token_report.py tasks --dry-run` (read-only) before the budget, so the used figures are current instead of as of the last `tasks` run. It is never run on a timer, because it reads every transcript of the project and is slow on large runs.
+
+**Acceptance Scenarios**:
+
+1. **Given** cards that used more since the last `tasks` run, **When** `/tokens --live` runs, **Then** the status and the printed text show the current figures, and the ledger file is not written.
+2. **Given** a run that takes longer than the `userConfig` timeout, **When** `/tokens --live` runs, **Then** it reports the timeout and keeps the recorded figures.
+
 ### Edge Cases
 
 - **No python3** or the script fails (non-zero exit, timeout): the status shows `tokens · unavailable` once and the reason goes to the debug log; no toast storm.
@@ -84,8 +95,8 @@ When the in-flight cards' projections no longer fit what is left, the user gets 
 - **FR-001**: Every figure shown MUST come from the ledger's Tokens cells or from `token_report.py budget` output; the mod MUST NOT compute billable tokens itself.
 - **FR-002**: `token_report.py budget` MUST gain a `--json` flag printing the verdict, the caps (`cap`, `used`, `left` per cap), the cards with their projections, and the fitting count — the text output unchanged. Tested in `plugins/agents/scripts/test_token_report.py`.
 - **FR-003**: The mod MUST find the script relative to its own plugin root (`../scripts/token_report.py` from `hooks/`), never on `PATH`.
-- **FR-004**: In-flight cards MUST be the ledger rows whose state cell is not `done`, `landed` or `merged` (case-insensitive). `agents:orchestrate` names no fixed state vocabulary for the ledger today, so the list is a module constant, and the open question below asks whether to fix one.
-- **FR-005**: Toasts MUST fire once per verdict change and once per card overrun per session (tracked in `$.state`).
+- **FR-004**: In-flight cards MUST be the ledger rows in state `queued`, `running` or `review`, the fixed vocabulary `agents:orchestrate`'s ledger adopts before this feature (`queued`, `running`, `review`, `landed`). A row with any other state is skipped and logged to the debug log.
+- **FR-005**: Toasts MUST fire once per verdict change and once per card overrun per session (tracked in `$.state`). A `stop` verdict MUST also raise a native notification (`$.ui.notify`, title `Token budget`), once per change to `stop`.
 - **FR-006**: A `userConfig` boolean (`tokenStatus`, default true) and a number (`tokenRefreshSeconds`, default 120) MUST control it.
 - **FR-007**: The mod MUST register `/tokens`, answering with the `budget` text.
 
@@ -104,11 +115,11 @@ When the in-flight cards' projections no longer fit what is left, the user gets 
 - A pane or chart of history; `estimate`.
 - Changing `shared/token-tracking.md` beyond documenting `budget --json`.
 
-## Open questions
+## Decisions (2026-10-28, with the maintainer)
 
-- [NEEDS CLARIFICATION: Is "used as of the last `tasks` run" enough, or should the status also refresh live usage by running `token_report.py tasks --dry-run` (read-only, but it reads every transcript of the project and is slow on big runs)? Default here: no; `/tokens` could take a `--live` argument later.]
-- [NEEDS CLARIFICATION: The ledger's state column is free text today (`plugins/agents/skills/orchestrate/SKILL.md` §3 "Ledger"). Fix a small vocabulary there (`queued`, `running`, `review`, `landed`) so "in flight" is exact, or keep the tolerant guess of FR-004? Fixing it is a skill change, proposed separately.]
-- [NEEDS CLARIFICATION: Should a `stop` verdict also raise a native notification (`$.ui.notify`), since the user may be away during a long wave? Default here: toast only.]
+- Used figures: as of the last `token_report.py tasks` run (no live refresh in the first cut). Live refresh is projected as User Story 5 (`/tokens --live`, P3), above.
+- Ledger states: `agents:orchestrate`'s ledger gets a fixed vocabulary, `queued`, `running`, `review`, `landed`, as a separate skill change landed before this feature; FR-004 then matches it exactly instead of guessing.
+- A `stop` verdict raises a toast and a native notification (`$.ui.notify`, title `Token budget`); a `shrink` verdict, a toast only.
 
 ## Assumptions
 

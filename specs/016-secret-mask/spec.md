@@ -96,11 +96,11 @@ The patterns live in one file read by `sessions.py` and by the mod, so `project:
 - Detecting arbitrary high-entropy strings.
 - Changing `plugins/secrets/hooks/guard.sh`, `shared/secrets.md`'s rules, or the runners' own redaction.
 
-## Open questions
+## Decisions (2026-10-28, with the maintainer)
 
-- [NEEDS CLARIFICATION: Fail closed or open when the mask itself throws at `prompt.submit`? Default here: drop only if the cheap pre-filter matched, else pass. Fully closed would hold back every prompt on a mod bug.]
-- [NEEDS CLARIFICATION: Move `SECRET_PATTERNS` out of `sessions.py` into `shared/secret-patterns.json` (touches the `project` plugin and bumps its version), or keep a copy in the mod with a test that compares the two? Default here: move it, one source.]
-- [NEEDS CLARIFICATION: Also offer the person to drop the prompt instead of sending it masked (`$.ui.ask`: "Send masked" / "Don't send")? Default here: send masked, no question.]
+- When masking throws at `prompt.submit`: drop the prompt only if the cheap pre-filter matched, else pass it through.
+- `SECRET_PATTERNS` moves out of `plugins/project/scripts/sessions.py` into `shared/secret-patterns.json`, the one source both read, with a test that both give the same output (bumps `project`).
+- Found secrets are masked and sent with no question; a toast names the kind and the `pass insert` hint.
 
 ## Assumptions
 
