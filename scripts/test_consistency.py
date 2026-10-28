@@ -78,6 +78,26 @@ class Containers(unittest.TestCase):
 CARDS = "specs/004-daemon/cards.md"
 
 
+class SecretData(unittest.TestCase):
+    SOURCES = {"shared/secret-patterns.json": json.dumps({"patterns": [{"kind": "k", "source": "x", "flags": "", "replacement": "<r>"}]}),
+               "shared/secret-cases.json": json.dumps({"vars": {}, "cases": []})}
+
+    def test_nothing_to_check_without_the_shared_files(self):
+        self.assertEqual(consistency.check_secret_data(tree({})), [])
+
+    def test_missing_or_stale_twin_fails_and_sync_fixes_it(self):
+        root = tree(self.SOURCES)
+        self.assertEqual(len(consistency.check_secret_data(root)), 1)
+        (root / consistency.SECRET_DATA).parent.mkdir(parents=True, exist_ok=True)
+        (root / consistency.SECRET_DATA).write_text(consistency.secret_data_text(root))
+        self.assertEqual(consistency.check_secret_data(root), [])
+        (root / "shared/secret-cases.json").write_text(json.dumps({"vars": {}, "cases": [{"name": "n"}]}))
+        self.assertEqual(len(consistency.check_secret_data(root)), 1)
+
+    def test_the_repository_twin_is_in_sync(self):
+        self.assertEqual(consistency.check_secret_data(consistency.ROOT), [])
+
+
 class Cards(unittest.TestCase):
     def test_every_card_has_a_projection(self):
         ok = "# Cards\n\n## Card `a`: T001\n\n**Route**: Effort `low` · Tokens: projected ~100k | used —\n"
