@@ -52,7 +52,13 @@ file covers changing things.
   saying when to read it. Files several skills of one plugin share go in
   `plugins/<name>/references/`; files several plugins share go in
   `shared/` and are symlinked (relative links) into each plugin's
-  `references/`.
+  `references/`. The exception is code a plugin's hooks module imports:
+  the engine refuses an import through a symlink that leaves the plugin,
+  so such a file (`shared/guard-ux.ts`) is copied into each plugin's
+  `hooks/`, and `scripts/consistency.py` fails if a copy differs
+  (`--sync-guard-ux` rewrites them). A hooks module's tests can import only
+  code files, so data they need from `shared/` (the secret patterns, the
+  fixture cases) is a generated `.ts` twin kept equal the same way.
 - Refer to other skills as `plugin:skill` and to files with backticked
   relative paths (`../../references/pipeline.md`); `scripts/check.sh`
   verifies both resolve.

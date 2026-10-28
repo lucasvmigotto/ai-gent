@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-28
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: Better presentation of what the git, db, secrets, repo and devcontainer guards decide — the rule behind a deny, the safe alternative, and a clearer question on an ask — through Claude Code mods, with each `plugins/<name>/hooks/guard.sh` still the only decider. Includes a research decision on importing `opencode/guard/rules.mjs` (see `research.md`).
 
@@ -78,7 +78,7 @@ The explanation table lives once, in `shared/guard-ux.ts`, keyed by guard prefix
 - **FR-004**: The dialog path (`$.ui.ask`) MUST be off by default and MAY only be enabled if R2 confirms an `allow` returned from `classic.PreToolUse` does not skip permission rules (`deny` rules in settings, managed policy) the person has set.
 - **FR-005**: Each plugin's module MUST act only on reasons with its own guard prefix.
 - **FR-006**: Every reason string in `plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh` MUST map to an explanation entry or be marked generic, enforced by test.
-- **FR-007**: The shared file MUST be `shared/guard-ux.ts`, linked into each of the five plugins' `hooks/` by relative symlink and imported as `./guard-ux`; CLAUDE.md's layout rule is amended with this feature to allow shared hooks-module code in `hooks/`.
+- **FR-007**: The shared file MUST be `shared/guard-ux.ts`, copied into each of the five plugins' `hooks/` and imported as `./guard-ux`; `scripts/consistency.py` fails if a copy differs or if a guard reason has no entry (FR-006); CLAUDE.md's layout rule is amended with this feature (shared hooks-module code is copied into `hooks/`, not symlinked).
 - **FR-008**: No change to any `guard.sh`, `rules.mjs`, the shell guard tests or the parity test.
 
 ## Success Criteria *(mandatory)*
@@ -99,6 +99,11 @@ The explanation table lives once, in `shared/guard-ux.ts`, keyed by guard prefix
 
 - Asks keep the engine's own permission prompt with a fuller reason; the opt-in Allow/Deny dialog (FR-004) is out of the first cut and waits for research R2.
 - The shared module `shared/guard-ux.ts` is symlinked into each owning plugin's `hooks/` (imported as `./guard-ux`). CLAUDE.md's layout rule is amended with this feature: shared files go into `references/`, except shared hooks-module code, which goes into `hooks/`.
+
+- Found while building (R4, verified): the engine refuses an import through a symlink that leaves the plugin (`cannot import … no such file under <plugin>`), so the shared file is copied, not linked, and `--sync-guard-ux` plus a consistency check keep the copies identical. This is the fallback research R4 named.
+- Found while building (R1, verified on 2.1.312 with a probe mod and a headless run): at `classic.PreToolUse`, `next(e)` returns the guard's decision: `{"ask":"git:workflow guard: git push publishes; …"}`, and for a deny `{"deny":"PreToolUse:Bash hook error: git:workflow guard: hooks must not be bypassed …"}`. The reason is wrapped on a deny, so the module finds the guard's marker anywhere in the text. A module's event carries `tool` and `command` (not `tool_name`).
+- Found while building: the test kit shows a decorated deny but not a decorated ask (tool.check carries no reason), so the ask wording is covered by exact-text tests of `decorate`, and the hook-level test checks only that an ask still goes through. A hook that throws is covered by the `.catch` replay and the validator, not by a test (a toast failing does not propagate).
+- R2 (a dialog's allow) was not needed: the dialog is out of this cut by decision, so asks stay the engine's own prompt.
 
 ## Assumptions
 
