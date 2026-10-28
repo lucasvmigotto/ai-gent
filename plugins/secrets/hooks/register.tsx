@@ -1,14 +1,18 @@
-// A safety net for shared/secrets.md's rule that a secret is never pasted into
-// the conversation: when one is anyway, mask it before it is recorded or sent,
-// and say where it belongs. The mod is optional (Claude Code only); the guard
-// hook and the skills stay the contract, and nothing relies on this.
+// The secrets plugin's Claude Code mod, two optional features; the guard hook
+// and the skills stay the contract, and nothing relies on either:
+//  - secret-mask (specs/016): a safety net for shared/secrets.md's rule that a
+//    secret is never pasted into the conversation: when one is anyway, mask it
+//    before it is recorded or sent, and say where it belongs.
+//  - guard-ux (specs/015): say why the secrets guard denied or asked, and what
+//    to do instead. hooks/guard.sh still decides.
 
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, PreToolUseResult, Register } from 'claude-code'
 
+import { decorate } from './guard-ux'
 import { compile, looksSecret, mask, summary } from './secret-mask'
 import type { Masked, Rule, Scope } from './secret-mask'
 
-type Options = { secretMask?: boolean; maskAssignments?: boolean }
+type Options = { secretMask?: boolean; maskAssignments?: boolean; guardUx?: boolean }
 
 const HELD =
   'secret-mask: this looks like it holds a credential and could not be checked, so it was not sent. Remove the secret (store it with secrets:pass) and send it again, or turn secretMask off in /config.'
@@ -40,6 +44,15 @@ async function maskText($: EngineInterface, text: string, scope: Scope, off: Rea
 }
 
 export const register: Register = (on, options: Options) => {
+  if (options.guardUx !== false) {
+    on('classic.PreToolUse', async ($, e, next) => {
+      const result = await next(e)
+      const { result: decorated, notice } = decorate('secrets', result)
+      if (notice) $.ui.toast(notice)
+      return decorated as PreToolUseResult
+    }).catch(($, e, next) => next(e))
+  }
+
   if (options.secretMask === false) return
   const off = new Set(options.maskAssignments === false ? ['maskAssignments'] : [])
 

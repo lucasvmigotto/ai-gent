@@ -6,5 +6,13 @@
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
+  },
+  "userConfig": {
+    "guardUx": {
+      "type": "boolean",
+      "title": "Explain this guard's decisions",
+      "description": "When the guard denies or asks, say why in plain words and what to do instead (the guard still decides; this changes only the words)",
+      "default": true
+    }
   }
 }
