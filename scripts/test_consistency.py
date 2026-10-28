@@ -98,6 +98,24 @@ class SecretData(unittest.TestCase):
         self.assertEqual(consistency.check_secret_data(consistency.ROOT), [])
 
 
+class PipelinePaths(unittest.TestCase):
+    TABLE = "| Path | Owner |\n|---|---|\n| `docs/product/brief.md` | `project:init` |\n| `specs/README.md` | `project:spec` |\n"
+
+    def model(self, *paths: str) -> str:
+        return "export const BRIEF = 'docs/product/brief.md'\n" + "".join(f"  {{ path: {p}, label: 'x' }},\n" for p in paths)
+
+    def test_paths_in_the_table_pass(self):
+        root = tree({"shared/pipeline.md": self.TABLE, consistency.PIPELINE_MODEL: self.model("BRIEF", "'specs/README.md'")})
+        self.assertEqual(consistency.check_pipeline_paths(root), [])
+
+    def test_a_path_missing_from_the_table_fails(self):
+        root = tree({"shared/pipeline.md": self.TABLE, consistency.PIPELINE_MODEL: self.model("BRIEF", "'docs/product/other.md'")})
+        self.assertEqual(len(consistency.check_pipeline_paths(root)), 1)
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_pipeline_paths(consistency.ROOT), [])
+
+
 class Cards(unittest.TestCase):
     def test_every_card_has_a_projection(self):
         ok = "# Cards\n\n## Card `a`: T001\n\n**Route**: Effort `low` · Tokens: projected ~100k | used —\n"
