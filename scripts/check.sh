@@ -120,8 +120,19 @@ if command -v claude >/dev/null 2>&1; then
     out="$(claude plugin validate "$dir" 2>&1)" || { fail "claude plugin validate $dir"; printf '%s\n' "$out"; }
   done
   ((failures == before)) && pass "claude plugin validate"
+
+  # A plugin whose hooks.json names a hooks module (a Claude Code mod) runs
+  # its *.test.ts(x) files against the engine.
+  before=$failures
+  modded=0
+  for dir in plugins/*/; do
+    grep -q '"modules"' "$dir/hooks/hooks.json" 2>/dev/null || continue
+    modded=$((modded + 1))
+    out="$(claude plugin test "$dir" 2>&1)" || { fail "claude plugin test $dir"; printf '%s\n' "$out"; }
+  done
+  ((modded > 0 && failures == before)) && pass "claude plugin test ($modded hooks modules)"
 else
-  warn "claude not on PATH; skipped 'claude plugin validate'"
+  warn "claude not on PATH; skipped 'claude plugin validate' and 'claude plugin test'"
 fi
 
 # -------------------------------------------------------- cross-references

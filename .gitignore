@@ -1,2 +1,4 @@
 plugins/*/evals/results/
 __pycache__/
+# laid by Claude Code for a loaded hooks module
+plugins/*/.claude-plugin/types/
