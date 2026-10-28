@@ -4,7 +4,7 @@
 
 ## Summary
 
-A `Pane` drawn by the `project` plugin's hooks module: a snapshot computed from `$.fs` reads (artifacts, `specs/README.md`, markers) plus `git log -1` dates for staleness, kept in `$.state`, refreshed by a `stat` poll and by completed Edit/Write calls. A `/pipeline` command opens it.
+A `Pane` drawn by the `project` plugin's hooks module: a snapshot computed from `$.fs` reads (artifacts, `specs/README.md`, markers) plus `git log -1` dates for staleness, kept in `$.state`, refreshed by a `stat` poll and by completed Edit/Write calls. A `/pipeline-pane` command opens it.
 
 ## Technical Context
 
@@ -15,10 +15,12 @@ A `Pane` drawn by the `project` plugin's hooks module: a snapshot computed from 
 | Path | What |
 |---|---|
 | `plugins/project/hooks/register.tsx` | 012's module; gains one line composing `pipelinePane(on, options)` |
-| `plugins/project/hooks/pipeline-pane.tsx` | pane rendering, command, refresh wiring |
-| `plugins/project/hooks/pipeline-model.ts` | pure functions: README parse, artifact list, staleness, markers, next-stage rules |
-| `plugins/project/hooks/pipeline-pane.test.tsx` | stories 1–4 on `terminal` and `desktop`, fixtures through the kit's `$.fs` |
-| `plugins/project/hooks/fixtures/` | small pipeline trees (no pipeline, partial, full, blocked) |
+| `plugins/project/hooks/pipeline.ts` | everything that needs `$`: reading (`$.fs`, `git log`), the mtime caches, the poller, open and close, the atoms |
+| `plugins/project/hooks/pipeline-model.ts` | pure: README parse, states and the ready / blocked / done split, artifact list, markers, next-stage rules |
+| `plugins/project/hooks/pipeline-view.ts` | pure: the snapshot as lines (wide, narrow, headless text) |
+| `plugins/project/hooks/repo.ts` | the repository root, shared with 012 |
+| `plugins/project/hooks/pipeline-fixtures.ts` | the parity fixture: a README and what `specsync.py` and `wt.py` make of it |
+| `plugins/project/hooks/pipeline.test.tsx` | model, view and pane tests, the pane on `terminal` and `desktop` |
 | `plugins/project/types/index.d.ts` | 012's state contract, plus the `pipeline` atoms |
 | `plugins/project/.claude-plugin/plugin.json` | `userConfig`: `pipelinePane` (boolean), `pipelinePollSeconds` (number) |
 
@@ -27,8 +29,8 @@ No change to `plugins/project/skills/status/SKILL.md` or `shared/pipeline.md`.
 ## Testing
 
 - `claude plugin test plugins/project` (wired into `scripts/check.sh` by 012).
-- Contract test: the module's artifact constant equals the `Path` column of the pipeline's artifact table that §1 checks, read through `$.fs` from `plugins/project/references/pipeline.md` (the plugin's link to `shared/pipeline.md`).
-- Parity test (FR-003): fixture READMEs plus their expected JSON, generated once from `python3 plugins/repo/scripts/specsync.py features --json` and `python3 plugins/agents/scripts/wt.py plan --json` and committed under `fixtures/`; `test_specsync.py` and `test_wt.py` keep the script side honest. Regenerate the expected JSON when either script's parsing changes.
+- Contract (FR-002): `scripts/consistency.py` fails when an artifact path in `pipeline-model.ts` is not in `shared/pipeline.md`'s artifact table (a test cannot read files).
+- Parity (FR-003): `pipeline-fixtures.ts` holds a README and the expected states and ready / blocked / done split. `pipeline.test.tsx` checks the model against it; `PipelinePaneParityTest` in `test_scripts.py` runs `specsync.py features --json` and `wt.py plan --json` on the same README and checks they give exactly that. Regenerate the expected output from the scripts if either changes how it reads the README.
 - Manual: `claude --plugin-dir plugins/project --debug` on this repository and on a repo with no pipeline.
 
 ## check.sh / CI impact

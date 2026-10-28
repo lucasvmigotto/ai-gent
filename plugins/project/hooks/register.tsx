@@ -1,13 +1,20 @@
-// project:checkpoint in the session: a band above the prompt with the holds
-// the hand-off file records, and a question before a push, merge, tag or
-// release while any hold is in force. The file stays the record; this only
-// keeps it in view (Claude Code only; other agents read it through the skill).
+// The project plugin's Claude Code mod, two optional features that only make
+// visible what the skills already record (other agents read it through them):
+//  - project:checkpoint: a band above the prompt with the holds the hand-off
+//    file records, and a question before a push, merge, tag or release while
+//    any hold is in force.
+//  - project:status: a pane with the pipeline's artifacts, feature statuses,
+//    open items and a next-stage hint, redrawn as the files change.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Checkpoint } from '../types'
 import { CHECKPOINT, gated, parse } from './checkpoint'
+import { PANE, close, open, press, readExpanded, readIsOpen, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
+import { text as pipelineText, view } from './pipeline-view'
+import type { Tone } from './pipeline-view'
+import { repoRoot } from './repo'
 
 // Change the tag when Checkpoint's fields change: it declines what an earlier
 // version stored, which outlives a reload.
@@ -16,20 +23,9 @@ const checkpoint = atom({ plugin: 'project', key: 'checkpoint' } as const, null,
 })
 const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, false)
 
-type Options = { holdsBand?: boolean; holdsGate?: boolean }
+type Options = { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number }
 
-// The repository the session runs in; a reload finds it again.
-let root: string | null = null
-
-async function repoRoot($: EngineInterface): Promise<string> {
-  if (root !== null) return root
-  const cwd = await $.session.cwd()
-  const top = await $.process
-    .run(['git', 'rev-parse', '--show-toplevel'], { timeoutMs: 5000 })
-    .catch(() => undefined)
-  root = top?.exitCode === 0 && top.stdout.trim() ? top.stdout.trim() : cwd
-  return root
-}
+const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
 // Re-reads the file when it changed; clears the band when it is gone.
 async function refresh($: EngineInterface): Promise<Checkpoint | null> {
@@ -67,6 +63,10 @@ export const register: Register = (on, options: Options) => {
   on('session.start', async ($, e, next) => {
     const started = await next(e)
     await refresh($).catch(() => undefined)
+    if (options.pipelinePane !== false) {
+      const canDock = e.isInteractive && e.surface !== null && e.surface !== 'mobile'
+      await startPipeline($, options.pipelinePollSeconds ?? 5, canDock).catch(() => undefined)
+    }
     return started
   })
 
@@ -131,6 +131,54 @@ export const register: Register = (on, options: Options) => {
           </Text>
         ))}
         {more > 0 ? <Text dimColor>{`  +${more} more`}</Text> : null}
+      </Box>
+    )
+  })
+
+  if (options.pipelinePane === false) return
+  const seconds = options.pipelinePollSeconds ?? 5
+
+  on('command.run', { command: 'pipeline-pane' }, async $ => {
+    if (await open($, seconds, true)) return { text: 'Pipeline pane opened.' }
+    const snapshot = await readSnapshot($)
+    return { text: snapshot ? pipelineText(snapshot) : 'The pipeline could not be read.' }
+  })
+
+  on('ui.close', async ($, e, next) => {
+    const closed = await next(e)
+    if (e.id === PANE) await close($)
+    return closed
+  }).catch(($, e, next) => next(e))
+
+  // A stage that just wrote an artifact or flipped a status shows at once,
+  // without waiting for the next poll.
+  on('tool.call', { tool: ['Edit', 'Write'] }, async ($, e, next) => {
+    const ran = await next(e)
+    const path = 'file_path' in e && typeof e.file_path === 'string' ? e.file_path : ''
+    if ((path.includes('/docs/product/') || path.includes('/specs/')) && (await readIsOpen($))) {
+      await refreshPipeline($).catch(() => undefined)
+    }
+    return ran
+  }).catch(($, e, next) => next(e))
+
+  on('ui.render', { component: 'Pane', requestId: 'pipeline' }, async ($, e, next) => {
+    const snapshot = await readSnapshot($)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    if (snapshot === null) return <Text dimColor>Reading the pipeline…</Text>
+
+    const lines = view(snapshot, e.props.bodyColumns, await readExpanded($))
+    return (
+      <Box flexDirection="column">
+        {lines.map(line => (
+          <Box key={line.key}>
+            <Text bold={line.tone === 'bold'} dimColor={line.tone === 'dim'} color={COLOR[line.tone]}>
+              {line.text}
+            </Text>
+            {line.button ? (
+              <Button key={`button-${line.button.id}`} label={line.button.label} onPress={() => press($, line.button?.id ?? 'status')} />
+            ) : null}
+          </Box>
+        ))}
       </Box>
     )
   })

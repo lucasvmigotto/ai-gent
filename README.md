@@ -421,7 +421,7 @@ Some plugins also ship a Claude Code hooks module (`hooks/register.tsx`, named u
 
 | Plugin | Shows | Asks first | Options |
 | --: | :-- | :-- | :-- |
-| `project` | the holds in `.ai-gent/checkpoint.md` (`project:checkpoint`) in a band above the prompt, with a note when the file is older than the last commit | `git push`, `git merge`, `git tag <name>`, `gh pr merge` or `gh release create` while the checkpoint lists a hold, naming the holds | `holdsBand`, `holdsGate` |
+| `project` | the holds in `.ai-gent/checkpoint.md` (`project:checkpoint`) in a band above the prompt, with a note when the file is older than the last commit; and a **pipeline pane** (`/pipeline-pane`, opened by itself when `specs/README.md` exists on a surface that can dock it): the artifacts of `shared/pipeline.md` as present, missing or stale, each feature's statuses, the open `[NEEDS CLARIFICATION]`, `[UPSTREAM GAP]` and `[ASSUMPTION]` markers, and a hint at the next stage, redrawn as the files change (`project:status` stays the full report) | `git push`, `git merge`, `git tag <name>`, `gh pr merge` or `gh release create` while the checkpoint lists a hold, naming the holds | `holdsBand`, `holdsGate`, `pipelinePane`, `pipelinePollSeconds` |
 | `secrets` | a toast when it **masks** a credential pasted into a prompt, a slash command's arguments or a skill's body before it is recorded or sent: the kind, and the `pass insert` to run instead | — (a prompt that looks like it holds a credential is held back if masking itself fails) | `secretMask`, `maskAssignments` |
 
 ## Layout

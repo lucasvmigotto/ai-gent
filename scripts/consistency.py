@@ -18,6 +18,8 @@
      `plugins/secrets/hooks/secret-data.ts`, a generated copy of
      shared/secret-patterns.json and shared/secret-cases.json. It matches
      them exactly (`--sync-secret-data` rewrites it).
+  8. Every artifact path the project plugin's pipeline pane lists
+     (hooks/pipeline-model.ts) is in shared/pipeline.md's artifact table.
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -270,18 +272,40 @@ def check_secret_data(root: Path) -> list[str]:
     return []
 
 
+PIPELINE_MODEL = "plugins/project/hooks/pipeline-model.ts"
+
+
+def check_pipeline_paths(root: Path) -> list[str]:
+    """The pane's artifact list is a subset of the pipeline contract's table."""
+    model, table = root / PIPELINE_MODEL, root / "shared/pipeline.md"
+    if not model.is_file() or not table.is_file():
+        return []
+    paths = re.findall(r"^\s*\{ path: ([A-Z_]+|'[^']+')", model.read_text(encoding="utf-8"), re.M)
+    consts = dict(re.findall(r"^export const ([A-Z_]+) = '([^']+)'", model.read_text(encoding="utf-8"), re.M))
+    rows = {m for line in table.read_text(encoding="utf-8").splitlines() if line.startswith("|")
+            for m in re.findall(r"`([^`]+)`", line.split("|")[1] if line.count("|") > 1 else "")}
+    problems = []
+    for raw in paths:
+        path = consts.get(raw, raw.strip("'"))
+        if path not in rows:
+            problems.append(f"{PIPELINE_MODEL}: '{path}' is not in the artifact table of shared/pipeline.md")
+    if not paths:
+        problems.append(f"{PIPELINE_MODEL}: no artifact paths found (the check reads `{{ path: '...' }}` lines)")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
     if "--sync-secret-data" in sys.argv[1:]:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

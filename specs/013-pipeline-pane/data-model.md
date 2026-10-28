@@ -15,7 +15,7 @@ All state is `$.state` (session-scoped, survives a hot reload); nothing is writt
 | Key | Type | Written by |
 |---|---|---|
 | `pipeline.snapshot` | `Shaped<Snapshot>` (tag `pipeline-1`) | refresh (poll tick, tool.call after Edit/Write, command) |
-| `pipeline.isOpen` | boolean | `/pipeline`, `ui.close` |
+| `pipeline.isOpen` | boolean | `/pipeline-pane`, `ui.close` |
 | `pipeline.expanded` | `StateFamily<boolean>` keyed by section | presses |
 
 ## Refresh

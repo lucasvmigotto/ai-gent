@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-28
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: A Claude Code mod that keeps `project:status`'s snapshot on screen: the artifacts and feature statuses `shared/pipeline.md` defines, read with `$.fs`, redrawn when they change, ending in what to run next. Grounded in `plugins/project/skills/status/SKILL.md` and `shared/pipeline.md`.
 
@@ -20,7 +20,7 @@
 
 ### User Story 1 - See where the pipeline stands without asking (Priority: P1)
 
-The user opens a pane (`/pipeline`, or a docked sidebar opened automatically on a wide fullscreen terminal) that lists each artifact of the pipeline's table as present, missing or stale, and one row per feature from `specs/README.md` with its frontend, backend and QA status.
+The user opens a pane (`/pipeline-pane`, or a docked sidebar opened automatically on a wide fullscreen terminal) that lists each artifact of the pipeline's table as present, missing or stale, and one row per feature from `specs/README.md` with its frontend, backend and QA status.
 
 **Why this priority**: it is the whole point; the user stops spending a turn on "where are we".
 
@@ -93,7 +93,7 @@ A line counts `[UPSTREAM GAP: …]`, `[NEEDS CLARIFICATION: …]` and `[ASSUMPTI
 - **FR-003**: README parsing MUST agree with the two scripts that already parse it: each feature's overall state equals `plugins/repo/scripts/specsync.py features --json`'s `state` (Planned → todo … Verified → done, least advanced side wins), and the ready / blocked / done split equals `plugins/agents/scripts/wt.py plan --json` (a parity test on fixtures).
 - **FR-004**: The pane MUST redraw within one poll interval (default 5 s, a `userConfig` number) of a change to a watched path, and immediately after an Edit/Write tool call on one.
 - **FR-005**: Next MUST follow `project:status` §4 rules 1–3 and MUST label itself a hint, pointing to `/project:status` for the full report.
-- **FR-006**: The module MUST register a `/pipeline` command that opens (or focuses) the pane; with no surface it answers the snapshot as text.
+- **FR-006**: The module MUST register a `/pipeline-pane` command that opens (or focuses) the pane; with no surface it answers the snapshot as text.
 - **FR-007**: A `userConfig` boolean (`pipelinePane`, default true) MUST turn the whole feature off without touching 012's parts of the module.
 - **FR-008**: State that drawing reads MUST be in `$.state` atoms declared in `plugins/project/types/index.d.ts`, never in module variables.
 
@@ -116,7 +116,11 @@ A line counts `[UPSTREAM GAP: …]`, `[NEEDS CLARIFICATION: …]` and `[ASSUMPTI
 ## Decisions (2026-10-28, with the maintainer)
 
 - Parsing: the module parses `specs/README.md` and the artifacts itself with `$.fs` (no Python at draw time); FR-003's parity test keeps it equal to `specsync features --json` and `wt.py plan --json`.
-- Opening: unasked at session start only when `specs/README.md` exists and the surface docks panes; otherwise through `/pipeline`.
+- Opening: unasked at session start only when `specs/README.md` exists and the surface docks panes; otherwise through `/pipeline-pane`.
+
+- Found while building: `/pipeline` is also the short name of the `devsecops:pipeline` skill, and in a headless run the skill won (a model turn that read files). The command is `/pipeline-pane`. The pane's own id stays `pipeline`.
+- Found while building: the test kit cannot raise `ui.close`, so closing the pane (stop polling, `isOpen` false) is covered by the type-check and the validator but not by a test. A module can read an atom only in the file that declares it, so `pipeline.ts` holds the atoms and the reads.
+- Found while building: `claude plugin test` can import only code files, so the parity fixture is `plugins/project/hooks/pipeline-fixtures.ts` (the README text and the expected output); `test_scripts.py` parses the same file and runs `specsync.py features` and `wt.py plan` on it, and `scripts/consistency.py` checks the artifact paths against `shared/pipeline.md`.
 
 ## Assumptions
 
