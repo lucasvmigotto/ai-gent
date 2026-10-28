@@ -9,6 +9,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -171,6 +172,30 @@ class SessionsTest(unittest.TestCase):
                              ("export API_KEY='x y z'", "x y z"), ("-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----", "MIIE")]:
             with self.subTest(text=text):
                 self.assertNotIn(hidden, sessions.redact(text))
+
+    def test_shared_secret_cases(self):
+        # shared/secret-cases.json is also run by the secrets plugin's mod (secret-mask.test.ts): both must agree.
+        root = Path(__file__).resolve().parents[3]
+        fx = json.loads((root / "shared" / "secret-cases.json").read_text())
+        spec = json.loads((root / "shared" / "secret-patterns.json").read_text())
+
+        def expand(s):
+            return re.sub(r"\{(\w+)\}", lambda m: "".join(fx["vars"][m[1]]["parts"]) + fx["vars"][m[1]]["fill"] * fx["vars"][m[1]]["times"], s)
+
+        flags = {"i": re.I, "s": re.S}
+        for case in fx["cases"]:
+            with self.subTest(case=case["name"]):
+                text, kinds = expand(case["input"]), {}
+                for p in spec["patterns"]:
+                    if case.get("skill") and "skill" in p.get("skipIn", []):
+                        continue
+                    text, n = re.subn(p["source"], p["replacement"], text, flags=sum(flags[f] for f in p.get("flags", "")))
+                    if n:
+                        kinds[p["kind"]] = n
+                self.assertEqual(text, expand(case["expected"]))
+                self.assertEqual(kinds, case["kinds"])
+                if not case.get("skill"):
+                    self.assertEqual(sessions.redact(expand(case["input"])), expand(case["expected"]))
 
 
 class RepoStateTest(unittest.TestCase):
