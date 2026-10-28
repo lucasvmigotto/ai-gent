@@ -415,6 +415,14 @@ Five plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 > ```
 > Plus a `plugins` entry for the guard plugin and one `skill` deny per plugin skill's short name.
 
+## Claude Code mods
+
+Some plugins also ship a Claude Code hooks module (`hooks/register.tsx`, named under `modules` in `hooks/hooks.json`). It adds to the session what a skill can't: something kept in view, or a question at the right moment. A mod is an extra layer only. The skills, scripts and guard hooks above stay the record and the authority, and the other agents work without it. A mod loads with its plugin through the same `setup.sh` link, and Claude Code reloads it when its files change. Each one can be turned off in `/config`.
+
+| Plugin | Shows | Asks first | Options |
+| --: | :-- | :-- | :-- |
+| `project` | the holds in `.ai-gent/checkpoint.md` (`project:checkpoint`) in a band above the prompt, with a note when the file is older than the last commit | `git push`, `git merge`, `git tag <name>`, `gh pr merge` or `gh release create` while the checkpoint lists a hold, naming the holds | `holdsBand`, `holdsGate` |
+
 ## Layout
 
 ```txt

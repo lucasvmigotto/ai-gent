@@ -4,6 +4,12 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **The first Claude Code mod: checkpoint holds in the session** (`plugins/project/hooks/register.tsx`, spec `specs/012-checkpoint-band`). While `.ai-gent/checkpoint.md` lists holds, a band above the prompt shows them, and says when the file is older than the last commit. A `git push`, `git merge`, `git tag <name>`, `gh pr merge` or `gh release create` first asks you, naming the holds. Stop refuses the command and tells the agent to check with you. This works only in Claude Code; the other agents still read the holds through `project:recap`. Turn either part off in `/config` (`holdsBand`, `holdsGate`). `scripts/check.sh` runs `claude plugin test` for each plugin with a hooks module, and CI's Claude Code is pinned to 2.1.312.
+
 ## 2.20.0 — 2026-10-27
 
 ### Added
