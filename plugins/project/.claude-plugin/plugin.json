@@ -20,6 +20,18 @@
       "title": "Ask before a push, merge, tag or release under a hold",
       "description": "While the checkpoint lists holds, ask before git push, git merge, git tag, gh pr merge or gh release create",
       "default": true
+    },
+    "pipelinePane": {
+      "type": "boolean",
+      "title": "Pipeline pane",
+      "description": "The /pipeline-pane pane: the pipeline's artifacts, feature statuses and open items, and what to run next; it opens by itself when specs/README.md exists on a surface that can dock it",
+      "default": true
+    },
+    "pipelinePollSeconds": {
+      "type": "number",
+      "title": "Pipeline pane refresh (seconds)",
+      "description": "How often the open pane checks the files for changes",
+      "default": 5
     }
   }
 }
