@@ -4,6 +4,16 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **A Claude Code mod that masks pasted secrets** (`plugins/secrets/hooks/register.tsx`, spec `specs/016-secret-mask`). A credential pasted into a prompt, a slash command's arguments or a skill's body is replaced (`<token>`, `<redacted>`, `<private key>`) before it is recorded in the transcript or sent to the model, and a toast names the kind and the `pass insert ai-gent/<area>/<name>` to run instead. It never shows or logs the value. If masking itself fails, a prompt that looks like it holds a credential is held back and anything else goes through. A skill's written body gets only the keys, tokens and URL passwords, so documentation stays whole. Turn it off with `secretMask`, or just the `NAME=value` rule with `maskAssignments`, in `/config`. It works only in Claude Code, and `shared/secrets.md` and the `secrets` guard stay the contract.
+
+### Changed
+
+- **`project:recap` and the mod read one list of credential patterns.** `shared/secret-patterns.json` replaces `SECRET_PATTERNS` in `sessions.py`; the redaction output is unchanged, and the token pattern is split by kind. `shared/secret-cases.json` holds the cases both sides are tested with. A mod's tests can import only code files, so `scripts/consistency.py` keeps `plugins/secrets/hooks/secret-data.ts` equal to the two JSON files (`--sync-secret-data` rewrites it).
+
 ## 2.21.0 — 2026-10-28
 
 ### Added

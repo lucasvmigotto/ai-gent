@@ -25,7 +25,7 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 013 | pipeline-pane | project:status as a live pane: artifacts, feature statuses, open markers, next stage | P2 | 012 | Planned | N/A | — | mod in `project`; read-only, $.fs plus git log |
 | 014 | token-status | status line and toasts: cards in flight, projected vs used, budget verdict | P3 | 012 | Planned | Planned | — | mod in `agents`; Backend is `token_report.py budget --json` |
 | 015 | guard-ux | richer deny/ask presentation for the git, db, secrets, repo and devcontainer guards | P2 | 012 | Planned | Planned | — | guard.sh stays the decider; importing rules.mjs rejected (research.md R3) |
-| 016 | secret-mask | mask pasted credentials at prompt.submit, command.run and skill.prompt | P1 | 012 | N/A | Planned | — | mod in `secrets`; patterns shared with sessions.py |
+| 016 | secret-mask | mask pasted credentials at prompt.submit, command.run and skill.prompt | P1 | 012 | N/A | Implemented | — | mod in `secrets`; patterns shared with sessions.py; `claude plugin test` 11 cases; checked live in a headless run |
 | 017 | repo-hygiene | band for unpulled dev/main and release commits, session-start toasts, /release-preview | P2 | 012 | Planned | N/A | — | mods in `git` and `devcontainer`; never fetches |
 
 Verified needs suites covering every story, running and passing in CI; for tooling without a UI the integration suites stand in for e2e journeys (pipeline rule 6). 008 is Verified: its unit tests run on every pull request and the real-engine suite weekly. The closest others are 006 (all stories but the interactive selector) and 002 (two of four stories).

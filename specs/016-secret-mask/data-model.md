@@ -10,6 +10,7 @@
 | `replacement` | e.g. `\1\2<redacted>`, `<token>`, `<private key>`; group references translated per language |
 | `entry` | optional pass entry hint (`ai-gent/github/pat`) from `shared/secrets.md`'s entry table |
 | `toggle` | optional `userConfig` key that disables it (`maskAssignments` for `assignment`) |
+| `skipIn` | optional places it is left out of: `skill` (a skill's written body keeps prose and examples whole) |
 
 Initial content is exactly `SECRET_PATTERNS` in `plugins/project/scripts/sessions.py` at the time of building, split by kind (its token pattern holds GitHub, `sk-`, AWS and Slack shapes in one alternation; splitting it keeps the toast's kind precise without changing what matches).
 
