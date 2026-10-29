@@ -96,7 +96,9 @@ export const register: Register = (on, options: Options) => {
     }
   }).catch(($, e, next) => next(e))
 
+  // Composes with whatever band is beneath (the git plugin's unpulled-release band), so both show.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const beneath = await next(e)
     const current = await read($, checkpoint)
     const isQuiet =
       !showBand ||
@@ -104,7 +106,7 @@ export const register: Register = (on, options: Options) => {
       current === null ||
       current.holds.length === 0 ||
       (await read($, isBandHidden))
-    if (isQuiet) return next(e)
+    if (isQuiet) return beneath
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const width = Math.max(20, e.props.bodyColumns - 12)
@@ -113,6 +115,7 @@ export const register: Register = (on, options: Options) => {
 
     return (
       <Box flexDirection="column">
+        {beneath}
         <Box>
           <Text bold>Holds</Text>
           <Text dimColor>
