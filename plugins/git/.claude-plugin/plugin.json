@@ -13,6 +13,25 @@
       "title": "Explain this guard's decisions",
       "description": "When the guard denies or asks, say why in plain words and what to do instead (the guard still decides; this changes only the words)",
       "default": true
+    },
+    "hygieneBand": {
+      "type": "boolean",
+      "title": "Unpulled-release band",
+      "description": "A band above the prompt when local main or dev lag their remote-tracking branches (for example after a release), or have diverged; it never fetches or pulls",
+      "default": true
+    },
+    "sessionToasts": {
+      "type": "boolean",
+      "title": "Show the update notice",
+      "description": "Show ai-gent's update notice (printed by the session-start hook, which only the model sees) as a toast",
+      "default": true
+    },
+    "releasePreview": {
+      "type": "boolean",
+      "title": "/release-preview command",
+      "description": "Declare /release-preview, which prints scripts/release.py --dry-run for this repository (it never releases)",
+      "default": true
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }

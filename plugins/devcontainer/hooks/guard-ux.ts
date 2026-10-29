@@ -10,7 +10,7 @@
 //
 // The engine refuses an import through a symlink that leaves a plugin, so this
 // file is COPIED into plugins/{git,db,secrets,repo,devcontainer}/hooks/guard-ux.ts;
-// `python3 scripts/consistency.py --sync-guard-ux` rewrites the copies and
+// `python3 scripts/consistency.py --sync-shared-code` rewrites the copies and
 // scripts/consistency.py fails if they differ or if a guard reason has no entry.
 
 export type GuardId = 'git' | 'db' | 'secrets' | 'repo' | 'containers'

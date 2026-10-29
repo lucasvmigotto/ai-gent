@@ -13,6 +13,13 @@
       "title": "Explain this guard's decisions",
       "description": "When the guard denies or asks, say why in plain words and what to do instead (the guard still decides; this changes only the words)",
       "default": true
+    },
+    "leftoversToast": {
+      "type": "boolean",
+      "title": "Show the container leftovers report",
+      "description": "Show the report leftovers.sh prints at session start (this project's leftover containers, images, volumes; a low disk), which only the model sees, as a toast",
+      "default": true
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }
