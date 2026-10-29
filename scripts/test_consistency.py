@@ -78,6 +78,105 @@ class Containers(unittest.TestCase):
 CARDS = "specs/004-daemon/cards.md"
 
 
+class SecretData(unittest.TestCase):
+    SOURCES = {"shared/secret-patterns.json": json.dumps({"patterns": [{"kind": "k", "source": "x", "flags": "", "replacement": "<r>"}]}),
+               "shared/secret-cases.json": json.dumps({"vars": {}, "cases": []})}
+
+    def test_nothing_to_check_without_the_shared_files(self):
+        self.assertEqual(consistency.check_secret_data(tree({})), [])
+
+    def test_missing_or_stale_twin_fails_and_sync_fixes_it(self):
+        root = tree(self.SOURCES)
+        self.assertEqual(len(consistency.check_secret_data(root)), 1)
+        (root / consistency.SECRET_DATA).parent.mkdir(parents=True, exist_ok=True)
+        (root / consistency.SECRET_DATA).write_text(consistency.secret_data_text(root))
+        self.assertEqual(consistency.check_secret_data(root), [])
+        (root / "shared/secret-cases.json").write_text(json.dumps({"vars": {}, "cases": [{"name": "n"}]}))
+        self.assertEqual(len(consistency.check_secret_data(root)), 1)
+
+    def test_the_repository_twin_is_in_sync(self):
+        self.assertEqual(consistency.check_secret_data(consistency.ROOT), [])
+
+
+class PipelinePaths(unittest.TestCase):
+    TABLE = "| Path | Owner |\n|---|---|\n| `docs/product/brief.md` | `project:init` |\n| `specs/README.md` | `project:spec` |\n"
+
+    def model(self, *paths: str) -> str:
+        return "export const BRIEF = 'docs/product/brief.md'\n" + "".join(f"  {{ path: {p}, label: 'x' }},\n" for p in paths)
+
+    def test_paths_in_the_table_pass(self):
+        root = tree({"shared/pipeline.md": self.TABLE, consistency.PIPELINE_MODEL: self.model("BRIEF", "'specs/README.md'")})
+        self.assertEqual(consistency.check_pipeline_paths(root), [])
+
+    def test_a_path_missing_from_the_table_fails(self):
+        root = tree({"shared/pipeline.md": self.TABLE, consistency.PIPELINE_MODEL: self.model("BRIEF", "'docs/product/other.md'")})
+        self.assertEqual(len(consistency.check_pipeline_paths(root)), 1)
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_pipeline_paths(consistency.ROOT), [])
+
+
+class GuardUx(unittest.TestCase):
+    SHARED = ("export const GUARDS = {\n  git: {\n    marker: 'git:workflow guard:',\n    skill: 'git:workflow',\n    entries: [\n"
+              "      { match: 'hooks must not be bypassed', say: 'x' },\n    ],\n  },\n}\n")
+    GUARD = 'decide deny "hooks must not be bypassed (--no-verify); fix it"\n'
+
+    def files(self, shared=SHARED, guard=GUARD, copy=None):
+        files = {consistency.GUARD_UX: shared, "plugins/git/hooks/guard.sh": guard}
+        for plugin in consistency.SHARED_CODE[consistency.GUARD_UX]:
+            files[f"plugins/{plugin}/hooks/guard-ux.ts"] = shared if copy is None else copy
+        return files
+
+    def problems(self, **kw):
+        # only the git guard has a guard.sh in these throwaway trees
+        return consistency.check_guard_ux(tree(self.files(**kw)))
+
+    def test_identical_copies_and_a_covered_reason_pass(self):
+        self.assertEqual(self.problems(), [])
+
+    def test_a_copy_that_differs_fails(self):
+        problems = self.problems(copy=self.SHARED + "// edited\n")
+        self.assertEqual(len(problems), len(consistency.SHARED_CODE[consistency.GUARD_UX]))
+        self.assertIn("--sync-shared-code", problems[0])
+
+    def test_a_reason_with_no_entry_fails(self):
+        problems = self.problems(guard='decide ask "a brand new question"\ndecide deny "hooks must not be bypassed"\n')
+        self.assertEqual(len(problems), 1)
+        self.assertIn("a brand new question", problems[0])
+
+    def test_reasons_come_from_decide_lines_variables_and_printf_arguments(self):
+        text = 'creds_reason="that is a creds file"\ndecide deny "$creds_reason"\ndecide ask "plain"\nprintf x \\\n    "from printf"\n'
+        self.assertEqual(consistency.guard_reasons(text), ["that is a creds file", "plain", "from printf"])
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_guard_ux(consistency.ROOT), [])
+
+
+class ReleaseSubjects(unittest.TestCase):
+    MODEL = ("export const RELEASE_ON_MAIN = /^chore\\(release\\): (\\d+\\.\\d+\\.\\d+)$/\n"
+             "export const RELEASE_BACK_INTO_DEV = /^chore\\(release\\): merge (\\d+\\.\\d+\\.\\d+) back into (?:dev|develop)$/\n")
+    JOB = 'git commit -m "chore(release): $version"\ngit merge --no-ff -m "chore(release): merge $version back into $integ" "$version"\n'
+    DOC = 'git commit -m "chore(release): $version"\ngit merge --no-ff -m "chore(release): merge X.Y.Z back into <integ>" X.Y.Z\n'
+
+    def files(self, job=JOB, doc=DOC, model=MODEL):
+        return {consistency.HYGIENE_MODEL: model, ".github/workflows/release.yml": job, "shared/release-platforms.md": doc}
+
+    def test_the_job_and_the_template_match_the_patterns(self):
+        self.assertEqual(consistency.check_release_subjects(tree(self.files())), [])
+
+    def test_a_changed_subject_fails(self):
+        problems = consistency.check_release_subjects(tree(self.files(job='git commit -m "chore(release): v$version"\ngit merge -m "chore(release): merge $version back into $integ"\n')))
+        self.assertEqual(len(problems), 2)
+
+    def test_a_missing_merge_back_fails(self):
+        problems = consistency.check_release_subjects(tree(self.files(job='git commit -m "chore(release): $version"\n')))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("merge back", problems[0])
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_release_subjects(consistency.ROOT), [])
+
+
 class Cards(unittest.TestCase):
     def test_every_card_has_a_projection(self):
         ok = "# Cards\n\n## Card `a`: T001\n\n**Route**: Effort `low` · Tokens: projected ~100k | used —\n"

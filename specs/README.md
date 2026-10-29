@@ -22,8 +22,15 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 010 | spec-sync | specsync: plan, record, features | P2 | 009 | N/A | Implemented | — | parses this file |
 | 011 | worktrees | wt.py: plan, add, list, remove | P3 | — | N/A | Implemented | — | parses this file |
 | 012 | checkpoint-band | project mod: checkpoint holds band, ask before push/merge/tag/release under a hold | P1 | — | Implemented | N/A | — | first Claude Code mod; `claude plugin test` in check.sh |
+| 013 | pipeline-pane | project:status as a live pane: artifacts, feature statuses, open markers, next stage | P2 | 012 | Implemented | N/A | — | mod in `project`; `/pipeline-pane`; read-only, $.fs plus git log; parity-tested against specsync and wt; closing the pane is untested (the kit can't raise ui.close) |
+| 014 | token-status | status line and toasts: cards in flight, projected vs used, budget verdict | P3 | 012 | Implemented | Implemented | — | mod in `agents`; `token_report.py budget --json`; the orchestrate ledger's State words are fixed; `/tokens --live` (story 5) is projected, not built |
+| 015 | guard-ux | richer deny/ask presentation for the git, db, secrets, repo and devcontainer guards | P2 | 012 | Implemented | N/A | — | guard.sh stays the decider; importing rules.mjs rejected (research.md R3); copies, not symlinks (R4); asks tested by `decorate` only, the kit can't show their text |
+| 016 | secret-mask | mask pasted credentials at prompt.submit, command.run and skill.prompt | P1 | 012 | N/A | Implemented | — | mod in `secrets`; patterns shared with sessions.py; `claude plugin test` 11 cases; checked live in a headless run |
+| 017 | repo-hygiene | band for unpulled dev/main and release commits, session-start toasts, /release-preview | P2 | 012 | Implemented | N/A | — | mods in `git` and `devcontainer`; never fetches; SessionStart lines come from the stored hook row (classic.SessionStart returns {}) |
 
 Verified needs suites covering every story, running and passing in CI; for tooling without a UI the integration suites stand in for e2e journeys (pipeline rule 6). 008 is Verified: its unit tests run on every pull request and the real-engine suite weekly. The closest others are 006 (all stories but the interactive selector) and 002 (two of four stories).
+
+013–017 are forward specs (not reconstructed): optional Claude Code mods — hooks modules in the plugin they serve — that surface or enforce what the skills, scripts and guard hooks already guarantee, and are never part of a contract. For them, Frontend is what the person sees (pane, band, status line, toast, dialog, command output) and Backend is hook logic that gates or rewrites (tool calls, prompts) plus any script change. All depend on 012 (the checkpoint mod, specified and built on its own branch), which settles the module layout, `check.sh` wiring, versioning and install they reuse.
 
 ## Contract
 

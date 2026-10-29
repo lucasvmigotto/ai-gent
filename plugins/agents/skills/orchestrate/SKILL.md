@@ -76,7 +76,12 @@ already know. Template and examples: `references/cards.md`. Every card has:
 - **Ledger.** Keep `.ai-gent/orchestrate-status.md`: cards in flight,
   branch or worktree, state, pending merges, decisions the user owes. It
   lets the run survive a context compaction, a crash or an account
-  switch. Its Tokens column (`~projected / used`) is `$TOKREP tasks`'s job,
+  switch. The card table has a `Card` column (the card's id in backticks)
+  and a `State` column holding exactly one of `queued` (not dispatched),
+  `running` (a builder has it), `review` (built, with the reviewer or
+  waiting for a merge) or `landed` (merged into the chain's dev branch);
+  put anything else in other columns. Tools read those words: the Claude
+  Code token status counts `queued`, `running` and `review` as in flight. Its Tokens column (`~projected / used`) is `$TOKREP tasks`'s job,
   not hand-kept — on Claude Code; elsewhere, note here whatever the agent's
   own UI reports.
 

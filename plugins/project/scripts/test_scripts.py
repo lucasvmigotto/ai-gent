@@ -9,6 +9,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -171,6 +172,60 @@ class SessionsTest(unittest.TestCase):
                              ("export API_KEY='x y z'", "x y z"), ("-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----", "MIIE")]:
             with self.subTest(text=text):
                 self.assertNotIn(hidden, sessions.redact(text))
+
+    def test_shared_secret_cases(self):
+        # shared/secret-cases.json is also run by the secrets plugin's mod (secret-mask.test.ts): both must agree.
+        root = Path(__file__).resolve().parents[3]
+        fx = json.loads((root / "shared" / "secret-cases.json").read_text())
+        spec = json.loads((root / "shared" / "secret-patterns.json").read_text())
+
+        def expand(s):
+            return re.sub(r"\{(\w+)\}", lambda m: "".join(fx["vars"][m[1]]["parts"]) + fx["vars"][m[1]]["fill"] * fx["vars"][m[1]]["times"], s)
+
+        flags = {"i": re.I, "s": re.S}
+        for case in fx["cases"]:
+            with self.subTest(case=case["name"]):
+                text, kinds = expand(case["input"]), {}
+                for p in spec["patterns"]:
+                    if case.get("skill") and "skill" in p.get("skipIn", []):
+                        continue
+                    text, n = re.subn(p["source"], p["replacement"], text, flags=sum(flags[f] for f in p.get("flags", "")))
+                    if n:
+                        kinds[p["kind"]] = n
+                self.assertEqual(text, expand(case["expected"]))
+                self.assertEqual(kinds, case["kinds"])
+                if not case.get("skill"):
+                    self.assertEqual(sessions.redact(expand(case["input"])), expand(case["expected"]))
+
+
+class PipelinePaneParityTest(unittest.TestCase):
+    """The pipeline pane's model (hooks/pipeline-model.ts) reads specs/README.md as these two scripts do."""
+
+    def test_scripts_agree_with_the_pane_fixture(self):
+        root = Path(__file__).resolve().parents[3]
+        fixture = (root / "plugins" / "project" / "hooks" / "pipeline-fixtures.ts").read_text()
+        readme = re.search(r"export const README_TEXT = `(.*?)`", fixture, re.S)[1]
+        expected = json.loads(fixture.split("export const EXPECTED = ", 1)[1])
+        tmp = Path(tempfile.mkdtemp())
+        git(tmp, "init", "-q")
+        (tmp / "specs").mkdir()
+        (tmp / "specs" / "README.md").write_text(readme)
+        for m in re.finditer(r"^\| (\d{3}) \| ([\w-]+) \|", readme, re.M):
+            d = tmp / "specs" / f"{m[1]}-{m[2]}"
+            d.mkdir()
+            (d / "spec.md").write_text(f"# Feature Specification: {m[2]}\n")
+
+        def run_json(script, *args):
+            out = subprocess.run([sys.executable, str(root / "plugins" / script), *args], cwd=tmp, capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            return json.loads(out.stdout)
+
+        features = run_json("repo/scripts/specsync.py", "features", "--json")
+        self.assertEqual({f["feature"][:3]: f["state"] for f in features}, expected["states"])
+        plan = run_json("agents/scripts/wt.py", "plan", "--json")
+        self.assertEqual([x["number"] for x in plan["ready"]], expected["ready"])
+        self.assertEqual([x["number"] for x in plan["blocked"]], expected["blocked"])
+        self.assertEqual(plan["done"], expected["done"])
 
 
 class RepoStateTest(unittest.TestCase):

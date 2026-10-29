@@ -88,14 +88,19 @@ test('gated names pushes, merges, tags and releases, and nothing read-only', () 
   }
 })
 
-test('the band lists the holds, on every surface', async ($, on) => {
+test('the band lists the holds, on every surface, above whatever band is beneath', async ($, on) => {
   engine(on, WITH_HOLDS)
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>another band</Text>
+  })
   await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
 
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
     expect((await ui.find({ type: 'Text', text: /hold until the 026/ }))?.text).toContain('main: hold')
     expect(await ui.find({ type: 'Text', text: /even a patch/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /another band/ })).toBeDefined()
     await ui.unmount()
   }
 })
