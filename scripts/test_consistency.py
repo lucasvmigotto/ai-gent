@@ -123,7 +123,7 @@ class GuardUx(unittest.TestCase):
 
     def files(self, shared=SHARED, guard=GUARD, copy=None):
         files = {consistency.GUARD_UX: shared, "plugins/git/hooks/guard.sh": guard}
-        for plugin in consistency.GUARD_PLUGINS:
+        for plugin in consistency.SHARED_CODE[consistency.GUARD_UX]:
             files[f"plugins/{plugin}/hooks/guard-ux.ts"] = shared if copy is None else copy
         return files
 
@@ -136,8 +136,8 @@ class GuardUx(unittest.TestCase):
 
     def test_a_copy_that_differs_fails(self):
         problems = self.problems(copy=self.SHARED + "// edited\n")
-        self.assertEqual(len(problems), len(consistency.GUARD_PLUGINS))
-        self.assertIn("--sync-guard-ux", problems[0])
+        self.assertEqual(len(problems), len(consistency.SHARED_CODE[consistency.GUARD_UX]))
+        self.assertIn("--sync-shared-code", problems[0])
 
     def test_a_reason_with_no_entry_fails(self):
         problems = self.problems(guard='decide ask "a brand new question"\ndecide deny "hooks must not be bypassed"\n')
@@ -150,6 +150,31 @@ class GuardUx(unittest.TestCase):
 
     def test_the_repository_agrees(self):
         self.assertEqual(consistency.check_guard_ux(consistency.ROOT), [])
+
+
+class ReleaseSubjects(unittest.TestCase):
+    MODEL = ("export const RELEASE_ON_MAIN = /^chore\\(release\\): (\\d+\\.\\d+\\.\\d+)$/\n"
+             "export const RELEASE_BACK_INTO_DEV = /^chore\\(release\\): merge (\\d+\\.\\d+\\.\\d+) back into (?:dev|develop)$/\n")
+    JOB = 'git commit -m "chore(release): $version"\ngit merge --no-ff -m "chore(release): merge $version back into $integ" "$version"\n'
+    DOC = 'git commit -m "chore(release): $version"\ngit merge --no-ff -m "chore(release): merge X.Y.Z back into <integ>" X.Y.Z\n'
+
+    def files(self, job=JOB, doc=DOC, model=MODEL):
+        return {consistency.HYGIENE_MODEL: model, ".github/workflows/release.yml": job, "shared/release-platforms.md": doc}
+
+    def test_the_job_and_the_template_match_the_patterns(self):
+        self.assertEqual(consistency.check_release_subjects(tree(self.files())), [])
+
+    def test_a_changed_subject_fails(self):
+        problems = consistency.check_release_subjects(tree(self.files(job='git commit -m "chore(release): v$version"\ngit merge -m "chore(release): merge $version back into $integ"\n')))
+        self.assertEqual(len(problems), 2)
+
+    def test_a_missing_merge_back_fails(self):
+        problems = consistency.check_release_subjects(tree(self.files(job='git commit -m "chore(release): $version"\n')))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("merge back", problems[0])
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_release_subjects(consistency.ROOT), [])
 
 
 class Cards(unittest.TestCase):
