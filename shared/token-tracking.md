@@ -234,6 +234,10 @@ suggests moving an expensive Opus card, whose projection is at high or medium
 confidence, to a Sonnet builder with the thinker reviewing inline (with the
 cost the learned context factor predicts).
 
+`budget --json` prints the same verdict, the caps (`cap`, `used`, `left`), the
+cards with their projections and the batches as one JSON object, and nothing
+else; the Claude Code token status reads it. The text output is unchanged.
+
 Rules that go with it: Sonnet builders carry the confident, expensive cards
 and the thinker reviews inline unless a card needs a fresh context; no more
 than `max_opus` Opus subagents and `max_agents` subagents at once (rstory hit
