@@ -1,6 +1,6 @@
 {
   "name": "agents",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "license": "GPL-3.0-or-later",
   "description": "Agent orchestration: orchestrate (run a spec'd feature or task list with role-separated agents, a strong model to think, plan and review and a fast model to build, routed by task for token-efficient use; agent-agnostic with Claude as the default) and parallel (several features or tracks at once, each on its own branch in a worktree, landed on dev one at a time)",
   "author": {
