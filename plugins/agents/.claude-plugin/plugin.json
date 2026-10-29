@@ -6,5 +6,20 @@
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "tokenStatus": {
+      "type": "boolean",
+      "title": "Token status",
+      "description": "A status line with the cards in flight (projected / used) and what the budget leaves, a toast when the wave stops fitting or a card passes its projection, and /tokens; read from .ai-gent/orchestrate-status.md and token_report.py budget",
+      "default": true
+    },
+    "tokenRefreshSeconds": {
+      "type": "number",
+      "title": "Token status refresh (seconds)",
+      "description": "How often, after a turn, the budget is read again (it reads a week of transcripts)",
+      "default": 120
+    }
   }
 }
