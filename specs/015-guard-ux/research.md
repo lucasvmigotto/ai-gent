@@ -31,4 +31,4 @@ Each item has a question, what was checked, and a decision. Items marked *to ver
 
 **Checked**: one hooks module per plugin; a module imports files of its plugin with `import` declarations (no `import()`). Five plugins need the same explanation table and decoration logic.
 
-**Decision**: one source file, `shared/guard-ux.ts`, linked by relative symlink into each plugin into each plugin's `hooks/` (decided 2026-10-28; CLAUDE.md amended). **Verified 2026-10-28: the engine refuses it** (`cannot import "./helper": no such file under <plugin>`). The fallback is used: `scripts/consistency.py --sync-guard-ux` copies the file into each plugin's `hooks/`, and the same script fails when a copy differs.
+**Decision**: one source file, `shared/guard-ux.ts`, linked by relative symlink into each plugin into each plugin's `hooks/` (decided 2026-10-28; CLAUDE.md amended). **Verified 2026-10-28: the engine refuses it** (`cannot import "./helper": no such file under <plugin>`). The fallback is used: `scripts/consistency.py --sync-shared-code` copies the file into each plugin's `hooks/`, and the same script fails when a copy differs.

@@ -25,13 +25,13 @@ In the `git` plugin's hooks module: an `AbovePrompt` band fed by a few `git` cal
 | Path | What |
 |---|---|
 | `plugins/git/hooks/register.tsx` | module entry (shared with 015's git part) |
-| `plugins/git/hooks/hygiene-band.tsx` | comparison, band drawing, refresh triggers |
-| `plugins/git/hooks/session-toasts.ts` | `classic.SessionStart` relay of the update line |
-| `plugins/git/hooks/release-preview.ts` | `/release-preview` |
+| `plugins/git/hooks/hygiene-model.ts` | pure: git's counts, the release subjects, the band's wording |
+| `plugins/git/hooks/hygiene.ts` | the git calls, the atoms, the update relay, `/release-preview` |
 | `plugins/git/hooks/hygiene.test.tsx` | stories 1–3, git mocked |
-| `plugins/git/types/index.d.ts` | `hygiene.*` atoms |
+| `shared/hook-lines.ts` → `plugins/{git,devcontainer}/hooks/hook-lines.ts` | copies: read the SessionStart hook's stored row |
+| `plugins/git/types/index.d.ts` | the `hygiene` and `toasted` atoms |
 | `plugins/devcontainer/hooks/register.tsx` | module entry (shared with 015's containers part) |
-| `plugins/devcontainer/hooks/leftovers-toast.ts`, `leftovers-toast.test.ts` | the relay and its test |
+| `plugins/devcontainer/hooks/leftovers.ts`, `leftovers.test.ts`, `plugins/devcontainer/types/index.d.ts` | the relay, its test and its state |
 | `plugins/git/.claude-plugin/plugin.json`, `plugins/devcontainer/.claude-plugin/plugin.json` | `userConfig` flags (FR-007), `"types"` |
 | `plugins/git/hooks/hooks.json`, `plugins/devcontainer/hooks/hooks.json` | gain `"modules"` beside the command hooks |
 

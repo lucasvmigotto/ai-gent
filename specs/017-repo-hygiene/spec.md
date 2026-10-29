@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-28
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: Three small Claude Code mod pieces that surface what the repository's rules and scripts already say: (1) a band above the prompt when local `dev`/`main` lag their remote-tracking branches, or a bot release commit hasn't been pulled (CLAUDE.md "Releases": "run `git pull --ff-only` before the next local commit"; `plugins/git/skills/workflow/SKILL.md`, "after a release, `git pull --ff-only` on both"); (2) toasts for what the `SessionStart` hooks `scripts/update-check.sh` and `plugins/devcontainer/hooks/leftovers.sh` print, which today only the model reads; (3) a `/release-preview` command running `scripts/release.py --dry-run`.
 
@@ -39,7 +39,7 @@ After a push to `main`, the release job lands `chore(release): X.Y.Z` on `origin
 
 `update-check.sh` prints `[ai-gent] update available: …` and `leftovers.sh` prints `ai-gent containers (report only, nothing removed):` plus lines. Both go to the model as context; the person never sees them. The mods toast them once per session.
 
-**Independent Test**: a test raises `classic.SessionStart` with a test hook beneath answering `additionalContext` holding those lines; assert one toast each, with the text cut to the toast's limits.
+**Independent Test**: a test appends the stored hook row (`$.session.append`, door `hook-context`, origin event `SessionStart`) holding those lines; assert one toast each, and none for any other row.
 
 **Acceptance Scenarios**:
 
@@ -82,7 +82,7 @@ After a push to `main`, the release job lands `chore(release): X.Y.Z` on `origin
 - **FR-002**: A release commit MUST be recognized by subject only: `^chore\(release\): \d+\.\d+\.\d+$` on `main`/`master`, `^chore\(release\): merge \d+\.\d+\.\d+ back into (dev|develop)$` on the dev branch — the subjects `.github/workflows/release.yml` writes (`chore(release): $version`, `chore(release): merge $version back into $integ`) and `shared/release-platforms.md` prescribes for other projects.
 - **FR-003**: The band MUST suggest `git pull --ff-only` only when the local branch has no commits of its own past its remote; otherwise "diverged".
 - **FR-004**: Toasts MUST relay the scripts' own lines, never compute an update or leftovers check of their own, and fire once per session.
-- **FR-005**: Reading the SessionStart output MUST use `classic.SessionStart`'s `next(e)` result (`additionalContext`), the same route 015's R1 verifies for `classic.PreToolUse`; fallback is running the script with `$.process.run` at `session.start`.
+- **FR-005**: Reading the SessionStart output MUST use the transcript row the engine stores for the hook (`session.append`, door `hook-context`, origin `{ kind: 'hook', event: 'SessionStart' }`, text `SessionStart:startup hook success: <stdout>`). `classic.SessionStart`'s `next(e)` returns `{}` for it, and the scripts MUST NOT be run a second time.
 - **FR-006**: `/release-preview` MUST run `python3 scripts/release.py --dry-run` with the repository root as `cwd` and MUST NOT run it without `--dry-run`.
 - **FR-007**: `userConfig` booleans: `hygieneBand`, `sessionToasts`, `releasePreview` on `git`; `leftoversToast` on `devcontainer`; all default true.
 
@@ -105,7 +105,11 @@ After a push to `main`, the release job lands `chore(release): X.Y.Z` on `origin
 - The band never fetches; it reads what the last fetch left and says how old `FETCH_HEAD` is.
 - The command is `/release-preview`: `$.command.register` declares a plain `/<name>` with no plugin prefix (Claude Code 2.1.312 types).
 
+- Found while building (verified on 2.1.312 with a probe plugin and a headless run): `classic.SessionStart`'s `next(e)` returned `{}` for a command hook's stdout, so FR-005's first route does not work. The hook's output is a stored transcript row that `session.append` sees, which relays the script's own lines with no second run. The `session.append` hooks carry a `.catch` that replays `next(e)`, so a bug here can never drop a row.
+- Found while building: two bands from different plugins hide each other unless each composes with what is beneath it. The checkpoint band (012) now draws above `await next(e)`, and the hygiene band does the same.
+- Found while building: `leftoversBlock`, `hookLines` and `rowText` are used by both the `git` and `devcontainer` plugins, so they are `shared/hook-lines.ts`, copied into both (the engine refuses a symlinked import; `scripts/consistency.py --sync-shared-code`).
+- `scripts/consistency.py` also checks that the band's two subject patterns still match every release subject in `.github/workflows/release.yml` and `shared/release-platforms.md`.
+
 ## Assumptions
 
-- [ASSUMPTION: `classic.SessionStart`'s `next(e)` resolves with the plugin command hooks' stdout in `additionalContext`, per the 2.1.312 `ClassicResultFields`; verified with 015's R1 run.]
 - [ASSUMPTION: The release job keeps the commit subjects `plugins/git/skills/workflow/SKILL.md` documents.]

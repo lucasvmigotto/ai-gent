@@ -20,10 +20,14 @@
      them exactly (`--sync-secret-data` rewrites it).
   8. Every artifact path the project plugin's pipeline pane lists
      (hooks/pipeline-model.ts) is in shared/pipeline.md's artifact table.
-  9. The guard plugins' hooks modules import a COPY of shared/guard-ux.ts (the
-     engine refuses an import through a symlink that leaves the plugin). The
-     copies are identical to it (`--sync-guard-ux` rewrites them), and every
-     reason a guard.sh can print has an entry in its table.
+  9. Shared code a plugin's hooks module imports (shared/guard-ux.ts,
+     shared/hook-lines.ts) is COPIED into the plugins that use it, because the
+     engine refuses an import through a symlink that leaves the plugin. The
+     copies are identical (`--sync-shared-code` rewrites them), and every
+     reason a guard.sh can print has an entry in guard-ux's table.
+ 10. The git plugin's repo-hygiene band recognizes a release by the subjects
+     .github/workflows/release.yml and shared/release-platforms.md write
+     (`chore(release): X.Y.Z`, `chore(release): merge X.Y.Z back into dev`).
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -299,6 +303,12 @@ def check_pipeline_paths(root: Path) -> list[str]:
 
 
 GUARD_UX = "shared/guard-ux.ts"
+# Shared code a plugin's hooks module imports is COPIED into the plugins that use it
+# (the engine refuses an import through a symlink that leaves the plugin).
+SHARED_CODE = {
+    "shared/guard-ux.ts": ("git", "db", "secrets", "repo", "devcontainer"),
+    "shared/hook-lines.ts": ("git", "devcontainer"),
+}
 GUARD_PLUGINS = {"git": "git:workflow guard:", "db": "db guard:", "secrets": "secrets guard:", "repo": "repo guard:",
                  "devcontainer": "containers guard:"}
 
@@ -328,10 +338,13 @@ def check_guard_ux(root: Path) -> list[str]:
     if not source.is_file():
         return []
     problems = []
-    for plugin in GUARD_PLUGINS:
-        copy = root / "plugins" / plugin / "hooks" / "guard-ux.ts"
-        if not copy.is_file() or copy.read_bytes() != source.read_bytes():
-            problems.append(f"plugins/{plugin}/hooks/guard-ux.ts differs from {GUARD_UX} (run python3 scripts/consistency.py --sync-guard-ux)")
+    for shared, plugins in SHARED_CODE.items():
+        if not (root / shared).is_file():
+            continue
+        for plugin in plugins:
+            copy = root / "plugins" / plugin / "hooks" / Path(shared).name
+            if not copy.is_file() or copy.read_bytes() != (root / shared).read_bytes():
+                problems.append(f"plugins/{plugin}/hooks/{Path(shared).name} differs from {shared} (run python3 scripts/consistency.py --sync-shared-code)")
     matches = guard_matches(root)
     for plugin, marker in GUARD_PLUGINS.items():
         guard = root / "plugins" / plugin / "hooks" / "guard.sh"
@@ -346,23 +359,52 @@ def check_guard_ux(root: Path) -> list[str]:
     return problems
 
 
+HYGIENE_MODEL = "plugins/git/hooks/hygiene-model.ts"
+RELEASE_SOURCES = (".github/workflows/release.yml", "shared/release-platforms.md")
+
+
+def check_release_subjects(root: Path) -> list[str]:
+    """The band's two subject patterns still match every release subject the release job and its template write."""
+    model = root / HYGIENE_MODEL
+    if not model.is_file():
+        return []
+    patterns = dict(re.findall(r"^export const (RELEASE_\w+) = /(.*)/$", model.read_text(encoding="utf-8"), re.M))
+    if set(patterns) != {"RELEASE_ON_MAIN", "RELEASE_BACK_INTO_DEV"}:
+        return [f"{HYGIENE_MODEL}: RELEASE_ON_MAIN and RELEASE_BACK_INTO_DEV not found (the check reads `export const NAME = /…/`)"]
+    main, back = re.compile(patterns["RELEASE_ON_MAIN"]), re.compile(patterns["RELEASE_BACK_INTO_DEV"])
+    problems = []
+    for rel in RELEASE_SOURCES:
+        path = root / rel
+        if not path.is_file():
+            continue
+        samples = [s.replace("$version", "1.2.3").replace("X.Y.Z", "1.2.3").replace("$integ", "dev").replace("<integ>", "dev")
+                   for s in re.findall(r'"(chore\(release\): [^"]*)"', path.read_text(encoding="utf-8"))]
+        for sample in samples:
+            if not (main.match(sample) or back.match(sample)):
+                problems.append(f"{rel}: the release subject '{sample}' matches neither pattern in {HYGIENE_MODEL}")
+        if not any(main.match(s) for s in samples) or not any(back.match(s) for s in samples):
+            problems.append(f"{rel}: no release subject for both the release and its merge back into dev (the band's patterns in {HYGIENE_MODEL} would never see one)")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
-    if "--sync-guard-ux" in sys.argv[1:]:
-        for plugin in GUARD_PLUGINS:
-            (root / "plugins" / plugin / "hooks" / "guard-ux.ts").write_bytes((root / GUARD_UX).read_bytes())
-        print(f"copied {GUARD_UX} into {len(GUARD_PLUGINS)} plugins")
+    if "--sync-shared-code" in sys.argv[1:] or "--sync-guard-ux" in sys.argv[1:]:
+        for shared, plugins in SHARED_CODE.items():
+            for plugin in plugins:
+                (root / "plugins" / plugin / "hooks" / Path(shared).name).write_bytes((root / shared).read_bytes())
+        print(f"copied {len(SHARED_CODE)} shared files into the plugins that import them")
         return 0
     if "--sync-secret-data" in sys.argv[1:]:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root) + check_release_subjects(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, release subjects, descriptions ({total} characters)")
     return 1 if problems else 0
 
 
