@@ -640,6 +640,22 @@ class BudgetTest(TasksFixture):
         self.assertIn("verdict: stop", stop)
         self.assertIn("event risk 8%", stop)
 
+    def test_json_is_one_object_with_the_same_verdict_and_nothing_else(self):
+        self.agent("a1", "T001: 002-gadget build", 400_000, ts=self.stamp(minutes=5))
+        self.main(100_000, ts=self.stamp(minutes=10))
+        args = ("--projected=sonnet:200k,sonnet:200k,sonnet:200k",)
+        data = json.loads(self.budget(*args, "--json"))  # not a line of text around it
+        self.assertEqual((data["verdict"], data["fit"]), ("shrink", 1))
+        self.assertIn("the first 1 card(s) fit", data["why"])
+        self.assertEqual([(c["name"], c["cap"], c["used"], c["left"]) for c in data["caps"]],
+                         [("session", 1_000_000, 500_000, 500_000), ("week", 5_000_000, 500_000, 4_500_000)])
+        self.assertEqual(len(data["cards"]), 3)
+        self.assertEqual(data["cards"][0]["model"], "sonnet")
+        self.assertEqual(data["batches"], [[data["cards"][0]["label"]]])
+        self.assertIn("verdict: shrink", self.budget(*args))  # the text is still what it was
+        self.assertEqual(json.loads(self.budget("--projected=opus:900k", "--json"))["verdict"], "stop")
+        self.assertEqual(json.loads(self.budget("--projected=opus:900k", "--json"))["batches"], [])
+
     def test_cards_come_from_cards_md_and_the_week_cap_counts_too(self):
         self.agent("a1", "T001: 002-gadget build", 4_900_000, ts=self.stamp(days=3))  # old enough for the week, not the session
         self.main(1, ts=self.stamp(minutes=1))

@@ -1659,6 +1659,7 @@ def pack_batches(cards, max_agents, max_opus):
 
 
 def cmd_budget(a):
+    say = (lambda *args, **kwargs: None) if a.json else print
     cfg = parse_budget(a.budget)
     slug = a.project or re.sub(r"[^A-Za-z0-9-]", "-", os.getcwd())
     dirs = config_dirs()
@@ -1695,21 +1696,21 @@ def cmd_budget(a):
     room = min((c - u for _, c, u in caps), default=None)
     avail = None if room is None else max(0, room) * (1 - reserve)
 
-    print(f"wave: {len(cards)} card(s)")
+    say(f"wave: {len(cards)} card(s)")
     for c in cards:
         up = f", p75 ~{fmt_tok(c['p75'])}" if c["p75"] else ""
         cf = f", confidence {c['conf']}" if c["conf"] else ""
-        print(f"  {c['label']:<24} {c['model']:<7} ~{fmt_tok(c['projected']):>6}  ({c['how']}{up}{cf})")
+        say(f"  {c['label']:<24} {c['model']:<7} ~{fmt_tok(c['projected']):>6}  ({c['how']}{up}{cf})")
     total = sum(c["projected"] for c in cards)
     need = total * factor
-    print(f"projected {fmt_tok(total)} + coordinator {cfg['coordinator_overhead_pct']:g}% + event risk {risk * 100:.0f}% "
+    say(f"projected {fmt_tok(total)} + coordinator {cfg['coordinator_overhead_pct']:g}% + event risk {risk * 100:.0f}% "
           f"({rate_src}: resumes, fix rounds, flake hunts" + (f"; +{OPUS_PARALLEL_RISK * extra_opus * 100:.0f}% for {extra_opus + 1} Opus in parallel" if extra_opus else "")
           + f") = {fmt_tok(round(need))} billable")
     for name, cap, used in caps:
-        print(f"{name}: cap {fmt_tok(cap)}, used {fmt_tok(used)} ({scope if name == 'session' else 'last 7 days, all projects'}), "
+        say(f"{name}: cap {fmt_tok(cap)}, used {fmt_tok(used)} ({scope if name == 'session' else 'last 7 days, all projects'}), "
               f"left {fmt_tok(max(0, cap - used))}")
     if not caps:
-        print(f"no caps in {a.budget}: set session_billable and week_billable to enable the check")
+        say(f"no caps in {a.budget}: set session_billable and week_billable to enable the check")
     fit, acc = len(cards), total
     if avail is None:
         verdict, why = "proceed", "no caps set"
@@ -1724,18 +1725,27 @@ def cmd_budget(a):
         verdict = "shrink" if fit else "stop"
         why = (f"only {fmt_tok(round(avail))} usable; the first {fit} card(s) fit ({fmt_tok(round(acc * factor))})"
                if fit else f"{fmt_tok(round(avail))} usable is less than the first card needs")
-    print(f"verdict: {verdict} - {why}")
+    say(f"verdict: {verdict} - {why}")
     if fit:
-        print(f"dispatch (at most {max_agents} subagent(s) at once, {max_opus} on Opus):")
+        say(f"dispatch (at most {max_agents} subagent(s) at once, {max_opus} on Opus):")
         for i, batch in enumerate(pack_batches(cards[:fit], max_agents, max_opus), 1):
-            print(f"  batch {i}: " + ", ".join(f"{c['label']} ({c['model']})" for c in batch))
+            say(f"  batch {i}: " + ", ".join(f"{c['label']} ({c['model']})" for c in batch))
     learned = learn_context(history)
     for c in cards:
         if c["model"] == "opus" and c["role"] != "reviewer" and c["conf"] in ("high", "medium") and c["projected"] >= 400_000:
             f_opus = context_factor(learned, "opus", c["role"])[0]
-            print(f"  suggest: {c['label']} is expensive on Opus at confidence {c['conf']}; a Sonnet builder with the thinker "
+            say(f"  suggest: {c['label']} is expensive on Opus at confidence {c['conf']}; a Sonnet builder with the thinker "
                   f"reviewing inline would cost about ~{fmt_tok(round(c['projected'] / f_opus))}")
-    print("Prefer Sonnet builders, review inline unless the card needs a fresh context.")
+    say("Prefer Sonnet builders, review inline unless the card needs a fresh context.")
+    if a.json:
+        batches = [[c["label"] for c in b] for b in pack_batches(cards[:fit], max_agents, max_opus)] if fit else []
+        print(json.dumps({
+            "verdict": verdict, "why": why, "fit": fit, "total": total, "need": round(need),
+            "caps": [{"name": n, "cap": cap, "used": used, "left": max(0, cap - used)} for n, cap, used in caps],
+            "cards": [{"label": c["label"], "model": c["model"], "projected": c["projected"], "p75": c["p75"],
+                       "confidence": c["conf"], "how": c["how"]} for c in cards],
+            "batches": batches,
+        }))
 
 
 def build_parser():
@@ -1794,6 +1804,7 @@ def build_parser():
     bd.add_argument("--project", help="the session slug (default: this directory's)")
     bd.add_argument("--session", action="append", help="the session whose usage counts (default: the newest)")
     bd.add_argument("--history", action="append")
+    bd.add_argument("--json", action="store_true", help="print the verdict, the caps, the cards and the batches as one JSON object (the Claude Code token status reads it)")
     bd.set_defaults(fn=cmd_budget)
     s = sub.add_parser("snapshot")
     s.add_argument("--label", required=True)
