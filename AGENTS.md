@@ -54,9 +54,9 @@ file covers changing things.
   `shared/` and are symlinked (relative links) into each plugin's
   `references/`. The exception is code a plugin's hooks module imports:
   the engine refuses an import through a symlink that leaves the plugin,
-  so such a file (`shared/guard-ux.ts`) is copied into each plugin's
-  `hooks/`, and `scripts/consistency.py` fails if a copy differs
-  (`--sync-guard-ux` rewrites them). A hooks module's tests can import only
+  so such a file (`shared/guard-ux.ts`, `shared/hook-lines.ts`) is copied into
+  each plugin's `hooks/`, and `scripts/consistency.py` fails if a copy differs
+  (`--sync-shared-code` rewrites them). A hooks module's tests can import only
   code files, so data they need from `shared/` (the secret patterns, the
   fixture cases) is a generated `.ts` twin kept equal the same way.
 - Refer to other skills as `plugin:skill` and to files with backticked
