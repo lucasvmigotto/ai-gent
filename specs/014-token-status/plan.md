@@ -16,8 +16,9 @@ The `agents` plugin gets a hooks module that, on `session.start`, throttled `tur
 |---|---|
 | `plugins/agents/hooks/hooks.json` | new: `{ "modules": ["./register.tsx"] }` |
 | `plugins/agents/hooks/register.tsx` | module entry |
-| `plugins/agents/hooks/token-status.ts` | ledger parse, refresh, status text, toasts |
-| `plugins/agents/hooks/token-status.test.ts` | stories 1–4, `$.process.run` mocked |
+| `plugins/agents/hooks/token-model.ts` | pure: the ledger's columns, the figures, the status line, what is news |
+| `plugins/agents/hooks/tokens.ts` | the reading (`$.fs`, `$.process.run`), the atoms, the refresh and throttle, `/tokens` |
+| `plugins/agents/hooks/tokens.test.tsx` | stories 1–4, `$.process.run` mocked |
 | `plugins/agents/types/index.d.ts` | state contract (`tokens.*` atoms); `plugin.json` `"types"` |
 | `plugins/agents/.claude-plugin/plugin.json` | `userConfig` `tokenStatus`, `tokenRefreshSeconds`; `"types"` |
 | `plugins/agents/scripts/token_report.py` | `budget --json` (Backend) |

@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-28
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: A Claude Code mod that keeps token tracking (`shared/token-tracking.md`) in view: a status-line entry with the cards in flight, their `Tokens: projected` against what they used, and the budget left; a toast when a card passes its projection or when the wave no longer fits the budget. It runs `plugins/agents/scripts/token_report.py` through `$.process.run` and reads the orchestration ledger through `$.fs`.
 
@@ -120,6 +120,12 @@ Projected for after the first cut. `/tokens --live` runs `token_report.py tasks 
 - Used figures: as of the last `token_report.py tasks` run (no live refresh in the first cut). Live refresh is projected as User Story 5 (`/tokens --live`, P3), above.
 - Ledger states: `agents:orchestrate`'s ledger gets a fixed vocabulary, `queued`, `running`, `review`, `landed`, as a separate skill change landed before this feature; FR-004 then matches it exactly instead of guessing.
 - A `stop` verdict raises a toast and a native notification (`$.ui.notify`, title `Token budget`); a `shrink` verdict, a toast only.
+
+- Found while building: `agents:orchestrate`'s ledger now names its `Card` and `State` columns and the four state words (landed in its own change before this one), so the mod counts `queued`, `running` and `review` as in flight with no guessing.
+- Found while building: the mod's first read is detached (`$.clock.after(0, …)`), because `budget` reads a week of transcripts and must not hold the session's start; a test asserts nothing has run when `session.start` returns.
+- Found while building: for a card id the script cannot find in any `cards.md`, `token_report.py budget` still exits 0 and prints `~0k (card not found)`, so the caps-only fallback (`--projected=0`) is for an error exit, not for that case. The status then shows the caps with the card's ledger figures.
+- Found while building: `/tokens` is a plain command name; no skill or built-in shares it (checked by a headless `/tokens` run, which printed the script's text with no model turn).
+- Not tested: `$.ui.notify` is answered by a stand-in in the tests, so that a stop reaches the person's desktop is not proved here.
 
 ## Assumptions
 
