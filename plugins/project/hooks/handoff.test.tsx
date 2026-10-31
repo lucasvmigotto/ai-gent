@@ -148,7 +148,7 @@ test('story 1: a current checkpoint under a dirty tree is not current', async ($
   ])
 })
 
-test('story 1: when $.session.usage() fails nothing shows and nothing is retried in the turn', async ($, on) => {
+test('story 1: when $.session.usage() fails nothing shows and nothing is retried in the turn', { options: { contextMeter: false } }, async ($, on) => {
   const w = world(on, { usageFails: true })
   await $.session.start(START)
   await turn($)
@@ -256,7 +256,7 @@ test('a full context and a low cap each toast once, with no second context toast
 
 // ------------------------------------------------------------------ story 4
 
-test('story 4: handoffNudge off reads and spawns nothing', { options: { handoffNudge: false } }, async ($, on) => {
+test('story 4: handoffNudge off reads and spawns nothing', { options: { handoffNudge: false, contextMeter: false } }, async ($, on) => {
   const w = world(on, { budget: CAPS(5) })
   await $.session.start(START)
   await turn($)

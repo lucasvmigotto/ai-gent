@@ -155,12 +155,22 @@ test('chromeAscii draws the meter with ASCII only', { options: { contextMeter: t
   await ui.unmount()
 })
 
-test('off by default: no hint change and no usage read beyond the nudge\'s own', async ($, on) => {
+test('contextMeter off: no hint change and no usage read beyond the nudge\'s own', { options: { contextMeter: false } }, async ($, on) => {
   const w = world(on)
   await $.session.start(START)
   expect(w.usageCalls).toBe(0)
   const ui = await hint($)
   expect(await drawn(ui)).toBe('? for shortcuts')
+  await ui.unmount()
+})
+
+test('on by default: the hint line carries the meter', async ($, on) => {
+  const w = world(on)
+  await $.session.start(START)
+  await turn($)
+  expect(w.usageCalls).toBeGreaterThan(0)
+  const ui = await hint($)
+  expect(await drawn(ui)).toContain('used')
   await ui.unmount()
 })
 

@@ -33,14 +33,14 @@ Only the workspace status above the prompt and one line under it. Out of scope a
 - **FR-004** Folded bands do not count toward `bandCap`; the cap applies to the rest. `/bands` lists a folded band as `in the workspace line`.
 - **FR-005** The line: `Workspace: ✓ CI passing · Release 2.23.0` (ok/info segments) and a warnings line `⚠ main behind origin · 3 container leftovers`. Wide (80+) carries the `Workspace:` label; narrower drops it; segments that do not fit become `+N`, a first segment that does not fit is cut with an ellipsis. A Details button (`▸`/`▾`, ASCII `>`/`v`) lists every folded band whole.
 - **FR-006** Visibility: checkpoint holds, failed CI and low disk always draw as their own bands (never folded, never behind Details). Passing/running CI, the next release and a repo-hygiene summary fold. Container leftovers fold as one counted warning. A branch behind or diverged from its remote is a warning. Nothing active draws nothing.
-- **FR-007** Context meter (opt-in `contextMeter`, default off because it adds to the engine's hint line): `Context ████░░░░ 43% used · 57% remaining`, the bar and the remaining text dropping as the width shrinks, down to `ctx 43%`. The figure is `$.session.usage().context.percent`, read once at session start and at each turn end, kept in the `contextPercent` atom and drawn from it (drawing reads no engine, nothing polls). When the hand-off nudge is on, its read is the same read.
+- **FR-007** Context meter (`contextMeter`, on by default since 2026-10-31 at the maintainer's request; it adds to the engine's hint line, so it can be turned off): `Context ████░░░░ 43% used · 57% remaining`, the bar and the remaining text dropping as the width shrinks, down to `ctx 43%`. The figure is `$.session.usage().context.percent`, read once at session start and at each turn end, kept in the `contextPercent` atom and drawn from it (drawing reads no engine, nothing polls). When the hand-off nudge is on, its read is the same read.
 - **FR-008** Levels from the nudge's `handoffNudgeContextPercent` T (default 80, invalid values fall back to it): critical from T, approaching from floor(0.75 x T) (60 at the default), else ok.
 - **FR-009** A missing, NaN, infinite or failed figure shows nothing and clears an earlier one; a number is rounded and clamped to 0-100.
 - **FR-010** `chromeAscii` draws both with ASCII only.
 
 ## Defaults taken
 
-`workspaceLine` on (the consolidation asked for; it changes nothing unless the project plugin is present); `contextMeter` off; the amber threshold is 75% of the nudge's; the meter text is dim and carries the level in words; no `—` placeholder (nothing is drawn instead).
+`workspaceLine` on (the consolidation asked for; it changes nothing unless the project plugin is present); `contextMeter` on (changed from off); the amber threshold is 75% of the nudge's; the meter text is dim and carries the level in words; no `—` placeholder (nothing is drawn instead).
 
 ## Out of scope / limitations
 
