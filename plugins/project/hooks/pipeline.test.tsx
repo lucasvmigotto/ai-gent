@@ -4,6 +4,8 @@ import { EXPECTED, README_TEXT } from './pipeline-fixtures'
 import { featureState, letter, parseReadme, recommend, scanMarkers, split } from './pipeline-model'
 import { text as snapshotText, view } from './pipeline-view'
 import type { ArtifactState, Feature, Snapshot } from '../types'
+import { TEXT, VIEW_100, VIEW_39 } from './pipeline-golden'
+import { snapshotOf } from './pipeline-view-fixtures'
 
 type Handlers = Parameters<Parameters<typeof test>[1]>[1]
 
@@ -111,6 +113,14 @@ test('the markers expand on the button, and the headless text carries them', () 
   expect(snapshotText(SNAPSHOT)).toContain('specs/004/spec.md:3 q?')
   const empty = { ...SNAPSHOT, artifacts: SNAPSHOT.artifacts.map(a => ({ ...a, isPresent: false })), features: [], hasReadme: false }
   expect(view(empty, 100, {}).map(l => l.text)).toContain('No pipeline artifacts yet. Start with /project:init.')
+})
+
+test('013 compatibility goldens: the compact view and the headless text are unchanged', () => {
+  const snapshot = snapshotOf()
+  const lines = (columns: number) => view(snapshot, columns, {}).map(l => `${l.tone}|${l.text}|${l.button?.label ?? ''}`)
+  expect(lines(100)).toEqual(VIEW_100)
+  expect(lines(39)).toEqual(VIEW_39)
+  expect(snapshotText(snapshot)).toBe(TEXT)
 })
 
 // ----------------------------------------------------------------- the pane
