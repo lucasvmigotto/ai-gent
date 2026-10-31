@@ -304,6 +304,21 @@ def check_pipeline_paths(root: Path) -> list[str]:
     return problems
 
 
+def check_stage_names(root: Path) -> list[str]:
+    """Every artifact `stage` in the pane's model has a display name in STAGE_NAME (spec 029)."""
+    model = root / PIPELINE_MODEL
+    if not model.is_file():
+        return []
+    text = model.read_text(encoding="utf-8")
+    stages = set(re.findall(r"^\s*\{ path: .*?\bstage: '([^']+)'", text, re.M))
+    block = re.search(r"STAGE_NAME[^=]*=\s*\{(.*?)^\}", text, re.M | re.S)
+    names = set(re.findall(r"^\s*'([^']+)':", block.group(1), re.M)) if block else set()
+    problems = [f"{PIPELINE_MODEL}: stage '{s}' has no entry in STAGE_NAME" for s in sorted(stages - names)]
+    if not stages:
+        problems.append(f"{PIPELINE_MODEL}: no artifact stages found (the check reads `stage: '...'` on `{{ path: ... }}` lines)")
+    return problems
+
+
 GUARD_UX = "shared/guard-ux.ts"
 # Shared code a plugin's hooks module imports is COPIED into the plugins that use it
 # (the engine refuses an import through a symlink that leaves the plugin).
@@ -463,7 +478,7 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:

@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code mod that keeps the next release in view: a band above the prompt saying what `scripts/release.py --dry-run --json` would do now (`next: 2.23.0 (minor) · 3 plugins bump`), so the person sees, before promoting to `main`, whether the commits since the last tag release anything. It extends 017's `/release-preview` by showing the same plan without a command. Grounded in `scripts/release.py` and `shared/release-single.py` (their plan and exit codes; both gain `--json`, Planned) and `plugins/git/hooks/hygiene.ts` (`releasePreview`).
 

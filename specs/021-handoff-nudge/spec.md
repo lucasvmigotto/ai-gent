@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code mod that, when the session is about to run out of room (the context window filling, a context compaction about to happen, or — when `token_report.py` is present — the usage caps nearly spent), tells the person the hand-off file is stale and to run `project:checkpoint` while there is still room to write it. Grounded in `plugins/project/skills/checkpoint/SKILL.md`, `.ai-gent/checkpoint.md` (012), the engine's `$.session.usage()` and `session.compact` event, and, optionally, `plugins/agents/scripts/token_report.py budget --json` (014).
 

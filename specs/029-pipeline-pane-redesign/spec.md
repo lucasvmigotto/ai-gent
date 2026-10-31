@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: The maintainer's five images and written proposal (`~/Downloads/claude-mods-pipeline-panel-redesign.md`). Image 1, the target: a `PIPELINE` header with a green `LIVE` badge and "Updated automatically", three large stat tiles (artifacts ready, features, clarifications), an Artifacts table (Artifact, Stage, Status pill), a segmented Feature progress bar with count pills, and a Next action block with a `Needs attention` badge. Images 2–5 and the proposal: the artifacts table with a subtle left-edge status indicator; an aligned feature matrix (fixed-width ID, right-aligned priority, fixed-width status columns, the full status vocabulary, expandable rows, All/Ready/Blocked/Done filters); a secondary stage progression bar; a semantic colour table and glyphs with ASCII fallbacks; a structured view model rendered through `$.ui.resolve(e)` only; three width modes; five phases.
 

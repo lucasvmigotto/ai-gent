@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code mod that keeps `agents:parallel`'s worktrees in view: one row per `.worktrees/<branch>` with ahead/behind against the chain's dev, whether it has uncommitted changes, and, when `gh` is signed in, its pull request and CI state. Grounded in `plugins/agents/scripts/wt.py list --json` and `plugins/agents/skills/parallel/SKILL.md`.
 

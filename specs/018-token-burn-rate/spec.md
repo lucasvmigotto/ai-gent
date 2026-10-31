@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: Add a burn rate and an ETA to the token status line (014): how fast the account is spending billable tokens now, and how long what the session and week caps leave lasts at that pace (`session left 3.1M (~2h10m) · week left 22M (~15h)`), with a toast when the nearest cap is about to run out. The rate and the ETA are computed by `plugins/agents/scripts/token_report.py budget --json`, not by the mod.
 
