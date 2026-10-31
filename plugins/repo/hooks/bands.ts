@@ -2,8 +2,8 @@
 // has active, recorded in its `bands` atom, and the rule applied to every
 // plugin's bands. The rule itself is band-priority.ts (shared/, copied).
 // Plugins cannot see each other's trees, so each draws only its own bands and
-// reads the others' atom; across plugins the cap holds as far as each plugin
-// that draws a band does this. Reading is defensive: git and project may be absent.
+// reads the others' atom; the cap holds because every one of the four band plugins
+// (project, git, repo, devcontainer) reads the other three. Reading is defensive: any may be absent.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
@@ -28,13 +28,17 @@ export async function recordBands($: EngineInterface, active: readonly Omit<Band
   })
 }
 
-// Every plugin's active bands: this one's, and git's and project's when installed and
-// having recorded any. An absent plugin, an older one or a read that throws adds none.
+// Every plugin's active bands: this one's, and each other band plugin's (project, git,
+// repo, devcontainer) when installed and having recorded any. An absent plugin, an older
+// one or a read that throws adds none.
 export async function allBands($: EngineInterface): Promise<Band[]> {
   const own = parseBands(await read($, bandsAtom).catch(() => []))
-  const git = parseBands(await read($, { plugin: 'git', key: 'bands' } as const).catch(() => undefined))
-  const project = parseBands(await read($, { plugin: 'project', key: 'bands' } as const).catch(() => undefined))
-  return [...own, ...git, ...project]
+  const others = await Promise.all([
+    read($, { plugin: 'project', key: 'bands' } as const).catch(() => undefined).then(parseBands),
+    read($, { plugin: 'git', key: 'bands' } as const).catch(() => undefined).then(parseBands),
+    read($, { plugin: 'devcontainer', key: 'bands' } as const).catch(() => undefined).then(parseBands),
+  ])
+  return [...own, ...others.flat()]
 }
 
 // What this plugin's band `id` does at this draw: whether it draws, and the dim

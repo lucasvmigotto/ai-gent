@@ -34,7 +34,7 @@ type World = {
 
 // Nothing sits beneath the plugin: these hooks stand for the engine, and a
 // leftovers.sh whose answers a test edits between steps.
-function world(on: Handlers, others: Band[] | 'absent' = 'absent'): World {
+function world(on: Handlers, others: Band[] | 'absent' | Record<string, Band[] | 'throws'> = 'absent'): World {
   const w: World = {
     json: LEFTOVERS,
     text: TEXT,
@@ -54,7 +54,10 @@ function world(on: Handlers, others: Band[] | 'absent' = 'absent'): World {
   on('fs.exists', () => ({ value: w.scriptExists }))
   on('state.get', async (_, e, next) => {
     if (e.plugin === 'devcontainer') return next(e)
-    return { value: others === 'absent' ? { value: undefined, version: 0 } : { value: e.plugin === 'git' ? others : [], version: 1 } }
+    // An array stands for git's atom (the others read empty); a record gives each plugin's, 'throws' being a denied read.
+    const held = others === 'absent' ? undefined : Array.isArray(others) ? (e.plugin === 'git' ? others : []) : others[e.plugin]
+    if (held === 'throws') return { deny: 'no such plugin' }
+    return { value: held === undefined ? { value: undefined, version: 0 } : { value: held, version: 1 } }
   })
   on('process.run', (_, e) => {
     const argv = [...e.argv]
@@ -264,6 +267,58 @@ test('the band records its priority, and gives way to a crowded prompt area', { 
   const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await ui.find(band(/containers:/))).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: '+1 more band (/bands)' })).toBeDefined()
+  await ui.unmount()
+})
+
+const HOLDS: Record<string, Band> = {
+  project: { id: 'holds', plugin: 'project', priority: 'hold', since: 1 },
+  git: { id: 'hygiene', plugin: 'git', priority: 'hold', since: 1 },
+  repo: { id: 'ci', plugin: 'repo', priority: 'hold', since: 1 },
+}
+
+for (const other of Object.keys(HOLDS)) {
+  test(`a band from ${other} counts toward the cap: at a cap of one the containers band gives way and says so`, { options: { bandCap: 1 } }, async ($, on) => {
+    const w = world(on, { [other]: [HOLDS[other] as Band] })
+    await started($, w)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(await ui.find(band(/containers:/))).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: '+1 more band (/bands)' })).toBeDefined()
+    await ui.unmount()
+  })
+}
+
+test('a plugin that is absent or whose read throws adds no band, and the others still count', { options: { bandCap: 1 } }, async ($, on) => {
+  const w = world(on, { project: 'throws', git: [HOLDS.git as Band] })
+  await started($, w)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find(band(/containers:/))).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: '+1 more band (/bands)' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('with every other plugin absent the containers band draws at a cap of one', { options: { bandCap: 1 } }, async ($, on) => {
+  const w = world(on, {})
+  await started($, w)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find(band(/containers:/))).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /more band/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('exactly one plugin draws the more-line: this one when its band is the first hidden, the other otherwise', { options: { bandCap: 1 } }, async ($, on) => {
+  const first = world(on, { project: [HOLDS.project as Band], repo: [{ id: 'ci', plugin: 'repo', priority: 'info', since: 1e15 }] })
+  await started($, first)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: '+2 more bands (/bands)' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a hidden band behind another plugin\'s older hidden one leaves the line to that plugin', { options: { bandCap: 1 } }, async ($, on) => {
+  const w = world(on, { project: [HOLDS.project as Band], git: [{ id: 'hygiene', plugin: 'git', priority: 'normal', since: 5 }] })
+  await started($, w)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find(band(/containers:/))).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /more band/ })).toBeUndefined()
   await ui.unmount()
 })
 

@@ -29,8 +29,9 @@ declare module 'claude-code' {
       // The bands active now, for band priority (hooks/bands.ts); other plugins may read it.
       bands: Band[]
     }
-    // The git and project plugins' atoms, read-only here; absent when not installed.
-    git: { bands: Band[] }
+    // The other band plugins' atoms, read-only here; each is absent when its plugin is not installed.
     project: { bands: Band[] }
+    git: { bands: Band[] }
+    devcontainer: { bands: Band[] }
   }
 }

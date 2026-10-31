@@ -111,7 +111,9 @@ declare module 'claude-code' {
       // `mtimeMs` of the watched artifacts at the last turn end, for writes made by other means.
       nextStageMtimes: Record<string, number>
     }
-    // The git plugin's atom, read-only here; absent when it is not installed.
+    // The other band plugins' atoms, read-only here; each is absent when its plugin is not installed.
     git: { bands: Band[] }
+    repo: { bands: Band[] }
+    devcontainer: { bands: Band[] }
   }
 }

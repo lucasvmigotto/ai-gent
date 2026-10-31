@@ -16,7 +16,7 @@ const HOLD: Band = { id: 'holds', plugin: 'project', priority: 'hold', since: 1 
 const INFO: Band = { id: 'ci', plugin: 'repo', priority: 'info', since: 1 }
 
 // main is one release behind; `others` stands for what other plugins recorded.
-function world(on: Handlers, others: Band[] | 'throws' | 'absent' = 'absent') {
+function world(on: Handlers, others: Band[] | 'throws' | 'absent' | Record<string, Band[] | 'throws'> = 'absent') {
   const registered: string[] = []
   const ok = (stdout: string) => ({ value: { exitCode: 0, stdout: `${stdout}\n`, stderr: '' } })
   mock.clock(on, { now: 1000 })
@@ -27,9 +27,11 @@ function world(on: Handlers, others: Band[] | 'throws' | 'absent' = 'absent') {
   })
   on('fs.stat', () => ({ deny: 'ENOENT' }))
   on('state.get', async (_, e, next) => {
-    if (e.plugin !== 'project') return next(e)
-    if (others === 'throws') return { deny: 'no such plugin' }
-    return { value: others === 'absent' ? { value: undefined, version: 0 } : { value: others, version: 1 } }
+    if (e.plugin === 'git') return next(e)
+    // An array stands for project's atom; a record gives each plugin's ('throws' is a denied read).
+    const held = others === 'absent' ? undefined : Array.isArray(others) ? (e.plugin === 'project' ? others : undefined) : others === 'throws' ? 'throws' : (others as Record<string, Band[] | 'throws'>)[e.plugin]
+    if (held === 'throws') return { deny: 'no such plugin' }
+    return { value: held === undefined ? { value: undefined, version: 0 } : { value: held, version: 1 } }
   })
   on('process.run', (_, e) => {
     const argv = [...e.argv]
@@ -101,4 +103,54 @@ test('the /bands command can be turned off', { options: { bandsCommand: false } 
   const w = world(on)
   await $.session.start(START)
   expect(w.registered).not.toContain('bands')
+})
+
+const THEIRS: Record<string, Band> = {
+  project: HOLD,
+  repo: { id: 'ci', plugin: 'repo', priority: 'failure', since: 3 },
+  devcontainer: { id: 'containers', plugin: 'devcontainer', priority: 'info', since: 4 },
+}
+
+for (const other of Object.keys(THEIRS)) {
+  const { id, priority } = THEIRS[other] as Band
+  test(`a band from ${other} counts toward the cap: at a cap of one the hygiene band gives way and says so`, { options: { bandCap: 1 } }, async ($, on) => {
+    // the hygiene band is normal; a failure or hold outranks it, and an info band does not
+    world(on, { [other]: [THEIRS[other] as Band] })
+    await $.session.start(START)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    const outranks = priority !== 'info'
+    expect(await ui.find(behind) === undefined).toBe(outranks)
+    expect(await ui.find(more(1)) !== undefined).toBe(outranks)
+    await ui.unmount()
+    const text = (await $.command.run({ command: 'bands', args: '' } as never)).text ?? ''
+    expect(text).toContain(`${id} (${other}, ${priority}): ${outranks ? 'shown' : 'hidden'}`)
+  })
+}
+
+test('all three other plugins count: /bands shows the set the others draw', async ($, on) => {
+  world(on, { project: [HOLD], repo: [THEIRS.repo as Band], devcontainer: [THEIRS.devcontainer as Band] })
+  await $.session.start(START)
+  const text = (await $.command.run({ command: 'bands', args: '' } as never)).text ?? ''
+  expect(text).toContain('4 active bands, at most 2 shown')
+  expect(text).toContain('holds (project, hold): shown')
+  expect(text).toContain('ci (repo, failure): shown')
+  expect(text).toContain('hygiene (git, normal): hidden')
+  expect(text).toContain('containers (devcontainer, info): hidden')
+})
+
+test('the hygiene band owns the one more-line when it is the first hidden band', { options: { bandCap: 1 } }, async ($, on) => {
+  world(on, { project: [HOLD], devcontainer: [THEIRS.devcontainer as Band] })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find(behind)).toBeUndefined()
+  expect(await ui.find(more(2))).toBeDefined()
+  await ui.unmount()
+})
+
+test('a plugin that throws or is absent adds no band, and the others still count', { options: { bandCap: 1 } }, async ($, on) => {
+  world(on, { project: 'throws', repo: [THEIRS.repo as Band] })
+  await $.session.start(START)
+  const text = (await $.command.run({ command: 'bands', args: '' } as never)).text ?? ''
+  expect(text).toContain('2 active bands')
+  expect(text).toContain('ci (repo, failure): shown')
 })
