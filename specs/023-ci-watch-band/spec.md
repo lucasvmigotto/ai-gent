@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code mod that, after a push, keeps the state of that commit's CI runs in a band above the prompt (`release ✓ · docs-ci ⏳`), with priority above the informational bands and raises a toast when one fails, so the person sees a red run without asking. The band obeys the band-priority rule (at most two bands visible above the prompt, holds and failures first; specified separately, Planned): a failing run is a `failure`-priority band, running or green runs are `normal`. Grounded in `plugins/devsecops/skills/watch/SKILL.md` ("find the right run", "by commit, not the latest") and `plugins/repo/scripts/reporun.py` (`detect`, `cli`).
 

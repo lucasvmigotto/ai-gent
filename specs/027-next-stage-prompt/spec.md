@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code mod that, when a pipeline stage writes its artifact (a brief, an architecture, a `specs/README.md`, a feature's `tasks.md`), toasts the next stage to run, reusing the pipeline pane's recommendation instead of a second set of rules. Grounded in `plugins/project/skills/status/SKILL.md` §4, `shared/pipeline.md`, and `plugins/project/hooks/pipeline-model.ts` (`recommend`, `ARTIFACTS`) and `pipeline.ts` (`compute`, whose snapshot already carries `next`).
 

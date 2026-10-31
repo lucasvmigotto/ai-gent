@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code pane for an `agents:orchestrate` run: one row per card of `.ai-gent/orchestrate-status.md` with its state, branch (when the ledger has that optional column), projected and used tokens, a log of the state changes the mod saw, and — on demand — each card's span on a shared time axis, so which cards ran in parallel is visible. Read-only: it reads the ledger, and runs `token_report.py` in its read-only mode only when asked.
 

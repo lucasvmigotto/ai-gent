@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: When an `agents:orchestrate` card lands, a toast says what it cost against what was projected (`004-us1-core landed: used 391k vs ~420k projected (-7%)`). A large miss, either way, adds a pointer to what to fix so the next projection is better. The figures are the ledger's Tokens cell; the mod writes nothing, and the hint is documented, never applied.
 

@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code mod that keeps this project's container leftovers and a low disk in view all session, not only as the toast at its start: a band above the prompt fed by what `plugins/devcontainer/hooks/leftovers.sh` already reports, now also as JSON (`leftovers.sh --json`, a separate change landed first): a disk under the floor, dangling images of this project, volumes of worktrees that are gone, buildah working containers in the store; refreshed after container work, plus `/containers` printing the full report. Report only: nothing here removes anything.
 

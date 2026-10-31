@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code mod that tells the person when a tool's result looks like it holds a credential — a `cat .env`, an `env` dump, a log line, a fetched page, a `Read` of a credentials file — using the same value patterns the prompt mask uses, says what to do (rotate it, and keep the new one in pass under `ai-gent/<area>/<name>`), and, for the results of `Bash` and `WebFetch`, **replaces the matched value with a placeholder in the stored row**, so neither the model nor the transcript file reads it. It is a last line of defense for what the secrets guard (which keeps `pass` values out) and the prompt mask (which covers what the person types) can't see. For other tools (`Read`, `Grep`, MCP) it warns and leaves the result intact.
 

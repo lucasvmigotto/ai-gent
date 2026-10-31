@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: The mods draw bands above the prompt: the checkpoint holds (012, `project`), the repo hygiene band (017, `git`), and the planned CI watch (023, `repo`), container and disk (025, `devcontainer`) and release readiness (028, `git`). Together with the token status line and toasts the prompt area gets crowded. At most two bands are visible, chosen by a declared priority, and the rest are one command away.
 

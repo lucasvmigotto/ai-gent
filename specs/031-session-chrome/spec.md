@@ -1,6 +1,6 @@
 # Feature Specification: Session chrome (workspace line and context meter)
 
-**Status**: Built (2026-10-31)
+**Status**: Implemented
 
 **Input**: The prompt area stacks one band per plugin (holds, hygiene, CI, release, containers) and the context figure is only a toast at 80%. Fold the quiet bands into one compact Workspace line, and show the context window's fill under the prompt.
 

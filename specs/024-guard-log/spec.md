@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-31
 
-**Status**: Accepted
+**Status**: Implemented
 
 **Input**: A Claude Code mod that remembers the guards' recent decisions and lists them on demand — a `/guards` command and an optional pane showing the last N denies and asks of the git, db, secrets, repo and devcontainer guards, with each one's reason, how often it fired and what command it stopped — so a guard that fires too often for work the person wants done is easy to spot. It reads what 015's presenter already sees at `classic.PreToolUse`; it never changes a decision.
 
