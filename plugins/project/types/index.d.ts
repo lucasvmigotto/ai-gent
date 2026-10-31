@@ -82,6 +82,10 @@ export type Snapshot = {
   computedAt: number
 }
 
+// The next-stage toast (hooks/nextstage.ts): the last recommendation seen, so a
+// change is told once.
+export type NextStageLast = Next | null
+
 declare module 'claude-code' {
   interface PluginState {
     project: {
@@ -94,6 +98,12 @@ declare module 'claude-code' {
       pipelineIsOpen: boolean
       // Sections the person expanded, by name.
       pipelineExpanded: Record<string, boolean>
+      // The last `snapshot.next` seen; seeded at session start without a toast.
+      nextStageLast: Shaped<NextStageLast>
+      // `stage reason` keys already toasted this session.
+      nextStageShown: string[]
+      // `mtimeMs` of the watched artifacts at the last turn end, for writes made by other means.
+      nextStageMtimes: Record<string, number>
     }
     // The git plugin's atom, read-only here; absent when it is not installed.
     git: { bands: Band[] }
