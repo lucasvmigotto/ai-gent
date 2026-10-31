@@ -74,11 +74,16 @@ export function summary(masked: Masked): string {
 }
 
 // One line about a tool's result that held credentials: the tool, the kinds and
-// how many, and whether the stored copy was redacted. Never any part of a match.
-export function warning(masked: Masked, tool: string, isRedacted: boolean): string {
+// how many, whether the stored copy was redacted, and what to do. It says the
+// value is exposed and never that it was erased. Never any part of a match.
+export function warning(masked: Masked, tool: string, isRedacted: boolean, truncated = false): string {
   const parts = Object.entries(masked.counts).map(([kind, n]) => `${LABELS[kind] ?? kind} ×${n}`)
-  const what = isRedacted ? 'the saved copy was redacted' : 'the saved copy was left as it is'
-  return `secret-mask: the ${tool} result held ${parts.join(', ')}; ${what} — keep secrets in pass (secrets:pass), not in tool output`
+  const what = isRedacted
+    ? 'redacted in what Claude reads; treat it as exposed anyway'
+    : 'not redacted; treat it as exposed'
+  const where = masked.entries.length > 0 ? `pass insert ${masked.entries.join(' / ')}` : 'secrets:pass'
+  const scanned = truncated ? ' (scanned the first 256 KiB)' : ''
+  return `output-secret: the result of ${tool} held ${parts.join(', ')}${scanned} — ${what}: rotate it at the service, then keep the new one in pass (${where})`
 }
 
 // A cheap look for text that may hold a credential, used only when masking

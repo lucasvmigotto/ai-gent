@@ -169,6 +169,8 @@ test('the warning names kinds and counts, says what happened, and holds no value
     expect(text).not.toContain('hunter2pw')
     expect(text).not.toContain('<token>')
   }
-  expect(warning(masked, 'Bash', true)).toContain('redacted')
-  expect(warning(masked, 'Bash', false)).not.toContain('redacted')
+  expect(warning(masked, 'Bash', true)).toContain('redacted in what Claude reads')
+  expect(warning(masked, 'Bash', false)).toContain('not redacted')
+  for (const redacted of [true, false]) expect(warning(masked, 'Bash', redacted)).toMatch(/exposed.*rotate/)
+  expect(warning(masked, 'Bash', true, true)).toContain('256 KiB')
 })
