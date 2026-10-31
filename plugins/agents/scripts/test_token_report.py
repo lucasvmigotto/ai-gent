@@ -741,6 +741,60 @@ class BudgetTest(TasksFixture):
         self.assertEqual(json.loads(self.budget("--projected=opus:900k", "--json"))["verdict"], "stop")
         self.assertEqual(json.loads(self.budget("--projected=opus:900k", "--json"))["batches"], [])
 
+    def steady(self, n=4, out=50_000, spacing=5):
+        (self.root / "s1.jsonl").write_text("\n".join(
+            msg(f"r{i}", "claude-sonnet-5-5", usage(out), self.stamp(minutes=1 + i * spacing)) for i in range(n)))
+
+    def test_budget_reports_the_rate_and_each_caps_eta(self):
+        self.steady()  # 4 messages of 50k in the last 16 minutes: 200k in 30 min = 400k an hour
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json"))
+        self.assertEqual(data["rate"], {"per_hour": 400_000, "window_minutes": 30, "messages": 4})
+        self.assertEqual([(c["name"], c["left"], c["eta_minutes"]) for c in data["caps"]],
+                         [("session", 800_000, 120), ("week", 4_800_000, 720)])
+        for key in ("verdict", "why", "fit", "total", "need", "caps", "cards", "batches"):
+            self.assertIn(key, data)
+        text = self.budget("--projected=sonnet:10k")
+        self.assertIn("rate: 400k/h over the last 30 min (4 messages, all projects)", text)
+        self.assertLess(text.index("week: cap"), text.index("rate:"))
+
+    def test_budget_idle_has_a_zero_rate_and_no_eta(self):
+        (self.root / "s1.jsonl").write_text(msg("old", "claude-sonnet-5-5", usage(100), self.stamp(hours=2)))
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json"))
+        self.assertEqual(data["rate"], {"per_hour": 0, "window_minutes": 30, "messages": 0})
+        self.assertTrue(all(c["eta_minutes"] is None for c in data["caps"]))
+        self.assertIn("rate: idle for 30 min", self.budget("--projected=sonnet:10k"))
+
+    def test_budget_below_the_minimum_messages_has_no_rate_and_no_eta(self):
+        self.steady(n=2)
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json"))
+        self.assertIsNone(data["rate"])
+        self.assertTrue(all(c["eta_minutes"] is None for c in data["caps"]))
+        self.assertIn("rate: too few messages (2) in the last 30 min", self.budget("--projected=sonnet:10k"))
+
+    def test_budget_without_caps_still_prints_the_rate(self):
+        self.steady()
+        text = self.budget("--projected=sonnet:10k", yaml="max_agents: 2\n")
+        self.assertIn("rate: 400k/h", text)
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json", yaml="max_agents: 2\n"))
+        self.assertEqual((data["caps"], data["rate"]["per_hour"]), ([], 400_000))
+
+    def test_budget_rate_window_comes_from_budget_yaml(self):
+        self.steady(n=4, spacing=5)  # at 1, 6, 11 and 16 minutes ago
+        yaml = "session_billable: 1M\nweek_billable: 5M\nrate_window_minutes: 12\n"
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json", yaml=yaml))
+        self.assertEqual(data["rate"], {"per_hour": 50_000 * 3 * 5, "window_minutes": 12, "messages": 3})
+
+    def test_budget_session_window_reads_the_week_once(self):
+        self.steady()
+        calls = []
+        real = tr.usage_since
+        tr.usage_since = lambda *a, **k: calls.append(a) or real(*a, **k)
+        self.addCleanup(setattr, tr, "usage_since", real)
+        yaml = "session_billable: 1M\nweek_billable: 5M\nsession_window_hours: 2\n"
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json", yaml=yaml))
+        self.assertEqual(calls, [])
+        self.assertEqual(data["caps"][0]["used"], 200_000)
+
     def test_cards_come_from_cards_md_and_the_week_cap_counts_too(self):
         self.agent("a1", "T001: 002-gadget build", 4_900_000, ts=self.stamp(days=3))  # old enough for the week, not the session
         self.main(1, ts=self.stamp(minutes=1))

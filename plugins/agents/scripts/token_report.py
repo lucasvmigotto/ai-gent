@@ -1691,15 +1691,21 @@ def cmd_budget(a):
         files = [f for r in roots for f in glob.glob(os.path.join(r, "*.jsonl"))]
         sid = os.path.splitext(os.path.basename(max(files, key=os.path.getmtime)))[0] if files else None
     now = datetime.now(timezone.utc)
+    week_msgs = usage_messages((now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S"), dirs)  # one scan serves the week, the rolling session and the rate
     if cfg.get("session_window_hours"):
         since = (now - timedelta(hours=cfg["session_window_hours"])).strftime("%Y-%m-%dT%H:%M:%S")
-        used_session, scope = usage_since(since, dirs), f"the last {cfg['session_window_hours']:g}h, all projects"
+        used_session = sum(bill(u) for t, _, u in week_msgs if t >= since)
+        scope = f"the last {cfg['session_window_hours']:g}h, all projects"
     elif sid:
         coords, rows, _, _ = gather(roots, [sid])
         used_session, scope = sum(r["billable"] for r in coords + rows), f"session {sid[:8]}"
     else:
         used_session, scope = 0, "no session found"
-    used_week = usage_since((now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S"), dirs)
+    used_week = sum(bill(u) for _, _, u in week_msgs)
+    window = max(1, cfg["rate_window_minutes"])
+    per_hour, n_msgs = usage_rate(week_msgs, now, window)
+    burn = {"per_hour": per_hour, "window_minutes": window, "messages": n_msgs} if n_msgs == 0 or n_msgs >= MIN_RATE_MESSAGES else None
+    eta = lambda left: round(left / burn["per_hour"] * 60) if burn and burn["per_hour"] and n_msgs >= MIN_RATE_MESSAGES else None
     feats = load_features(a.specs_dir)
     history = load_history(history_paths(a.history))
     cards = wave_cards(a, feats, history)
@@ -1733,6 +1739,12 @@ def cmd_budget(a):
               f"left {fmt_tok(max(0, cap - used))}")
     if not caps:
         say(f"no caps in {a.budget}: set session_billable and week_billable to enable the check")
+    if burn is None:
+        say(f"rate: too few messages ({n_msgs}) in the last {window:g} min")
+    elif not n_msgs:
+        say(f"rate: idle for {window:g} min")
+    else:
+        say(f"rate: {fmt_tok(per_hour)}/h over the last {window:g} min ({n_msgs} messages, all projects)")
     fit, acc = len(cards), total
     if avail is None:
         verdict, why = "proceed", "no caps set"
@@ -1763,7 +1775,9 @@ def cmd_budget(a):
         batches = [[c["label"] for c in b] for b in pack_batches(cards[:fit], max_agents, max_opus)] if fit else []
         print(json.dumps({
             "verdict": verdict, "why": why, "fit": fit, "total": total, "need": round(need),
-            "caps": [{"name": n, "cap": cap, "used": used, "left": max(0, cap - used)} for n, cap, used in caps],
+            "rate": burn,
+            "caps": [{"name": n, "cap": cap, "used": used, "left": max(0, cap - used), "eta_minutes": eta(max(0, cap - used))}
+                     for n, cap, used in caps],
             "cards": [{"label": c["label"], "model": c["model"], "projected": c["projected"], "p75": c["p75"],
                        "confidence": c["conf"], "how": c["how"]} for c in cards],
             "batches": batches,
