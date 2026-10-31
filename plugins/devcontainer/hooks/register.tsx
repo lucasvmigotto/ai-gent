@@ -10,6 +10,7 @@
 // Each is gated on its own option (guardUx, leftoversToast, containersBand,
 // containersCommand); one session.start handler serves the band and the command.
 
+import { atom, update } from 'claude-code'
 import type { PreToolUseResult, Register } from 'claude-code'
 
 import { plan } from './bands'
@@ -17,15 +18,28 @@ import type { Options as BandOptions } from './bands'
 import { CONTAINERS, containersHooks, containersReport, readContainers, startReading } from './containers'
 import type { Options as ContainersOptions } from './containers'
 import { bandText } from './containers-model'
-import { decorate } from './guard-ux'
+import { append, decorate, record } from './guard-ux'
+import type { GuardRow } from './guard-ux'
 import { relayLeftovers } from './leftovers'
 
-type Options = BandOptions & ContainersOptions & { guardUx?: boolean; leftoversToast?: boolean }
+type Options = BandOptions & ContainersOptions & { guardUx?: boolean; guardLog?: boolean; leftoversToast?: boolean }
+
+// The ring of this guard's recent decisions (specs/024-guard-log); the project plugin reads it.
+const guardLogAtom = atom({ plugin: 'devcontainer', key: 'guardLog' } as const, [] as GuardRow[], { shape: 'guard-log-1' })
 
 export const register: Register = (on, options: Options) => {
-  if (options.guardUx !== false) {
+  if (options.guardUx !== false || options.guardLog !== false) {
     on('classic.PreToolUse', async ($, e, next) => {
       const result = await next(e)
+      // The row comes from the guard's own answer, before decorate adds words.
+      if (options.guardLog !== false) {
+        // A failure here loses a row, never the decision.
+        await (async () => {
+          const row = record('containers', result, e, await $.clock.now())
+          if (row) await update($, guardLogAtom, rows => append(rows, row))
+        })().catch(() => undefined)
+      }
+      if (options.guardUx === false) return result
       const { result: decorated, notice } = decorate('containers', result)
       if (notice) $.ui.toast(notice)
       return decorated as PreToolUseResult

@@ -13,6 +13,13 @@
       "title": "Explain this guard's decisions",
       "description": "When the guard denies or asks, say why in plain words and what to do instead (the guard still decides; this changes only the words)",
       "default": true
+    },
+    "guardLog": {
+      "type": "boolean",
+      "title": "Keep a log of this guard's decisions",
+      "description": "Remember the last 200 denies and asks (the entry and the command's verb only, never the command or the reason) for the project plugin's /guards (the guard still decides)",
+      "default": true
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }
