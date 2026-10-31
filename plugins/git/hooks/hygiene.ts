@@ -7,8 +7,9 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { BranchState, Hygiene } from '../types'
+import { recordBands } from './bands'
 import { hookLines, rowText, updateLine } from './hook-lines'
-import { CHAIN, branchesWithRemote, parseCounts, releasesIn } from './hygiene-model'
+import { CHAIN, branchesWithRemote, parseCounts, releasesIn, sentence } from './hygiene-model'
 
 // Change the tag when Hygiene's fields change: it declines what an earlier
 // version stored, which outlives a reload.
@@ -56,6 +57,13 @@ export async function refreshHygieneThrottled($: EngineInterface): Promise<void>
   const before = await read($, hygieneAtom)
   if (before !== null && (await $.clock.now()) - before.readAt < THROTTLE_MS) return
   await refreshHygiene($)
+}
+
+// The band is active when the comparison has something to say (priority normal).
+export async function recordHygieneBand($: EngineInterface): Promise<void> {
+  const hygiene = await read($, hygieneAtom)
+  const isActive = hygiene !== null && sentence(hygiene.branches, 120, null) !== null
+  await recordBands($, isActive ? [{ id: 'hygiene', priority: 'normal' }] : [])
 }
 
 export async function readHygiene($: EngineInterface): Promise<Hygiene | null> {
