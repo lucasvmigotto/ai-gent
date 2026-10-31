@@ -320,3 +320,70 @@ test('tokenStatus off registers nothing', { options: { tokenStatus: false } }, a
   expect(w.registered).toEqual([])
   expect(w.runs).toEqual([])
 })
+
+// ------------------------------------------------- the burn rate in the flow
+
+test('the status shows each cap\'s ETA and the mod spawns nothing more for it', async ($, on) => {
+  const w = world(on, { ...FILES })
+  w.budget.json = WITH_ETA
+  await $.session.start(START)
+  await w.clock.settle()
+  expect(last(w)).toBe('tokens · 004-us1-core ~420k/391k · 004-us2 ~300k/— · 004-us4 —/— · session left 3.10M (~2h10m) · week left 22.00M (~15h)')
+  expect(w.runs).toHaveLength(1)
+})
+
+test('tokenBurnRate off keeps 014\'s status and toasts no ETA', { options: { tokenBurnRate: false } }, async ($, on) => {
+  const w = world(on, { ...FILES })
+  w.budget.json = withEta(10)
+  await $.session.start(START)
+  await w.clock.settle()
+  expect(last(w)).not.toContain('(~')
+  expect(w.toasts).toEqual([])
+})
+
+test('the ETA toast fires at the first crossing, not on the repeat, and again after a recovery', async ($, on) => {
+  const w = world(on, { ...FILES })
+  await $.session.start(START)
+  await w.clock.settle()
+  const etaToasts = () => w.toasts.filter(t => t.includes('cap lasts'))
+  const look = async (b: Budget) => {
+    w.budget.json = b
+    await $.command.run({ command: 'tokens', args: '' } as never)
+  }
+  await look(withEta(60))
+  expect(etaToasts()).toEqual([])
+  await look(withEta(25))
+  expect(etaToasts()).toEqual(['session cap lasts ~25m at 7.40M/h — pause the wave or finish the card in flight'])
+  await look(withEta(25))
+  expect(etaToasts()).toHaveLength(1)
+  await look(withEta(90))
+  await look(withEta(20))
+  expect(etaToasts()).toHaveLength(2)
+  expect(w.notices).toEqual([]) // toast only
+})
+
+test('a cap with nothing left has no ETA toast', async ($, on) => {
+  const w = world(on, { ...FILES })
+  w.budget.json = withEta(5, null, 0)
+  await $.session.start(START)
+  await w.clock.settle()
+  expect(w.toasts.filter(t => t.includes('cap lasts'))).toEqual([])
+})
+
+test('tokenEtaWarnMinutes sets the threshold', { options: { tokenEtaWarnMinutes: 10 } }, async ($, on) => {
+  const w = world(on, { ...FILES })
+  w.budget.json = withEta(25)
+  await $.session.start(START)
+  await w.clock.settle()
+  expect(w.toasts).toEqual([]) // 25 is above a threshold of 10
+  expect(last(w)).toContain('(~25m)')
+})
+
+test('tokenEtaWarnMinutes 0 keeps the status and toasts nothing', { options: { tokenEtaWarnMinutes: 0 } }, async ($, on) => {
+  const w = world(on, { ...FILES })
+  w.budget.json = withEta(5)
+  await $.session.start(START)
+  await w.clock.settle()
+  expect(w.toasts).toEqual([])
+  expect(last(w)).toContain('(~5m)')
+})
