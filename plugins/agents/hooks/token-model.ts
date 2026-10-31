@@ -16,6 +16,9 @@ export type LedgerCard = {
   usedText: string
   projected: number | null
   used: number | null
+  // The optional Branch and Worktree columns (specs/020-card-timeline-pane); only set when the column and a value exist.
+  branch?: string
+  worktree?: string
 }
 
 // "~420k", "391k", "1.24M" → a number; "—" or nothing → null.
@@ -76,6 +79,12 @@ export function parseLedger(text: string): LedgerCard[] {
     if (!id) continue
     const stateCell = row[Math.max(at('state'), at('status'))] ?? ''
     const [projectedText = '—', usedText = '—'] = (row[at('tokens')] ?? '').split('/').map(part => part.trim() || '—')
+    const optional = (name: string): string | undefined => {
+      const cell = (row[at(name)] ?? '').replace(/`/g, '').trim()
+      return cell === '' || cell === '—' ? undefined : cell
+    }
+    const branch = optional('branch')
+    const worktree = optional('worktree')
     cards.push({
       id,
       state: stateCell.toLowerCase().replace(/[*_`]/g, '').trim().split(/\s+/)[0] ?? '',
@@ -83,6 +92,8 @@ export function parseLedger(text: string): LedgerCard[] {
       usedText,
       projected: parseTok(projectedText),
       used: parseTok(usedText),
+      ...(branch !== undefined ? { branch } : {}),
+      ...(worktree !== undefined ? { worktree } : {}),
     })
   }
   return cards
