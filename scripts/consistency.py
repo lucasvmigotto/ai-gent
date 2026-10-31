@@ -389,6 +389,31 @@ def check_release_subjects(root: Path) -> list[str]:
     return problems
 
 
+RELEASE_SCRIPTS = ("scripts/release.py", "shared/release-single.py")
+
+
+def check_release_json(root: Path) -> list[str]:
+    """Both release scripts print the same keys for `--dry-run --json`."""
+    found: dict[str, tuple] = {}
+    problems = []
+    for rel in RELEASE_SCRIPTS:
+        path = root / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        lists = []
+        for name in ("JSON_KEYS", "TARGET_KEYS"):
+            m = re.search(rf"^{name} = \(([^)]*)\)", text, re.M)
+            lists.append(tuple(re.findall(r'"([^"]+)"', m.group(1))) if m else None)
+        if None in lists:
+            problems.append(f"{rel}: JSON_KEYS and TARGET_KEYS not found (the check reads `NAME = (\"a\", ...)`)")
+        else:
+            found[rel] = tuple(lists)
+    if len(set(found.values())) > 1:
+        problems.append(f"{' and '.join(found)}: the --json key lists differ ({found})")
+    return problems
+
+
 LEFTOVERS = "plugins/devcontainer/hooks/leftovers.sh"
 LEFTOVERS_SPEC = "specs/025-container-disk-band/data-model.md"
 
@@ -425,13 +450,13 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root) + check_release_subjects(root) + check_leftovers_json(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, release subjects, leftovers JSON, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, release subjects, release --json keys, leftovers JSON, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

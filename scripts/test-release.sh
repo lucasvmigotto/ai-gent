@@ -168,6 +168,33 @@ run --dry-run
 check "prints the plan" bash -c '[[ "$1" == "release 1.0.1 (patch, since 1.0.0)"* && "$1" == *"plugin a: 1.0.0 -> 1.0.1 (patch)"* ]]' _ "$out"
 check "writes nothing" clean
 
+echo "      -- dry run --json"
+fresh
+edit plugins/a/README.md "fix(a): x"
+edit docs/site/index.html "feat(site): y"
+run --dry-run --json
+check "one JSON object with the spec keys" python3 -c '
+import json, sys
+d = json.loads(sys.argv[1])
+assert sorted(d) == ["bump", "changelog", "since", "targets", "version"], d
+assert d["version"] == "1.1.0" and d["bump"] == "minor" and d["since"] == "1.0.0", d
+assert all(sorted(t) == ["bump", "from", "kind", "label", "to"] for t in d["targets"]), d
+byl = {t["label"]: t for t in d["targets"]}
+assert byl["a"]["kind"] == "plugin" and byl["a"]["from"] == "1.0.0" and byl["a"]["to"] == "1.0.1" and byl["a"]["bump"] == "patch", d
+assert byl["docs/site/package.json"]["kind"] == "manifest", d
+assert isinstance(d["changelog"], str) and d["changelog"], d
+' "$out"
+check "writes nothing" clean
+run --dry-run
+check "human output unchanged without --json" bash -c '[[ "$1" == "release 1.1.0 (minor, since 1.0.0)"* && "$1" == *"plugin a: 1.0.0 -> 1.0.1 (patch)"* ]]' _ "$out"
+run --json
+check "--json without --dry-run → exit 2" test "$rc" -eq 2
+check "  nothing on stdout" test -z "$out"
+fresh
+edit README.md "docs: words"
+run --dry-run --json
+check "nothing releasable → exit 3, empty stdout" test "$rc" -eq 3 -a -z "$out"
+
 echo "      -- no tag yet"
 repo="$SANDBOX/untagged"
 git init -q -b main "$repo"
