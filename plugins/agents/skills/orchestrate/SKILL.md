@@ -115,7 +115,9 @@ line, in the feature's `tracker.md`, the ledger and the repo's
 `docs/product/token-history.jsonl` (`references/token-economy.md`). In the
 final handoff, report the **estimation error** per card and for the run
 (projected against used, and the coordinator's share), and say what the
-history now knows that it didn't.
+history now knows that it didn't. On Claude Code a landing toast shows each
+card's miss as it happens; `references/token-economy.md`'s "Reading the
+landing toast" says what to fix.
 
 After every push, follow CI with `devsecops:watch` (pipeline rule 8). A
 red run caused by the work becomes a card like any other: the fast model
