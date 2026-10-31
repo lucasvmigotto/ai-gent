@@ -60,7 +60,7 @@ export function snapshotOf(readme: string = README_TEXT, patch: Partial<Snapshot
 export function bigReadme(count: number): string {
   const rows = Array.from({ length: count }, (_, i) => {
     const n = String(i + 1).padStart(3, '0')
-    return `| ${n} | feature-number-${n}-with-a-long-name-to-cut | x | P${(i % 3) + 1} | — | ${i % 2 ? 'Implemented' : 'Planned'} | N/A | — | |`
+    return `| ${n} | feature-number-${n}-with-a-very-long-name-that-has-to-be-cut-here | x | P${(i % 3) + 1} | — | ${i % 2 ? 'Implemented' : 'Planned'} | N/A | — | |`
   })
   return `| # | Feature | Scope | Priority | Depends on | Frontend | Backend | QA | Notes |\n|---|---|---|---|---|---|---|---|---|\n${rows.join('\n')}\n`
 }
