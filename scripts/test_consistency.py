@@ -94,6 +94,15 @@ class SecretData(unittest.TestCase):
         (root / "shared/secret-cases.json").write_text(json.dumps({"vars": {}, "cases": [{"name": "n"}]}))
         self.assertEqual(len(consistency.check_secret_data(root)), 1)
 
+    def test_a_result_skip_survives_the_sync(self):
+        src = dict(self.SOURCES)
+        src["shared/secret-patterns.json"] = json.dumps({"patterns": [{"kind": "k", "source": "x", "flags": "", "replacement": "<r>", "skipIn": ["result"]}]})
+        root = tree(src)
+        self.assertIn('"skipIn": [\n        "result"\n      ]', consistency.secret_data_text(root))
+        (root / consistency.SECRET_DATA).parent.mkdir(parents=True, exist_ok=True)
+        (root / consistency.SECRET_DATA).write_text(consistency.secret_data_text(root))
+        self.assertEqual(consistency.check_secret_data(root), [])
+
     def test_the_repository_twin_is_in_sync(self):
         self.assertEqual(consistency.check_secret_data(consistency.ROOT), [])
 
