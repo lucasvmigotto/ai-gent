@@ -235,7 +235,7 @@ test('/release-preview prints the dry run, and only ever the dry run', async ($,
   for (const argv of w.runs.filter(a => a[0] === 'python3')) expect(argv).toContain('--dry-run')
 })
 
-test('releasePreview off declares nothing', { options: { releasePreview: false } }, async ($, on) => {
+test('releasePreview off declares nothing', { options: { releasePreview: false, bandsCommand: false } }, async ($, on) => {
   const w = world(on)
   await $.session.start(START)
   expect(w.registered).toEqual([])

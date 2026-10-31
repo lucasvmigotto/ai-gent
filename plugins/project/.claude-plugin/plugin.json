@@ -32,6 +32,20 @@
       "title": "Pipeline pane refresh (seconds)",
       "description": "How often the open pane checks the files for changes",
       "default": 5
+    },
+    "bandCap": {
+      "type": "number",
+      "title": "Most bands above the prompt",
+      "description": "At most this many bands draw above the prompt, chosen by priority (1 to 5); the rest are listed by /bands. A band that holds something is never hidden",
+      "default": 2,
+      "min": 1,
+      "max": 5
+    },
+    "bandsCommand": {
+      "type": "boolean",
+      "title": "/bands command",
+      "description": "The /bands command: every active band above the prompt, with its priority and whether it is shown",
+      "default": true
     }
   }
 }

@@ -10,6 +10,8 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Checkpoint } from '../types'
+import { bandsText, plan, recordBands } from './bands'
+import type { Options as BandOptions } from './bands'
 import { CHECKPOINT, gated, parse } from './checkpoint'
 import { PANE, close, open, press, readExpanded, readIsOpen, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
 import { text as pipelineText, view } from './pipeline-view'
@@ -23,12 +25,21 @@ const checkpoint = atom({ plugin: 'project', key: 'checkpoint' } as const, null,
 })
 const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, false)
 
-type Options = { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number }
+type Options = BandOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
+// The id of the checkpoint band in the `bands` atom (priority hold).
+const HOLDS = 'holds'
+
+// Records whether the holds band is active: it has holds, and the person has not hidden it.
+async function recordHolds($: EngineInterface, current: Checkpoint | null, isOn: boolean): Promise<void> {
+  const isActive = isOn && current !== null && current.holds.length > 0 && !(await read($, isBandHidden))
+  await recordBands($, isActive ? [{ id: HOLDS, priority: 'hold' }] : [])
+}
+
 // Re-reads the file when it changed; clears the band when it is gone.
-async function refresh($: EngineInterface): Promise<Checkpoint | null> {
+async function readCheckpoint($: EngineInterface): Promise<Checkpoint | null> {
   const dir = await repoRoot($)
   const path = `${dir}/${CHECKPOINT}`
   const stat = await $.fs.stat(path).catch(() => undefined)
@@ -56,13 +67,23 @@ async function refresh($: EngineInterface): Promise<Checkpoint | null> {
   return fresh
 }
 
+// Reads the file and records whether the holds band is active.
+async function refresh($: EngineInterface, isOn: boolean): Promise<Checkpoint | null> {
+  const current = await readCheckpoint($)
+  await recordHolds($, current, isOn).catch(() => undefined)
+  return current
+}
+
 export const register: Register = (on, options: Options) => {
   const showBand = options.holdsBand !== false
   const askOnGated = options.holdsGate !== false
 
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    await refresh($).catch(() => undefined)
+    if (options.bandsCommand !== false) {
+      await $.command.register({ name: 'bands', description: 'List the bands above the prompt, and which are hidden by the cap' }).catch(() => undefined)
+    }
+    await refresh($, showBand).catch(() => undefined)
     if (options.pipelinePane !== false) {
       const canDock = e.isInteractive && e.surface !== null && e.surface !== 'mobile'
       await startPipeline($, options.pipelinePollSeconds ?? 5, canDock).catch(() => undefined)
@@ -71,7 +92,7 @@ export const register: Register = (on, options: Options) => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    await refresh($).catch(() => undefined)
+    await refresh($, showBand).catch(() => undefined)
     return next(e)
   })
 
@@ -80,7 +101,7 @@ export const register: Register = (on, options: Options) => {
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const kind = askOnGated ? gated(e.command) : null
     if (kind === null) return next(e)
-    const current = await refresh($)
+    const current = await refresh($, showBand)
     if (current === null || current.holds.length === 0) return next(e)
 
     const holds = current.holds.map(hold => `- ${hold}`).join('\n')
@@ -107,6 +128,7 @@ export const register: Register = (on, options: Options) => {
       current.holds.length === 0 ||
       (await read($, isBandHidden))
     if (isQuiet) return beneath
+    if (!(await plan($, HOLDS, options)).draws) return beneath
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const width = Math.max(20, e.props.bodyColumns - 12)
@@ -125,7 +147,11 @@ export const register: Register = (on, options: Options) => {
             {current.isStale ? ' · older than the last commit' : ''}
             {' '}
           </Text>
-          <Button key="hide" label="Hide" onPress={() => update($, isBandHidden, () => true)} />
+          <Button key="hide" label="Hide" onPress={async () => {
+              await update($, isBandHidden, () => true)
+              await recordHolds($, current, showBand).catch(() => undefined)
+            }}
+          />
         </Box>
         {shown.map(hold => (
           <Text wrap="truncate-end">
@@ -137,6 +163,10 @@ export const register: Register = (on, options: Options) => {
       </Box>
     )
   })
+
+  if (options.bandsCommand !== false) {
+    on('command.run', { command: 'bands' }, async $ => ({ text: await bandsText($, options) }))
+  }
 
   if (options.pipelinePane === false) return
   const seconds = options.pipelinePollSeconds ?? 5
