@@ -1588,9 +1588,9 @@ def config_dirs():
     return [os.path.expanduser(env)] if env else sorted(glob.glob(os.path.expanduser("~/.claude*")))
 
 
-def usage_since(cutoff_iso, dirs, now=None):
-    """Billable tokens across every project of the given config dirs since a UTC timestamp
-    (dedupe by message id over all of them, so an account switch is not counted twice)."""
+def usage_messages(cutoff_iso, dirs):
+    """The (utc timestamp, model, usage) of every message of the given config dirs' projects from a UTC
+    timestamp on, deduplicated by message id over all of them (an account switch is not counted twice)."""
     msgs = {}
     floor = datetime.fromisoformat(cutoff_iso).replace(tzinfo=timezone.utc).timestamp() - 3600
     for cfg in dirs:
@@ -1598,7 +1598,12 @@ def usage_since(cutoff_iso, dirs, now=None):
                   glob.glob(os.path.join(cfg, "projects", "*", "*", "subagents", "agent-*.jsonl"))):
             if os.path.getmtime(f) >= floor:
                 collect(f, msgs)
-    return sum(bill(u) for t, _, u in msgs.values() if t and t >= cutoff_iso)
+    return [m for m in msgs.values() if m[0] and m[0] >= cutoff_iso]
+
+
+def usage_since(cutoff_iso, dirs, now=None):
+    """Billable tokens across every project of the given config dirs since a UTC timestamp."""
+    return sum(bill(u) for _, _, u in usage_messages(cutoff_iso, dirs))
 
 
 def roles_models(path=os.path.join(".ai-gent", "orchestrate.yaml")):

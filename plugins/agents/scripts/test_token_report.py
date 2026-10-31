@@ -651,6 +651,25 @@ class EventsTest(TasksFixture):
         self.assertEqual(r["executor_model"], "sonnet")
 
 
+class UsageSinceTest(TasksFixture):
+    def stamp(self, **delta):
+        return (datetime.now(timezone.utc) - timedelta(**delta)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def test_usage_since_sums_billable_after_the_cutoff_and_dedupes_by_id(self):
+        other = self.home / ".claude-b" / "projects" / "-other"
+        other.mkdir(parents=True)
+        (self.root / "s1.jsonl").write_text("\n".join([
+            msg("m1", "claude-sonnet-5-5", usage(100), self.stamp(minutes=10)),
+            msg("m2", "claude-sonnet-5-5", usage(200), self.stamp(minutes=5)),
+            msg("old", "claude-sonnet-5-5", usage(900), self.stamp(hours=3))]))
+        (other / "s9.jsonl").write_text(msg("m2", "claude-sonnet-5-5", usage(200), self.stamp(minutes=5)))  # same id, other account
+        dirs = tr.config_dirs()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        self.assertEqual(tr.usage_since(cutoff, dirs), 300)  # cache reads are not billable
+        msgs = tr.usage_messages(cutoff, dirs)
+        self.assertEqual(sorted(tr.bill(u) for _, _, u in msgs), [100, 200])
+
+
 class BudgetTest(TasksFixture):
     def stamp(self, **delta):
         return (datetime.now(timezone.utc) - timedelta(**delta)).strftime("%Y-%m-%dT%H:%M:%SZ")
