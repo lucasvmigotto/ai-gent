@@ -49,6 +49,14 @@ push to main
   nothing to do, `1` error, `2` bad arguments. A release commit that
   lands while the run is in flight is rejected by the atomic push and
   released on the next run — nothing half-publishes.
+- **`--dry-run --json`.** Instead of the text plan, prints one JSON
+  object on stdout: `version`, `bump`, `since` (the base tag, `null`
+  when none), `targets[]` (`kind` `plugin`, `manifest` or `source`,
+  `label`, `from`, `to`, `bump`) and `changelog` (how the CHANGELOG
+  changes, for display). Exit codes are unchanged; exit 3 and errors
+  print nothing on stdout. `--json` without `--dry-run` is a usage error
+  (exit 2). `scripts/release.py` and `shared/release-single.py` print the
+  same keys; `scripts/consistency.py` checks it.
 - **Back-merge.** The release commit and tag land on the default branch
   only, so the job then merges the release commit back into the
   integration branch (`dev`/`develop`) with

@@ -15,8 +15,9 @@ export type Pattern = {
 export type Rule = Pattern & { re: RegExp }
 
 // Where text is masked: what the person types, or a skill's written body,
-// where only the high-confidence kinds apply (prose and examples stay whole).
-export type Scope = 'prompt' | 'skill'
+// where only the high-confidence kinds apply (prose and examples stay whole),
+// or a tool's result, which takes the same high-confidence kinds.
+export type Scope = 'prompt' | 'skill' | 'result'
 
 export type Masked = {
   text: string
@@ -72,6 +73,19 @@ export function summary(masked: Masked): string {
   return `secret-mask: masked ${parts.join(', ')} — keep secrets in pass (${where}), not in a prompt`
 }
 
+// One line about a tool's result that held credentials: the tool, the kinds and
+// how many, whether the stored copy was redacted, and what to do. It says the
+// value is exposed and never that it was erased. Never any part of a match.
+export function warning(masked: Masked, tool: string, isRedacted: boolean, truncated = false): string {
+  const parts = Object.entries(masked.counts).map(([kind, n]) => `${LABELS[kind] ?? kind} ×${n}`)
+  const what = isRedacted
+    ? 'redacted in what Claude reads; treat it as exposed anyway'
+    : 'not redacted; treat it as exposed'
+  const where = masked.entries.length > 0 ? `pass insert ${masked.entries.join(' / ')}` : 'secrets:pass'
+  const scanned = truncated ? ' (scanned the first 256 KiB)' : ''
+  return `output-secret: the result of ${tool} held ${parts.join(', ')}${scanned} — ${what}: rotate it at the service, then keep the new one in pass (${where})`
+}
+
 // A cheap look for text that may hold a credential, used only when masking
 // itself failed: then the text is held back if it looks like one, else sent.
 const KEYS = String.raw`BEGIN [A-Z ]*PRIVATE|gh[pousr]_[A-Za-z0-9]{20}|github_pat_|\bsk-[A-Za-z0-9_-]{20}|AKIA[0-9A-Z]{16}|xox[baprs]-|:\/\/[^\s\/@:]+:[^\s@]+@`
@@ -81,6 +95,7 @@ const LOOKS: Record<Scope, RegExp> = {
     'i',
   ),
   skill: new RegExp(KEYS, 'i'),
+  result: new RegExp(KEYS, 'i'),
 }
 
 export function looksSecret(text: string, scope: Scope): boolean {

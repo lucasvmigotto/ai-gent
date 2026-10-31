@@ -214,6 +214,7 @@ reserve_pct: 10              # left unspent
 coordinator_overhead_pct: 35 # the main thread's cost on top of the subagents' (rstory: 38%)
 max_opus: 1                  # concurrent Opus subagents
 max_agents: 2                # concurrent subagents
+rate_window_minutes: 30      # the window the burn rate averages over
 ```
 
 Before dispatching a wave:
@@ -234,9 +235,35 @@ suggests moving an expensive Opus card, whose projection is at high or medium
 confidence, to a Sonnet builder with the thinker reviewing inline (with the
 cost the learned context factor predicts).
 
-`budget --json` prints the same verdict, the caps (`cap`, `used`, `left`), the
-cards with their projections and the batches as one JSON object, and nothing
-else; the Claude Code token status reads it. The text output is unchanged.
+`tasks --dry-run --json` prints, read-only, one JSON object instead of the text
+table: `cards` (each `card`, `feature`, `model`, `projected`, `used`, `start`,
+`end`, `agents`, `calls`) and `unattributed` (a count). `start` and `end` are
+UTC with a `Z`. `--json` without `--dry-run` is rejected (exit 2), and nothing is
+written. Pass the project as `--project=<slug>` (the cwd with every character
+outside `A-Za-z0-9-` replaced by `-`, as `budget` derives it).
+
+`budget --json` prints the same verdict, the caps (`cap`, `used`, `left`,
+`eta_minutes`), the cards with their projections, the batches and the `rate` as
+one JSON object, and nothing else; the Claude Code token status reads it.
+
+The **burn rate** is the billable tokens of the last `rate_window_minutes`
+(default 30) of the week's messages, all projects, scaled to an hour: `rate` is
+`{per_hour, window_minutes, messages}`, and the text gains one `rate:` line
+after the caps. Each cap's `eta_minutes` is `left / per_hour * 60`, rounded.
+Fewer than 3 messages in the window (`MIN_RATE_MESSAGES`) make `rate` null and
+every ETA null, because one message after a quiet hour is not a pace; no usage
+in the window gives `per_hour` 0 and no ETA. The ETA ignores usage aging out
+of a rolling `session_window_hours`, so it is conservative there. The mod only
+formats these figures (`~2h10m`, `7.40M/h`) and toasts a cap whose ETA falls
+under `tokenEtaWarnMinutes`; the window is this file's key, not a mod option.
+
+The **landing toast** (`cardCostToast`, `cardCostHintPercent`) reads no script
+output at all: it takes the ledger's Tokens cell of a card that just turned
+`landed` and prints `used 391k vs ~420k projected (-7%)`. The percentage is
+computed from the cells' rounded values, half to even like `pct_error`'s
+`{:+.0f}`, so it can differ by a point from `tracker.md`'s Error column
+(`pct_error` over the exact figures). `hooks/pct-fixtures.ts` is the shared
+table that `test_token_report.py` runs `pct_error` against.
 
 Rules that go with it: Sonnet builders carry the confident, expensive cards
 and the thinker reviews inline unless a card needs a fresh context; no more

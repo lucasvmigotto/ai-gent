@@ -12,6 +12,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -357,6 +358,31 @@ class WtTest(unittest.TestCase):
         code, out, _ = self.run_wt("finish")
         self.assertIn("no baseline", out)
         self.assertEqual([c["id"] for c in self.state()["containers"]], ["b-new"])
+
+    def test_list_json_keeps_the_keys_the_worktree_board_reads(self):
+        """specs/022-worktree-board reads exactly these keys; hooks/worktrees-fixtures.ts records them."""
+        fixtures = (Path(__file__).resolve().parent.parent / "hooks" / "worktrees-fixtures.ts").read_text()
+
+        def recorded(name):
+            return json.loads(re.search(rf"export const {name} = `(.*?)`", fixtures, re.S).group(1))
+
+        def shape(row):
+            return {k: ("int" if isinstance(v, int) and not isinstance(v, bool) else type(v).__name__) for k, v in row.items()}
+
+        self.run_wt("add", "feat/a")
+        wt_path = self.repo / ".worktrees" / "feat-a"
+        (wt_path / "a.py").write_text("a = 1\n")
+        code, out, _ = self.run_wt("list", "--json")
+        live = json.loads(out)[0]
+        self.assertEqual(set(live), {"branch", "path", "dirty", "ahead", "behind"})  # no `base`
+        self.assertEqual(shape(live), shape(recorded("WT_LIST")[0]))
+        self.assertEqual(set(recorded("WT_LIST_NO_BASE")[0]), set(live))
+        self.git("branch", "-D", "dev")                                            # no dev branch: the counts are null
+        code, out, _ = self.run_wt("list", "--json")
+        nulls = json.loads(out)[0]
+        self.assertEqual((nulls["ahead"], nulls["behind"]), (None, None))
+        self.assertEqual(shape(nulls), shape(recorded("WT_LIST_NO_BASE")[0]) | {"dirty": "bool"})
+        self.assertEqual(shape(recorded("WT_LIST")[-1]), shape(nulls) | {"branch": "str"})  # detached
 
     def test_without_an_engine_containers_are_skipped(self):
         os.environ["CONTAINER_ENGINE"] = ""

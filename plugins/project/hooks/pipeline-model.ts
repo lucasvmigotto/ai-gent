@@ -210,3 +210,49 @@ export function letter(value: string): string {
   const w = word(value)
   return ({ planned: 'P', 'in progress': 'W', partial: 'W', implemented: 'I', verified: 'V' } as Record<string, string>)[w] ?? (RETIRED.includes(w) ? 'x' : /n\/a/i.test(value) ? 'n' : '-')
 }
+
+// ------------------------------------------------------------- the dashboard
+
+// A stage's display name, keyed by `ArtifactSpec.stage` (spec 029 FR-005).
+export const STAGE_NAME: Readonly<Record<string, string>> = {
+  '/project:init': 'Project init',
+  '/project:architecture': 'Architecture',
+  '/frontend:uiux': 'UI/UX',
+  '/project:spec': 'Specification',
+  '/backend:domain': 'Backend',
+  '/backend:spec': 'API specification',
+  '/qa:strategy': 'QA strategy',
+  '/devsecops:pipeline': 'DevOps',
+}
+
+// How many features are Implemented (least advanced side Implemented or
+// Verified), Planned, or neither (in progress, retired). The three sum to the rows.
+export function progress(features: readonly Feature[]): { implemented: number; planned: number; other: number } {
+  const out = { implemented: 0, planned: 0, other: 0 }
+  for (const f of features) {
+    if (f.state === 'review' || f.state === 'done') out.implemented += 1
+    else if (f.state === 'todo') out.planned += 1
+    else out.other += 1
+  }
+  return out
+}
+
+export type StageStep = { key: string; label: string; state: 'done' | 'current' | 'pending' }
+
+// The six steps of the stage strip: an aid to read at a glance, from artifacts
+// and buckets already in the snapshot. `recommend` never reads it.
+export function stageStrip(artifacts: readonly ArtifactState[], features: readonly Feature[]): StageStep[] {
+  const has = (path: string): boolean => artifacts.some(a => a.path === path && a.isPresent)
+  const live = features.filter(f => f.state !== 'retired')
+  const withQa = live.filter(f => 'qa' in f.sides && word(f.sides.qa ?? '') !== '')
+  const done: [string, string, boolean][] = [
+    ['init', 'Init', has(BRIEF)],
+    ['architecture', 'Architecture', has('docs/product/architecture.md')],
+    ['spec', 'Spec', has(README)],
+    ['build', 'Build', live.length > 0 && live.every(f => f.bucket === 'done')],
+    ['qa', 'QA', has('docs/product/test-strategy.md') && withQa.every(f => word(f.sides.qa ?? '') === 'verified')],
+    ['delivery', 'Delivery', has('docs/product/delivery.md')],
+  ]
+  const current = done.findIndex(([, , isDone]) => !isDone)
+  return done.map(([key, label, isDone], i) => ({ key, label, state: isDone ? 'done' : i === current ? 'current' : 'pending' }))
+}

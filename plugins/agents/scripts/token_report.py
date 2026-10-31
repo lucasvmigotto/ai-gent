@@ -1053,7 +1053,7 @@ def cmd_tasks(a):
     share, unassigned, coord_total = split_coordinator(main_msgs, groups, snaps)
 
     rollup = a.rollup_out or (None if a.no_legacy else DEFAULT_ROLLUP)
-    if rollup:
+    if rollup and not a.json:
         L, grand = render(project, sessions, roots, coords, rows, tagged, snaps)
         if not a.dry_run:
             os.makedirs(os.path.dirname(os.path.abspath(rollup)), exist_ok=True)
@@ -1067,7 +1067,7 @@ def cmd_tasks(a):
     for g in groups:
         if g["feature"]:
             feat_bill[g["feature"]] += g["billable"]
-    records, by_card, summary = [], {}, {}
+    records, by_card, summary, spans = [], {}, {}, []
     for fname, feat in feats.items():
         mine = [g for g in groups if g["feature"] == fname]
         units, extras = [], []
@@ -1079,6 +1079,10 @@ def cmd_tasks(a):
             cshare = share.get(fname, 0) * g["billable"] / feat_bill[fname] if feat_bill[fname] else 0
             rec = make_record(project, g, feats, cshare, repo=repo)
             records.append(rec)
+            if g["card"]:
+                spans.append({"card": g["card"], "feature": fname, "model": rec["executor_model"], "projected": rec["projected"],
+                              "used": g["billable"], "start": g["start"] + "Z", "end": g["end"] + "Z",
+                              "agents": len(g["rows"]), "calls": g["calls"]})
             u = {"label": f"`{g['card']}`" if g["card"] else (f"{tasks_key(g['tasks'])}" if g["tasks"] else None),
                  "tasks": g["tasks"], "projected": rec["projected"], "used": g["billable"], "cache_read": g["cache_read"],
                  "desc": g["desc"], "tags": planned_tags(g, feats)}
@@ -1105,6 +1109,10 @@ def cmd_tasks(a):
     else:
         n = len(records)
 
+    if a.json:
+        un = [g for g in groups if g["confidence"] == "agent" or not g["feature"]]
+        print(json.dumps({"cards": spans, "unattributed": len(un)}))
+        return
     print(f"{project}: {len(rows)} subagent(s) in {len(sessions)} session(s); "
           f"{'dry run, nothing written' if a.dry_run else 'wrote ' + a.history + f' ({n} records)'}")
     print("feature | used (subagents) | coordinator share | total | cards | task lines")
@@ -1559,7 +1567,9 @@ def cmd_seed(a):
 
 # ---------------------------------------------------------------- budget
 
-BUDGET_DEFAULTS = {"max_opus": 1, "max_agents": 2, "reserve_pct": 10, "coordinator_overhead_pct": 35}
+BUDGET_DEFAULTS = {"max_opus": 1, "max_agents": 2, "reserve_pct": 10, "coordinator_overhead_pct": 35,
+                   "rate_window_minutes": 30}
+MIN_RATE_MESSAGES = 3  # fewer messages in the rate window read as noise, not as a pace
 
 
 def parse_budget(path):
@@ -1580,9 +1590,9 @@ def config_dirs():
     return [os.path.expanduser(env)] if env else sorted(glob.glob(os.path.expanduser("~/.claude*")))
 
 
-def usage_since(cutoff_iso, dirs, now=None):
-    """Billable tokens across every project of the given config dirs since a UTC timestamp
-    (dedupe by message id over all of them, so an account switch is not counted twice)."""
+def usage_messages(cutoff_iso, dirs):
+    """The (utc timestamp, model, usage) of every message of the given config dirs' projects from a UTC
+    timestamp on, deduplicated by message id over all of them (an account switch is not counted twice)."""
     msgs = {}
     floor = datetime.fromisoformat(cutoff_iso).replace(tzinfo=timezone.utc).timestamp() - 3600
     for cfg in dirs:
@@ -1590,7 +1600,19 @@ def usage_since(cutoff_iso, dirs, now=None):
                   glob.glob(os.path.join(cfg, "projects", "*", "*", "subagents", "agent-*.jsonl"))):
             if os.path.getmtime(f) >= floor:
                 collect(f, msgs)
-    return sum(bill(u) for t, _, u in msgs.values() if t and t >= cutoff_iso)
+    return [m for m in msgs.values() if m[0] and m[0] >= cutoff_iso]
+
+
+def usage_since(cutoff_iso, dirs, now=None):
+    """Billable tokens across every project of the given config dirs since a UTC timestamp."""
+    return sum(bill(u) for _, _, u in usage_messages(cutoff_iso, dirs))
+
+
+def usage_rate(msgs, now, minutes):
+    """(billable tokens per hour, messages) over the last `minutes` before `now` (a UTC datetime)."""
+    since = (now - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%S")
+    used = [bill(u) for t, _, u in msgs if t and t >= since]
+    return round(sum(used) * 60 / minutes), len(used)
 
 
 def roles_models(path=os.path.join(".ai-gent", "orchestrate.yaml")):
@@ -1669,15 +1691,21 @@ def cmd_budget(a):
         files = [f for r in roots for f in glob.glob(os.path.join(r, "*.jsonl"))]
         sid = os.path.splitext(os.path.basename(max(files, key=os.path.getmtime)))[0] if files else None
     now = datetime.now(timezone.utc)
+    week_msgs = usage_messages((now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S"), dirs)  # one scan serves the week, the rolling session and the rate
     if cfg.get("session_window_hours"):
         since = (now - timedelta(hours=cfg["session_window_hours"])).strftime("%Y-%m-%dT%H:%M:%S")
-        used_session, scope = usage_since(since, dirs), f"the last {cfg['session_window_hours']:g}h, all projects"
+        used_session = sum(bill(u) for t, _, u in week_msgs if t >= since)
+        scope = f"the last {cfg['session_window_hours']:g}h, all projects"
     elif sid:
         coords, rows, _, _ = gather(roots, [sid])
         used_session, scope = sum(r["billable"] for r in coords + rows), f"session {sid[:8]}"
     else:
         used_session, scope = 0, "no session found"
-    used_week = usage_since((now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S"), dirs)
+    used_week = sum(bill(u) for _, _, u in week_msgs)
+    window = max(1, cfg["rate_window_minutes"])
+    per_hour, n_msgs = usage_rate(week_msgs, now, window)
+    burn = {"per_hour": per_hour, "window_minutes": window, "messages": n_msgs} if n_msgs == 0 or n_msgs >= MIN_RATE_MESSAGES else None
+    eta = lambda left: round(left / burn["per_hour"] * 60) if burn and burn["per_hour"] and n_msgs >= MIN_RATE_MESSAGES else None
     feats = load_features(a.specs_dir)
     history = load_history(history_paths(a.history))
     cards = wave_cards(a, feats, history)
@@ -1711,6 +1739,12 @@ def cmd_budget(a):
               f"left {fmt_tok(max(0, cap - used))}")
     if not caps:
         say(f"no caps in {a.budget}: set session_billable and week_billable to enable the check")
+    if burn is None:
+        say(f"rate: too few messages ({n_msgs}) in the last {window:g} min")
+    elif not n_msgs:
+        say(f"rate: idle for {window:g} min")
+    else:
+        say(f"rate: {fmt_tok(per_hour)}/h over the last {window:g} min ({n_msgs} messages, all projects)")
     fit, acc = len(cards), total
     if avail is None:
         verdict, why = "proceed", "no caps set"
@@ -1741,15 +1775,25 @@ def cmd_budget(a):
         batches = [[c["label"] for c in b] for b in pack_batches(cards[:fit], max_agents, max_opus)] if fit else []
         print(json.dumps({
             "verdict": verdict, "why": why, "fit": fit, "total": total, "need": round(need),
-            "caps": [{"name": n, "cap": cap, "used": used, "left": max(0, cap - used)} for n, cap, used in caps],
+            "rate": burn,
+            "caps": [{"name": n, "cap": cap, "used": used, "left": max(0, cap - used), "eta_minutes": eta(max(0, cap - used))}
+                     for n, cap, used in caps],
             "cards": [{"label": c["label"], "model": c["model"], "projected": c["projected"], "p75": c["p75"],
                        "confidence": c["conf"], "how": c["how"]} for c in cards],
             "batches": batches,
         }))
 
 
+class Parser(argparse.ArgumentParser):
+    def parse_args(self, args=None, namespace=None):
+        a = super().parse_args(args, namespace)
+        if getattr(a, "cmd", None) == "tasks" and a.json and not a.dry_run:
+            self.error("tasks --json is read-only and needs --dry-run")
+        return a
+
+
 def build_parser():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("report")
     r.add_argument("--project", required=True, help="the session directory slug under ~/.claude*/projects/ "
@@ -1771,6 +1815,8 @@ def build_parser():
     t.add_argument("--no-legacy", action="store_true",
                    help="skip the deprecated specs/*/tokens.md files and roll-up (docs/product/token-usage.md)")
     t.add_argument("--dry-run", action="store_true", help="read everything, write nothing, print the attribution")
+    t.add_argument("--json", action="store_true",
+                   help="with --dry-run: print each card's attribution (start, end, used) as one JSON object")
     t.set_defaults(fn=cmd_tasks)
     e = sub.add_parser("estimate", help="the projection for a planned card, from history or the starting table")
     g = e.add_mutually_exclusive_group()

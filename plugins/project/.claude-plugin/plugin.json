@@ -32,6 +32,106 @@
       "title": "Pipeline pane refresh (seconds)",
       "description": "How often the open pane checks the files for changes",
       "default": 5
+    },
+    "pipelineLayout": {
+      "type": "string",
+      "title": "Pipeline pane layout",
+      "description": "dashboard (the default) draws the pane with a header, stat tiles, tables and a progress bar; compact keeps the plain line list. Any other value reads as dashboard",
+      "default": "dashboard"
+    },
+    "pipelineAscii": {
+      "type": "boolean",
+      "title": "Pipeline pane: ASCII glyphs",
+      "description": "Draw the dashboard with ASCII glyphs only, for a terminal whose font lacks the Unicode ones",
+      "default": false
+    },
+    "pipelineMaxRows": {
+      "type": "number",
+      "title": "Pipeline pane: most feature rows",
+      "description": "The dashboard's feature matrix draws at most this many rows, then says how many more there are",
+      "default": 60,
+      "min": 1
+    },
+    "nextStageToast": {
+      "type": "boolean",
+      "title": "Next-stage toast",
+      "description": "Toast the stage the pipeline pane would recommend after a pipeline artifact is written or a [NEEDS CLARIFICATION] is added, once per turn; a hint only, nothing is run",
+      "default": true
+    },
+    "bandCap": {
+      "type": "number",
+      "title": "Most bands above the prompt",
+      "description": "At most this many bands draw above the prompt, chosen by priority (1 to 5); the rest are listed by /bands. A band that holds something is never hidden",
+      "default": 2,
+      "min": 1,
+      "max": 5
+    },
+    "workspaceLine": {
+      "type": "boolean",
+      "title": "Workspace line above the prompt",
+      "description": "Fold the compact summaries of the git, repo and devcontainer bands (passing CI, next release, container leftovers, a branch behind its remote) into one Workspace line with a Details button; holds, failed CI and low disk keep their own bands. Off: every band draws alone, as before",
+      "default": true
+    },
+    "contextMeter": {
+      "type": "boolean",
+      "title": "Context meter under the prompt",
+      "description": "Add the context window's used and remaining percent, with a bar and an approaching or critical mark, to the end of the prompt's hint line, read at each turn end and session start. On by default; turn it off if you want the engine's hint line untouched",
+      "default": true
+    },
+    "chromeAscii": {
+      "type": "boolean",
+      "title": "Workspace line and context meter: ASCII glyphs",
+      "description": "Draw the workspace line and the context meter with ASCII glyphs only, for a terminal whose font lacks the Unicode ones",
+      "default": false
+    },
+    "bandsCommand": {
+      "type": "boolean",
+      "title": "/bands command",
+      "description": "The /bands command: every active band above the prompt, with its priority and whether it is shown",
+      "default": true
+    },
+    "handoffNudge": {
+      "type": "boolean",
+      "title": "Hand-off nudge",
+      "description": "Toast, once, that the checkpoint is behind and to run /project:checkpoint when the context is nearly full, before a compaction, or (with token_report.py beside the plugin) when a usage cap runs low",
+      "default": true
+    },
+    "handoffNudgeContextPercent": {
+      "type": "number",
+      "title": "Hand-off nudge: context used (%)",
+      "description": "Nudge when the context window is at least this full",
+      "default": 80,
+      "min": 1,
+      "max": 100
+    },
+    "handoffNudgeCapPercent": {
+      "type": "number",
+      "title": "Hand-off nudge: cap left (%)",
+      "description": "Nudge when a usage cap in .ai-gent/budget.yaml has less than this share left (needs token_report.py beside the plugin)",
+      "default": 10,
+      "min": 1,
+      "max": 100
+    },
+    "guardLogLimit": {
+      "type": "number",
+      "title": "Guard log: rows listed",
+      "description": "How many of the guards' latest decisions /guards and the guards pane list; /guards N overrides it",
+      "default": 20,
+      "min": 1,
+      "max": 200
+    },
+    "guardsPane": {
+      "type": "boolean",
+      "title": "Guards pane",
+      "description": "The /guards-pane pane: the guards' latest decisions and the entries that fired most; it never opens by itself",
+      "default": true
     }
-  }
+  },
+  "dependencies": [
+    "git",
+    "db",
+    "secrets",
+    "repo",
+    "devcontainer"
+  ]
 }

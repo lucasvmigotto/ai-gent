@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { cases as shared, patterns } from './secret-data'
-import { compile, looksSecret, mask } from './secret-mask'
+import { compile, looksSecret, mask, warning } from './secret-mask'
 
 const { cases, vars } = shared
 
@@ -142,4 +142,35 @@ test('looksSecret sees keys, headers and assignments, and not plain prose', () =
   expect(looksSecret('db_password = abc', 'prompt')).toBe(true)
   expect(looksSecret('db_password = abc', 'skill')).toBe(false)
   expect(looksSecret('please run the build and show the diff', 'prompt')).toBe(false)
+})
+
+test('the result scope leaves out assignments and auth headers, and its pre-filter sees only key shapes', () => {
+  const rules = compile(JSON.stringify(patterns))
+  const text = `API_TOKEN=plainvalue and Bearer abcdefghijklmnop and ${GHP}`
+  const masked = mask(text, rules, 'result', NONE)
+  expect(Object.keys(masked.counts)).toEqual(['github-token'])
+  expect(masked.text).toContain('API_TOKEN=plainvalue')
+  expect(looksSecret(`x ${GHP}`, 'result')).toBe(true)
+  expect(looksSecret('postgres://u:p@h/db', 'result')).toBe(true)
+  expect(looksSecret('db_password = abc', 'result')).toBe(false)
+  expect(looksSecret('plain build output', 'result')).toBe(false)
+})
+
+test('the warning names kinds and counts, says what happened, and holds no value', () => {
+  const rules = compile(JSON.stringify(patterns))
+  const masked = mask(`a ${GHP} b ${GHP} c postgres://app:hunter2pw@db/x`, rules, 'result', NONE)
+  for (const redacted of [true, false]) {
+    const text = warning(masked, 'Bash', redacted)
+    expect(text).toContain('Bash')
+    expect(text).toContain('GitHub token ×2')
+    expect(text).toContain('URL password ×1')
+    expect(text).not.toContain(GHP)
+    expect(text).not.toContain(GHP.slice(0, 8))
+    expect(text).not.toContain('hunter2pw')
+    expect(text).not.toContain('<token>')
+  }
+  expect(warning(masked, 'Bash', true)).toContain('redacted in what Claude reads')
+  expect(warning(masked, 'Bash', false)).toContain('not redacted')
+  for (const redacted of [true, false]) expect(warning(masked, 'Bash', redacted)).toMatch(/exposed.*rotate/)
+  expect(warning(masked, 'Bash', true, true)).toContain('256 KiB')
 })

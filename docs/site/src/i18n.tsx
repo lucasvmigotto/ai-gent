@@ -108,8 +108,15 @@ export interface Messages {
 		agentRoles: string;
 		trackerSync: string;
 		guardsBody: string;
+		mods: string;
+		modsBody: string;
 	};
-	changelog: { title: string; lede: string; releases: string };
+	changelog: {
+		title: string;
+		lede: string;
+		releases: string;
+		earlierPatches: string;
+	};
 	flow: {
 		title: string;
 		lede: string;
@@ -271,6 +278,9 @@ export const enUS: Messages = {
 		containers: "Containers",
 		databases: "Databases",
 		guards: "Guard hooks",
+		mods: "Claude Code mods",
+		modsBody:
+			"Optional hooks modules that keep something in view in Claude Code, and never replace a skill, script or guard: bands above the prompt (checkpoint holds, branches behind their remote, the next release, the pushed commit's CI runs, container leftovers and disk), a workspace line that folds the quiet ones, a context meter, a pipeline dashboard pane, card, worktree and guard-log panes, token burn-rate and card-cost toasts, a hand-off nudge, a next-stage toast, and masking of credentials in prompts and tool results. Each is read-only, can be turned off in /config, and the README lists their options and defaults.",
 		readingCode: "Reading code",
 		specKit: "Spec Kit",
 		secrets: "Secrets in pass",
@@ -283,6 +293,7 @@ export const enUS: Messages = {
 		title: "Changelog",
 		lede: "Releases and what changed.",
 		releases: "Releases",
+		earlierPatches: "earlier patch releases",
 	},
 	flow: {
 		title: "The autonomous flow",

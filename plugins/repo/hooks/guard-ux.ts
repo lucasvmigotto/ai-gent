@@ -130,3 +130,79 @@ export function decorate(id: GuardId, result: Decision): Decorated {
   if (!entry) return { result, notice: null }
   return { result: { ...result, ask: `${entry.say}${entry.allowIf ? ` ${entry.allowIf}` : ''}\n\n${reason}` }, notice: null }
 }
+
+// ---------------------------------------------------------------- guard log
+// (specs/024-guard-log) One row per deny or ask this guard made, kept by the
+// plugin in its own bounded `guardLog` atom. A row holds the matched entry's
+// `match` and the command's verb, never the guard's raw reason (guard.sh
+// interpolates values into it), a command line, an argument or a path.
+
+export type GuardRow = {
+  // Clock milliseconds.
+  at: number
+  guard: GuardId
+  decision: 'deny' | 'ask'
+  // The table entry's `match`, or `generic` when the reason has no entry.
+  entry: string
+  tool: string
+  // The command's first word (and a second one for some tools), or null.
+  verb: string | null
+  // An ask is `asked`: its answer is not visible at classic.PreToolUse.
+  outcome: 'asked' | null
+}
+
+// The most rows a log keeps.
+export const MAX_ROWS = 200
+
+// A command whose second word says what it does.
+const TWO_WORDS = new Set(['git', 'gh', 'pass', 'podman', 'docker'])
+const FIRST_WORD = /^[a-z][a-z0-9._-]{0,23}$/
+const SECOND_WORD = /^[a-z][a-z-]{0,23}$/
+// A word with more digits than any tool's name has (a token such as xoxb-123456789012).
+const MANY_DIGITS = /(?:\D*\d){7}/
+const TOOL_NAME = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/
+
+// The verb of a Bash-like command: the first word (a path reduced to its last
+// segment), kept only if it is a plain lowercase word with few digits, so a
+// token as a first word gives none; for git, gh, pass, podman and docker also a second word that
+// is a plain word. A tool with no command has no verb.
+export function verb(command: unknown, tool: string): string | null {
+  if (typeof command !== 'string' || tool !== 'Bash') return null
+  const words = command.trim().split(/\s+/)
+  const raw = words[0] ?? ''
+  if (raw.includes('://')) return null
+  const first = raw.slice(raw.lastIndexOf('/') + 1)
+  if (!FIRST_WORD.test(first) || MANY_DIGITS.test(first)) return null
+  const second = words[1] ?? ''
+  return TWO_WORDS.has(first) && SECOND_WORD.test(second) ? `${first} ${second}` : first
+}
+
+// What a classic.PreToolUse event carries that a row uses.
+export type GuardEvent = { tool?: unknown; command?: unknown }
+
+// The row for a result that is this guard's own deny or ask, or null. Call it
+// on what `next(e)` returned, before `decorate`.
+export function record(id: GuardId, result: Decision, event: GuardEvent, at: number): GuardRow | null {
+  const guard = GUARDS[id]
+  const decision = typeof result.deny === 'string' ? 'deny' : typeof result.ask === 'string' ? 'ask' : null
+  if (decision === null || result.allow !== undefined) return null
+  const reason = (decision === 'deny' ? result.deny : result.ask) as string
+  const marker = reason.indexOf(guard.marker)
+  if (marker < 0) return null
+  const text = reason.slice(marker + guard.marker.length)
+  const tool = typeof event.tool === 'string' && TOOL_NAME.test(event.tool) ? event.tool : 'unknown'
+  return {
+    at,
+    guard: id,
+    decision,
+    entry: guard.entries.find(candidate => text.includes(candidate.match))?.match ?? 'generic',
+    tool,
+    verb: verb(event.command, tool),
+    outcome: decision === 'ask' ? 'asked' : null,
+  }
+}
+
+// The ring with one more row: the newest MAX_ROWS, oldest dropped first.
+export function append(rows: readonly GuardRow[], row: GuardRow): GuardRow[] {
+  return [...rows, row].slice(-MAX_ROWS)
+}

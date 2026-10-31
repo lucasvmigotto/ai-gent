@@ -463,6 +463,47 @@ class TagEstimateTest(unittest.TestCase):
         self.assertIn("context: x1.00", text)
 
 
+class TasksJsonTest(TasksFixture):
+    KEYS = ["card", "feature", "model", "projected", "used", "start", "end", "agents", "calls"]
+
+    def setUp(self):
+        super().setUp()
+        self.agent("a1", "T001, T002: 001-widget core", 391_000, ts="2026-10-20T10:00:00Z", calls=2)
+        self.agent("a2", "Review 001-core", 9_000, ts="2026-10-20T11:00:00Z")
+        self.agent("a3", "Survey the repo", 5_000)
+
+    def snapshot(self):
+        return {str(p.relative_to(self.home)): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+
+    def test_json_shape_and_z_timestamps(self):
+        out = self.run_tasks("--dry-run", "--json")
+        d = json.loads(out)  # the object alone, no text table
+        self.assertEqual(sorted(d), ["cards", "unattributed"])
+        self.assertEqual(d["unattributed"], 1)
+        c = {x["card"]: x for x in d["cards"]}["001-core"]
+        self.assertEqual(list(c), self.KEYS)
+        self.assertEqual((c["feature"], c["model"], c["used"], c["agents"], c["calls"]), ("001-widget", "sonnet", 791_000, 2, 3))
+        self.assertEqual((c["start"], c["end"]), ("2026-10-20T10:00:00Z", "2026-10-20T11:00:00Z"))
+        self.assertIsInstance(c["projected"], int)
+
+    def test_json_writes_nothing(self):
+        before = self.snapshot()
+        self.run_tasks("--dry-run", "--json")
+        self.assertEqual(self.snapshot(), before)
+
+    def test_json_without_dry_run_is_rejected(self):
+        before = self.snapshot()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as cm:
+            tr.p.parse_args(["tasks", f"--project={self.slug}", "--json"])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("--dry-run", err.getvalue())
+        self.assertEqual(self.snapshot(), before)
+
+    def test_text_output_unchanged_without_json(self):
+        self.assertIn("dry run, nothing written", self.run_tasks("--dry-run"))
+
+
 class IndexSeedTest(TasksFixture):
     def setUp(self):
         super().setUp()
@@ -610,6 +651,50 @@ class EventsTest(TasksFixture):
         self.assertEqual(r["executor_model"], "sonnet")
 
 
+class UsageSinceTest(TasksFixture):
+    def stamp(self, **delta):
+        return (datetime.now(timezone.utc) - timedelta(**delta)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def test_usage_since_sums_billable_after_the_cutoff_and_dedupes_by_id(self):
+        other = self.home / ".claude-b" / "projects" / "-other"
+        other.mkdir(parents=True)
+        (self.root / "s1.jsonl").write_text("\n".join([
+            msg("m1", "claude-sonnet-5-5", usage(100), self.stamp(minutes=10)),
+            msg("m2", "claude-sonnet-5-5", usage(200), self.stamp(minutes=5)),
+            msg("old", "claude-sonnet-5-5", usage(900), self.stamp(hours=3))]))
+        (other / "s9.jsonl").write_text(msg("m2", "claude-sonnet-5-5", usage(200), self.stamp(minutes=5)))  # same id, other account
+        dirs = tr.config_dirs()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        self.assertEqual(tr.usage_since(cutoff, dirs), 300)  # cache reads are not billable
+        msgs = tr.usage_messages(cutoff, dirs)
+        self.assertEqual(sorted(tr.bill(u) for _, _, u in msgs), [100, 200])
+
+
+class UsageRateTest(unittest.TestCase):
+    NOW = datetime(2026, 10, 31, 12, 0, 0, tzinfo=timezone.utc)
+
+    def msgs(self, *minutes_ago_and_out):
+        return [((self.NOW - timedelta(minutes=m)).strftime("%Y-%m-%dT%H:%M:%S"), "m", usage(out))
+                for m, out in minutes_ago_and_out]
+
+    def test_steady_rate_counts_only_the_window_and_only_billable_tokens(self):
+        msgs = self.msgs((1, 1000), (10, 1000), (20, 1000), (29, 1000), (45, 50_000))
+        self.assertEqual(tr.usage_rate(msgs, self.NOW, 30), (8000, 4))  # 4000 in 30 min = 8000 an hour
+
+    def test_idle_is_zero_messages(self):
+        self.assertEqual(tr.usage_rate(self.msgs((90, 5000)), self.NOW, 30), (0, 0))
+        self.assertEqual(tr.usage_rate([], self.NOW, 30), (0, 0))
+
+    def test_window_override(self):
+        msgs = self.msgs((1, 1000), (50, 1000), (55, 1000))
+        self.assertEqual(tr.usage_rate(msgs, self.NOW, 60), (3000, 3))
+        self.assertEqual(tr.usage_rate(msgs, self.NOW, 10), (6000, 1))
+
+    def test_minimum_messages_is_three(self):
+        self.assertEqual(tr.MIN_RATE_MESSAGES, 3)
+        self.assertEqual(tr.BUDGET_DEFAULTS["rate_window_minutes"], 30)
+
+
 class BudgetTest(TasksFixture):
     def stamp(self, **delta):
         return (datetime.now(timezone.utc) - timedelta(**delta)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -656,6 +741,60 @@ class BudgetTest(TasksFixture):
         self.assertEqual(json.loads(self.budget("--projected=opus:900k", "--json"))["verdict"], "stop")
         self.assertEqual(json.loads(self.budget("--projected=opus:900k", "--json"))["batches"], [])
 
+    def steady(self, n=4, out=50_000, spacing=5):
+        (self.root / "s1.jsonl").write_text("\n".join(
+            msg(f"r{i}", "claude-sonnet-5-5", usage(out), self.stamp(minutes=1 + i * spacing)) for i in range(n)))
+
+    def test_budget_reports_the_rate_and_each_caps_eta(self):
+        self.steady()  # 4 messages of 50k in the last 16 minutes: 200k in 30 min = 400k an hour
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json"))
+        self.assertEqual(data["rate"], {"per_hour": 400_000, "window_minutes": 30, "messages": 4})
+        self.assertEqual([(c["name"], c["left"], c["eta_minutes"]) for c in data["caps"]],
+                         [("session", 800_000, 120), ("week", 4_800_000, 720)])
+        for key in ("verdict", "why", "fit", "total", "need", "caps", "cards", "batches"):
+            self.assertIn(key, data)
+        text = self.budget("--projected=sonnet:10k")
+        self.assertIn("rate: 400k/h over the last 30 min (4 messages, all projects)", text)
+        self.assertLess(text.index("week: cap"), text.index("rate:"))
+
+    def test_budget_idle_has_a_zero_rate_and_no_eta(self):
+        (self.root / "s1.jsonl").write_text(msg("old", "claude-sonnet-5-5", usage(100), self.stamp(hours=2)))
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json"))
+        self.assertEqual(data["rate"], {"per_hour": 0, "window_minutes": 30, "messages": 0})
+        self.assertTrue(all(c["eta_minutes"] is None for c in data["caps"]))
+        self.assertIn("rate: idle for 30 min", self.budget("--projected=sonnet:10k"))
+
+    def test_budget_below_the_minimum_messages_has_no_rate_and_no_eta(self):
+        self.steady(n=2)
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json"))
+        self.assertIsNone(data["rate"])
+        self.assertTrue(all(c["eta_minutes"] is None for c in data["caps"]))
+        self.assertIn("rate: too few messages (2) in the last 30 min", self.budget("--projected=sonnet:10k"))
+
+    def test_budget_without_caps_still_prints_the_rate(self):
+        self.steady()
+        text = self.budget("--projected=sonnet:10k", yaml="max_agents: 2\n")
+        self.assertIn("rate: 400k/h", text)
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json", yaml="max_agents: 2\n"))
+        self.assertEqual((data["caps"], data["rate"]["per_hour"]), ([], 400_000))
+
+    def test_budget_rate_window_comes_from_budget_yaml(self):
+        self.steady(n=4, spacing=5)  # at 1, 6, 11 and 16 minutes ago
+        yaml = "session_billable: 1M\nweek_billable: 5M\nrate_window_minutes: 12\n"
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json", yaml=yaml))
+        self.assertEqual(data["rate"], {"per_hour": 50_000 * 3 * 5, "window_minutes": 12, "messages": 3})
+
+    def test_budget_session_window_reads_the_week_once(self):
+        self.steady()
+        calls = []
+        real = tr.usage_since
+        tr.usage_since = lambda *a, **k: calls.append(a) or real(*a, **k)
+        self.addCleanup(setattr, tr, "usage_since", real)
+        yaml = "session_billable: 1M\nweek_billable: 5M\nsession_window_hours: 2\n"
+        data = json.loads(self.budget("--projected=sonnet:10k", "--json", yaml=yaml))
+        self.assertEqual(calls, [])
+        self.assertEqual(data["caps"][0]["used"], 200_000)
+
     def test_cards_come_from_cards_md_and_the_week_cap_counts_too(self):
         self.agent("a1", "T001: 002-gadget build", 4_900_000, ts=self.stamp(days=3))  # old enough for the week, not the session
         self.main(1, ts=self.stamp(minutes=1))
@@ -686,6 +825,37 @@ class BudgetTest(TasksFixture):
         out = self.budget("--cards=001-core", f"--history={h}")
         self.assertIn("estimated, tags, p75 ~400k, confidence high", out)
         self.assertIn("~  300k", out)
+
+
+class PctParityTests(unittest.TestCase):
+    """The landing toast's percentage (hooks/landing-model.ts) answers the same table as pct_error."""
+
+    FIXTURES = Path(__file__).resolve().parent.parent / "hooks" / "pct-fixtures.ts"
+
+    def rows(self, name, width):
+        import re
+        text = self.FIXTURES.read_text(encoding="utf-8")
+        body = text.split(f"export const {name}", 1)[1].split("\n]\n", 1)[0]
+        rows = re.findall(r"\[([^\]]+)\]", body.split("= [", 1)[1])
+        out = [[c.strip().strip("'") for c in r.split(",")] for r in rows]
+        self.assertTrue(out)
+        for r in out:
+            self.assertEqual(len(r), width)
+        return out
+
+    def test_pct_error_gives_each_fixture_percentage(self):
+        for p, u, want in self.rows("PCT_FIXTURES", 3):
+            self.assertEqual(tr.pct_error(int(p), int(u)), want, f"{p}/{u}")
+
+    def test_cells_and_exact_figures_may_differ_by_a_point(self):
+        for cp, cu, cwant, ep, eu, ewant in self.rows("PCT_GAP_FIXTURES", 6):
+            self.assertEqual(tr.pct_error(int(cp), int(cu)), cwant)
+            self.assertEqual(tr.pct_error(int(ep), int(eu)), ewant)
+            self.assertEqual((tr.fmt_tok(int(ep)), tr.fmt_tok(int(eu))), (tr.fmt_tok(int(cp)), tr.fmt_tok(int(cu))))
+            self.assertEqual(abs(int(cwant[:-1]) - int(ewant[:-1])), 1)
+
+    def test_ledger_cell_prints_what_the_toast_reads(self):
+        self.assertEqual(tr.ledger_cell({"projected": 420_000, "used": 391_000}), "~420k / 391k")
 
 
 def shutil_copy(src, dst):

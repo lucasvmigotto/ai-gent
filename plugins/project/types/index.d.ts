@@ -1,5 +1,9 @@
 // What the project plugin's hooks module keeps in $.state.
 
+// One active band, as the `bands` atom records it (hooks/band-priority.ts
+// holds the same shape; this contract has to be self-contained).
+export type Band = { id: string; plugin: string; priority: 'hold' | 'failure' | 'normal' | 'info'; since: number; summary?: { text: string; tone: 'ok' | 'info' | 'warn' } }
+
 // The hand-off file as the band shows it (hooks/checkpoint.ts reads it).
 export type Checkpoint = {
   path: string
@@ -10,6 +14,17 @@ export type Checkpoint = {
   // A commit is newer than the file (checkpoint.py show warns the same).
   isStale: boolean
   mtimeMs: number
+}
+
+// Which hand-off nudges already toasted this session (hooks/handoff.ts): once
+// each, so a hot reload does not repeat them.
+export type HandoffToasted = {
+  context: boolean
+  compact: boolean
+  // A cap by its name (`session_billable`, `week_billable`).
+  caps: Record<string, boolean>
+  // When `token_report.py budget` last ran, in $.clock.now() milliseconds, for the 5-minute throttle.
+  lastBudgetAt: number | null
 }
 
 // The pipeline pane (hooks/pipeline-model.ts computes these from the files).
@@ -67,15 +82,59 @@ export type Snapshot = {
   computedAt: number
 }
 
+// The next-stage toast (hooks/nextstage.ts): the last recommendation seen, so a
+// change is told once.
+export type NextStageLast = Next | null
+
+// One decision of a guard plugin's guard, verb only (the five plugins' own
+// types declare the same shape; this contract has to be self-contained).
+export type GuardRow = {
+  at: number
+  guard: 'git' | 'db' | 'secrets' | 'repo' | 'containers'
+  decision: 'deny' | 'ask'
+  entry: string
+  tool: string
+  verb: string | null
+  outcome: 'asked' | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     project: {
       checkpoint: Shaped<Checkpoint | null>
       isBandHidden: boolean
+      handoffToasted: Shaped<HandoffToasted>
+      // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
+      bands: Band[]
+      // True while this plugin draws the workspace line (hooks/workspace.tsx); the other band plugins read it.
+      workspaceLeader: boolean
+      // Whether the workspace line's Details are open.
+      workspaceExpanded: boolean
+      // The context window's used percent as of the last turn or session start; null when the engine gave none.
+      contextPercent: number | null
       pipelineSnapshot: Shaped<Snapshot | null>
       pipelineIsOpen: boolean
       // Sections the person expanded, by name.
       pipelineExpanded: Record<string, boolean>
+      // The matrix filter, by readiness (`all` when never set).
+      pipelineFilter: 'all' | 'ready' | 'blocked' | 'done'
+      // When the poll last checked, in $.clock.now() milliseconds; 0 until the first check.
+      pipelineCheckedAt: number
+      // The interval the poll keeps now, in milliseconds; 0 when it is stopped or its last check failed.
+      pipelinePollMs: number
+      // The last `snapshot.next` seen; seeded at session start without a toast.
+      nextStageLast: Shaped<NextStageLast>
+      // `stage reason` keys already toasted this session.
+      nextStageShown: string[]
+      // `mtimeMs` of the watched artifacts at the last turn end, for writes made by other means.
+      nextStageMtimes: Record<string, number>
     }
+    // The other plugins' atoms, read-only here; each is absent when its plugin is not installed.
+    // guardLog is each guard plugin's own ring (spec 024); /guards reads all five.
+    git: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
+    repo: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
+    devcontainer: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
+    db: { guardLog: Shaped<GuardRow[]> }
+    secrets: { guardLog: Shaped<GuardRow[]> }
   }
 }

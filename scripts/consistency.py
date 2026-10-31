@@ -28,6 +28,8 @@
  10. The git plugin's repo-hygiene band recognizes a release by the subjects
      .github/workflows/release.yml and shared/release-platforms.md write
      (`chore(release): X.Y.Z`, `chore(release): merge X.Y.Z back into dev`).
+ 11. The JSON keys and finding kinds `leftovers.sh --json` prints are the ones
+     specs/025-container-disk-band/data-model.md documents (the band reads them).
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -302,12 +304,28 @@ def check_pipeline_paths(root: Path) -> list[str]:
     return problems
 
 
+def check_stage_names(root: Path) -> list[str]:
+    """Every artifact `stage` in the pane's model has a display name in STAGE_NAME (spec 029)."""
+    model = root / PIPELINE_MODEL
+    if not model.is_file():
+        return []
+    text = model.read_text(encoding="utf-8")
+    stages = set(re.findall(r"^\s*\{ path: .*?\bstage: '([^']+)'", text, re.M))
+    block = re.search(r"STAGE_NAME[^=]*=\s*\{(.*?)^\}", text, re.M | re.S)
+    names = set(re.findall(r"^\s*'([^']+)':", block.group(1), re.M)) if block else set()
+    problems = [f"{PIPELINE_MODEL}: stage '{s}' has no entry in STAGE_NAME" for s in sorted(stages - names)]
+    if not stages:
+        problems.append(f"{PIPELINE_MODEL}: no artifact stages found (the check reads `stage: '...'` on `{{ path: ... }}` lines)")
+    return problems
+
+
 GUARD_UX = "shared/guard-ux.ts"
 # Shared code a plugin's hooks module imports is COPIED into the plugins that use it
 # (the engine refuses an import through a symlink that leaves the plugin).
 SHARED_CODE = {
     "shared/guard-ux.ts": ("git", "db", "secrets", "repo", "devcontainer"),
     "shared/hook-lines.ts": ("git", "devcontainer"),
+    "shared/band-priority.ts": ("project", "git", "repo", "devcontainer"),
 }
 GUARD_PLUGINS = {"git": "git:workflow guard:", "db": "db guard:", "secrets": "secrets guard:", "repo": "repo guard:",
                  "devcontainer": "containers guard:"}
@@ -387,6 +405,68 @@ def check_release_subjects(root: Path) -> list[str]:
     return problems
 
 
+RELEASE_SCRIPTS = ("scripts/release.py", "shared/release-single.py")
+RELEASE_MODEL = "plugins/git/hooks/release-model.ts"
+
+
+def check_release_json(root: Path) -> list[str]:
+    """Both release scripts print the same keys for `--dry-run --json`."""
+    found: dict[str, tuple] = {}
+    problems = []
+    for rel in RELEASE_SCRIPTS:
+        path = root / rel
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        lists = []
+        for name in ("JSON_KEYS", "TARGET_KEYS"):
+            m = re.search(rf"^{name} = \(([^)]*)\)", text, re.M)
+            lists.append(tuple(re.findall(r'"([^"]+)"', m.group(1))) if m else None)
+        if None in lists:
+            problems.append(f"{rel}: JSON_KEYS and TARGET_KEYS not found (the check reads `NAME = (\"a\", ...)`)")
+        else:
+            found[rel] = tuple(lists)
+    if len(set(found.values())) > 1:
+        problems.append(f"{' and '.join(found)}: the --json key lists differ ({found})")
+    model = root / RELEASE_MODEL
+    if found and model.is_file():
+        text = model.read_text(encoding="utf-8")
+        got = []
+        for name in ("JSON_KEYS", "TARGET_KEYS"):
+            m = re.search(rf"^export const {name} = \[([^\]]*)\]", text, re.M)
+            got.append(tuple(re.findall(r"'([^']+)'", m.group(1))) if m else None)
+        if None in got:
+            problems.append(f"{RELEASE_MODEL}: JSON_KEYS and TARGET_KEYS not found (the check reads `export const NAME = ['a', ...]`)")
+        elif tuple(got) != next(iter(found.values())):
+            problems.append(f"{RELEASE_MODEL}: its key lists {tuple(got)} differ from the scripts' {next(iter(found.values()))}")
+    return problems
+
+
+LEFTOVERS = "plugins/devcontainer/hooks/leftovers.sh"
+LEFTOVERS_SPEC = "specs/025-container-disk-band/data-model.md"
+
+
+def check_leftovers_json(root: Path) -> list[str]:
+    """leftovers.sh --json prints exactly the keys and kinds the spec's data model shows."""
+    script, spec = root / LEFTOVERS, root / LEFTOVERS_SPEC
+    if not script.is_file() or not spec.is_file():
+        return []
+    code = script.read_text(encoding="utf-8")
+    block = re.search(r"## `--json` shape.*?```json\n(.*?)```", spec.read_text(encoding="utf-8"), re.S)
+    if not block:
+        return [f"{LEFTOVERS_SPEC}: no `--json` shape block"]
+    want_keys = set(re.findall(r'"(\w+)":', block.group(1)))
+    want_kinds = set(re.findall(r'"kind": "(\w+)"', block.group(1)))
+    emitted = "\n".join(line for line in code.splitlines() if not line.lstrip().startswith("#"))
+    got_keys = set(re.findall(r'\\?"(\w+)\\?":', emitted))
+    got_kinds = set(re.findall(r'\\"kind\\":\\"(\w+)\\"', emitted))
+    problems = []
+    for what, got, want in (("keys", got_keys, want_keys), ("kinds", got_kinds, want_kinds)):
+        if got != want:
+            problems.append(f"{LEFTOVERS}: --json {what} {sorted(got)} differ from {LEFTOVERS_SPEC} {sorted(want)}")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
     if "--sync-shared-code" in sys.argv[1:] or "--sync-guard-ux" in sys.argv[1:]:
         for shared, plugins in SHARED_CODE.items():
@@ -398,13 +478,13 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root) + check_release_subjects(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, release subjects, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, release subjects, release --json keys, leftovers JSON, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

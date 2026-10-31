@@ -20,6 +20,60 @@
       "title": "Token status refresh (seconds)",
       "description": "How often, after a turn, the budget is read again (it reads a week of transcripts)",
       "default": 120
+    },
+    "tokenBurnRate": {
+      "type": "boolean",
+      "title": "Token burn rate and ETA",
+      "description": "After each cap in the token status, how long what it leaves lasts at the current account-wide pace (session left 3.10M (~2h10m)); the script computes it, the window is rate_window_minutes in .ai-gent/budget.yaml",
+      "default": true
+    },
+    "tokenEtaWarnMinutes": {
+      "type": "number",
+      "title": "Token ETA warning (minutes)",
+      "description": "A toast when a cap would run out within this many minutes at the current pace, once per crossing; 0 turns the toast off and keeps the status",
+      "default": 30
+    },
+    "cardCostToast": {
+      "type": "boolean",
+      "title": "Card cost on landing",
+      "description": "A toast when a card lands with what it cost against what was projected (004-us1-core landed: used 391k vs ~420k projected (-7%)), and one when the wave's last card lands; read from the Tokens column of .ai-gent/orchestrate-status.md. Needs the token status on",
+      "default": true
+    },
+    "cardCostHintPercent": {
+      "type": "number",
+      "title": "Landing toast hint (percent)",
+      "description": "A miss of at least this many percent, over or under, adds a pointer to what to fix; 0 turns the hint off",
+      "default": 25
+    },
+    "cardsPane": {
+      "type": "boolean",
+      "title": "Card timeline pane",
+      "description": "/cards-pane opens a pane with the orchestrated cards (state, branch, tokens), the state changes seen while it is open and, on Measure, each card's span with the peak parallelism; it never opens by itself and does not depend on the token status",
+      "default": true
+    },
+    "cardsPollSeconds": {
+      "type": "number",
+      "title": "Card pane poll (seconds)",
+      "description": "How often the open pane checks whether the ledger changed (one stat; nothing else runs)",
+      "default": 5
+    },
+    "worktreeBoard": {
+      "type": "boolean",
+      "title": "Worktree board",
+      "description": "/worktree-board opens a pane with one row per .worktrees/<branch> (ahead and behind the dev branch, uncommitted changes and, when gh is signed in and origin is on GitHub, the pull request and its checks); read-only, it never opens by itself and does not depend on the token status",
+      "default": true
+    },
+    "worktreeBoardSeconds": {
+      "type": "number",
+      "title": "Worktree board refresh (seconds)",
+      "description": "How often the open board runs wt.py list --json again (a Bash call that runs wt.py, git commit or git merge refreshes it at once)",
+      "default": 15
+    },
+    "worktreeBoardRemoteSeconds": {
+      "type": "number",
+      "title": "Worktree board pull request refresh (seconds)",
+      "description": "How often the open board runs one gh pr list for the pull requests and their checks",
+      "default": 120
     }
   }
 }

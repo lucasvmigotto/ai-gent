@@ -20,6 +20,10 @@ export const snapshotAtom = atom({ plugin: 'project', key: 'pipelineSnapshot' } 
 })
 export const isOpenAtom = atom({ plugin: 'project', key: 'pipelineIsOpen' } as const, false)
 export const expandedAtom = atom({ plugin: 'project', key: 'pipelineExpanded' } as const, {})
+export const filterAtom = atom({ plugin: 'project', key: 'pipelineFilter' } as const, 'all')
+// The badge's evidence, written by the poll (never read from the clock while drawing).
+export const checkedAtAtom = atom({ plugin: 'project', key: 'pipelineCheckedAt' } as const, 0)
+export const pollMsAtom = atom({ plugin: 'project', key: 'pipelinePollMs' } as const, 0)
 
 // Marker scanning stops here; the pane says so.
 const MAX_FILES = 300
@@ -33,6 +37,7 @@ const dateByPath = new Map<string, { mtimeMs: number; date: string | null }>()
 let readme: { mtimeMs: number; rows: Row[] } | null = null
 let hasGit = true
 let ticker: Timer | null = null
+let intervalMs = 0
 
 async function commitDate($: EngineInterface, root: string, path: string, mtimeMs: number): Promise<string | null> {
   const known = dateByPath.get(path)
@@ -169,6 +174,9 @@ export async function compute($: EngineInterface): Promise<Snapshot> {
 // Reads the files and, when anything but the time changed, redraws the pane.
 export async function refresh($: EngineInterface): Promise<Snapshot> {
   const snapshot = await compute($)
+  // A check ran: the badge's evidence. It advances even when nothing changed.
+  await update($, checkedAtAtom, () => snapshot.computedAt)
+  await update($, pollMsAtom, () => (ticker === null ? 0 : intervalMs))
   const before = await read($, snapshotAtom)
   const same = before !== null && JSON.stringify({ ...before, computedAt: 0 }) === JSON.stringify({ ...snapshot, computedAt: 0 })
   if (!same) await update($, snapshotAtom, () => snapshot)
@@ -177,20 +185,23 @@ export async function refresh($: EngineInterface): Promise<Snapshot> {
 
 export async function tick($: EngineInterface): Promise<void> {
   if (!(await read($, isOpenAtom))) {
-    stop()
+    await stop($)
     return
   }
-  await refresh($).catch(() => undefined)
+  // A check that fails is not a check: the badge reads STALE until one succeeds.
+  await refresh($).catch(() => update($, pollMsAtom, () => 0))
 }
 
 export function start($: EngineInterface, seconds: number): void {
   if (ticker !== null) return
-  ticker = $.clock.every(Math.max(1, seconds) * 1000, () => void tick($))
+  intervalMs = Math.max(1, seconds) * 1000
+  ticker = $.clock.every(intervalMs, () => void tick($))
 }
 
-export function stop(): void {
+export async function stop($: EngineInterface): Promise<void> {
   ticker?.cancel()
   ticker = null
+  await update($, pollMsAtom, () => 0)
 }
 
 // Opens the pane (or focuses it) and starts reading. `isPlaced` says whether a
@@ -198,21 +209,34 @@ export function stop(): void {
 export async function open($: EngineInterface, seconds: number, isAsked: boolean): Promise<boolean> {
   const placed = await $.ui.open({ id: PANE, title: 'Pipeline', ...(isAsked ? { focus: true as const } : {}) })
   await update($, isOpenAtom, () => true)
-  await refresh($).catch(() => undefined)
   start($, seconds)
+  await refresh($).catch(() => undefined)
   return placed.isPlaced
 }
 
 export async function close($: EngineInterface): Promise<void> {
-  stop()
+  await stop($)
   await update($, isOpenAtom, () => false)
 }
 
-// A pane button: show or hide the markers, or put /project:status in the
-// prompt. It never submits: the person decides to run the full report.
-export async function press($: EngineInterface, id: 'markers' | 'status'): Promise<void> {
+// A pane button: show or hide the markers, put /project:status (or the
+// command the recommendation names) in the prompt, set the matrix filter or
+// open a row. It never submits: the person decides to run anything.
+export async function press($: EngineInterface, id: 'markers' | 'status' | 'fill' | 'filter' | 'toggle', arg = ''): Promise<void> {
   if (id === 'status') {
     await $.prompt.fill({ text: '/project:status' })
+    return
+  }
+  if (id === 'fill') {
+    if (arg.startsWith('/')) await $.prompt.fill({ text: arg })
+    return
+  }
+  if (id === 'filter') {
+    if (arg === 'all' || arg === 'ready' || arg === 'blocked' || arg === 'done') await update($, filterAtom, () => arg)
+    return
+  }
+  if (id === 'toggle') {
+    if (arg !== '') await update($, expandedAtom, current => ({ ...current, [arg]: current[arg] !== true }))
     return
   }
   await update($, expandedAtom, current => ({ ...current, markers: current.markers !== true }))
@@ -239,4 +263,10 @@ export function readExpanded($: EngineInterface): Promise<Record<string, boolean
 
 export function readIsOpen($: EngineInterface): Promise<boolean> {
   return read($, isOpenAtom)
+}
+
+// What the dashboard needs besides the snapshot, read here because an atom is
+// read only in the file that declares it.
+export async function readPaneState($: EngineInterface): Promise<{ filter: string; checkedAt: number; pollMs: number }> {
+  return { filter: await read($, filterAtom), checkedAt: await read($, checkedAtAtom), pollMs: await read($, pollMsAtom) }
 }

@@ -94,6 +94,15 @@ class SecretData(unittest.TestCase):
         (root / "shared/secret-cases.json").write_text(json.dumps({"vars": {}, "cases": [{"name": "n"}]}))
         self.assertEqual(len(consistency.check_secret_data(root)), 1)
 
+    def test_a_result_skip_survives_the_sync(self):
+        src = dict(self.SOURCES)
+        src["shared/secret-patterns.json"] = json.dumps({"patterns": [{"kind": "k", "source": "x", "flags": "", "replacement": "<r>", "skipIn": ["result"]}]})
+        root = tree(src)
+        self.assertIn('"skipIn": [\n        "result"\n      ]', consistency.secret_data_text(root))
+        (root / consistency.SECRET_DATA).parent.mkdir(parents=True, exist_ok=True)
+        (root / consistency.SECRET_DATA).write_text(consistency.secret_data_text(root))
+        self.assertEqual(consistency.check_secret_data(root), [])
+
     def test_the_repository_twin_is_in_sync(self):
         self.assertEqual(consistency.check_secret_data(consistency.ROOT), [])
 
@@ -114,6 +123,27 @@ class PipelinePaths(unittest.TestCase):
 
     def test_the_repository_agrees(self):
         self.assertEqual(consistency.check_pipeline_paths(consistency.ROOT), [])
+
+
+class StageNames(unittest.TestCase):
+    MODEL = ("  {{ path: BRIEF, label: 'brief', stage: '/project:init', after: [] }},\n"
+             "  {{ path: 'a.md', label: 'a', stage: '/project:architecture', after: [] }},\n"
+             "export const STAGE_NAME: Readonly<Record<string, string>> = {{\n{names}}}\n")
+
+    def problems(self, names):
+        body = "".join(f"  '{n}': 'x',\n" for n in names)
+        return consistency.check_stage_names(tree({consistency.PIPELINE_MODEL: self.MODEL.format(names=body)}))
+
+    def test_every_stage_named_passes(self):
+        self.assertEqual(self.problems(["/project:init", "/project:architecture"]), [])
+
+    def test_a_stage_without_a_name_fails(self):
+        problems = self.problems(["/project:init"])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("/project:architecture", problems[0])
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_stage_names(consistency.ROOT), [])
 
 
 class GuardUx(unittest.TestCase):
@@ -138,6 +168,38 @@ class GuardUx(unittest.TestCase):
         problems = self.problems(copy=self.SHARED + "// edited\n")
         self.assertEqual(len(problems), len(consistency.SHARED_CODE[consistency.GUARD_UX]))
         self.assertIn("--sync-shared-code", problems[0])
+
+    def test_a_band_priority_copy_that_differs_fails(self):
+        files = self.files()
+        files["shared/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/project/hooks/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/git/hooks/band-priority.ts"] = "export const a = 2\n"
+        files["plugins/repo/hooks/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/devcontainer/hooks/band-priority.ts"] = "export const a = 1\n"
+        problems = consistency.check_guard_ux(tree(files))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("plugins/git/hooks/band-priority.ts differs from shared/band-priority.ts", problems[0])
+
+    def test_the_repo_band_priority_copy_is_checked_too(self):
+        files = self.files()
+        files["shared/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/project/hooks/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/git/hooks/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/repo/hooks/band-priority.ts"] = "export const a = 2\n"
+        files["plugins/devcontainer/hooks/band-priority.ts"] = "export const a = 1\n"
+        problems = consistency.check_guard_ux(tree(files))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("plugins/repo/hooks/band-priority.ts differs", problems[0])
+
+    def test_the_devcontainer_band_priority_copy_is_checked_too(self):
+        files = self.files()
+        files["shared/band-priority.ts"] = "export const a = 1\n"
+        for plugin in ("project", "git", "repo"):
+            files[f"plugins/{plugin}/hooks/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/devcontainer/hooks/band-priority.ts"] = "export const a = 2\n"
+        problems = consistency.check_guard_ux(tree(files))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("plugins/devcontainer/hooks/band-priority.ts differs", problems[0])
 
     def test_a_reason_with_no_entry_fails(self):
         problems = self.problems(guard='decide ask "a brand new question"\ndecide deny "hooks must not be bypassed"\n')
@@ -240,6 +302,58 @@ class Tags(unittest.TestCase):
         dup["facets"]["lang"]["values"]["fix"] = "x"
         self.assertTrue(any("'fix' is in both" in m for m in consistency.check_vocab(
             tree({"shared/token-tags.json": json.dumps(dup), "shared/token-tags.md": VOCAB_DOC + " `fix`"}))))
+
+
+SPEC_DM = '## `--json` shape\n\n```json\n{"checked": true, "project": "p", "findings": [\n{"kind": "disk", "free_gb": 1, "floor_gb": 2, "store": "/"},\n{"kind": "dangling", "count": 2}]}\n{"checked": false, "reason": "no-engine"}\n```\n'
+SCRIPT = (
+    "#!/bin/sh\n# comment with \"ignored\":\n"
+    "printf '{\"checked\":false,\"reason\":\"%s\"}' x\n"
+    "printf '{\"checked\":true,\"project\":\"%s\",\"findings\":[%s]}' p f\n"
+    "add \"{\\\"kind\\\":\\\"disk\\\",\\\"free_gb\\\":$a,\\\"floor_gb\\\":$b,\\\"store\\\":\\\"s\\\"}\"\n"
+    "add \"{\\\"kind\\\":\\\"dangling\\\",\\\"count\\\":$n}\"\n"
+)
+
+
+class LeftoversJson(unittest.TestCase):
+    files = {consistency.LEFTOVERS: SCRIPT, consistency.LEFTOVERS_SPEC: SPEC_DM}
+
+    def test_matching_passes(self):
+        self.assertEqual(consistency.check_leftovers_json(tree(self.files)), [])
+
+    def test_renamed_key_fails(self):
+        files = {**self.files, consistency.LEFTOVERS: SCRIPT.replace("floor_gb", "floor")}
+        self.assertTrue(consistency.check_leftovers_json(tree(files)))
+
+    def test_unknown_kind_fails(self):
+        files = {**self.files, consistency.LEFTOVERS: SCRIPT + 'add "{\\"kind\\":\\"extra\\",\\"count\\":1}"\n'}
+        self.assertTrue(consistency.check_leftovers_json(tree(files)))
+
+    def test_spec_key_missing_from_script_fails(self):
+        files = {**self.files, consistency.LEFTOVERS_SPEC: SPEC_DM.replace('"store": "/"', '"store": "/", "extra": 1')}
+        self.assertTrue(consistency.check_leftovers_json(tree(files)))
+
+
+class ReleaseJson(unittest.TestCase):
+    PY = 'JSON_KEYS = ("version", "bump")\nTARGET_KEYS = ("kind", "label")\n'
+
+    def model(self, keys="'version', 'bump'", target="'kind', 'label'"):
+        return f"export const JSON_KEYS = [{keys}] as const\nexport const TARGET_KEYS = [{target}] as const\n"
+
+    def files(self, model):
+        return {"scripts/release.py": self.PY, "shared/release-single.py": self.PY, consistency.RELEASE_MODEL: model}
+
+    def test_equal_lists_pass(self):
+        self.assertEqual(consistency.check_release_json(tree(self.files(self.model()))), [])
+
+    def test_a_model_key_list_that_differs_fails(self):
+        self.assertEqual(len(consistency.check_release_json(tree(self.files(self.model(keys="'version'"))))), 1)
+        self.assertEqual(len(consistency.check_release_json(tree(self.files(self.model(target="'kind'"))))), 1)
+
+    def test_a_model_without_the_lists_fails(self):
+        self.assertEqual(len(consistency.check_release_json(tree(self.files("export const X = 1\n")))), 1)
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_release_json(consistency.ROOT), [])
 
 
 class Budget(unittest.TestCase):
