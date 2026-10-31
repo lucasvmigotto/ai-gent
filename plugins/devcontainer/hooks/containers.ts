@@ -9,7 +9,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { ContainersState } from '../types'
 import { recordBands } from './bands'
-import { TRIGGER, commandText, priorityOf, readReport } from './containers-model'
+import { TRIGGER, commandText, priorityOf, readReport, summaryOf } from './containers-model'
 import type { Report } from './containers-model'
 
 export type Options = { containersBand?: boolean; containersRefreshSeconds?: number; containersCommand?: boolean }
@@ -56,7 +56,7 @@ async function readOnce($: EngineInterface): Promise<void> {
 export async function recordContainersBand($: EngineInterface): Promise<void> {
   const state = await read($, stateAtom)
   const isActive = state !== null && state.checked && state.findings.length > 0
-  await recordBands($, isActive ? [{ id: CONTAINERS, priority: priorityOf(state.findings) }] : [])
+  await recordBands($, isActive ? [{ id: CONTAINERS, priority: priorityOf(state.findings), summary: summaryOf(state.findings) }] : [])
 }
 
 // Module-level: a second caller joins the read that is running.

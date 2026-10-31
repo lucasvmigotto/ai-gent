@@ -472,3 +472,15 @@ test('ciBand off leaves the guard presentation working', { options: { ciBand: fa
   expect(ran.isError).toBe(true)
   expect(w.toasts.some(t => t.includes('repo guard refused this'))).toBe(true)
 })
+
+test('with the project plugin leading, a running or green CI folds into its workspace line; a failed one still draws', async ($, on) => {
+  const w = world(on)
+  w.atoms.project = true as never
+  w.list = [out(RUNNING)]
+  await pushed(w, $)
+  expect(await band($)).toBeUndefined()
+  w.list = [out(RED)]
+  await $.tool.call(PUSH as never)
+  await w.clock.settle()
+  expect(await band($)).toMatch(/^CI for 3a9f1c2 on dev: Docs CI ⏳ · check ✗/)
+})

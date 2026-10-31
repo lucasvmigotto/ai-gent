@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { JSON_KEYS, MOVES_RELEASE, TARGET_KEYS, bandText, failureText, isReleaseBranch, keyOf, parsePlan } from './release-model'
+import { JSON_KEYS, MOVES_RELEASE, TARGET_KEYS, bandText, failureText, isReleaseBranch, keyOf, parsePlan, summaryOf } from './release-model'
 
 const target = (kind: string, label: string) => ({ kind, label, from: '1.0.0', to: '1.1.0', bump: 'minor' })
 const json = (over: Record<string, unknown> = {}) =>
@@ -66,4 +66,8 @@ test('commands that can change HEAD or the tags are told apart from the rest', (
     expect(MOVES_RELEASE.test(yes), yes).toBe(true)
   }
   for (const no of ['git status', 'echo git tag', 'git log --oneline', 'git push']) expect(MOVES_RELEASE.test(no), no).toBe(false)
+})
+
+test('the workspace summary is the version only', () => {
+  expect(summaryOf({ version: '2.23.0', bump: 'minor', since: '2.22.0', plugins: 3 })).toEqual({ text: 'Release 2.23.0', tone: 'info' })
 })

@@ -8,7 +8,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import { DEFAULT_CAP, clampCap, listing, moreLine, moreLiner, parseBands, visible } from './band-priority'
+import { DEFAULT_CAP, clampCap, listing, moreLine, moreLiner, parseBands, split, visible } from './band-priority'
 import type { Band } from './band-priority'
 
 export type Options = { bandCap?: number; bandsCommand?: boolean }
@@ -20,12 +20,12 @@ export const cap = (options: Options): number => clampCap(options.bandCap ?? DEF
 // Records whether this plugin's band `id` is active now (`priority`) or not (null),
 // leaving its other bands as they are. A band that was already active keeps its
 // `since`, so ties keep their order from one draw to the next.
-export async function setBand($: EngineInterface, id: string, priority: Band['priority'] | null): Promise<void> {
+export async function setBand($: EngineInterface, id: string, priority: Band['priority'] | null, summary?: Band['summary']): Promise<void> {
   const now = await $.clock.now().catch(() => 0)
   await update($, bandsAtom, before => {
     const since = before.find(band => band.id === id)?.since
     const rest = before.filter(band => band.id !== id)
-    return priority === null ? rest : [...rest, { id, priority, plugin: 'git', since: since ?? now }]
+    return priority === null ? rest : [...rest, { id, priority, plugin: 'git', since: since ?? now, ...(summary === undefined ? {} : { summary }) }]
   })
 }
 
@@ -42,16 +42,24 @@ export async function allBands($: EngineInterface): Promise<Band[]> {
   return [...own, ...others.flat()]
 }
 
+// True while the project plugin draws the workspace line (specs/031-session-chrome): the
+// bands that carry a summary then fold into it instead of drawing alone. Absent, older or
+// throwing reads as false, so every band draws as before.
+export async function folding($: EngineInterface): Promise<boolean> {
+  return (await read($, { plugin: 'project', key: 'workspaceLeader' } as const).catch(() => false)) === true
+}
+
 // What this plugin's band `id` does at this draw: whether it draws, and the dim
 // line when it is the plugin whose hidden band owns it.
 export async function plan($: EngineInterface, id: string, options: Options): Promise<{ draws: boolean; more: string | null }> {
-  const bands = await allBands($)
+  // A band folded into the workspace line neither draws alone nor counts toward the cap.
+  const { rest } = split(await allBands($), await folding($))
   const max = cap(options)
-  const shown = visible(bands, max)
-  const hidden = bands.length - shown.length
-  return { draws: shown.includes(id), more: moreLiner(bands, max) === id ? moreLine(hidden) : null }
+  const shown = visible(rest, max)
+  const hidden = rest.length - shown.length
+  return { draws: shown.includes(id), more: moreLiner(rest, max) === id ? moreLine(hidden) : null }
 }
 
 export async function bandsText($: EngineInterface, options: Options): Promise<string> {
-  return listing(await allBands($), cap(options))
+  return listing(await allBands($), cap(options), await folding($))
 }

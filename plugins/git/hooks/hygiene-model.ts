@@ -1,4 +1,5 @@
 import type { BranchState, ChainBranch } from '../types'
+import type { Summary } from './band-priority'
 
 // What the repo-hygiene band says, from git's own output. Pure: no `$`, so the
 // band and the tests share it as it is. It only says what git:workflow already
@@ -67,6 +68,16 @@ export function sentence(states: readonly BranchState[], columns: number, fetche
   if (behind.length > 0) action.push(`git pull --ff-only on ${behind.map(s => s.name).join(' and ')} before the next commit`)
   if (diverged.length > 0) action.push(`${diverged.map(s => s.name).join(' and ')}: see git:workflow, don't pull`)
   return `${parts.join('; ')} — ${action.join('; ')}${stale}`
+}
+
+// The band's compact form for the workspace line (specs/031-session-chrome): a warning naming
+// the branches behind their remote (`main behind origin`) and, apart, the ones that diverged.
+// None when the full sentence has nothing to say. The full sentence stays the band's own words.
+export function summaryOf(states: readonly BranchState[]): Summary | undefined {
+  const behind = states.filter(s => s.behind > 0 && s.ahead === 0).map(s => s.name)
+  const diverged = states.filter(s => s.behind > 0 && s.ahead > 0).map(s => s.name)
+  const parts = [...(behind.length > 0 ? [`${behind.join(' and ')} behind origin`] : []), ...(diverged.length > 0 ? [`${diverged.join(' and ')} diverged from origin`] : [])]
+  return parts.length === 0 ? undefined : { text: parts.join('; '), tone: 'warn' }
 }
 
 // Commands that move refs: after one, the comparison is read again.

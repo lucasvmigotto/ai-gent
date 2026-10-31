@@ -1,4 +1,5 @@
 import type { Finding, Priority, ReportProblem } from '../types'
+import type { Summary } from './band-priority'
 
 // What the container and disk band says (specs/025-container-disk-band), from
 // `leftovers.sh --json`. Pure: no `$`, so the band, /containers and the tests
@@ -76,6 +77,15 @@ export function bandText(findings: readonly Finding[], columns: number): string 
 
 // A disk under the floor is worth the room of a normal band; leftovers give way first.
 export const priorityOf = (findings: readonly Finding[]): Priority => (findings.some(finding => finding.kind === 'disk') ? 'normal' : 'info')
+
+// The band's compact form for the workspace line (specs/031-session-chrome): leftovers as one
+// warning with a count (a finding without one counts once). None while the disk is under its floor:
+// a low disk always draws on its own, in full. The script gives no count of running containers, so none is made up.
+export function summaryOf(findings: readonly Finding[]): Summary | undefined {
+  if (findings.length === 0 || findings.some(finding => finding.kind === 'disk')) return undefined
+  const total = findings.reduce((sum, finding) => sum + Math.max(1, Math.floor(finding.count ?? 1)), 0)
+  return { text: `${total} container leftover${total === 1 ? '' : 's'}`, tone: 'warn' }
+}
 
 const REASONS: Record<string, string> = {
   'no-engine': 'no container engine found',

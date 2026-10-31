@@ -1,4 +1,5 @@
 import type { ReleasePlan } from '../types'
+import type { Summary } from './band-priority'
 import { CHAIN } from './hygiene-model'
 
 // What the release-readiness band says (specs/028-release-readiness-band), from
@@ -43,6 +44,9 @@ export function bandText(plan: ReleasePlan, columns: number, isBehind: boolean):
   const stale = isBehind ? ' (local branch is behind origin)' : ''
   return `next release ${plan.version} (${plan.bump}, ${since})${count}${stale} — /release-preview for the plan`
 }
+
+// The band's compact form for the workspace line (specs/031-session-chrome): the next version only.
+export const summaryOf = (plan: ReleasePlan): Summary => ({ text: `Release ${plan.version}`, tone: 'info' })
 
 // The dim line for a run that gave no plan: exit code (null: never started) and stderr.
 export function failureText(exitCode: number | null, stderr: string): string {

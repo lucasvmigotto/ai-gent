@@ -2,7 +2,7 @@
 
 // One active band, as the `bands` atom records it (hooks/band-priority.ts
 // holds the same shape; this contract has to be self-contained).
-export type Band = { id: string; plugin: string; priority: 'hold' | 'failure' | 'normal' | 'info'; since: number }
+export type Band = { id: string; plugin: string; priority: 'hold' | 'failure' | 'normal' | 'info'; since: number; summary?: { text: string; tone: 'ok' | 'info' | 'warn' } }
 
 // One run of the pushed commit, from `gh run list --json databaseId,name,status,conclusion,workflowName,headSha`.
 export type CiRun = { id: number; workflow: string; name: string; status: string; conclusion: string }
@@ -44,7 +44,8 @@ declare module 'claude-code' {
       bands: Band[]
     }
     // The other band plugins' atoms, read-only here; each is absent when its plugin is not installed.
-    project: { bands: Band[] }
+    // `workspaceLeader`: the project plugin draws the workspace line, so bands with a summary fold into it.
+    project: { bands: Band[]; workspaceLeader: boolean }
     git: { bands: Band[] }
     devcontainer: { bands: Band[] }
   }

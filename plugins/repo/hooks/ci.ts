@@ -10,7 +10,7 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { CiDetect, CiRuns, CiTimer } from '../types'
 import { recordBands } from './bands'
-import { delayMs, detectArgv, gate, isDone, isPush, newFailures, parseDetect, parseRuns, priorityOf, runListArgv, toastText } from './ci-model'
+import { delayMs, detectArgv, gate, isDone, isPush, newFailures, parseDetect, parseRuns, priorityOf, runListArgv, summaryOf, toastText } from './ci-model'
 
 export type CiOptions = { ciBandPollSeconds?: number; ciBandMinutes?: number; ciBandUsePass?: boolean }
 
@@ -45,7 +45,7 @@ export async function recordCiBand($: EngineInterface): Promise<void> {
   const ci = await read($, runsAtom)
   const hidden = await read($, hiddenAtom)
   const isActive = ci !== null && hidden !== ci.sha
-  await recordBands($, isActive ? [{ id: CI, priority: priorityOf(ci.runs) }] : [])
+  await recordBands($, isActive ? [{ id: CI, priority: priorityOf(ci.runs), summary: summaryOf(ci.runs) }] : [])
 }
 
 export async function readCi($: EngineInterface): Promise<{ ci: CiRuns; hidden: boolean } | null> {

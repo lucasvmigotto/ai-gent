@@ -2,7 +2,7 @@
 
 // One active band, as the `bands` atom records it (hooks/band-priority.ts
 // holds the same shape; this contract has to be self-contained).
-export type Band = { id: string; plugin: string; priority: 'hold' | 'failure' | 'normal' | 'info'; since: number }
+export type Band = { id: string; plugin: string; priority: 'hold' | 'failure' | 'normal' | 'info'; since: number; summary?: { text: string; tone: 'ok' | 'info' | 'warn' } }
 
 // The hand-off file as the band shows it (hooks/checkpoint.ts reads it).
 export type Checkpoint = {
@@ -94,6 +94,12 @@ declare module 'claude-code' {
       handoffToasted: Shaped<HandoffToasted>
       // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
       bands: Band[]
+      // True while this plugin draws the workspace line (hooks/workspace.tsx); the other band plugins read it.
+      workspaceLeader: boolean
+      // Whether the workspace line's Details are open.
+      workspaceExpanded: boolean
+      // The context window's used percent as of the last turn or session start; null when the engine gave none.
+      contextPercent: number | null
       pipelineSnapshot: Shaped<Snapshot | null>
       pipelineIsOpen: boolean
       // Sections the person expanded, by name.

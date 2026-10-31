@@ -2,7 +2,7 @@
 // `$`, so the unit tests need no engine. ci.ts feeds it.
 
 import type { CiDetect, CiRun, CiRuns } from '../types'
-import type { Priority } from './band-priority'
+import type { Priority, Summary } from './band-priority'
 
 // A `git push` in a command line (not an echo of one), and the ones that change nothing.
 const PUSH = /(^|[;&|(])\s*(?:\w+=\S*\s+)*git\s+(?:-C\s+\S+\s+)?push\b/
@@ -70,6 +70,15 @@ export const isDone = (runs: readonly CiRun[]): boolean => runs.every(run => run
 
 // For the band-priority rule: failure while a run failed, normal otherwise.
 export const priorityOf = (runs: readonly CiRun[]): Priority => (runs.some(isFailed) ? 'failure' : 'normal')
+
+// The band's compact form for the workspace line (specs/031-session-chrome): none while a run
+// failed (a failure always draws on its own) or when no run started; `CI passing` once every
+// run succeeded, `CI running` while one is going.
+export function summaryOf(runs: readonly CiRun[]): Summary | undefined {
+  if (runs.length === 0 || runs.some(isFailed)) return undefined
+  if (!isDone(runs)) return { text: 'CI running', tone: 'info' }
+  return runs.every(run => run.conclusion === 'success') ? { text: 'CI passing', tone: 'ok' } : { text: 'CI finished', tone: 'info' }
+}
 
 // Failing runs not toasted yet.
 export const newFailures = (runs: readonly CiRun[], toasted: readonly number[]): CiRun[] => runs.filter(run => isFailed(run) && !toasted.includes(run.id))

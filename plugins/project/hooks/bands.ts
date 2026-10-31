@@ -8,12 +8,14 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import { DEFAULT_CAP, clampCap, listing, moreLine, moreLiner, parseBands, visible } from './band-priority'
+import { DEFAULT_CAP, clampCap, listing, moreLine, moreLiner, parseBands, split, visible } from './band-priority'
 import type { Band } from './band-priority'
 
 export type Options = { bandCap?: number; bandsCommand?: boolean }
 
 const bandsAtom = atom({ plugin: 'project', key: 'bands' } as const, [] as Band[])
+
+const workspaceLeaderAtom = atom({ plugin: 'project', key: 'workspaceLeader' } as const, false)
 
 export const cap = (options: Options): number => clampCap(options.bandCap ?? DEFAULT_CAP)
 
@@ -40,16 +42,29 @@ export async function allBands($: EngineInterface): Promise<Band[]> {
   return [...own, ...others.flat()]
 }
 
+// True while the project plugin draws the workspace line (specs/031-session-chrome): the
+// bands that carry a summary then fold into it instead of drawing alone. Absent, older or
+// throwing reads as false, so every band draws as before.
+export async function folding($: EngineInterface): Promise<boolean> {
+  return (await read($, workspaceLeaderAtom).catch(() => false)) === true
+}
+
+// Says whether this plugin draws the workspace line; the other band plugins read it to fold their summaries in.
+export async function declareLeader($: EngineInterface, isLeader: boolean): Promise<void> {
+  if ((await read($, workspaceLeaderAtom)) !== isLeader) await update($, workspaceLeaderAtom, () => isLeader)
+}
+
 // What this plugin's band `id` does at this draw: whether it draws, and the dim
 // line when it is the plugin whose hidden band owns it.
 export async function plan($: EngineInterface, id: string, options: Options): Promise<{ draws: boolean; more: string | null }> {
-  const bands = await allBands($)
+  // A band folded into the workspace line neither draws alone nor counts toward the cap.
+  const { rest } = split(await allBands($), await folding($))
   const max = cap(options)
-  const shown = visible(bands, max)
-  const hidden = bands.length - shown.length
-  return { draws: shown.includes(id), more: moreLiner(bands, max) === id ? moreLine(hidden) : null }
+  const shown = visible(rest, max)
+  const hidden = rest.length - shown.length
+  return { draws: shown.includes(id), more: moreLiner(rest, max) === id ? moreLine(hidden) : null }
 }
 
 export async function bandsText($: EngineInterface, options: Options): Promise<string> {
-  return listing(await allBands($), cap(options))
+  return listing(await allBands($), cap(options), await folding($))
 }
