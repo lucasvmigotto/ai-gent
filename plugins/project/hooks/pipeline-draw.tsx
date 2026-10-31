@@ -162,7 +162,22 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
       </Box>
 
       <Box key="features" flexDirection="column">
-        {title('Features')}
+        <Box key="features-head" gap={2}>
+          {title('Features')}
+          {m.featuresOpen ? null : (
+            <Text dimColor>
+              {[`${m.filter.counts.all} ${m.filter.counts.all === 1 ? 'feature' : 'features'}`, `Ready ${m.filter.counts.ready}`, `Blocked ${m.filter.counts.blocked}`, `Done ${m.filter.counts.done}`].join(` ${sep} `)}
+            </Text>
+          )}
+          <Button
+            key="button-features"
+            plain
+            label={`${GLYPH[m.featuresOpen ? 'open' : 'closed'][ascii ? 1 : 0]} ${m.featuresOpen ? 'Hide' : 'Show'}`}
+            onPress={() => handlers.onToggle('features')}
+          />
+        </Box>
+        {m.featuresOpen ? (
+          <Box key="features-body" flexDirection="column">
         <Box gap={2}>
           {(['all', 'ready', 'blocked', 'done'] as const).map(f => (
             <Button
@@ -184,6 +199,8 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
               .map(([key, label]) => `${GLYPH[key as 'planned'][ascii ? 1 : 0]} ${label}`)
               .join('  ')}
           </Text>
+        ) : null}
+          </Box>
         ) : null}
       </Box>
 

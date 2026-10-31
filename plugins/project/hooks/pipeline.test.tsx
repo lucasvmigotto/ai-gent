@@ -315,9 +315,12 @@ test('the dashboard is the default: every region is there on every surface, in n
   await $.session.start(START)
   for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    for (const key of ['header', 'summary', 'artifacts', 'progress', 'features', 'items', 'next', 'artifact:docs/product/brief.md', 'feature:002', 'marker:clarification']) {
+    for (const key of ['header', 'summary', 'artifacts', 'progress', 'features', 'items', 'next', 'artifact:docs/product/brief.md', 'marker:clarification', 'button-features']) {
       expect(await ui.find({ key })).toBeDefined()
     }
+    // collapsed on the first mount; the atom keeps it open for the next surface
+    if ((await ui.find({ key: 'feature:002' })) === undefined) await ui.press({ key: 'button-features' })
+    expect(await ui.find({ key: 'feature:002' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /PIPELINE/ })).toBeDefined()
     const { types, texts } = walk(await ui.drawn())
     expect(types.every(t => ['Box', 'Text', 'Button'].includes(t))).toBe(true)
@@ -346,6 +349,7 @@ test('the dashboard shows the features as a matrix and an idle redraw reads noth
   const w = world(on, { ...PIPELINE })
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'button-features' })
   expect((await ui.find({ key: 'feature:002' }))?.text).toMatch(/002.*search.*P1.*ready.*In progress.*Planned/)
   expect((await ui.find({ key: 'feature:003' }))?.text).toMatch(/003.*guides.*blocked/)
   const spawned = w.runs.length
@@ -398,6 +402,7 @@ test('the row cap and the layout option reach the pane', { options: { pipelineMa
   world(on, { ...PIPELINE })
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'button-features' })
   expect(await ui.find({ key: 'feature:003' })).toBeDefined()
   expect(await ui.find({ key: 'feature:004' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /\+6 more; filter to see them/ })).toBeDefined()
@@ -426,6 +431,7 @@ test('the filter buttons write the atom, mark the active one and keep the legend
   const w = world(on, { ...PIPELINE })
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 60 }, surface: 'terminal' })
+  await ui.press({ key: 'button-features' })
   expect(await ui.find({ key: 'feature:001' })).toBeDefined()
   const spawned = w.runs.length
   await ui.press({ key: 'filter:blocked' })
@@ -443,6 +449,7 @@ test('pressing a feature or an artifact opens its details, and again closes them
   w.dates[BRIEF] = '2026-10-01'
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 44 }, surface: 'terminal' })
+  await ui.press({ key: 'button-features' })
   expect(await ui.find({ type: 'Text', text: /Depends on/ })).toBeUndefined()
   await ui.press({ key: 'toggle:feature:003' })
   expect(await ui.find({ type: 'Text', text: /Depends on/ })).toBeDefined()
@@ -483,5 +490,30 @@ test('a recommendation that is not a command has no run button', async ($, on) =
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /◆ Ask the user/ })).toBeDefined()
   expect(await ui.find({ key: 'button-next' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the Features toggle survives a poll and keeps the selected feature and filter across collapsing', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 60 }, surface: 'terminal' })
+  expect(await ui.find({ key: 'feature:001' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Ready 3 · Blocked 2 · Done 4/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Artifacts ready|ready · / })).toBeDefined()
+  await ui.press({ key: 'button-features' })
+  expect(await ui.find({ key: 'feature:001' })).toBeDefined()
+  await ui.press({ key: 'filter:blocked' })
+  await ui.press({ key: 'toggle:feature:003' })
+  // a poll with a changed snapshot does not reset it
+  w.files[ARCH] = '# Architecture'
+  w.mtime[ARCH] = 99
+  await w.clock.advance(5_000)
+  expect(await ui.find({ key: 'feature:003' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Depends on/ })).toBeDefined()
+  await ui.press({ key: 'button-features' })
+  expect(await ui.find({ key: 'feature:003' })).toBeUndefined()
+  await ui.press({ key: 'button-features' })
+  expect(await ui.find({ type: 'Text', text: /Depends on/ })).toBeDefined()
+  expect(await ui.find({ key: 'feature:001' })).toBeUndefined()
   await ui.unmount()
 })

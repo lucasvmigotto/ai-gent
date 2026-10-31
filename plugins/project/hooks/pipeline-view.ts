@@ -119,6 +119,8 @@ export type PipelineView = {
   mode: Mode
   // Which columns the feature matrix has at this width.
   matrix: { tier: Tier; words: boolean }
+  // The Features section is collapsed until the person opens it (the `features` key of the expanded atom).
+  featuresOpen: boolean
   ascii: boolean
   // No artifact exists yet: the dashboard is not drawn, 013's lines say so.
   isEmpty: boolean
@@ -190,6 +192,8 @@ export const GLYPH = {
   edge: ['▎', '|'],
   branch: ['└─', '`-'],
   dep: ['↳', '-'],
+  closed: ['▸', '>'],
+  open: ['▾', 'v'],
   barDone: ['█', '#'],
   barPlanned: ['▒', '='],
   barOther: ['░', '-'],
@@ -517,6 +521,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   return {
     mode,
     matrix: { tier: plan.tier, words },
+    featuresOpen: ctx.expanded.features === true,
     ascii,
     isEmpty: !hasArtifacts,
     header: { title: 'PIPELINE', badge: isLive ? 'LIVE' : 'STALE', caption },
@@ -613,11 +618,14 @@ export function dashboardText(snapshot: Snapshot, ctx: Context): string[] {
   }
 
   const features = by('features')
-  lines.push('', 'Features', FILTERS.map(f => `${f === m.filter.active ? `${glyph('implemented', m.ascii)} ` : ''}${f[0]?.toUpperCase()}${f.slice(1)} ${m.filter.counts[f]}`).join('  '))
-  if (features.rows.length > 0) lines.push(...tableLines(features, m.mode, m.ascii, false))
-  if (features.empty) lines.push(features.empty)
-  if (features.more) lines.push(features.more)
-  if (!m.matrix.words && features.rows.length > 0) {
+  if (!m.featuresOpen) {
+    const c = m.filter.counts
+    lines.push('', `Features  ${[`${c.all} ${plural(c.all, 'feature')}`, `Ready ${c.ready}`, `Blocked ${c.blocked}`, `Done ${c.done}`].join(sep)}  ${glyph('closed', m.ascii)} Show`)
+  } else lines.push('', `Features  ${glyph('open', m.ascii)} Hide`, FILTERS.map(f => `${f === m.filter.active ? `${glyph('implemented', m.ascii)} ` : ''}${f[0]?.toUpperCase()}${f.slice(1)} ${m.filter.counts[f]}`).join('  '))
+  if (m.featuresOpen && features.rows.length > 0) lines.push(...tableLines(features, m.mode, m.ascii, false))
+  if (m.featuresOpen && features.empty) lines.push(features.empty)
+  if (m.featuresOpen && features.more) lines.push(features.more)
+  if (m.featuresOpen && !m.matrix.words && features.rows.length > 0) {
     lines.push(`${glyph('planned', m.ascii)} Planned  ${glyph('progress', m.ascii)} In progress  ${glyph('partial', m.ascii)} Partial  ${glyph('implemented', m.ascii)} Implemented  ${glyph('verified', m.ascii)} Verified  ${glyph('none', m.ascii)} N/A`)
   }
 

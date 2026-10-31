@@ -219,7 +219,7 @@ test('every toned cell has a glyph or a word beside its colour', () => {
 
 test('golden: the dashboard text at 120 and 80 columns, in Unicode and in ASCII', () => {
   const draw = (columns: number, ascii: boolean) =>
-    dashboardText(snapshotOf(), ctx({ columns, ascii, checkedAt: 1_700_000_000_000, now: 1_700_000_000_000 })).map(l => l.replace(/\d\d:\d\d:\d\d/, 'HH:MM:SS'))
+    dashboardText(snapshotOf(), ctx({ columns, ascii, expanded: { features: true }, checkedAt: 1_700_000_000_000, now: 1_700_000_000_000 })).map(l => l.replace(/\d\d:\d\d:\d\d/, 'HH:MM:SS'))
   expect(draw(120, false)).toEqual(DASHBOARD_120)
   expect(draw(120, true)).toEqual(DASHBOARD_120_ASCII)
   expect(draw(80, false)).toEqual(DASHBOARD_80)
@@ -272,7 +272,7 @@ test('the narrow Status cell is the feature state, and filters and the legend st
   expect(rows.find(r => r.key === 'feature:001')?.cells[2]).toMatchObject({ text: 'Implemented', tone: 'good' })
   expect(rows.find(r => r.key === 'feature:007')?.cells[2]).toMatchObject({ text: 'Retired' })
   expect(section(snapshotOf(), 'features', { columns: 40, filter: 'blocked' }).rows.map(r => r.key)).toEqual(['feature:003', 'feature:009'])
-  const legend = (columns: number) => dashboardText(snapshotOf(), ctx({ columns })).some(l => l.startsWith('○ Planned'))
+  const legend = (columns: number) => dashboardText(snapshotOf(), ctx({ columns, expanded: { features: true } })).some(l => l.startsWith('○ Planned'))
   expect([legend(44), legend(60), legend(120), legend(40)]).toEqual([true, true, false, false])
 })
 
@@ -376,4 +376,41 @@ test('a name with no word break near the end is cut mid-word, and one with a bre
   expect(named('alpha-beta-gamma-delta-epsilon-zeta')).toBe('alpha-beta-gamma-delta…')
   expect(named('alpha-beta-gamma-delt_epsilon-zeta')).toBe('alpha-beta-gamma-delt…')
   expect(named('short')).toBe('short')
+})
+
+// ------------------------------------------------- the Features section collapses
+
+test('the Features section is collapsed by default, with its counts from the model and the summary in view', () => {
+  const m = build(snapshotOf(), ctx())
+  expect(m.featuresOpen).toBe(false)
+  expect(build(snapshotOf(), ctx({ expanded: { features: true } })).featuresOpen).toBe(true)
+  const text = dashboardText(snapshotOf(), ctx())
+  expect(text).toContain('Features  9 features · Ready 3 · Blocked 2 · Done 4  ▸ Show')
+  expect(text[2]).toBe('2 Artifacts ready    9 Features    1 Clarification')
+  expect(text.some(l => l.startsWith('ID '))).toBe(false)
+  expect(text.some(l => l.startsWith('○ Planned'))).toBe(false)
+  const c = m.filter.counts
+  expect(text.join('\n')).toContain(`${c.all} features · Ready ${c.ready} · Blocked ${c.blocked} · Done ${c.done}`)
+  const open = dashboardText(snapshotOf(), ctx({ columns: 80, expanded: { features: true } }))
+  expect(open).toContain('Features  ▾ Hide')
+  expect(open.some(l => l.startsWith('● All 9'))).toBe(true)
+  expect(open.some(l => l.startsWith('○ Planned'))).toBe(true)
+  expect(dashboardText(snapshotOf(), ctx({ ascii: true })).join('\n')).toContain('>  Show'.slice(0, 0) + '> Show')
+  expect(dashboardText(snapshotOf(), ctx({ ascii: true, expanded: { features: true } }))).toContain('Features  v Hide')
+})
+
+test('the open state, the filter and a selected row are plain context, so a new snapshot keeps them', () => {
+  const expanded = { features: true, 'feature:003': true }
+  const before = snapshotOf()
+  const after = snapshotOf(undefined, { computedAt: 99 })
+  for (const snap of [before, after]) {
+    const m = build(snap, ctx({ expanded, filter: 'blocked' }))
+    expect(m.featuresOpen).toBe(true)
+    expect(m.filter.active).toBe('blocked')
+    expect(m.sections.find(x => x.id === 'features')?.rows.find(r => r.key === 'feature:003')?.isOpen).toBe(true)
+  }
+  // collapsing keeps the selection: the row is still open when reopened
+  const closed = build(before, ctx({ expanded: { ...expanded, features: false } }))
+  expect(closed.featuresOpen).toBe(false)
+  expect(closed.sections.find(x => x.id === 'features')?.rows.find(r => r.key === 'feature:003')?.isOpen).toBe(true)
 })
