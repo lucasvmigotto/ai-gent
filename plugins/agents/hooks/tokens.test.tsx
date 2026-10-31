@@ -93,6 +93,15 @@ test('an ETA reads ~25m, ~2h10m, ~15h, and >2d past 48 hours; a rate reads 7.40M
   expect([fmtRate(7_400_000), fmtRate(400_000)]).toEqual(['7.40M/h', '400k/h'])
 })
 
+test('parseLedger reads the optional Branch and Worktree columns, and only when they exist', () => {
+  const rich = parseLedger('| Card | State | Branch | Worktree | Tokens |\n|---|---|---|---|---|\n| `a` | running | feat/a | `.worktrees/a` | ~1k / — |\n| `b` | queued | — |  | — / — |\n')
+  expect(rich[0]).toMatchObject({ id: 'a', branch: 'feat/a', worktree: '.worktrees/a', projectedText: '~1k' })
+  expect(rich[1]?.branch).toBeUndefined()
+  expect(rich[1]?.worktree).toBeUndefined()
+  const plain = parseLedger('| Card | State | Tokens |\n|---|---|---|\n| `a` | running | ~1k / — |\n')
+  expect('branch' in (plain[0] ?? {})).toBe(false)
+})
+
 test('the status line puts each cap\'s ETA after its figure, and only when the script gave one', () => {
   expect(statusText([], WITH_ETA, 200)).toBe('tokens · session left 3.10M (~2h10m) · week left 22.00M (~15h)')
   const partial = { ...WITH_ETA, caps: [{ ...WITH_ETA.caps[0]!, eta_minutes: null }, WITH_ETA.caps[1]!] }
@@ -313,7 +322,7 @@ test('after a turn the budget is read again only once per refresh interval', asy
   expect(reads()).toBeGreaterThan(base)
 })
 
-test('tokenStatus off registers nothing', { options: { tokenStatus: false } }, async ($, on) => {
+test('tokenStatus off registers nothing of the token status (the pane is its own option)', { options: { tokenStatus: false, cardsPane: false } }, async ($, on) => {
   const w = world(on, { ...FILES })
   await $.session.start(START)
   await w.clock.settle()
