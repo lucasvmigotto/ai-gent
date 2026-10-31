@@ -116,3 +116,4 @@ While open, the local columns refresh on a poll and after any Bash call that run
 - decided 2026-10-31 (the maintainer accepted the default): the platform is read from `git remote get-url origin` (GitHub only in the first cut), so that spawn is part of FR-001.
 - decided 2026-10-31 (the maintainer accepted the default): the `statusCheckRollup` mapping in `data-model.md`.
 - `worktreeBoard` is independent of `tokenStatus` (FR-005).
+- built 2026-10-31: the board keeps the first stderr line of a failed `wt.py` run in one more atom, `worktreeError` (the edge case "the pane says so" needs drawing state, FR-006), and the commands that read the platform and `gh auth status` run when the board opens, not on every refresh. Not built, because the one read-only `wt.py list --json` has no field for it and FR-001 allows no other spawn: the age of the last commit (story 1) and the `not pushed` cell (story 2, scenario 2); a branch without a pull request reads `no PR`.

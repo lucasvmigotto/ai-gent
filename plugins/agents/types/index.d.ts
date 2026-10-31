@@ -45,6 +45,26 @@ declare module 'claude-code' {
         spans: { card: string; startMs: number; endMs: number; used: number; projected: number; agents: number; calls: number }[]
         at: number
       } | null
+      // The worktree board (specs/022-worktree-board): whether it is open (it polls only then).
+      worktreeIsOpen: boolean
+      // The last good rows, kept across a reload and when wt.py fails. `pr` is absent until gh was read,
+      // null when the branch has no pull request.
+      worktreeRows: {
+        branch: string
+        path: string
+        dirty: boolean
+        ahead: number | null
+        behind: number | null
+        pr?: { number: number; state: 'OPEN' | 'MERGED' | 'CLOSED'; isDraft: boolean; checks: 'failing' | 'pending' | 'passing' | 'none' } | null
+      }[]
+      // The first stderr line of the last failed wt.py run; null after a good one.
+      worktreeError: string | null
+      // When wt.py list --json last ran (ms): the local interval and the Bash-triggered refresh.
+      worktreeLocalAt: number
+      // When gh pr list last ran (ms): the remote interval.
+      worktreeRemoteAt: number
+      // gh auth status and the platform of `git remote get-url origin`, read when the board opens.
+      worktreeGh: { usable: boolean; platform: string }
     }
   }
 }

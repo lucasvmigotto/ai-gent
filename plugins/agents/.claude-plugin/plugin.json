@@ -56,6 +56,24 @@
       "title": "Card pane poll (seconds)",
       "description": "How often the open pane checks whether the ledger changed (one stat; nothing else runs)",
       "default": 5
+    },
+    "worktreeBoard": {
+      "type": "boolean",
+      "title": "Worktree board",
+      "description": "/worktree-board opens a pane with one row per .worktrees/<branch> (ahead and behind the dev branch, uncommitted changes and, when gh is signed in and origin is on GitHub, the pull request and its checks); read-only, it never opens by itself and does not depend on the token status",
+      "default": true
+    },
+    "worktreeBoardSeconds": {
+      "type": "number",
+      "title": "Worktree board refresh (seconds)",
+      "description": "How often the open board runs wt.py list --json again (a Bash call that runs wt.py, git commit or git merge refreshes it at once)",
+      "default": 15
+    },
+    "worktreeBoardRemoteSeconds": {
+      "type": "number",
+      "title": "Worktree board pull request refresh (seconds)",
+      "description": "How often the open board runs one gh pr list for the pull requests and their checks",
+      "default": 120
     }
   }
 }
