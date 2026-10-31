@@ -322,7 +322,7 @@ test('after a turn the budget is read again only once per refresh interval', asy
   expect(reads()).toBeGreaterThan(base)
 })
 
-test('tokenStatus off registers nothing of the token status (the pane is its own option)', { options: { tokenStatus: false, cardsPane: false } }, async ($, on) => {
+test('tokenStatus off registers nothing of the token status (the pane is its own option)', { options: { tokenStatus: false, cardsPane: false, worktreeBoard: false } }, async ($, on) => {
   const w = world(on, { ...FILES })
   await $.session.start(START)
   await w.clock.settle()

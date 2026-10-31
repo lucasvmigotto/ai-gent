@@ -20,7 +20,7 @@ const GH = { usable: true, platform: 'github' }
 
 const rows = (): Row[] => parseWt(WT_LIST) ?? []
 const joined = (): Row[] => joinPrs(rows(), parseGh(GH_PR_LIST) ?? {})
-const board = (extra: Partial<Board> = {}): Board => ({ rows: joined(), error: null, gh: GH, hasPrs: true, ...extra })
+const board = (extra: Partial<Board> = {}): Board => ({ rows: joined(), error: null, gh: GH, ...extra })
 const lines = (b: Board, columns = 100) => view(b, columns).map(l => l.text).join('\n')
 
 test('wt.py list --json is read by exactly its keys, in its order, nulls kept', () => {
@@ -94,11 +94,11 @@ test('null counts read ? and one line says no dev branch was found, once', () =>
   expect(out).toMatch(/feat\/b\s+\?/)
   expect(out).toMatch(/\(detached\)\s+\?/)
   expect(out.match(/no dev branch found/g)).toHaveLength(1)
-  expect(lines(board())).not.toContain('no dev branch found')
+  expect(lines(board({ rows: rows().slice(0, 4) }))).not.toContain('no dev branch found')
 })
 
 test('without gh the pull request columns are omitted and one line says gh auth login would add them', () => {
-  const out = lines(board({ rows: rows(), gh: { usable: false, platform: 'github' }, hasPrs: false }))
+  const out = lines(board({ rows: rows(), gh: { usable: false, platform: 'github' } }))
   expect(out).not.toMatch(/#41|no PR/)
   expect(out).toContain('gh auth login')
   expect(out).not.toContain('removable') // no hint without gh
@@ -106,14 +106,14 @@ test('without gh the pull request columns are omitted and one line says gh auth 
 })
 
 test('another platform says its pull requests are not read yet', () => {
-  const out = lines(board({ rows: rows(), gh: { usable: false, platform: 'gitlab' }, hasPrs: false }))
+  const out = lines(board({ rows: rows(), gh: { usable: false, platform: 'gitlab' } }))
   expect(out).toContain('GitLab')
   expect(out).toContain('not read yet')
   expect(out).not.toContain('gh auth login')
 })
 
 test('a pull request still being read shows an ellipsis, and a row not looked up a dash', () => {
-  const out = lines(board({ rows: rows().map(r => ({ ...r })), hasPrs: false }))
+  const out = lines(board({ rows: rows().map(r => ({ ...r })) }))
   expect(out).toMatch(/feat\/us1\s+\+3\/-0\s+●\s+…/)
   expect(lines(board())).toMatch(/\(detached\)\s+\?\s+—/)
 })
@@ -138,7 +138,7 @@ test('no rows says there are no worktrees', () => {
 
 test('more than the cap shows +N more', () => {
   const many = Array.from({ length: MAX_ROWS + 5 }, (_, i) => ({ branch: `feat/b${i}`, path: `.worktrees/b${i}`, dirty: false, ahead: 1, behind: 0 }))
-  const out = lines(board({ rows: many, gh: { usable: false, platform: 'github' }, hasPrs: false }))
+  const out = lines(board({ rows: many, gh: { usable: false, platform: 'github' } }))
   expect(out).toContain('+5 more')
   expect(out).toContain(`feat/b${MAX_ROWS - 1}`)
   expect(out).not.toContain(`feat/b${MAX_ROWS} `)
