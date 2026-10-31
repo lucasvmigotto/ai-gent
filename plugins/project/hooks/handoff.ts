@@ -51,12 +51,13 @@ async function standingNow($: EngineInterface, checkpoint: Checkpoint | null): P
 
 // At turn end: toast once when the context passes the threshold, and look at the
 // caps (detached, throttled) when the script and a budget are there.
-export async function nudgeAtTurnEnd($: EngineInterface, options: HandoffOptions, checkpointOf: CheckpointReader): Promise<void> {
+// `known` is the figure the caller already read this turn (the context meter's), so it is
+// read once; without it the nudge reads it itself, and only while it has not toasted.
+export async function nudgeAtTurnEnd($: EngineInterface, options: HandoffOptions, checkpointOf: CheckpointReader, known?: { percent: number | undefined }): Promise<void> {
   if (options.handoffNudge === false) return
   const flags = await read($, toasted)
   if (!flags.context) {
-    const usage = await $.session.usage().catch(() => undefined)
-    const percent = usage?.context.percent
+    const percent = known === undefined ? (await $.session.usage().catch(() => undefined))?.context.percent : known.percent
     if (typeof percent === 'number' && isContextHigh(percent, options.handoffNudgeContextPercent ?? 80)) {
       await update($, toasted, f => ({ ...f, context: true }))
       $.ui.toast(contextToast(Math.round(percent), await standingNow($, await checkpointOf())), { timeoutMs: 15_000 })
