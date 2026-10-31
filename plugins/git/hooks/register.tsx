@@ -11,9 +11,20 @@ import type { PreToolUseResult, Register } from 'claude-code'
 
 import { decorate } from './guard-ux'
 import { MOVES_REFS, sentence } from './hygiene-model'
-import { readHygiene, refreshHygiene, refreshHygieneThrottled, relayUpdate, releasePreview } from './hygiene'
+import { bandsText, plan } from './bands'
+import type { Options as BandOptions } from './bands'
+import { readHygiene, recordHygieneBand, refreshHygiene, refreshHygieneThrottled, relayUpdate, releasePreview } from './hygiene'
 
-type Options = { guardUx?: boolean; hygieneBand?: boolean; sessionToasts?: boolean; releasePreview?: boolean }
+type Options = BandOptions & { guardUx?: boolean; hygieneBand?: boolean; sessionToasts?: boolean; releasePreview?: boolean }
+
+// The band's id in the `bands` atom (priority normal).
+const HYGIENE = 'hygiene'
+
+// Reads the comparison again and records whether the band is active.
+const refresh = async ($: Parameters<typeof refreshHygiene>[0]) => {
+  await refreshHygiene($).catch(() => undefined)
+  await recordHygieneBand($).catch(() => undefined)
+}
 
 export const register: Register = (on, options: Options) => {
   if (options.guardUx !== false) {
@@ -33,20 +44,24 @@ export const register: Register = (on, options: Options) => {
     if (hasPreview) {
       await $.command.register({ name: 'release-preview', description: "Preview the next release: scripts/release.py --dry-run, which never releases" }).catch(() => undefined)
     }
-    if (hasBand) await refreshHygiene($).catch(() => undefined)
+    if (options.bandsCommand !== false) {
+      await $.command.register({ name: 'bands', description: 'List the bands above the prompt, and which are hidden by the cap' }).catch(() => undefined)
+    }
+    if (hasBand) await refresh($)
     return started
   })
 
   if (hasBand) {
     on('turn.complete', async ($, e, next) => {
       await refreshHygieneThrottled($).catch(() => undefined)
+      await recordHygieneBand($).catch(() => undefined)
       return next(e)
     })
 
     // A command that moved refs changes the comparison: read it again now.
     on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
       const ran = await next(e)
-      if (MOVES_REFS.test(e.command)) await refreshHygiene($).catch(() => undefined)
+      if (MOVES_REFS.test(e.command)) await refresh($)
       return ran
     }).catch(($, e, next) => next(e))
 
@@ -59,13 +74,17 @@ export const register: Register = (on, options: Options) => {
       const text = hygiene === null ? null : sentence(hygiene.branches, e.props.bodyColumns, ago)
       if (text === null) return beneath
 
+      const { draws, more } = await plan($, HYGIENE, options)
       const { Box, Text } = $.ui.resolve(e)
       return (
         <Box flexDirection="column">
           {beneath}
-          <Text color="warning" wrap="truncate-end">
-            {text}
-          </Text>
+          {draws ? (
+            <Text color="warning" wrap="truncate-end">
+              {text}
+            </Text>
+          ) : null}
+          {more === null ? null : <Text dimColor>{more}</Text>}
         </Box>
       )
     })
@@ -80,6 +99,10 @@ export const register: Register = (on, options: Options) => {
       }
       return next(e)
     }).catch(($, e, next) => next(e))
+  }
+
+  if (options.bandsCommand !== false) {
+    on('command.run', { command: 'bands' }, async $ => ({ text: await bandsText($, options) }))
   }
 
   if (hasPreview) {
