@@ -20,6 +20,18 @@
       "title": "Token status refresh (seconds)",
       "description": "How often, after a turn, the budget is read again (it reads a week of transcripts)",
       "default": 120
+    },
+    "tokenBurnRate": {
+      "type": "boolean",
+      "title": "Token burn rate and ETA",
+      "description": "After each cap in the token status, how long what it leaves lasts at the current account-wide pace (session left 3.10M (~2h10m)); the script computes it, the window is rate_window_minutes in .ai-gent/budget.yaml",
+      "default": true
+    },
+    "tokenEtaWarnMinutes": {
+      "type": "number",
+      "title": "Token ETA warning (minutes)",
+      "description": "A toast when a cap would run out within this many minutes at the current pace, once per crossing; 0 turns the toast off and keeps the status",
+      "default": 30
     }
   }
 }

@@ -7,6 +7,8 @@ declare module 'claude-code' {
       tokenLastVerdict: string | null
       // Cards already toasted for passing their projection, once each per session.
       tokenToasted: string[]
+      // Caps whose ETA is under tokenEtaWarnMinutes now, so a toast fires only when a cap enters it.
+      tokenEtaWarned: string[]
       // When the budget was last read (the clock's ms), for the throttle.
       tokenRefreshedAt: number
     }
