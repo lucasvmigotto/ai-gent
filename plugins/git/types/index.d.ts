@@ -23,6 +23,11 @@ export type Hygiene = {
   readAt: number
 }
 
+// What `release.py --dry-run --json` says, reduced to what the band draws
+// (specs/028-release-readiness-band). `plugins` counts targets of kind "plugin".
+// The atom adds `branch`, the chain branch it was computed on (for the behind note).
+export type ReleasePlan = { version: string; bump: 'major' | 'minor' | 'patch'; since: string | null; plugins: number }
+
 declare module 'claude-code' {
   interface PluginState {
     git: {
@@ -31,6 +36,12 @@ declare module 'claude-code' {
       toasted: Record<string, boolean>
       // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
       bands: Band[]
+      // The release band's plan, or the failure line; null when nothing is releasable or the branch is not a chain branch.
+      releasePlan: Shaped<(ReleasePlan & { branch: string }) | { failed: string } | null>
+      // The key (HEAD, a newline, the merged tags) releasePlan was computed for.
+      releasePlanFor: string | null
+      // The key at which the person pressed Hide; the band returns when the key changes.
+      releaseBandHidden: string | null
     }
     // The project plugin's atom, read-only here; absent when it is not installed.
     project: { bands: Band[] }

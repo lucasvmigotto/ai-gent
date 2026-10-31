@@ -17,13 +17,15 @@ const bandsAtom = atom({ plugin: 'git', key: 'bands' } as const, [] as Band[])
 
 export const cap = (options: Options): number => clampCap(options.bandCap ?? DEFAULT_CAP)
 
-// Records the bands that are active now. A band that was already active keeps its
+// Records whether this plugin's band `id` is active now (`priority`) or not (null),
+// leaving its other bands as they are. A band that was already active keeps its
 // `since`, so ties keep their order from one draw to the next.
-export async function recordBands($: EngineInterface, active: readonly Omit<Band, 'since' | 'plugin'>[]): Promise<void> {
+export async function setBand($: EngineInterface, id: string, priority: Band['priority'] | null): Promise<void> {
   const now = await $.clock.now().catch(() => 0)
   await update($, bandsAtom, before => {
-    const known = new Map(before.map(band => [band.id, band.since]))
-    return active.map(band => ({ ...band, plugin: 'git', since: known.get(band.id) ?? now }))
+    const since = before.find(band => band.id === id)?.since
+    const rest = before.filter(band => band.id !== id)
+    return priority === null ? rest : [...rest, { id, priority, plugin: 'git', since: since ?? now }]
   })
 }
 
