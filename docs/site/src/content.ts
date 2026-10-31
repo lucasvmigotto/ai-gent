@@ -88,6 +88,16 @@ export function groupChangelog(
 		}));
 }
 
+// Within one minor's entries (newest first): the newest entry and the minor
+// release itself (X.Y.0) stay in view; the older patch releases fold.
+export function foldPatches(entries: ChangelogEntry[]): {
+	shown: ChangelogEntry[];
+	folded: ChangelogEntry[];
+} {
+	const folded = entries.filter((e, i) => i > 0 && (e.patch ?? 0) > 0);
+	return { shown: entries.filter((e) => !folded.includes(e)), folded };
+}
+
 // How a skill is shown: Claude Code's `/plugin:skill`, the default agent.
 // The `plugin-skill` id stays the URL slug and the other agents' name.
 export function command(skill: Pick<SkillInfo, "plugin" | "skill">): string {

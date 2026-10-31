@@ -111,7 +111,12 @@ export interface Messages {
 		mods: string;
 		modsBody: string;
 	};
-	changelog: { title: string; lede: string; releases: string };
+	changelog: {
+		title: string;
+		lede: string;
+		releases: string;
+		earlierPatches: string;
+	};
 	flow: {
 		title: string;
 		lede: string;
@@ -288,6 +293,7 @@ export const enUS: Messages = {
 		title: "Changelog",
 		lede: "Releases and what changed.",
 		releases: "Releases",
+		earlierPatches: "earlier patch releases",
 	},
 	flow: {
 		title: "The autonomous flow",
