@@ -8,9 +8,11 @@
 //  - guard-ux (specs/015): say why the secrets guard denied or asked, and what
 //    to do instead. hooks/guard.sh still decides.
 
+import { atom, update } from 'claude-code'
 import type { EngineInterface, PreToolUseResult, Register } from 'claude-code'
 
-import { decorate } from './guard-ux'
+import { append, decorate, record } from './guard-ux'
+import type { GuardRow } from './guard-ux'
 import { createLimiter, redactTools, scanContent } from './output-warning'
 import type { Block } from './output-warning'
 import { compile, looksSecret, mask, summary, warning } from './secret-mask'
@@ -20,6 +22,7 @@ type Options = {
   secretMask?: boolean
   maskAssignments?: boolean
   guardUx?: boolean
+  guardLog?: boolean
   secretOutputWarning?: boolean
   secretOutputRedact?: boolean
   secretOutputTools?: string
@@ -111,10 +114,22 @@ function outputWarning(on: Parameters<Register>[0], options: Options): void {
   })
 }
 
+// The ring of this guard's recent decisions (specs/024-guard-log); the project plugin reads it.
+const guardLogAtom = atom({ plugin: 'secrets', key: 'guardLog' } as const, [] as GuardRow[], { shape: 'guard-log-1' })
+
 export const register: Register = (on, options: Options) => {
-  if (options.guardUx !== false) {
+  if (options.guardUx !== false || options.guardLog !== false) {
     on('classic.PreToolUse', async ($, e, next) => {
       const result = await next(e)
+      // The row comes from the guard's own answer, before decorate adds words.
+      if (options.guardLog !== false) {
+        // A failure here loses a row, never the decision.
+        await (async () => {
+          const row = record('secrets', result, e, await $.clock.now())
+          if (row) await update($, guardLogAtom, rows => append(rows, row))
+        })().catch(() => undefined)
+      }
+      if (options.guardUx === false) return result
       const { result: decorated, notice } = decorate('secrets', result)
       if (notice) $.ui.toast(notice)
       return decorated as PreToolUseResult
