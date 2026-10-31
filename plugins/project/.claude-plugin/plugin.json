@@ -33,6 +33,12 @@
       "description": "How often the open pane checks the files for changes",
       "default": 5
     },
+    "nextStageToast": {
+      "type": "boolean",
+      "title": "Next-stage toast",
+      "description": "Toast the stage the pipeline pane would recommend after a pipeline artifact is written or a [NEEDS CLARIFICATION] is added, once per turn; a hint only, nothing is run",
+      "default": true
+    },
     "bandCap": {
       "type": "number",
       "title": "Most bands above the prompt",
