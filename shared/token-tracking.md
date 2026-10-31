@@ -234,6 +234,13 @@ suggests moving an expensive Opus card, whose projection is at high or medium
 confidence, to a Sonnet builder with the thinker reviewing inline (with the
 cost the learned context factor predicts).
 
+`tasks --dry-run --json` prints, read-only, one JSON object instead of the text
+table: `cards` (each `card`, `feature`, `model`, `projected`, `used`, `start`,
+`end`, `agents`, `calls`) and `unattributed` (a count). `start` and `end` are
+UTC with a `Z`. `--json` without `--dry-run` is rejected (exit 2), and nothing is
+written. Pass the project as `--project=<slug>` (the cwd with every character
+outside `A-Za-z0-9-` replaced by `-`, as `budget` derives it).
+
 `budget --json` prints the same verdict, the caps (`cap`, `used`, `left`), the
 cards with their projections and the batches as one JSON object, and nothing
 else; the Claude Code token status reads it. The text output is unchanged.
