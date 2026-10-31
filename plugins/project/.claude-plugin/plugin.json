@@ -46,6 +46,28 @@
       "title": "/bands command",
       "description": "The /bands command: every active band above the prompt, with its priority and whether it is shown",
       "default": true
+    },
+    "handoffNudge": {
+      "type": "boolean",
+      "title": "Hand-off nudge",
+      "description": "Toast, once, that the checkpoint is behind and to run /project:checkpoint when the context is nearly full, before a compaction, or (with token_report.py beside the plugin) when a usage cap runs low",
+      "default": true
+    },
+    "handoffNudgeContextPercent": {
+      "type": "number",
+      "title": "Hand-off nudge: context used (%)",
+      "description": "Nudge when the context window is at least this full",
+      "default": 80,
+      "min": 1,
+      "max": 100
+    },
+    "handoffNudgeCapPercent": {
+      "type": "number",
+      "title": "Hand-off nudge: cap left (%)",
+      "description": "Nudge when a usage cap in .ai-gent/budget.yaml has less than this share left (needs token_report.py beside the plugin)",
+      "default": 10,
+      "min": 1,
+      "max": 100
     }
   }
 }

@@ -16,6 +16,17 @@ export type Checkpoint = {
   mtimeMs: number
 }
 
+// Which hand-off nudges already toasted this session (hooks/handoff.ts): once
+// each, so a hot reload does not repeat them.
+export type HandoffToasted = {
+  context: boolean
+  compact: boolean
+  // A cap by its name (`session_billable`, `week_billable`).
+  caps: Record<string, boolean>
+  // When `token_report.py budget` last ran, in $.clock.now() milliseconds, for the 5-minute throttle.
+  lastBudgetAt: number | null
+}
+
 // The pipeline pane (hooks/pipeline-model.ts computes these from the files).
 
 // One artifact of shared/pipeline.md's table, as the pane shows it.
@@ -76,6 +87,7 @@ declare module 'claude-code' {
     project: {
       checkpoint: Shaped<Checkpoint | null>
       isBandHidden: boolean
+      handoffToasted: Shaped<HandoffToasted>
       // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
       bands: Band[]
       pipelineSnapshot: Shaped<Snapshot | null>
