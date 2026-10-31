@@ -1,5 +1,9 @@
 // What the project plugin's hooks module keeps in $.state.
 
+// One active band, as the `bands` atom records it (hooks/band-priority.ts
+// holds the same shape; this contract has to be self-contained).
+export type Band = { id: string; plugin: string; priority: 'hold' | 'failure' | 'normal' | 'info'; since: number }
+
 // The hand-off file as the band shows it (hooks/checkpoint.ts reads it).
 export type Checkpoint = {
   path: string
@@ -72,10 +76,14 @@ declare module 'claude-code' {
     project: {
       checkpoint: Shaped<Checkpoint | null>
       isBandHidden: boolean
+      // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
+      bands: Band[]
       pipelineSnapshot: Shaped<Snapshot | null>
       pipelineIsOpen: boolean
       // Sections the person expanded, by name.
       pipelineExpanded: Record<string, boolean>
     }
+    // The git plugin's atom, read-only here; absent when it is not installed.
+    git: { bands: Band[] }
   }
 }
