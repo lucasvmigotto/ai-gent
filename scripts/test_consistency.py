@@ -148,6 +148,15 @@ class GuardUx(unittest.TestCase):
         self.assertEqual(len(problems), len(consistency.SHARED_CODE[consistency.GUARD_UX]))
         self.assertIn("--sync-shared-code", problems[0])
 
+    def test_a_band_priority_copy_that_differs_fails(self):
+        files = self.files()
+        files["shared/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/project/hooks/band-priority.ts"] = "export const a = 1\n"
+        files["plugins/git/hooks/band-priority.ts"] = "export const a = 2\n"
+        problems = consistency.check_guard_ux(tree(files))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("plugins/git/hooks/band-priority.ts differs from shared/band-priority.ts", problems[0])
+
     def test_a_reason_with_no_entry_fails(self):
         problems = self.problems(guard='decide ask "a brand new question"\ndecide deny "hooks must not be bypassed"\n')
         self.assertEqual(len(problems), 1)
