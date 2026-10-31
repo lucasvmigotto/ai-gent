@@ -10,13 +10,19 @@
 import type { EngineInterface, ResolveInput } from 'claude-code'
 
 import { GLYPH } from './pipeline-view'
-import type { Cell, Column, PipelineView, Row, Section, Tone } from './pipeline-view'
+import type { Cell, Column, Filter, PipelineView, Row, Section, Tone } from './pipeline-view'
 
 export type Handlers = {
   // Fill the prompt with /project:status (never submits).
   onStatus: () => void
   // Show or hide the open items.
   onMarkers: () => void
+  // Filter the matrix by readiness.
+  onFilter: (filter: Filter) => void
+  // Open or close a row, by its key (an artifact, a feature or one kind of open item).
+  onToggle: (key: string) => void
+  // Fill the prompt with a command the recommendation names (never submits).
+  onFill: (command: string) => void
 }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error', info: 'suggestion' }
@@ -39,11 +45,17 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
 
   const title = (text: string) => <Text bold>{text}</Text>
 
-  const cellBox = (cell: Cell, column: Column, key: string, isHead = false) => (
+  // `toggle` makes the cell the press target that opens its row: a plain
+  // Button holds one cell's text, so the row itself needs no wrapper.
+  const cellBox = (cell: Cell, column: Column, key: string, isHead = false, toggle?: string) => (
     <Box key={key} width={column.width} flexShrink={0} justifyContent={column.align === 'right' ? 'flex-end' : 'flex-start'}>
-      <Text wrap="truncate-end" {...(isHead ? { bold: true, dimColor: true } : look(cell.tone))}>
-        {words(cell)}
-      </Text>
+      {toggle ? (
+        <Button key={`toggle:${toggle}`} label={words(cell)} plain dimColor={cell.tone === 'dim'} onPress={() => handlers.onToggle(toggle)} />
+      ) : (
+        <Text wrap="truncate-end" {...(isHead ? { bold: true, dimColor: true } : look(cell.tone))}>
+          {words(cell)}
+        </Text>
+      )}
     </Box>
   )
 
@@ -62,9 +74,17 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
             <Text {...look(r.edge)}>{GLYPH.edge[ascii ? 1 : 0]}</Text>
           </Box>
         ) : null}
-        {r.cells.map((cell, i) => cellBox(cell, section.columns[i] as Column, `${r.key}:${section.columns[i]?.key}`))}
+        {r.cells.map((cell, i) => cellBox(cell, section.columns[i] as Column, `${r.key}:${section.columns[i]?.key}`, false, i === 0 ? r.key : undefined))}
       </Box>
-      {r.sub ? <Text dimColor>{`${edge ? '  ' : ''}${r.sub}`}</Text> : null}
+      {r.sub ? <Text dimColor wrap="truncate-end">{`${edge ? '  ' : ''}  ${r.sub}`}</Text> : null}
+      {(r.detail ?? []).map((line, i) => (
+        <Box key={`${r.key}:detail:${i}`} gap={1}>
+          <Text>{`${edge ? '  ' : ''}    `}</Text>
+          {line.map((c, j) => (
+            <Text key={`${r.key}:detail:${i}:${j}`} wrap="truncate-end" {...look(c.tone)}>{c.text}</Text>
+          ))}
+        </Box>
+      ))}
     </Box>
   )
 
@@ -118,7 +138,10 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
       </Box>
 
       <Box key="progress" flexDirection="column">
-        {title('Implementation')}
+        <Box key="progress-head" gap={3}>
+          {title('Implementation')}
+          {m.progress.total > 0 ? <Text bold>{`${m.progress.percent}%`}</Text> : null}
+        </Box>
         {m.progress.total === 0 ? (
           <Text dimColor>{features.empty ?? 'No features.'}</Text>
         ) : (
@@ -128,11 +151,11 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
                 <Text key={`bar:${seg.key}`} {...look(seg.tone)}>{seg.glyph.repeat(seg.length)}</Text>
               ))}
             </Box>
-            <Box gap={2}>
-              {m.progress.pills.map(p => (
-                <Text key={`pill:${p.key}`} {...look(p.tone)}>{p.text}</Text>
-              ))}
-              <Text dimColor>{`of ${m.progress.total}`}</Text>
+            <Box gap={1}>
+              {m.progress.pills.flatMap((p, i) => [
+                ...(i > 0 ? [<Text key={`pill-sep:${p.key}`} dimColor>{sep}</Text>] : []),
+                <Text key={`pill:${p.key}`} {...look(p.tone)}>{p.text}</Text>,
+              ])}
             </Box>
           </Box>
         )}
@@ -142,16 +165,20 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
         {title('Features')}
         <Box gap={2}>
           {(['all', 'ready', 'blocked', 'done'] as const).map(f => (
-            <Text key={`filter:${f}`} bold={f === m.filter.active} dimColor={f !== m.filter.active}>
-              {`${f === m.filter.active ? `${GLYPH.implemented[ascii ? 1 : 0]} ` : ''}${f[0]?.toUpperCase()}${f.slice(1)} ${m.filter.counts[f]}`}
-            </Text>
+            <Button
+              key={`filter:${f}`}
+              plain
+              dimColor={f !== m.filter.active}
+              label={`${f === m.filter.active ? `${GLYPH.implemented[ascii ? 1 : 0]} ` : ''}${f[0]?.toUpperCase()}${f.slice(1)} ${m.filter.counts[f]}`}
+              onPress={() => handlers.onFilter(f)}
+            />
           ))}
         </Box>
         {features.rows.length > 0 ? head(features, false) : null}
         {features.rows.map(r => row(features, r, false))}
         {features.empty ? <Text dimColor>{features.empty}</Text> : null}
         {features.more ? <Text dimColor>{features.more}</Text> : null}
-        {m.mode === 'condensed' && features.rows.length > 0 ? (
+        {!m.matrix.words && features.rows.length > 0 ? (
           <Text dimColor>
             {[['planned', 'Planned'], ['progress', 'In progress'], ['partial', 'Partial'], ['implemented', 'Implemented'], ['verified', 'Verified'], ['none', 'N/A']]
               .map(([key, label]) => `${GLYPH[key as 'planned'][ascii ? 1 : 0]} ${label}`)
@@ -170,7 +197,13 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
         {items.rows.map(r => (
           <Box key={r.key} flexDirection="column">
             <Box gap={1}>
-              <Box width={16}><Text>{r.cells[0]?.text}</Text></Box>
+              <Box width={16}>
+                {(r.cells[1]?.text ?? '0') !== '0' ? (
+                  <Button key={`toggle:${r.key}`} plain label={r.cells[0]?.text ?? ''} onPress={() => handlers.onToggle(`markers:${r.key.slice('marker:'.length)}`)} />
+                ) : (
+                  <Text>{r.cells[0]?.text}</Text>
+                )}
+              </Box>
               <Text {...look(r.cells[1]?.tone)}>{r.cells[1]?.text}</Text>
             </Box>
             {(r.detail ?? []).map((line, i) => (
@@ -185,8 +218,15 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
           {title('Next action')}
           <Text bold {...look(nextTone)}>{` ${m.next.badge} `}</Text>
         </Box>
-        <Text>{m.next.text}</Text>
-        {m.next.ref ? <Text dimColor>{m.next.ref}</Text> : null}
+        <Text bold>{`${GLYPH.current[ascii ? 1 : 0]} ${m.next.title}`}</Text>
+        {m.next.explanation ? <Text>{`  ${m.next.explanation}`}</Text> : null}
+        {m.next.ref ? <Text dimColor>{`  ${m.next.ref}`}</Text> : null}
+        {m.next.action ? (
+          <Box gap={1}>
+            <Text dimColor>{'  Run'}</Text>
+            <Button key="button-next" label={m.next.action} onPress={() => handlers.onFill(m.next.action ?? '')} />
+          </Box>
+        ) : null}
         <Box gap={1}>
           <Text dimColor>{m.next.hint}</Text>
           <Button key="button-status" label={m.next.command} onPress={handlers.onStatus} />

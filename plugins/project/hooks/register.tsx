@@ -236,7 +236,13 @@ export const register: Register = (on, options: Options) => {
         maxRows: Math.max(1, Math.floor(options.pipelineMaxRows ?? 60)),
       })
       if (model.mode !== 'compact' && !model.isEmpty) {
-        return drawDashboard($, e, model, { onStatus: () => press($, 'status'), onMarkers: () => press($, 'markers') })
+        return drawDashboard($, e, model, {
+          onStatus: () => press($, 'status'),
+          onMarkers: () => press($, 'markers'),
+          onFilter: filter => press($, 'filter', filter),
+          onToggle: key => press($, 'toggle', key),
+          onFill: command => press($, 'fill', command),
+        })
       }
     }
 

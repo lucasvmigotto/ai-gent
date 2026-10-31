@@ -419,3 +419,69 @@ test('headless /pipeline still answers 013s text', async ($, on) => {
   const out = (await $.command.run({ command: 'pipeline-pane', args: '' } as never)).text ?? ''
   expect(out).toMatch(/^Pipeline\nArtifacts\n✓ brief/)
 })
+
+// ------------------------------------------- the refinement: interactions
+
+test('the filter buttons write the atom, mark the active one and keep the legend', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 60 }, surface: 'terminal' })
+  expect(await ui.find({ key: 'feature:001' })).toBeDefined()
+  const spawned = w.runs.length
+  await ui.press({ key: 'filter:blocked' })
+  expect(await ui.find({ key: 'feature:001' })).toBeUndefined()
+  expect(await ui.find({ key: 'feature:003' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /○ Planned/ })).toBeDefined()
+  await ui.press({ key: 'filter:all' })
+  expect(await ui.find({ key: 'feature:001' })).toBeDefined()
+  expect(w.runs.length).toBe(spawned)
+  await ui.unmount()
+})
+
+test('pressing a feature or an artifact opens its details, and again closes them', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  w.dates[BRIEF] = '2026-10-01'
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 44 }, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Depends on/ })).toBeUndefined()
+  await ui.press({ key: 'toggle:feature:003' })
+  expect(await ui.find({ type: 'Text', text: /Depends on/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /002 search \(waits for\)/ })).toBeDefined()
+  await ui.press({ key: 'toggle:feature:003' })
+  expect(await ui.find({ type: 'Text', text: /Depends on/ })).toBeUndefined()
+  await ui.press({ key: 'toggle:artifact:docs/product/brief.md' })
+  expect(await ui.find({ type: 'Text', text: /^docs\/product\/brief.md$/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('each kind of open item opens on its own button', async ($, on) => {
+  world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'toggle:marker:clarification' })
+  expect(await ui.find({ type: 'Text', text: /which login\?/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('the next action names the recommendation and fills its command, and without one offers only the report', async ($, on) => {
+  const w = world(on, { [BRIEF]: '# Brief', [README]: README_TEXT })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Suggested/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /◆ Architecture/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /architecture is missing although a later stage already ran/ })).toBeDefined()
+  await ui.press({ key: 'button-next' })
+  expect(w.filled).toEqual(['/project:architecture'])
+  await ui.press({ key: 'button-status' })
+  expect(w.filled).toEqual(['/project:architecture', '/project:status'])
+  await ui.unmount()
+})
+
+test('a recommendation that is not a command has no run button', async ($, on) => {
+  world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /◆ Ask the user/ })).toBeDefined()
+  expect(await ui.find({ key: 'button-next' })).toBeUndefined()
+  await ui.unmount()
+})

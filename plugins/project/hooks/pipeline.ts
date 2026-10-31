@@ -219,11 +219,24 @@ export async function close($: EngineInterface): Promise<void> {
   await update($, isOpenAtom, () => false)
 }
 
-// A pane button: show or hide the markers, or put /project:status in the
-// prompt. It never submits: the person decides to run the full report.
-export async function press($: EngineInterface, id: 'markers' | 'status'): Promise<void> {
+// A pane button: show or hide the markers, put /project:status (or the
+// command the recommendation names) in the prompt, set the matrix filter or
+// open a row. It never submits: the person decides to run anything.
+export async function press($: EngineInterface, id: 'markers' | 'status' | 'fill' | 'filter' | 'toggle', arg = ''): Promise<void> {
   if (id === 'status') {
     await $.prompt.fill({ text: '/project:status' })
+    return
+  }
+  if (id === 'fill') {
+    if (arg.startsWith('/')) await $.prompt.fill({ text: arg })
+    return
+  }
+  if (id === 'filter') {
+    if (arg === 'all' || arg === 'ready' || arg === 'blocked' || arg === 'done') await update($, filterAtom, () => arg)
+    return
+  }
+  if (id === 'toggle') {
+    if (arg !== '') await update($, expandedAtom, current => ({ ...current, [arg]: current[arg] !== true }))
     return
   }
   await update($, expandedAtom, current => ({ ...current, markers: current.markers !== true }))

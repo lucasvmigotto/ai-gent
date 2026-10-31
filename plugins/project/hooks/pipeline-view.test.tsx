@@ -6,7 +6,7 @@ import type { Snapshot } from '../types'
 import { bigReadme, snapshotOf } from './pipeline-view-fixtures'
 import { ARTIFACTS, STAGE_NAME, progress, stageStrip } from './pipeline-model'
 import { DASHBOARD_120, DASHBOARD_120_ASCII, DASHBOARD_80, DASHBOARD_80_ASCII, VIEW_39 } from './pipeline-golden'
-import { build, dashboardText, statusCell } from './pipeline-view'
+import { build, dashboardText, matrixPlan, statusCell } from './pipeline-view'
 import type { Context, Section } from './pipeline-view'
 
 const CTX: Context = { columns: 120, expanded: {}, filter: 'all', checkedAt: 1000, now: 1000, pollMs: 5000, ascii: false, maxRows: 60 }
@@ -48,7 +48,7 @@ test('artifact rows are Ready, Stale, Missing or Pending, with a stage and an ed
   expect(by('docs/product/architecture.md')?.cells[2]).toMatchObject({ text: 'Missing', glyph: '✕', tone: 'bad' })
   expect(by('docs/product/architecture.md')).toMatchObject({ edge: 'bad' })
   expect(by('specs/README.md')?.cells[2]).toMatchObject({ text: 'Stale', glyph: '↻', tone: 'warn' })
-  expect(by('specs/README.md')?.sub).toBe('older than docs/product/brief.md (2026-10-09)')
+  expect(by('specs/README.md')?.sub).toBe('└─ Older than docs/product/brief.md (2026-10-09)')
   expect(by('docs/product/domain-model.md')?.cells[2]).toMatchObject({ text: 'Pending', glyph: '·', tone: 'dim' })
   expect(by('docs/product/domain-model.md')?.cells[1]?.text).toBe('Backend')
   expect(section(snapshotOf(), 'artifacts').columns.map(c => c.key)).toEqual(['artifact', 'stage', 'status'])
@@ -77,6 +77,7 @@ test('the matrix columns are the sides the README has, with fixed widths', () =>
   const condensed = section(snapshotOf(), 'features', { columns: 80 })
   expect(condensed.columns.map(c => c.label)).toEqual(['ID', 'FEATURE', 'PRI', 'READY', 'F', 'B', 'Q'])
   expect(condensed.columns.map(c => c.width)).toEqual([3, 58, 3, 7, 1, 1, 1])
+  expect(build(snapshotOf(), ctx({ columns: 80 })).matrix).toMatchObject({ tier: 'wide', words: false })
 })
 
 test('every row of every table fits its columns', () => {
@@ -126,7 +127,8 @@ test('a long name is cut with an ellipsis, in a column that never wraps', () => 
     const name = section(s, 'features', { columns }).rows[0]?.cells[1]?.text ?? ''
     const width = section(s, 'features', { columns }).columns[1]?.width ?? 0
     expect(name.endsWith('…')).toBe(true)
-    expect([...name]).toHaveLength(width)
+    expect([...name].length).toBeLessThanOrEqual(width)
+    expect([...name].length).toBeGreaterThan(width / 2)
   }
 })
 
@@ -224,4 +226,154 @@ test('golden: the dashboard text at 120 and 80 columns, in Unicode and in ASCII'
   expect(draw(80, true)).toEqual(DASHBOARD_80_ASCII)
   // 39 columns is 013's compact text, byte for byte.
   expect(dashboardText(snapshotOf(), ctx({ columns: 39 })).join('|')).toBe(VIEW_39.map(l => l.split('|')[1]).join('|'))
+})
+
+
+// ---------------------------------------------------- the refinement brief
+
+const SIDES = ['frontend', 'backend', 'qa']
+const labels = (columns: number, readme?: string) => section(snapshotOf(readme), 'features', { columns }).columns.map(c => c.label)
+
+test('the matrix columns follow the width: ID, Feature and Status; then PRI, READY, F, B; then all sides', () => {
+  expect(matrixPlan(40, SIDES, 1)).toMatchObject({ tier: 'narrow', sides: [] })
+  expect(matrixPlan(43, SIDES, 1).tier).toBe('narrow')
+  expect(matrixPlan(44, SIDES, 1)).toMatchObject({ tier: 'medium', sides: ['frontend', 'backend'], words: false })
+  expect(matrixPlan(45, SIDES, 1).tier).toBe('medium')
+  expect(matrixPlan(46, SIDES, 1)).toMatchObject({ tier: 'wide', sides: SIDES, words: false })
+  expect(matrixPlan(91, SIDES, 2)).toMatchObject({ tier: 'wide', sides: SIDES, words: true })
+  expect(matrixPlan(120, [...SIDES, 'status'], 2).sides).toEqual(['frontend', 'backend', 'status', 'qa'])
+  // a single-Status README has no frontend or backend: Status stands in at medium
+  expect(matrixPlan(42, ['status', 'qa'], 1)).toMatchObject({ tier: 'medium', sides: ['status'] })
+
+  expect(labels(40)).toEqual(['ID', 'FEATURE', 'STATUS'])
+  expect(labels(44)).toEqual(['ID', 'FEATURE', 'PRI', 'READY', 'F', 'B'])
+  expect(labels(60)).toEqual(['ID', 'FEATURE', 'PRI', 'READY', 'F', 'B', 'Q'])
+  expect(labels(120)).toEqual(['ID', 'FEATURE', 'PRI', 'READY', 'FRONTEND', 'BACKEND', 'QA'])
+})
+
+test('no width clips a matrix row, and ID and Feature are always the first two columns', () => {
+  for (const columns of [40, 41, 43, 44, 45, 46, 50, 60, 80, 90, 91, 100, 120, 200]) {
+    const m = build(snapshotOf(bigReadme(4)), ctx({ columns }))
+    const sec = m.sections.find(s => s.id === 'features') as Section
+    expect(sec.columns.slice(0, 2).map(c => c.key)).toEqual(['id', 'name'])
+    const gap = m.mode === 'full' ? 2 : 1
+    const total = sec.columns.reduce((n, c) => n + c.width, 0) + gap * (sec.columns.length - 1)
+    expect(total).toBeLessThanOrEqual(columns)
+    for (const row of sec.rows) {
+      expect(row.cells).toHaveLength(sec.columns.length)
+      row.cells.forEach((cell, i) => expect([...`${cell.glyph ? `${cell.glyph} ` : ''}${cell.text}`].length).toBeLessThanOrEqual(sec.columns[i]?.width ?? 0))
+    }
+  }
+})
+
+test('the narrow Status cell is the feature state, and filters and the legend still work', () => {
+  const rows = section(snapshotOf(), 'features', { columns: 40 }).rows
+  expect(rows.find(r => r.key === 'feature:002')?.cells.map(c => `${c.glyph ?? ''}${c.text}`)).toEqual(['002', 'search', '○Planned'])
+  expect(rows.find(r => r.key === 'feature:001')?.cells[2]).toMatchObject({ text: 'Implemented', tone: 'good' })
+  expect(rows.find(r => r.key === 'feature:007')?.cells[2]).toMatchObject({ text: 'Retired' })
+  expect(section(snapshotOf(), 'features', { columns: 40, filter: 'blocked' }).rows.map(r => r.key)).toEqual(['feature:003', 'feature:009'])
+  const legend = (columns: number) => dashboardText(snapshotOf(), ctx({ columns })).some(l => l.startsWith('○ Planned'))
+  expect([legend(44), legend(60), legend(120), legend(40)]).toEqual([true, true, false, false])
+})
+
+test('smart truncation cuts a name at a separator and keeps the full name on expansion', () => {
+  const s = snapshotOf(bigReadme(1))
+  const row = (columns: number, expanded: Record<string, boolean> = {}) => section(s, 'features', { columns, expanded }).rows[0]
+  expect(row(44)?.cells[1]?.text).toBe('feature-number-001-with…')
+  expect(row(44)?.detail).toBeUndefined()
+  const open = row(44, { 'feature:001': true })
+  expect(open?.isOpen).toBe(true)
+  expect(open?.detail?.[0]?.[0]?.text).toBe('feature-number-001-with-a-very-long-name-that-has-to-be-cut-here')
+})
+
+test('an expanded feature lists the dependencies, what it waits for and the Spec Kit files', () => {
+  const rows = section(snapshotOf(), 'features', { expanded: { 'feature:003': true } }).rows
+  const lines = rows.find(r => r.key === 'feature:003')?.detail?.map(l => l.map(c => c.text).join(' ')) ?? []
+  expect(lines).toContain('Depends on')
+  expect(lines).toContain('↳ 001 shell')
+  expect(lines).toContain('↳ 002 search (waits for)')
+  expect(lines.some(l => l.startsWith('Files') && l.includes('spec.md'))).toBe(true)
+  const ascii = section(snapshotOf(), 'features', { ascii: true, expanded: { 'feature:003': true } }).rows.find(r => r.key === 'feature:003')?.detail?.map(l => l[0]?.text)
+  expect(ascii).toContain('- 002 search (waits for)')
+})
+
+test('a stale artifact has a secondary line, and expanding gives path, command and dates', () => {
+  const sec = section(snapshotOf(), 'artifacts')
+  const stale = sec.rows.find(r => r.key === 'artifact:specs/README.md')
+  expect(stale?.cells[2]).toMatchObject({ text: 'Stale', glyph: '↻' })
+  expect(stale?.sub).toBe('└─ Older than docs/product/brief.md (2026-10-09)')
+  const missing = sec.rows.find(r => r.key === 'artifact:docs/product/architecture.md')
+  expect(missing?.sub).toBe('└─ A later stage already ran')
+  expect(sec.rows.find(r => r.key === 'artifact:docs/product/brief.md')?.sub).toBeUndefined()
+  expect(sec.rows.find(r => r.key === 'artifact:docs/product/domain-model.md')?.sub).toBeUndefined()
+  expect(section(snapshotOf(), 'artifacts', { ascii: true }).rows.find(r => r.key === 'artifact:specs/README.md')?.sub).toBe('`- Older than docs/product/brief.md (2026-10-09)')
+
+  const open = section(snapshotOf(), 'artifacts', { expanded: { 'artifact:specs/README.md': true } }).rows.find(r => r.key === 'artifact:specs/README.md')
+  const lines = open?.detail?.map(l => l.map(c => c.text).join(' ')) ?? []
+  expect(lines).toEqual(['Path specs/README.md', 'Command /project:spec', 'Committed 2026-10-01', 'Upstream docs/product/brief.md (2026-10-09)'])
+  const text = dashboardText(snapshotOf(), ctx()).join('\n')
+  expect(text).toContain('↻ Stale')
+  expect(text).toContain('  └─ Older than docs/product/brief.md')
+})
+
+test('progress says the percentage and the counts it is computed from', () => {
+  const m = build(snapshotOf(), ctx())
+  expect(m.progress).toMatchObject({ implemented: 3, planned: 4, other: 2, total: 9, percent: 33 })
+  expect(m.progress.line).toBe('3 Implemented · 4 Planned · 2 Other')
+  expect(m.progress.line.match(/\d+/g)?.map(Number).reduce((a, b) => a + b, 0)).toBe(m.progress.total)
+  const seven = snapshotOf(undefined, { features: Array.from({ length: 10 }, (_, i) => ({ ...snapshotOf().features[0], number: `00${i}`, state: i < 7 ? ('done' as const) : ('doing' as const) })) as Snapshot['features'] })
+  const p = build(seven, ctx()).progress
+  expect([p.percent, p.line]).toEqual([70, '7 Implemented · 0 Planned · 3 Other'])
+  expect(build(snapshotOf(undefined, { features: [] }), ctx()).progress).toMatchObject({ total: 0, percent: 0 })
+  expect(dashboardText(seven, ctx()).join('\n')).toMatch(/Implementation {3}70%\n.+\n7 Implemented · 0 Planned · 3 Other\n/)
+})
+
+test('the next action shows what the recommendation says, never anything else', () => {
+  const s = snapshotOf()
+  const rule2 = { ...s, next: { rule: 2 as const, stage: '/project:architecture', reason: 'architecture is missing although a later stage already ran', ref: 'docs/product/architecture.md' } }
+  expect(build(rule2, ctx()).next).toMatchObject({
+    badge: 'Suggested',
+    title: 'Architecture',
+    explanation: 'architecture is missing although a later stage already ran',
+    ref: 'docs/product/architecture.md',
+    action: '/project:architecture',
+    hasNext: true,
+  })
+  expect(dashboardText(rule2, ctx()).slice(-6)).toEqual([
+    'Next action  Suggested',
+    '◆ Architecture',
+    '  architecture is missing although a later stage already ran',
+    '  docs/product/architecture.md',
+    '  Run /project:architecture',
+    'Hint only · Full report: /project:status',
+  ])
+  // a stage that is not a command has no button
+  expect(build(s, ctx()).next).toMatchObject({ badge: 'Needs attention', title: 'Ask the user' })
+  expect(build(s, ctx()).next.action).toBeUndefined()
+  // nothing to do: the report is the only command
+  const done = { ...s, next: { rule: null, stage: '/project:status', reason: 'nothing is ready' } }
+  expect(build(done, ctx()).next).toMatchObject({ badge: 'Up to date', title: '/project:status' })
+  expect(build(done, ctx()).next.action).toBeUndefined()
+})
+
+test('without a recommendation the block says so and offers only the report', () => {
+  const none = { ...snapshotOf(), next: undefined } as unknown as Snapshot
+  const next = build(none, ctx()).next
+  expect(next).toMatchObject({ hasNext: false, title: 'No recommendation yet', badge: 'Up to date', command: '/project:status' })
+  expect(next.explanation).toBeUndefined()
+  expect(next.action).toBeUndefined()
+  const lines = dashboardText(none, ctx())
+  expect(lines.slice(-3)).toEqual(['Next action  Up to date', '◆ No recommendation yet', 'Hint only · Full report: /project:status'])
+})
+
+test('a name with no word break near the end is cut mid-word, and one with a break ends on a word', () => {
+  const named = (name: string): string => {
+    const base = snapshotOf()
+    const features = [{ ...(base.features[0] as Snapshot['features'][number]), name }]
+    return section({ ...base, features }, 'features', { columns: 44 }).rows[0]?.cells[1]?.text ?? ''
+  }
+  expect(named('abcdefghijklmnopqrstuvwxyz0123456789')).toBe('abcdefghijklmnopqrstuvw…')
+  expect(named('alpha-beta-gamma-delta-epsilon-zeta')).toBe('alpha-beta-gamma-delta…')
+  expect(named('alpha-beta-gamma-delt_epsilon-zeta')).toBe('alpha-beta-gamma-delt…')
+  expect(named('short')).toBe('short')
 })

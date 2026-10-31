@@ -117,6 +117,8 @@ export type BarSegment = { key: string; glyph: string; tone: Tone; length: numbe
 
 export type PipelineView = {
   mode: Mode
+  // Which columns the feature matrix has at this width.
+  matrix: { tier: Tier; words: boolean }
   ascii: boolean
   // No artifact exists yet: the dashboard is not drawn, 013's lines say so.
   isEmpty: boolean
@@ -128,13 +130,29 @@ export type PipelineView = {
     planned: number
     other: number
     total: number
+    // Implemented as a whole percent of total; the counts line says what it is made of.
+    percent: number
+    line: string
     width: number
     bar: BarSegment[]
     pills: { key: string; text: string; tone: Tone }[]
   }
   stages: (StageStep & { glyph: string; tone: Tone })[]
   filter: { active: Filter; counts: Record<Filter, number> }
-  next: { badge: 'Needs attention' | 'Suggested' | 'Up to date'; text: string; ref?: string; hint: string; command: string }
+  next: {
+    badge: 'Needs attention' | 'Suggested' | 'Up to date'
+    // The recommendation as `recommend` made it: a title (its stage), why, what it points at.
+    title: string
+    explanation?: string
+    ref?: string
+    // The recommended command, when the stage is one; the button that fills it.
+    action?: string
+    // `${stage}: ${reason}`, the one-line form.
+    text: string
+    hasNext: boolean
+    hint: string
+    command: string
+  }
   hasGit: boolean
 }
 
@@ -170,6 +188,8 @@ export const GLYPH = {
   sep: ['·', '|'],
   ellipsis: ['…', '...'],
   edge: ['▎', '|'],
+  branch: ['└─', '`-'],
+  dep: ['↳', '-'],
   barDone: ['█', '#'],
   barPlanned: ['▒', '='],
   barOther: ['░', '-'],
@@ -178,11 +198,48 @@ export const GLYPH = {
 type GlyphKey = keyof typeof GLYPH
 const glyph = (key: GlyphKey, ascii: boolean): string => GLYPH[key][ascii ? 1 : 0]
 
-function cut(text: string, width: number, ascii: boolean): string {
+// Cut to `width` with an ellipsis. With `smart`, cut after the last word
+// break (-, _, space) when that keeps most of the width, so a name ends on a
+// whole word instead of mid-word.
+function cut(text: string, width: number, ascii: boolean, smart = false): string {
   const chars = [...text]
   if (chars.length <= width) return text
   const dots = glyph('ellipsis', ascii)
-  return `${chars.slice(0, Math.max(1, width - [...dots].length)).join('')}${dots}`
+  const keep = Math.max(1, width - [...dots].length)
+  let head = chars.slice(0, keep)
+  if (smart) {
+    // A break right after the kept part ends on a whole word already.
+    if (!'-_ '.includes(chars[keep] ?? 'x')) {
+      for (let i = keep - 1; i >= keep * 0.7 && i > 0; i -= 1) {
+        if ('-_ '.includes(chars[i] as string)) {
+          head = chars.slice(0, i)
+          break
+        }
+      }
+    }
+  }
+  return `${head.join('')}${dots}`
+}
+
+// The feature matrix's columns, chosen from the width actually available:
+// ID, Feature and Status first (narrow); then PRI, READY and the frontend and
+// backend sides (medium); then every side (wide), with words where they fit.
+export type Tier = 'narrow' | 'medium' | 'wide'
+export const FEATURE_MIN = 24
+const STATUS_WIDTH = 13
+const SIDE_PRIORITY = ['frontend', 'backend', 'status', 'qa']
+
+export function matrixPlan(columns: number, sides: readonly string[], gap: number): { tier: Tier; sides: string[]; words: boolean } {
+  const ordered = SIDE_PRIORITY.filter(side => sides.includes(side))
+  const needs = (widths: number[]): number => widths.reduce((a, b) => a + b, 0) + gap * (widths.length - 1)
+  const base = [3, FEATURE_MIN, 3, 7]
+  const wide = (cell: number): boolean => needs([...base, ...ordered.map(() => cell)]) <= columns
+  if (ordered.length > 0 && wide(STATUS_WIDTH)) return { tier: 'wide', sides: ordered, words: true }
+  if (ordered.length > 0 && wide(1)) return { tier: 'wide', sides: ordered, words: false }
+  const medium = ordered.filter(side => side === 'frontend' || side === 'backend')
+  const kept = medium.length > 0 ? medium : ordered.slice(0, 1)
+  if (needs([...base, ...kept.map(() => 1)]) <= columns) return { tier: 'medium', sides: kept, words: false }
+  return { tier: 'narrow', sides: [], words: true }
 }
 
 const DISPLAY: Record<string, string> = {
@@ -229,6 +286,8 @@ const KINDS: { kind: MarkerKind; title: string }[] = [
   { kind: 'assumption', title: 'Assumptions' },
   { kind: 'gap', title: 'Gaps' },
 ]
+// The word a feature's overall state is shown as when only one status fits.
+const STATE_WORD: Record<Feature['state'], string> = { todo: 'planned', doing: 'in progress', review: 'implemented', done: 'implemented', retired: '' }
 const READY_TONE: Record<Feature['bucket'], Tone> = { ready: 'info', blocked: 'bad', done: 'dim' }
 
 // Segment lengths of a bar `width` cells wide: every non-zero count gets at
@@ -298,11 +357,28 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     const status: Cell = { text: name, glyph: glyph(key, ascii), tone }
     const label: Cell = { text: cut(a.label, artifactWidths[0] ?? 8, ascii), tone: a.isPresent ? 'plain' : 'dim' }
     const stage: Cell = { text: cut(STAGE_NAME[a.stage] ?? a.stage, 18, ascii), tone: 'dim' }
+    const rowKey = `artifact:${a.path}`
+    const branch = glyph('branch', ascii)
+    const sub = a.isPresent && a.staleSince
+      ? `${branch} Older than ${a.staleSince.path} (${a.staleSince.date})`
+      : !a.isPresent && a.isProblem
+        ? `${branch} A later stage already ran`
+        : undefined
+    const isOpen = ctx.expanded[rowKey] === true
+    const pair = (name: string, value: string): Cell[] => [{ text: name, tone: 'dim' }, { text: value }]
+    const detail: Cell[][] = [
+      pair('Path', a.path),
+      pair('Command', a.stage),
+      ...(a.commitDate ? [pair('Committed', a.commitDate)] : []),
+      ...(a.staleSince ? [pair('Upstream', `${a.staleSince.path} (${a.staleSince.date})`)] : []),
+    ]
     return {
-      key: `artifact:${a.path}`,
+      key: rowKey,
       cells: isFull ? [label, stage, status] : [label, status],
       edge: tone,
-      ...(a.isPresent && a.staleSince ? { sub: `older than ${a.staleSince.path} (${a.staleSince.date})` } : {}),
+      ...(sub ? { sub } : {}),
+      isOpen,
+      ...(isOpen ? { detail } : {}),
     }
   })
   const hasArtifacts = snapshot.artifacts.some(a => a.isPresent)
@@ -315,33 +391,67 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     blocked: snapshot.features.filter(f => f.bucket === 'blocked').length,
     done: snapshot.features.filter(f => f.bucket === 'done').length,
   }
-  const sides = SIDE_ORDER.filter(side => snapshot.features.some(f => side in f.sides))
-  const sideWidth = isFull ? 13 : 1
-  const featureWidths = fill([3, null, 3, 7, ...sides.map(() => sideWidth)], isFull ? 12 : 8)
-  const featureColumns: Column[] = [
-    { key: 'id', label: 'ID', width: 3 },
-    { key: 'name', label: 'FEATURE', width: featureWidths[1] ?? 0 },
-    { key: 'priority', label: 'PRI', width: 3, align: 'right' },
-    { key: 'ready', label: 'READY', width: 7 },
-    ...sides.map((side, i) => ({ key: side, label: isFull ? (SIDE_HEAD[side] ?? side.toUpperCase()) : (side[0] ?? '').toUpperCase(), width: featureWidths[4 + i] ?? 0 })),
-  ]
+  const present = SIDE_ORDER.filter(side => snapshot.features.some(f => side in f.sides))
+  const plan = matrixPlan(ctx.columns, present, gap)
+  const { sides, words } = plan
+  const narrow = plan.tier === 'narrow'
+  const sideWidth = words ? STATUS_WIDTH : 1
+  const featureWidths = narrow
+    ? fill([3, null, STATUS_WIDTH], 8)
+    : fill([3, null, 3, 7, ...sides.map(() => sideWidth)], FEATURE_MIN)
+  const nameWidth = featureWidths[1] ?? FEATURE_MIN
+  const featureColumns: Column[] = narrow
+    ? [
+        { key: 'id', label: 'ID', width: 3 },
+        { key: 'name', label: 'FEATURE', width: nameWidth },
+        { key: 'status', label: 'STATUS', width: STATUS_WIDTH },
+      ]
+    : [
+        { key: 'id', label: 'ID', width: 3 },
+        { key: 'name', label: 'FEATURE', width: nameWidth },
+        { key: 'priority', label: 'PRI', width: 3, align: 'right' },
+        { key: 'ready', label: 'READY', width: 7 },
+        ...sides.map((side, i) => ({ key: side, label: words ? (SIDE_HEAD[side] ?? side.toUpperCase()) : (side[0] ?? '').toUpperCase(), width: featureWidths[4 + i] ?? 0 })),
+      ]
   const shown = snapshot.features.filter(f => active === 'all' || f.bucket === active)
+  const byNumber = new Map(snapshot.features.map(f => [f.number, f]))
   const featureRows: Row[] = shown.slice(0, Math.max(0, ctx.maxRows)).map(f => {
     const isRetired = f.state === 'retired'
     const rowTone: Tone | undefined = isRetired || f.bucket === 'done' ? 'dim' : undefined
+    const key = `feature:${f.number}`
+    const isOpen = ctx.expanded[key] === true
+    const pair = (name: string, value: string): Cell[] => [{ text: name, tone: 'dim' }, { text: value }]
+    const detail: Cell[][] = [
+      [{ text: f.name }],
+      ...Object.entries(f.sides).map(([side, value]) => pair(SIDE_HEAD[side] ?? side, value || glyph('none', ascii))),
+      ...(f.depends.length > 0
+        ? [
+            [{ text: 'Depends on', tone: 'dim' as Tone }],
+            ...f.depends.map(n => [{ text: `${glyph('dep', ascii)} ${n}${byNumber.get(n) ? ` ${byNumber.get(n)?.name}` : ''}${f.waiting.includes(n) ? ' (waits for)' : ''}` }]),
+          ]
+        : []),
+      pair('Files', (['spec', 'plan', 'tasks'] as const).map(n => `${n}.md ${f.files[n] ? glyph('ready', ascii) : glyph('missing', ascii)}`).join(` ${glyph('sep', ascii)} `)),
+    ]
+    const overall = isRetired ? statusCell('retired', ascii) : statusCell(STATE_WORD[f.state], ascii)
     return {
-      key: `feature:${f.number}`,
+      key,
       ...(isRetired ? { tone: 'dim' as const } : {}),
+      isOpen,
+      ...(isOpen ? { detail } : {}),
       cells: [
         { text: f.number, tone: rowTone },
-        { text: cut(f.name, featureWidths[1] ?? 12, ascii), tone: rowTone },
-        { text: f.priority, tone: rowTone, align: 'right' },
-        { text: f.bucket, tone: READY_TONE[f.bucket] },
-        ...sides.map(side => {
-          const cell = statusCell(f.sides[side] ?? '', ascii)
-          // Condensed: the glyph alone, under a legend.
-          return isFull ? cell : { text: cell.glyph ?? cell.text, tone: cell.tone }
-        }),
+        { text: cut(f.name, nameWidth, ascii, true), tone: rowTone },
+        ...(narrow
+          ? [overall]
+          : [
+              { text: f.priority, tone: rowTone, align: 'right' as const },
+              { text: f.bucket, tone: READY_TONE[f.bucket] },
+              ...sides.map(side => {
+                const cell = statusCell(f.sides[side] ?? '', ascii)
+                // Where words do not fit: the glyph alone, under a legend.
+                return words ? cell : { text: cell.glyph ?? cell.text, tone: cell.tone }
+              }),
+            ]),
       ],
     }
   })
@@ -384,6 +494,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   const bar: BarSegment[] = segments
     .map(([key, g, tone], i) => ({ key, glyph: glyph(g, ascii), tone, length: lengths[i] ?? 0 }))
     .filter(seg => seg.length > 0)
+  const percent = total === 0 ? 0 : Math.round((counted.implemented * 100) / total)
   const pills = segments.map(([key, , tone, label]) => {
     const n = counted[key as keyof typeof counted]
     return { key, text: `${n} ${label}`, tone: n > 0 ? tone : ('dim' as Tone) }
@@ -395,7 +506,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     glyph: glyph(step.state === 'done' ? 'ready' : step.state === 'current' ? 'current' : 'pending', ascii),
     tone: (step.state === 'done' ? 'good' : step.state === 'current' ? 'info' : 'dim') as Tone,
   }))
-  const { next } = snapshot
+  const next: Snapshot['next'] | undefined = snapshot.next
   const isLive = ctx.pollMs > 0 && ctx.checkedAt > 0 && ctx.now - ctx.checkedAt <= 3 * ctx.pollMs
   const caption = ctx.checkedAt <= 0
     ? 'Not checked yet'
@@ -405,6 +516,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
 
   return {
     mode,
+    matrix: { tier: plan.tier, words },
     ascii,
     isEmpty: !hasArtifacts,
     header: { title: 'PIPELINE', badge: isLive ? 'LIVE' : 'STALE', caption },
@@ -430,13 +542,18 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
       },
       { id: 'items', title: 'Open items', columns: [{ key: 'kind', label: 'ITEM', width: 0 }, { key: 'count', label: 'COUNT', width: 0, align: 'right' }], rows: itemRows },
     ],
-    progress: { ...counted, total, width: barWidth, bar, pills },
+    progress: { ...counted, total, percent, line: pills.map(p => p.text).join(sep), width: barWidth, bar, pills },
     stages,
     filter: { active, counts: filterCounts },
     next: {
-      badge: next.rule === 1 ? 'Needs attention' : next.rule === null ? 'Up to date' : 'Suggested',
-      text: `${next.stage}: ${next.reason}`,
-      ...(next.ref ? { ref: next.ref } : {}),
+      badge: next?.rule === 1 ? 'Needs attention' : next && next.rule !== null ? 'Suggested' : 'Up to date',
+      title: next ? (STAGE_NAME[next.stage] ?? `${next.stage.slice(0, 1).toUpperCase()}${next.stage.slice(1)}`) : 'No recommendation yet',
+      ...(next?.reason ? { explanation: next.reason } : {}),
+      ...(next?.ref ? { ref: next.ref } : {}),
+      // A command the stage names, other than the report the hint already offers.
+      ...(next && next.stage.startsWith('/') && next.stage !== '/project:status' ? { action: next.stage } : {}),
+      text: next ? `${next.stage}: ${next.reason}` : '',
+      hasNext: next !== undefined,
       hint: `Hint only${sep}Full report:`,
       command: '/project:status',
     },
@@ -462,6 +579,7 @@ function tableLines(section: Section, mode: Mode, ascii: boolean, edge: boolean)
   for (const row of section.rows) {
     out.push(`${mark(row)}${join(row.cells.map(cellText))}`)
     if (row.sub) out.push(`${edge ? '  ' : ''}  ${row.sub}`)
+    for (const detail of row.detail ?? []) out.push(`${edge ? '  ' : ''}    ${detail.map(cellText).join(' ')}`)
   }
   return out
 }
@@ -487,11 +605,11 @@ export function dashboardText(snapshot: Snapshot, ctx: Context): string[] {
   if (!m.hasGit) lines.push('Staleness needs git.')
   lines.push(`Stages (an aid)  ${m.stages.map(s => `${s.glyph} ${s.label}`).join('  ')}`)
 
-  lines.push('', 'Implementation')
+  lines.push('', m.progress.total === 0 ? 'Implementation' : `Implementation   ${m.progress.percent}%`)
   if (m.progress.total === 0) {
     lines.push(snapshot.hasReadme ? 'specs/README.md lists no feature.' : 'No specs/README.md yet.')
   } else {
-    lines.push(m.progress.bar.map(seg => seg.glyph.repeat(seg.length)).join(''), `${m.progress.pills.map(p => p.text).join('  ')}  of ${m.progress.total}`)
+    lines.push(m.progress.bar.map(seg => seg.glyph.repeat(seg.length)).join(''), m.progress.line)
   }
 
   const features = by('features')
@@ -499,7 +617,7 @@ export function dashboardText(snapshot: Snapshot, ctx: Context): string[] {
   if (features.rows.length > 0) lines.push(...tableLines(features, m.mode, m.ascii, false))
   if (features.empty) lines.push(features.empty)
   if (features.more) lines.push(features.more)
-  if (m.mode === 'condensed' && features.rows.length > 0) {
+  if (!m.matrix.words && features.rows.length > 0) {
     lines.push(`${glyph('planned', m.ascii)} Planned  ${glyph('progress', m.ascii)} In progress  ${glyph('partial', m.ascii)} Partial  ${glyph('implemented', m.ascii)} Implemented  ${glyph('verified', m.ascii)} Verified  ${glyph('none', m.ascii)} N/A`)
   }
 
@@ -509,6 +627,10 @@ export function dashboardText(snapshot: Snapshot, ctx: Context): string[] {
     for (const detail of row.detail ?? []) lines.push(`  ${detail.map(cellText).join(' ')}`)
   }
 
-  lines.push('', `Next action  ${m.next.badge}`, m.next.text + (m.next.ref ? ` [${m.next.ref}]` : ''), `${m.next.hint} ${m.next.command}`)
+  lines.push('', `Next action  ${m.next.badge}`, `${glyph('current', m.ascii)} ${m.next.title}`)
+  if (m.next.explanation) lines.push(`  ${m.next.explanation}`)
+  if (m.next.ref) lines.push(`  ${m.next.ref}`)
+  if (m.next.action) lines.push(`  Run ${m.next.action}`)
+  lines.push(`${m.next.hint} ${m.next.command}`)
   return lines
 }
