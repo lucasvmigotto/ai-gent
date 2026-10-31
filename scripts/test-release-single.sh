@@ -95,6 +95,24 @@ check "--dry-run writes nothing" test -z "$(git -C "$dir" status --porcelain)"
 echo 1.0.5 >"$dir/VERSION"
 check "version differs from tag: exit 1" test "$(rc)" = 1
 
+dir="$(repo json VERSION 1.0.0)"
+commit "docs: words"
+check "--json, nothing releasable: exit 3, empty stdout" bash -c 'out="$(cd "$1" && python3 "$2" --dry-run --json 2>/dev/null)"; [ -z "$out" ]' _ "$dir" "$RELEASE"
+check "--json, nothing releasable: exit 3" test "$(rc --dry-run --json)" = 3
+commit "feat: j"
+check "--json without --dry-run: exit 2" test "$(rc --json)" = 2
+check "--json without --dry-run: nothing written" test -z "$(git -C "$dir" status --porcelain)"
+check "--dry-run --json: one object with the spec keys" python3 -c '
+import json, sys
+d = json.loads(sys.argv[1])
+assert sorted(d) == ["bump", "changelog", "since", "targets", "version"], d
+assert d["version"] == "1.1.0" and d["bump"] == "minor" and d["since"] == "1.0.0", d
+assert d["targets"] == [{"kind": "source", "label": "VERSION", "from": "1.0.0", "to": "1.1.0", "bump": "minor"}], d
+assert isinstance(d["changelog"], str) and d["changelog"], d
+' "$(run --dry-run --json 2>/dev/null)"
+check "--dry-run --json writes nothing" test -z "$(git -C "$dir" status --porcelain)"
+check "human --dry-run output unchanged" test "$(run --dry-run 2>/dev/null | head -n2 | tail -n1)" = "VERSION: 1.0.0 -> 1.1.0"
+
 dir="$SANDBOX/fresh"
 mkdir -p "$dir"
 git init -q -b main "$dir"
