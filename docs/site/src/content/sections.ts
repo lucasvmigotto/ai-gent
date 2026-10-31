@@ -96,6 +96,7 @@ export function referenceSections(t: Messages): Section[] {
 				{ term: t.reference.pipeline, path: "shared/pipeline.md" },
 				{ term: t.reference.containers, path: "shared/containers.md" },
 				{ term: t.reference.guards, body: t.reference.guardsBody },
+				{ term: t.reference.mods, body: t.reference.modsBody },
 				{
 					term: t.reference.databases,
 					path: "plugins/db/references/safety.md",
