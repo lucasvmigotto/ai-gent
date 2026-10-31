@@ -33,6 +33,8 @@ type World = {
   hasWorkflows: boolean
   list: Reply[]
   others: Band[] | 'absent'
+  // What the other band plugins' atoms hold, by plugin (git's falls back to `others`); 'throws' is a denied read.
+  atoms: Record<string, Band[] | 'throws'>
   pushFails: boolean
   clock: ReturnType<typeof mock.clock>
 }
@@ -41,7 +43,7 @@ const lists = (w: World) => w.runs.filter(a => a.includes('cli'))
 
 // Nothing sits beneath the plugin: these hooks stand for the engine, git and reporun.
 function world(on: Handlers): World {
-  const w: World = { runs: [], toasts: [], detect: detect(), hasWorkflows: true, list: [out(RUNNING)], others: 'absent', pushFails: false, clock: mock.clock(on, { now: 1_000_000 }) }
+  const w: World = { runs: [], toasts: [], detect: detect(), hasWorkflows: true, list: [out(RUNNING)], others: 'absent', atoms: {}, pushFails: false, clock: mock.clock(on, { now: 1_000_000 }) }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.cwd', () => ({ value: ROOT }))
   on('fs.exists', (_, e) => ({ value: w.hasWorkflows && e.path === `${ROOT}/.github/workflows` }))
@@ -51,8 +53,10 @@ function world(on: Handlers): World {
     return { value: undefined }
   })
   on('state.get', async (_, e, next) => {
-    if (e.plugin !== 'git') return next(e)
-    return { value: w.others === 'absent' ? { value: undefined, version: 0 } : { value: w.others, version: 1 } }
+    if (e.plugin === 'repo') return next(e)
+    const held = w.atoms[e.plugin] ?? (e.plugin === 'git' ? w.others : 'absent')
+    if (held === 'throws') return { deny: 'no such plugin' }
+    return { value: held === 'absent' ? { value: undefined, version: 0 } : { value: held, version: 1 } }
   })
   on('process.run', (_, e) => {
     const argv = [...e.argv]
@@ -396,6 +400,61 @@ test('it draws when there is room, and the hidden count is left to the plugin th
   w.others = [HOLD]
   await pushed(w, $)
   expect(await band($)).toBe('CI for 3a9f1c2 on dev: Docs CI ⏳ · check ✓')
+})
+
+// ------------------------------------------------------------------ cross-plugin cap (spec 030)
+
+const THEIRS: Record<string, Band> = {
+  project: { id: 'holds', plugin: 'project', priority: 'hold', since: 1 },
+  git: { id: 'hygiene', plugin: 'git', priority: 'hold', since: 1 },
+  devcontainer: { id: 'containers', plugin: 'devcontainer', priority: 'hold', since: 1 },
+}
+const MORE = { type: 'Text', text: /more band/ } as const
+const moreText = async ($: Parameters<Parameters<typeof test>[1]>[0]): Promise<string | undefined> => {
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const found = await ui.find(MORE)
+  await ui.unmount()
+  return found === undefined ? undefined : String((found as { text?: string }).text ?? '')
+}
+
+for (const other of Object.keys(THEIRS)) {
+  test(`a band from ${other} counts toward the cap: at a cap of one the CI band gives way and says so`, { options: { bandCap: 1 } }, async ($, on) => {
+    const w = world(on)
+    w.atoms = { [other]: [THEIRS[other] as Band] }
+    await pushed(w, $)
+    expect(await band($)).toBeUndefined()
+    expect(await moreText($)).toBe('+1 more band (/bands)')
+  })
+}
+
+test('a plugin that is absent or whose read throws adds no band, and the others still count', { options: { bandCap: 1 } }, async ($, on) => {
+  const w = world(on)
+  w.atoms = { project: 'throws', git: THEIRS.git ? [THEIRS.git] : [] }
+  await pushed(w, $)
+  expect(await band($)).toBeUndefined()
+  expect(await moreText($)).toBe('+1 more band (/bands)')
+})
+
+test('with every other plugin absent the CI band draws at a cap of one', { options: { bandCap: 1 } }, async ($, on) => {
+  const w = world(on)
+  await pushed(w, $)
+  expect(await band($)).toContain('CI for 3a9f1c2')
+  expect(await moreText($)).toBeUndefined()
+})
+
+test('exactly one plugin draws the more-line: this one when its band is the first hidden, no one else otherwise', { options: { bandCap: 1 } }, async ($, on) => {
+  const w = world(on)
+  // a hold shows; this normal band (since 1_000_000) hides first, ahead of devcontainer's later info band
+  w.atoms = { project: [THEIRS.project as Band], devcontainer: [{ id: 'containers', plugin: 'devcontainer', priority: 'info', since: 2e6 }] }
+  await pushed(w, $)
+  expect(await moreText($)).toBe('+2 more bands (/bands)')
+})
+
+test('a band that is hidden after another plugin\'s older one leaves the line to that plugin', { options: { bandCap: 1 } }, async ($, on) => {
+  const w = world(on)
+  w.atoms = { project: [THEIRS.project as Band], devcontainer: [{ id: 'containers', plugin: 'devcontainer', priority: 'normal', since: 5 }] }
+  await pushed(w, $)
+  expect(await moreText($)).toBeUndefined()
 })
 
 // ------------------------------------------------------------------ independent options (FR-007)

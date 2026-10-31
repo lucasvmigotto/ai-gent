@@ -57,7 +57,9 @@ declare module 'claude-code' {
       // The key at which the person pressed Hide; the band returns when the key changes.
       releaseBandHidden: string | null
     }
-    // The project plugin's atom, read-only here; absent when it is not installed.
+    // The other band plugins' atoms, read-only here; each is absent when its plugin is not installed.
     project: { bands: Band[] }
+    repo: { bands: Band[] }
+    devcontainer: { bands: Band[] }
   }
 }
