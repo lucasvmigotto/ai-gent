@@ -310,7 +310,7 @@ GUARD_UX = "shared/guard-ux.ts"
 SHARED_CODE = {
     "shared/guard-ux.ts": ("git", "db", "secrets", "repo", "devcontainer"),
     "shared/hook-lines.ts": ("git", "devcontainer"),
-    "shared/band-priority.ts": ("project", "git"),
+    "shared/band-priority.ts": ("project", "git", "repo"),
 }
 GUARD_PLUGINS = {"git": "git:workflow guard:", "db": "db guard:", "secrets": "secrets guard:", "repo": "repo guard:",
                  "devcontainer": "containers guard:"}
