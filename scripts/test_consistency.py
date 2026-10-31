@@ -125,6 +125,27 @@ class PipelinePaths(unittest.TestCase):
         self.assertEqual(consistency.check_pipeline_paths(consistency.ROOT), [])
 
 
+class StageNames(unittest.TestCase):
+    MODEL = ("  {{ path: BRIEF, label: 'brief', stage: '/project:init', after: [] }},\n"
+             "  {{ path: 'a.md', label: 'a', stage: '/project:architecture', after: [] }},\n"
+             "export const STAGE_NAME: Readonly<Record<string, string>> = {{\n{names}}}\n")
+
+    def problems(self, names):
+        body = "".join(f"  '{n}': 'x',\n" for n in names)
+        return consistency.check_stage_names(tree({consistency.PIPELINE_MODEL: self.MODEL.format(names=body)}))
+
+    def test_every_stage_named_passes(self):
+        self.assertEqual(self.problems(["/project:init", "/project:architecture"]), [])
+
+    def test_a_stage_without_a_name_fails(self):
+        problems = self.problems(["/project:init"])
+        self.assertEqual(len(problems), 1)
+        self.assertIn("/project:architecture", problems[0])
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_stage_names(consistency.ROOT), [])
+
+
 class GuardUx(unittest.TestCase):
     SHARED = ("export const GUARDS = {\n  git: {\n    marker: 'git:workflow guard:',\n    skill: 'git:workflow',\n    entries: [\n"
               "      { match: 'hooks must not be bypassed', say: 'x' },\n    ],\n  },\n}\n")
