@@ -57,7 +57,7 @@ function world(on: Handlers, init: Partial<World> = {}): World {
   on('turn.complete', (_, e) => ({ text: e.text }))
   on('session.compact', () => {
     w.compacted++
-    return { messages: [] }
+    return { messages: MESSAGES } as never
   })
   on('session.usage', () => {
     w.usageCalls++
@@ -93,7 +93,8 @@ function world(on: Handlers, init: Partial<World> = {}): World {
 }
 
 const turn = ($: Parameters<Parameters<typeof test>[1]>[0]) => $.turn.complete({ text: 'done', reason: 'answer' } as never)
-const COMPACT = (trigger: 'manual' | 'auto' | 'plugin' | 'precompute') => ({ trigger, messages: [] }) as never
+const MESSAGES = [{ role: 'user', text: 'hi', toolUses: [] }]
+const COMPACT = (trigger: 'manual' | 'auto' | 'plugin' | 'precompute') => ({ trigger, messages: MESSAGES }) as never
 
 // ------------------------------------------------------------------ story 1
 
@@ -161,7 +162,7 @@ test('story 2: a manual or auto compaction toasts once and is passed on unchange
   const w = world(on, { percent: 10 })
   await $.session.start(START)
   const result = await $.session.compact(COMPACT('auto'))
-  expect(result).toEqual({ messages: [] })
+  expect(result).toEqual({ messages: MESSAGES })
   expect(w.compacted).toBe(1)
   expect(w.toasts).toEqual([
     'The conversation is about to be compacted. The checkpoint is 3 commits older than HEAD — run /project:checkpoint first: a summary loses what it keeps.',
