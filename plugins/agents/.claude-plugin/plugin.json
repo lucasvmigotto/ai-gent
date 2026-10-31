@@ -44,6 +44,18 @@
       "title": "Landing toast hint (percent)",
       "description": "A miss of at least this many percent, over or under, adds a pointer to what to fix; 0 turns the hint off",
       "default": 25
+    },
+    "cardsPane": {
+      "type": "boolean",
+      "title": "Card timeline pane",
+      "description": "/cards-pane opens a pane with the orchestrated cards (state, branch, tokens), the state changes seen while it is open and, on Measure, each card's span with the peak parallelism; it never opens by itself and does not depend on the token status",
+      "default": true
+    },
+    "cardsPollSeconds": {
+      "type": "number",
+      "title": "Card pane poll (seconds)",
+      "description": "How often the open pane checks whether the ledger changed (one stat; nothing else runs)",
+      "default": 5
     }
   }
 }
