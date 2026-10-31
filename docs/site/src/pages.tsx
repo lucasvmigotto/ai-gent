@@ -37,6 +37,7 @@ import {
 import {
 	changelogVersions,
 	command,
+	foldPatches,
 	groupChangelog,
 	pluginOf,
 	plugins,
@@ -588,9 +589,34 @@ export function ChangelogPage() {
 										{g.major}.{m.minor}.x
 									</summary>
 									<div className="space-y-4 border-t border-muted/15 px-3 py-3">
-										{m.entries.map((entry) => (
-											<ChangelogEntryBody key={entry.version} entry={entry} />
-										))}
+										{(() => {
+											const { shown, folded } = foldPatches(m.entries);
+											return (
+												<>
+													{shown.map((entry) => (
+														<ChangelogEntryBody
+															key={entry.version}
+															entry={entry}
+														/>
+													))}
+													{folded.length > 0 ? (
+														<details className="rounded-[0.375rem] border border-muted/15">
+															<summary className="cursor-pointer px-3 py-2 text-sm text-muted">
+																{`${folded.length} ${t.changelog.earlierPatches}`}
+															</summary>
+															<div className="space-y-4 border-t border-muted/15 px-3 py-3">
+																{folded.map((entry) => (
+																	<ChangelogEntryBody
+																		key={entry.version}
+																		entry={entry}
+																	/>
+																))}
+															</div>
+														</details>
+													) : null}
+												</>
+											);
+										})()}
 									</div>
 								</details>
 							))}

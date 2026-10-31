@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	changelogVersions,
 	counts,
+	foldPatches,
 	groupChangelog,
 	pluginOf,
 	searchSkills,
@@ -119,5 +120,25 @@ describe("generated content", () => {
 				}
 			}
 		}
+	});
+});
+
+describe("foldPatches", () => {
+	const e = (patch: number) => ({
+		version: `1.2.${patch}`,
+		date: null,
+		major: 1,
+		minor: 2,
+		patch,
+		body: "",
+	});
+	it("keeps the newest entry and the minor release, folds older patches", () => {
+		const { shown, folded } = foldPatches([e(3), e(2), e(1), e(0)]);
+		expect(shown.map((x) => x.version)).toEqual(["1.2.3", "1.2.0"]);
+		expect(folded.map((x) => x.version)).toEqual(["1.2.2", "1.2.1"]);
+	});
+	it("folds nothing for a lone entry or a minor with one patch", () => {
+		expect(foldPatches([e(0)]).folded).toEqual([]);
+		expect(foldPatches([e(1), e(0)]).folded).toEqual([]);
 	});
 });
