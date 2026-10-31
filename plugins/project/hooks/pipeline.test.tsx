@@ -181,6 +181,8 @@ function world(on: Handlers, files: Record<string, string>): World {
   return w
 }
 
+// 013's pane tests run on its line list, which is the `compact` layout.
+const COMPACT = { options: { pipelineLayout: 'compact' } } as const
 const START = { cwd: ROOT, surface: 'terminal', isInteractive: true } as const
 const PIPELINE: Record<string, string> = {
   [BRIEF]: '# Brief',
@@ -188,7 +190,7 @@ const PIPELINE: Record<string, string> = {
   'specs/001-shell/spec.md': '# spec\n[NEEDS CLARIFICATION: which login?]',
 }
 
-test('the pane lists artifacts, features and open items on every surface', async ($, on) => {
+test('the pane lists artifacts, features and open items on every surface', COMPACT, async ($, on) => {
   const w = world(on, { ...PIPELINE })
   w.dates[BRIEF] = '2026-10-01'
   await $.session.start(START)
@@ -204,7 +206,7 @@ test('the pane lists artifacts, features and open items on every surface', async
   }
 })
 
-test('an artifact older than its upstream is marked stale', async ($, on) => {
+test('an artifact older than its upstream is marked stale', COMPACT, async ($, on) => {
   const w = world(on, { ...PIPELINE, [ARCH]: '# Architecture' })
   w.dates[BRIEF] = '2026-10-10'
   w.dates[ARCH] = '2026-10-01'
@@ -223,7 +225,7 @@ test('with no pipeline the pane says so and does not open unasked', async ($, on
   await ui.unmount()
 })
 
-test('the pane follows a change within one poll, and an idle pane spawns nothing', async ($, on) => {
+test('the pane follows a change within one poll, and an idle pane spawns nothing', COMPACT, async ($, on) => {
   const w = world(on, { ...PIPELINE })
   const { clock } = w
   await $.session.start(START)
@@ -242,7 +244,7 @@ test('the pane follows a change within one poll, and an idle pane spawns nothing
   await ui.unmount()
 })
 
-test('an Edit under specs/ shows at once, without waiting for the poll', async ($, on) => {
+test('an Edit under specs/ shows at once, without waiting for the poll', COMPACT, async ($, on) => {
   const w = world(on, { ...PIPELINE })
   await $.session.start(START)
   w.files['specs/001-shell/spec.md'] = '# spec\nno marker now'
@@ -265,7 +267,7 @@ test('/pipeline opens the pane, or prints the snapshot where nothing can draw it
   expect(text).toContain('✓ brief')
 })
 
-test('the /project:status button fills the prompt and never submits it', async ($, on) => {
+test('the /project:status button fills the prompt and never submits it', COMPACT, async ($, on) => {
   const w = world(on, { ...PIPELINE })
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
@@ -274,7 +276,7 @@ test('the /project:status button fills the prompt and never submits it', async (
   await ui.unmount()
 })
 
-test('the markers button expands the list', async ($, on) => {
+test('the markers button expands the list', COMPACT, async ($, on) => {
   world(on, { ...PIPELINE })
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
@@ -288,4 +290,132 @@ test('pipelinePane off registers nothing', { options: { pipelinePane: false } },
   const w = world(on, { ...PIPELINE })
   await $.session.start(START)
   expect(w.opened).toBe(0)
+})
+
+// ------------------------------------------------------- the dashboard (029)
+
+type Node = { type?: string; key?: string; props?: Record<string, unknown>; children?: unknown[] }
+
+// Every string a drawn tree shows, in order, and every key it carries.
+function walk(node: unknown, out: { texts: string[]; keys: string[]; types: string[] } = { texts: [], keys: [], types: [] }) {
+  if (typeof node === 'string') out.texts.push(node)
+  else if (node && typeof node === 'object') {
+    const n = node as Node
+    if (n.type) out.types.push(n.type)
+    if (typeof n.props?.key === 'string') out.keys.push(n.props.key)
+    if (typeof n.key === 'string') out.keys.push(n.key)
+    for (const child of n.children ?? []) walk(child, out)
+  }
+  return out
+}
+
+test('the dashboard is the default: every region is there on every surface, in native components only', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  w.dates[BRIEF] = '2026-10-01'
+  await $.session.start(START)
+  for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    for (const key of ['header', 'summary', 'artifacts', 'progress', 'features', 'items', 'next', 'artifact:docs/product/brief.md', 'feature:002', 'marker:clarification']) {
+      expect(await ui.find({ key })).toBeDefined()
+    }
+    expect(await ui.find({ type: 'Text', text: /PIPELINE/ })).toBeDefined()
+    const { types, texts } = walk(await ui.drawn())
+    expect(types.every(t => ['Box', 'Text', 'Button'].includes(t))).toBe(true)
+    expect(texts.join('').includes('\u001b')).toBe(false)
+    await ui.unmount()
+  }
+})
+
+test('the header says LIVE while the poll checks, and the caption advances with each tick', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  // The mock clock starts at 0, which the pane reads as never checked.
+  await w.clock.advance(1_700_000_000_000)
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: / LIVE / })).toBeDefined()
+  const first = (await ui.find({ type: 'Text', text: /^Checked / }))?.text
+  expect(first).toMatch(/^Checked \d\d:\d\d:\d\d · every 5 s$/)
+  await w.clock.advance(65_000)
+  const later = (await ui.find({ type: 'Text', text: /^Checked / }))?.text
+  expect(later).not.toBe(first)
+  expect(await ui.find({ type: 'Text', text: / STALE / })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the dashboard shows the features as a matrix and an idle redraw reads nothing', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await ui.find({ key: 'feature:002' }))?.text).toMatch(/002.*search.*P1.*ready.*In progress.*Planned/)
+  expect((await ui.find({ key: 'feature:003' }))?.text).toMatch(/003.*guides.*blocked/)
+  const spawned = w.runs.length
+  const listed = w.lists.length
+  await ui.press({ key: 'button-markers' })
+  expect(await ui.find({ type: 'Text', text: /specs\/001-shell\/spec.md:2 which login\?/ })).toBeDefined()
+  expect(w.runs.length).toBe(spawned)
+  expect(w.lists.length).toBe(listed)
+  await ui.unmount()
+})
+
+test('the Next action block fills /project:status and says it is only a hint', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /Hint only · Full report:/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Needs attention/ })).toBeDefined()
+  await ui.press({ key: 'button-status' })
+  expect(w.filled).toEqual(['/project:status'])
+  await ui.unmount()
+})
+
+test('the width picks the mode: compact text under 40, condensed to 90, full above', async ($, on) => {
+  world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const at = async (bodyColumns: number) => {
+    const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns }, surface: 'terminal' })
+    const found = { dashboard: (await ui.find({ key: 'header' })) !== undefined, large: (await ui.find({ type: 'Text', text: /^Artifacts ready$/ })) !== undefined, line: (await ui.find({ type: 'Text', text: / ready · / })) !== undefined, compact: (await ui.find({ type: 'Text', text: /^Pipeline$/ })) !== undefined }
+    await ui.unmount()
+    return found
+  }
+  expect(await at(39)).toEqual({ dashboard: false, large: false, line: false, compact: true })
+  expect(await at(40)).toEqual({ dashboard: true, large: false, line: true, compact: false })
+  expect(await at(90)).toEqual({ dashboard: true, large: false, line: true, compact: false })
+  expect(await at(91)).toEqual({ dashboard: true, large: true, line: false, compact: false })
+})
+
+test('the ASCII option leaves no non-ASCII glyph in what the pane draws', { options: { pipelineAscii: true } }, async ($, on) => {
+  world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const text = walk(await ui.drawn()).texts.join('\n')
+  expect(text).toContain('PIPELINE')
+  // The sentence of the next action comes from 013's recommend; its own text may hold non-ASCII only if a file does.
+  expect(/^[\x20-\x7e\n]*$/.test(text)).toBe(true)
+  await ui.unmount()
+})
+
+test('the row cap and the layout option reach the pane', { options: { pipelineMaxRows: 3 } }, async ($, on) => {
+  world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ key: 'feature:003' })).toBeDefined()
+  expect(await ui.find({ key: 'feature:004' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /\+6 more; filter to see them/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('any layout value but compact reads as the dashboard', { options: { pipelineLayout: 'nonsense' } }, async ($, on) => {
+  world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ key: 'header' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('headless /pipeline still answers 013s text', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  w.placed = false
+  await $.session.start({ ...START, isInteractive: false })
+  const out = (await $.command.run({ command: 'pipeline-pane', args: '' } as never)).text ?? ''
+  expect(out).toMatch(/^Pipeline\nArtifacts\n✓ brief/)
 })

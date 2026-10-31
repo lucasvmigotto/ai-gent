@@ -495,7 +495,7 @@ export function dashboardText(snapshot: Snapshot, ctx: Context): string[] {
   }
 
   const features = by('features')
-  lines.push('', 'Features', FILTERS.map(f => `${f === m.filter.active ? glyph('implemented', m.ascii) : ' '}${f[0]?.toUpperCase()}${f.slice(1)} ${m.filter.counts[f]}`).join('  '))
+  lines.push('', 'Features', FILTERS.map(f => `${f === m.filter.active ? `${glyph('implemented', m.ascii)} ` : ''}${f[0]?.toUpperCase()}${f.slice(1)} ${m.filter.counts[f]}`).join('  '))
   if (features.rows.length > 0) lines.push(...tableLines(features, m.mode, m.ascii, false))
   if (features.empty) lines.push(features.empty)
   if (features.more) lines.push(features.more)

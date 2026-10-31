@@ -5,6 +5,7 @@ import { expect, test } from 'claude-code/testing'
 import type { Snapshot } from '../types'
 import { bigReadme, snapshotOf } from './pipeline-view-fixtures'
 import { ARTIFACTS, STAGE_NAME, progress, stageStrip } from './pipeline-model'
+import { DASHBOARD_120, DASHBOARD_120_ASCII, DASHBOARD_80, DASHBOARD_80_ASCII, VIEW_39 } from './pipeline-golden'
 import { build, dashboardText, statusCell } from './pipeline-view'
 import type { Context, Section } from './pipeline-view'
 
@@ -212,4 +213,15 @@ test('every toned cell has a glyph or a word beside its colour', () => {
       for (const row of sec.rows) for (const cell of row.cells) if (cell.tone && cell.tone !== 'plain') expect((cell.glyph ?? '') + cell.text).not.toBe('')
     }
   }
+})
+
+test('golden: the dashboard text at 120 and 80 columns, in Unicode and in ASCII', () => {
+  const draw = (columns: number, ascii: boolean) =>
+    dashboardText(snapshotOf(), ctx({ columns, ascii, checkedAt: 1_700_000_000_000, now: 1_700_000_000_000 })).map(l => l.replace(/\d\d:\d\d:\d\d/, 'HH:MM:SS'))
+  expect(draw(120, false)).toEqual(DASHBOARD_120)
+  expect(draw(120, true)).toEqual(DASHBOARD_120_ASCII)
+  expect(draw(80, false)).toEqual(DASHBOARD_80)
+  expect(draw(80, true)).toEqual(DASHBOARD_80_ASCII)
+  // 39 columns is 013's compact text, byte for byte.
+  expect(dashboardText(snapshotOf(), ctx({ columns: 39 })).join('|')).toBe(VIEW_39.map(l => l.split('|')[1]).join('|'))
 })
