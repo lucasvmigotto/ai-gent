@@ -15,8 +15,9 @@ export type Pattern = {
 export type Rule = Pattern & { re: RegExp }
 
 // Where text is masked: what the person types, or a skill's written body,
-// where only the high-confidence kinds apply (prose and examples stay whole).
-export type Scope = 'prompt' | 'skill'
+// where only the high-confidence kinds apply (prose and examples stay whole),
+// or a tool's result, which takes the same high-confidence kinds.
+export type Scope = 'prompt' | 'skill' | 'result'
 
 export type Masked = {
   text: string
@@ -72,6 +73,14 @@ export function summary(masked: Masked): string {
   return `secret-mask: masked ${parts.join(', ')} — keep secrets in pass (${where}), not in a prompt`
 }
 
+// One line about a tool's result that held credentials: the tool, the kinds and
+// how many, and whether the stored copy was redacted. Never any part of a match.
+export function warning(masked: Masked, tool: string, isRedacted: boolean): string {
+  const parts = Object.entries(masked.counts).map(([kind, n]) => `${LABELS[kind] ?? kind} ×${n}`)
+  const what = isRedacted ? 'the saved copy was redacted' : 'the saved copy was left as it is'
+  return `secret-mask: the ${tool} result held ${parts.join(', ')}; ${what} — keep secrets in pass (secrets:pass), not in tool output`
+}
+
 // A cheap look for text that may hold a credential, used only when masking
 // itself failed: then the text is held back if it looks like one, else sent.
 const KEYS = String.raw`BEGIN [A-Z ]*PRIVATE|gh[pousr]_[A-Za-z0-9]{20}|github_pat_|\bsk-[A-Za-z0-9_-]{20}|AKIA[0-9A-Z]{16}|xox[baprs]-|:\/\/[^\s\/@:]+:[^\s@]+@`
@@ -81,6 +90,7 @@ const LOOKS: Record<Scope, RegExp> = {
     'i',
   ),
   skill: new RegExp(KEYS, 'i'),
+  result: new RegExp(KEYS, 'i'),
 }
 
 export function looksSecret(text: string, scope: Scope): boolean {
