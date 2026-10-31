@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { fmtTok, inFlight, news, parseBudget, parseLedger, parseTok, statusText } from './token-model'
+import { etaNews, fmtEta, fmtRate, fmtTok, inFlight, news, parseBudget, parseLedger, parseTok, statusText } from './token-model'
 import type { Budget } from './token-model'
 
 type Handlers = Parameters<Parameters<typeof test>[1]>[1]
@@ -75,6 +75,63 @@ test('only news is toasted: a verdict that turned bad, a card that passed its pr
   expect(news(cards, BUDGET, 'shrink', ['a']).verdict).toBeNull() // back to proceed is not news
   expect(parseBudget('not json')).toBeNull()
   expect(parseBudget('{"verdict":"stop","caps":[]}')?.verdict).toBe('stop')
+})
+
+// ------------------------------------------------- the burn rate (spec 018)
+
+const WITH_ETA: Budget = {
+  ...BUDGET,
+  rate: { per_hour: 7_400_000, window_minutes: 30, messages: 112 },
+  caps: [
+    { name: 'session', cap: 12_000_000, used: 8_900_000, left: 3_100_000, eta_minutes: 130 },
+    { name: 'week', cap: 60_000_000, used: 38_000_000, left: 22_000_000, eta_minutes: 900 },
+  ],
+}
+
+test('an ETA reads ~25m, ~2h10m, ~15h, and >2d past 48 hours; a rate reads 7.40M/h', () => {
+  expect([fmtEta(25), fmtEta(130), fmtEta(900), fmtEta(60), fmtEta(2880), fmtEta(2881)]).toEqual(['~25m', '~2h10m', '~15h', '~1h', '~48h', '>2d'])
+  expect([fmtRate(7_400_000), fmtRate(400_000)]).toEqual(['7.40M/h', '400k/h'])
+})
+
+test('the status line puts each cap\'s ETA after its figure, and only when the script gave one', () => {
+  expect(statusText([], WITH_ETA, 200)).toBe('tokens · session left 3.10M (~2h10m) · week left 22.00M (~15h)')
+  const partial = { ...WITH_ETA, caps: [{ ...WITH_ETA.caps[0]!, eta_minutes: null }, WITH_ETA.caps[1]!] }
+  expect(statusText([], partial, 200)).toBe('tokens · session left 3.10M · week left 22.00M (~15h)')
+  const long = { ...WITH_ETA, caps: [{ ...WITH_ETA.caps[0]!, eta_minutes: 5000 }] }
+  expect(statusText([], long, 200)).toBe('tokens · session left 3.10M (>2d)')
+  expect(statusText([], WITH_ETA, 200, false)).toBe('tokens · session left 3.10M · week left 22.00M') // tokenBurnRate off: 014's line
+})
+
+const withEta = (session: number | null, week: number | null = null, left = 3_100_000): Budget => ({
+  ...WITH_ETA,
+  caps: [
+    { name: 'session', cap: 12_000_000, used: 0, left, eta_minutes: session },
+    { name: 'week', cap: 60_000_000, used: 0, left: 22_000_000, eta_minutes: week },
+  ],
+})
+
+test('an ETA toast fires once per crossing of the threshold, per cap', () => {
+  let warned: string[] = []
+  const step = (b: Budget | null, threshold = 30) => {
+    const out = etaNews(b, warned, threshold)
+    warned = out.warned
+    return out.toasts
+  }
+  expect(step(withEta(60))).toEqual([])
+  expect(step(withEta(25))).toEqual(['session cap lasts ~25m at 7.40M/h — pause the wave or finish the card in flight'])
+  expect(step(withEta(25))).toEqual([]) // still under: no second toast
+  expect(step(withEta(90))).toEqual([]) // recovered
+  expect(step(withEta(20))).toHaveLength(1) // a new crossing
+  expect(step(withEta(null))).toEqual([]) // null clears the flag
+  expect(warned).toEqual([])
+  expect(step(withEta(20, 10))).toHaveLength(2) // two caps, two toasts
+  expect(step(withEta(20, 10))).toEqual([])
+})
+
+test('no ETA toast for a cap with nothing left, with the threshold at 0, or without a budget', () => {
+  expect(etaNews(withEta(0, null, 0), [], 30).toasts).toEqual([])
+  expect(etaNews(withEta(5), [], 0)).toEqual({ toasts: [], warned: [] })
+  expect(etaNews(null, ['session'], 30)).toEqual({ toasts: [], warned: [] })
 })
 
 // ----------------------------------------------------------------- the flow

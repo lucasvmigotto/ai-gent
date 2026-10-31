@@ -33,6 +33,20 @@ export function fmtTok(n: number): string {
   return n < 1_000_000 ? `${Math.round(n / 1000)}k` : `${(n / 1_000_000).toFixed(2)}M`
 }
 
+// `7.40M/h`: the script's per-hour figure in the same compact form.
+export function fmtRate(perHour: number): string {
+  return `${fmtTok(perHour)}/h`
+}
+
+// The script's `eta_minutes` as `~25m`, `~2h10m`, `~15h`, or `>2d` past 48 hours.
+export function fmtEta(minutes: number): string {
+  if (minutes > 48 * 60) return '>2d'
+  if (minutes < 60) return `~${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest === 0 ? `~${hours}h` : `~${hours}h${rest}m`
+}
+
 const cells = (line: string): string[] => line.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim())
 
 // The card table of .ai-gent/orchestrate-status.md: a `Card` column (the id in
@@ -83,7 +97,9 @@ export type Budget = {
   verdict: 'proceed' | 'shrink' | 'stop'
   why: string
   fit: number
-  caps: { name: string; cap: number; used: number; left: number }[]
+  // `rate` and `eta_minutes` are the burn rate's additions (spec 018): the script measures, this formats.
+  rate?: { per_hour: number; window_minutes: number; messages: number } | null
+  caps: { name: string; cap: number; used: number; left: number; eta_minutes?: number | null }[]
   cards: { label: string; model: string; projected: number; p75: number | null; confidence: string | null }[]
   batches: string[][]
 }
@@ -100,8 +116,9 @@ export function parseBudget(stdout: string): Budget | null {
 
 // The status line, cut to `width`: the budget part and the warning are kept,
 // the cards give way (`+N more`).
-export function statusText(cards: readonly LedgerCard[], budget: Budget | null, width: number): string | null {
-  const caps = budget ? budget.caps.map(cap => `${cap.name} left ${fmtTok(cap.left)}`) : []
+export function statusText(cards: readonly LedgerCard[], budget: Budget | null, width: number, withEta = true): string | null {
+  const eta = (cap: Budget['caps'][number]): string => (withEta && typeof cap.eta_minutes === 'number' ? ` (${fmtEta(cap.eta_minutes)})` : '')
+  const caps = budget ? budget.caps.map(cap => `${cap.name} left ${fmtTok(cap.left)}${eta(cap)}`) : []
   const warn = budget && budget.verdict !== 'proceed' ? [`⚠ ${budget.verdict}`] : []
   if (cards.length === 0 && caps.length === 0) return null
 
@@ -132,4 +149,17 @@ export function news(cards: readonly LedgerCard[], budget: Budget | null, lastVe
       text: `${card.id} used ${card.usedText}, projected ${card.projectedText} (+${Math.round(((card.used as number) / (card.projected as number) - 1) * 100)}%)`,
     }))
   return { verdict, overruns }
+}
+
+// The caps whose ETA fell under `threshold` minutes since the last look: one toast
+// per cap per crossing. `warned` is the caps already under; the new list is every
+// cap under now (a cap with nothing left is 014's stop, not an ETA). 0 turns it off.
+export function etaNews(budget: Budget | null, warned: readonly string[], threshold: number): { toasts: string[]; warned: string[] } {
+  if (!budget || threshold <= 0) return { toasts: [], warned: [] }
+  const under = budget.caps.filter(cap => cap.left > 0 && typeof cap.eta_minutes === 'number' && cap.eta_minutes < threshold)
+  const rate = budget.rate ? ` at ${fmtRate(budget.rate.per_hour)}` : ''
+  const toasts = under
+    .filter(cap => !warned.includes(cap.name))
+    .map(cap => `${cap.name} cap lasts ${fmtEta(cap.eta_minutes as number)}${rate} — pause the wave or finish the card in flight`)
+  return { toasts, warned: under.map(cap => cap.name) }
 }
