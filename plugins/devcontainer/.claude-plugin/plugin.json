@@ -19,6 +19,24 @@
       "title": "Show the container leftovers report",
       "description": "Show the report leftovers.sh prints at session start (this project's leftover containers, images, volumes; a low disk), which only the model sees, as a toast",
       "default": true
+    },
+    "containersBand": {
+      "type": "boolean",
+      "title": "Show the container and disk band",
+      "description": "Keep this project's container leftovers and a low disk above the prompt, read from leftovers.sh --json after container work (report only, nothing is removed)",
+      "default": true
+    },
+    "containersRefreshSeconds": {
+      "type": "number",
+      "title": "Container band refresh (seconds)",
+      "description": "Read the container report again after a turn at most this often (it is also read at session start and after container builds, runs and removals)",
+      "default": 120
+    },
+    "containersCommand": {
+      "type": "boolean",
+      "title": "Offer the /containers command",
+      "description": "Register /containers, which prints the full leftovers report and a pointer to wt.py resources",
+      "default": true
     }
   },
   "types": "./types/index.d.ts"
