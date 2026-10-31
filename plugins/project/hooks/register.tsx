@@ -17,8 +17,9 @@ import { beforeWrite, nextStageAtTurnEnd, noteWrite, seedNextStage } from './nex
 import type { NextStageOptions } from './nextstage'
 import { nudgeAtTurnEnd, nudgeBeforeCompact } from './handoff'
 import type { HandoffOptions } from './handoff'
-import { PANE, close, open, press, readExpanded, readIsOpen, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
-import { text as pipelineText, view } from './pipeline-view'
+import { PANE, close, open, press, readExpanded, readIsOpen, readPaneState, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
+import { drawDashboard } from './pipeline-draw'
+import { build, text as pipelineText, view } from './pipeline-view'
 import type { Tone } from './pipeline-view'
 import { repoRoot } from './repo'
 
@@ -29,7 +30,7 @@ const checkpoint = atom({ plugin: 'project', key: 'checkpoint' } as const, null,
 })
 const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, false)
 
-type Options = BandOptions & HandoffOptions & NextStageOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number }
+type Options = BandOptions & HandoffOptions & NextStageOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
@@ -218,7 +219,28 @@ export const register: Register = (on, options: Options) => {
     const { Box, Button, Text } = $.ui.resolve(e)
     if (snapshot === null) return <Text dimColor>Reading the pipeline…</Text>
 
-    const lines = view(snapshot, e.props.bodyColumns, await readExpanded($))
+    const expanded = await readExpanded($)
+    if (options.pipelineLayout !== 'compact') {
+      const state = await readPaneState($)
+      // The badge's verdict is the poll's: it is LIVE while the poll keeps a
+      // positive interval and has checked, so `now` is the last check. Nothing
+      // reads the clock while drawing.
+      const model = build(snapshot, {
+        columns: e.props.bodyColumns,
+        expanded,
+        filter: state.filter,
+        checkedAt: state.checkedAt,
+        now: state.checkedAt,
+        pollMs: state.pollMs,
+        ascii: options.pipelineAscii === true,
+        maxRows: Math.max(1, Math.floor(options.pipelineMaxRows ?? 60)),
+      })
+      if (model.mode !== 'compact' && !model.isEmpty) {
+        return drawDashboard($, e, model, { onStatus: () => press($, 'status'), onMarkers: () => press($, 'markers') })
+      }
+    }
+
+    const lines = view(snapshot, e.props.bodyColumns, expanded)
     return (
       <Box flexDirection="column">
         {lines.map(line => (

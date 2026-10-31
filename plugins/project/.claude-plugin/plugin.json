@@ -33,6 +33,25 @@
       "description": "How often the open pane checks the files for changes",
       "default": 5
     },
+    "pipelineLayout": {
+      "type": "string",
+      "title": "Pipeline pane layout",
+      "description": "dashboard (the default) draws the pane with a header, stat tiles, tables and a progress bar; compact keeps the plain line list. Any other value reads as dashboard",
+      "default": "dashboard"
+    },
+    "pipelineAscii": {
+      "type": "boolean",
+      "title": "Pipeline pane: ASCII glyphs",
+      "description": "Draw the dashboard with ASCII glyphs only, for a terminal whose font lacks the Unicode ones",
+      "default": false
+    },
+    "pipelineMaxRows": {
+      "type": "number",
+      "title": "Pipeline pane: most feature rows",
+      "description": "The dashboard's feature matrix draws at most this many rows, then says how many more there are",
+      "default": 60,
+      "min": 1
+    },
     "nextStageToast": {
       "type": "boolean",
       "title": "Next-stage toast",
