@@ -7,7 +7,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import { etaNews, inFlight, news, parseBudget, parseLedger, statusText } from './token-model'
+import { scanLanding } from './landing'
+import type { LandingOptions } from './landing'
+import { LEDGER, exists, readCards } from './ledger'
+import { etaNews, inFlight, news, parseBudget, statusText } from './token-model'
 import type { Budget, LedgerCard } from './token-model'
 
 const lastVerdictAtom = atom({ plugin: 'agents', key: 'tokenLastVerdict' } as const, null)
@@ -15,21 +18,12 @@ const toastedAtom = atom({ plugin: 'agents', key: 'tokenToasted' } as const, [])
 const etaWarnedAtom = atom({ plugin: 'agents', key: 'tokenEtaWarned' } as const, [])
 const refreshedAtAtom = atom({ plugin: 'agents', key: 'tokenRefreshedAt' } as const, 0)
 
-const LEDGER = '.ai-gent/orchestrate-status.md'
 const BUDGET = '.ai-gent/budget.yaml'
 const WIDTH = 150
 
-// The burn rate's two options (spec 018); register.tsx passes what the user set.
-export type TokenOptions = { tokenBurnRate?: boolean; tokenEtaWarnMinutes?: number }
-
-async function exists($: EngineInterface, path: string): Promise<boolean> {
-  return $.fs.exists(path).catch(() => false)
-}
-
-async function readCards($: EngineInterface, cwd: string): Promise<LedgerCard[]> {
-  if (!(await exists($, `${cwd}/${LEDGER}`))) return []
-  return parseLedger(String(await $.fs.read(`${cwd}/${LEDGER}`).catch(() => '')))
-}
+// The burn rate's two options (spec 018) and the landing toast's two (spec 019);
+// register.tsx passes what the user set.
+export type TokenOptions = { tokenBurnRate?: boolean; tokenEtaWarnMinutes?: number } & LandingOptions
 
 // The script's own arguments for the wave: the cards in flight, or no wave at all
 // (`--projected 0`, which still prints what the caps leave).
@@ -48,6 +42,8 @@ export async function refresh($: EngineInterface, options: TokenOptions = {}): P
   const withRate = options.tokenBurnRate !== false
   const cwd = await $.session.cwd()
   const cards = await readCards($, cwd)
+  // The landing toast (spec 019) looks at the cards this read just found.
+  await scanLanding($, cards, options).catch(() => undefined)
   const hasBudget = await exists($, `${cwd}/${BUDGET}`)
   if (cards.length === 0 && !hasBudget) {
     $.ui.status(undefined)
