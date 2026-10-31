@@ -62,3 +62,6 @@ export function isReleaseBranch(branch: string): boolean {
 export function keyOf(head: string, tags: string): string {
   return `${head}\n${tags}`
 }
+
+// Commands that can change HEAD or the tags merged into it: 017's MOVES_REFS plus `tag`.
+export const MOVES_RELEASE = /(^|[;&|(])\s*(?:\w+=\S*\s+)*git\s+(?:-C\s+\S+\s+)?(fetch|pull|merge|rebase|commit|checkout|switch|reset|tag)\b/

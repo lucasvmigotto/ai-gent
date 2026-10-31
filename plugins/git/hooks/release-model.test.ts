@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { JSON_KEYS, TARGET_KEYS, bandText, failureText, isReleaseBranch, keyOf, parsePlan } from './release-model'
+import { JSON_KEYS, MOVES_RELEASE, TARGET_KEYS, bandText, failureText, isReleaseBranch, keyOf, parsePlan } from './release-model'
 
 const target = (kind: string, label: string) => ({ kind, label, from: '1.0.0', to: '1.1.0', bump: 'minor' })
 const json = (over: Record<string, unknown> = {}) =>
@@ -59,4 +59,11 @@ test('only a chain branch is previewed', () => {
 test('the key is HEAD, a newline and the merged tags', () => {
   expect(keyOf('abc', '1.0.0\n1.1.0')).toBe('abc\n1.0.0\n1.1.0')
   expect(keyOf('abc', '')).toBe('abc\n')
+})
+
+test('commands that can change HEAD or the tags are told apart from the rest', () => {
+  for (const yes of ['git commit -m x', 'git tag 1.0.0', 'git -C ../x tag -d 1.0.0', 'cd x && git merge dev', 'git pull --ff-only', 'git switch dev']) {
+    expect(MOVES_RELEASE.test(yes), yes).toBe(true)
+  }
+  for (const no of ['git status', 'echo git tag', 'git log --oneline', 'git push']) expect(MOVES_RELEASE.test(no), no).toBe(false)
 })
