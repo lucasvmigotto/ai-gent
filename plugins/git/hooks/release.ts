@@ -9,7 +9,7 @@ import type { EngineInterface } from 'claude-code'
 
 import type { ReleasePlan } from '../types'
 import { setBand } from './bands'
-import { bandText, failureText, isReleaseBranch, keyOf, parsePlan } from './release-model'
+import { bandText, failureText, isReleaseBranch, keyOf, parsePlan, summaryOf } from './release-model'
 
 // Change the tag when the plan's fields change: it declines what an earlier
 // version stored, which outlives a reload.
@@ -95,7 +95,8 @@ export async function hideRelease($: EngineInterface): Promise<void> {
 // The band is active when there is something to draw (priority info).
 export async function recordReleaseBand($: EngineInterface): Promise<void> {
   const [plan, key, hidden] = [await read($, planAtom), await read($, forAtom), await read($, hiddenAtom)]
-  await setBand($, 'release', plan !== null && key !== null && hidden !== key ? 'info' : null)
+  const isActive = plan !== null && key !== null && hidden !== key
+  await setBand($, 'release', isActive ? 'info' : null, isActive && plan !== null && !('failed' in plan) ? summaryOf(plan) : undefined)
 }
 
 // After any trigger: read again, record the band. Never throws.

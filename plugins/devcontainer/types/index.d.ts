@@ -3,7 +3,7 @@
 // One active band, as the `bands` atom records it (hooks/band-priority.ts
 // holds the same shape; this contract has to be self-contained).
 export type Priority = 'hold' | 'failure' | 'normal' | 'info'
-export type Band = { id: string; plugin: string; priority: Priority; since: number }
+export type Band = { id: string; plugin: string; priority: Priority; since: number; summary?: { text: string; tone: 'ok' | 'info' | 'warn' } }
 
 // One element of `leftovers.sh --json`'s `findings` (specs/025-container-disk-band).
 // `kind` is disk, dangling, volumes or buildah, or any string a newer script adds.
@@ -46,7 +46,8 @@ declare module 'claude-code' {
       bands: Band[]
     }
     // The other band plugins' atoms, read-only here; each is absent when its plugin is not installed.
-    project: { bands: Band[] }
+    // `workspaceLeader`: the project plugin draws the workspace line, so bands with a summary fold into it.
+    project: { bands: Band[]; workspaceLeader: boolean }
     git: { bands: Band[] }
     repo: { bands: Band[] }
   }

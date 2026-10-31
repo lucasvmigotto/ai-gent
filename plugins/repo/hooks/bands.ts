@@ -8,7 +8,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import { DEFAULT_CAP, clampCap, moreLine, moreLiner, parseBands, visible } from './band-priority'
+import { DEFAULT_CAP, clampCap, moreLine, moreLiner, parseBands, split, visible } from './band-priority'
 import type { Band } from './band-priority'
 
 // No /bands command here: git and project declare it, and a name registered twice would collide.
@@ -41,12 +41,20 @@ export async function allBands($: EngineInterface): Promise<Band[]> {
   return [...own, ...others.flat()]
 }
 
+// True while the project plugin draws the workspace line (specs/031-session-chrome): the
+// bands that carry a summary then fold into it instead of drawing alone. Absent, older or
+// throwing reads as false, so every band draws as before.
+export async function folding($: EngineInterface): Promise<boolean> {
+  return (await read($, { plugin: 'project', key: 'workspaceLeader' } as const).catch(() => false)) === true
+}
+
 // What this plugin's band `id` does at this draw: whether it draws, and the dim
 // line when it is the plugin whose hidden band owns it.
 export async function plan($: EngineInterface, id: string, options: Options): Promise<{ draws: boolean; more: string | null }> {
-  const bands = await allBands($)
+  // A band folded into the workspace line neither draws alone nor counts toward the cap.
+  const { rest } = split(await allBands($), await folding($))
   const max = cap(options)
-  const shown = visible(bands, max)
-  const hidden = bands.length - shown.length
-  return { draws: shown.includes(id), more: moreLiner(bands, max) === id ? moreLine(hidden) : null }
+  const shown = visible(rest, max)
+  const hidden = rest.length - shown.length
+  return { draws: shown.includes(id), more: moreLiner(rest, max) === id ? moreLine(hidden) : null }
 }

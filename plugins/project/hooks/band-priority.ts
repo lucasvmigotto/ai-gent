@@ -5,8 +5,16 @@
 
 export type Priority = 'hold' | 'failure' | 'normal' | 'info'
 
+// A band's compact form (specs/031-session-chrome): the few plain words (no glyph; the
+// drawer adds the mark) it contributes to the workspace line when one is drawn, and how
+// it reads. Only a `normal` or `info` band can fold in; a hold or a failure never does.
+export type Tone = 'ok' | 'info' | 'warn'
+export type Summary = { text: string; tone: Tone }
+
 // One active band, as a plugin records it in its `bands` atom.
-export type Band = { id: string; plugin: string; priority: Priority; since: number }
+export type Band = { id: string; plugin: string; priority: Priority; since: number; summary?: Summary }
+
+const TONES: readonly Tone[] = ['ok', 'info', 'warn']
 
 // Highest first (FR-001).
 export const PRIORITIES: readonly Priority[] = ['hold', 'failure', 'normal', 'info']
@@ -20,6 +28,18 @@ export function clampCap(value: unknown): number {
 }
 
 const rank = (band: Band): number => PRIORITIES.indexOf(band.priority)
+
+const isSummary = (value: unknown): value is Summary =>
+  typeof value === 'object' && value !== null && typeof (value as Summary).text === 'string' && (value as Summary).text !== '' && TONES.includes((value as Summary).tone)
+
+// A band folds into the workspace line only when it has a summary and is neither a hold nor a failure.
+export const isFoldable = (band: Band): boolean => band.summary !== undefined && (band.priority === 'normal' || band.priority === 'info')
+
+// With `fold` on (a plugin draws the workspace line): the bands that fold into it, and the ones that draw alone.
+export function split(bands: readonly Band[], fold: boolean): { folded: Band[]; rest: Band[] } {
+  if (!fold) return { folded: [], rest: [...bands] }
+  return { folded: bands.filter(isFoldable), rest: bands.filter(band => !isFoldable(band)) }
+}
 
 // By priority, then the one active longer, then by id so the order is stable.
 export function ordered(bands: readonly Band[]): Band[] {
@@ -49,21 +69,26 @@ export function moreLiner(bands: readonly Band[], cap: number): string | null {
 // What a plugin's atom holds, checked: anything else is no band (an absent or older plugin).
 export function parseBands(value: unknown): Band[] {
   if (!Array.isArray(value)) return []
-  return value.filter(
-    (item): item is Band =>
-      typeof item === 'object' &&
-      item !== null &&
-      typeof item.id === 'string' &&
-      typeof item.plugin === 'string' &&
-      PRIORITIES.includes(item.priority) &&
-      typeof item.since === 'number',
-  )
+  return value
+    .filter(
+      (item): item is Band =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof item.id === 'string' &&
+        typeof item.plugin === 'string' &&
+        PRIORITIES.includes(item.priority) &&
+        typeof item.since === 'number',
+    )
+    .map(({ summary, ...band }) => (isSummary(summary) ? { ...band, summary: { text: summary.text, tone: summary.tone } } : band))
 }
 
 // The /bands text: every active band, its plugin, priority and whether it draws.
-export function listing(bands: readonly Band[], cap: number): string {
+export function listing(bands: readonly Band[], cap: number, fold = false): string {
   if (bands.length === 0) return 'No active bands.'
-  const shown = new Set(visible(bands, cap))
-  const lines = ordered(bands).map(band => `- ${band.id} (${band.plugin}, ${band.priority}): ${shown.has(band.id) ? 'shown' : 'hidden'}`)
+  const { folded, rest } = split(bands, fold)
+  const shown = new Set(visible(rest, cap))
+  const inLine = new Set(folded.map(band => band.id))
+  const state = (band: Band) => (inLine.has(band.id) ? 'in the workspace line' : shown.has(band.id) ? 'shown' : 'hidden')
+  const lines = ordered(bands).map(band => `- ${band.id} (${band.plugin}, ${band.priority}): ${state(band)}`)
   return [`${bands.length} active band${bands.length === 1 ? '' : 's'}, at most ${clampCap(cap)} shown (holds always):`, ...lines].join('\n')
 }

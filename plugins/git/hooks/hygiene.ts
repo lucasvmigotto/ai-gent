@@ -9,7 +9,7 @@ import type { EngineInterface } from 'claude-code'
 import type { BranchState, Hygiene } from '../types'
 import { setBand } from './bands'
 import { hookLines, rowText, updateLine } from './hook-lines'
-import { CHAIN, branchesWithRemote, parseCounts, releasesIn, sentence } from './hygiene-model'
+import { CHAIN, branchesWithRemote, parseCounts, releasesIn, sentence, summaryOf } from './hygiene-model'
 import { git, runRelease } from './release'
 
 // Change the tag when Hygiene's fields change: it declines what an earlier
@@ -59,7 +59,7 @@ export async function refreshHygieneThrottled($: EngineInterface): Promise<void>
 export async function recordHygieneBand($: EngineInterface): Promise<void> {
   const hygiene = await read($, hygieneAtom)
   const isActive = hygiene !== null && sentence(hygiene.branches, 120, null) !== null
-  await setBand($, 'hygiene', isActive ? 'normal' : null)
+  await setBand($, 'hygiene', isActive ? 'normal' : null, isActive ? summaryOf(hygiene.branches) : undefined)
 }
 
 export async function readHygiene($: EngineInterface): Promise<Hygiene | null> {

@@ -40,6 +40,7 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 028 | release-readiness-band | band with what `release.py --dry-run` would bump | P3 | 017 | Planned | N/A | — | extends `/release-preview`; never releases |
 | 029 | pipeline-pane-redesign | dashboard layout for the pipeline pane: summary tiles, artifacts table, aligned feature matrix, stage strip, glyphs with ASCII fallbacks, filters | P2 | 013 | Planned | N/A | — | view-only amendment to 013; headless text unchanged; `S` column dropped; structured view model first |
 | 030 | band-priority | at most two bands above the prompt by declared priority, `/bands` for the rest | P2 | 012, 017 | Planned | N/A | — | shared `band-priority.ts` copied into each hooks module; read by 023, 025, 028; cross-plugin visibility probed first |
+| 031 | session-chrome | a Workspace line folding the quiet bands above the prompt, and an opt-in context meter on the prompt's hint line | P2 | 021, 030 | Built | N/A | — | `Band.summary` in the shared `band-priority.ts`; agent activity and the auto-mode row are not reachable from a hook |
 
 Verified needs suites covering every story, running and passing in CI; for tooling without a UI the integration suites stand in for e2e journeys (pipeline rule 6). 008 is Verified: its unit tests run on every pull request and the real-engine suite weekly. The closest others are 006 (all stories but the interactive selector) and 002 (two of four stories).
 

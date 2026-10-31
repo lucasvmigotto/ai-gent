@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { hookLines, leftoversBlock, updateLine } from './hook-lines'
-import { MOVES_REFS, branchesWithRemote, parseCounts, releasesIn, sentence } from './hygiene-model'
+import { MOVES_REFS, branchesWithRemote, parseCounts, releasesIn, sentence, summaryOf } from './hygiene-model'
 import type { BranchState } from '../types'
 
 type Handlers = Parameters<Parameters<typeof test>[1]>[1]
@@ -245,4 +245,13 @@ test('hygieneBand off reads no branch', { options: { hygieneBand: false } }, asy
   const w = world(on)
   await $.session.start(START)
   expect(w.runs.filter(a => a[1] === 'rev-list')).toEqual([])
+})
+
+test('the workspace summary names the branches behind or diverged, and is none when level or only ahead', () => {
+  const state = (name: BranchState['name'], ahead: number, behind: number): BranchState => ({ name, ahead, behind, releases: [] })
+  expect(summaryOf([state('main', 0, 1)])).toEqual({ text: 'main behind origin', tone: 'warn' })
+  expect(summaryOf([state('main', 0, 1), state('dev', 0, 2)])?.text).toBe('main and dev behind origin')
+  expect(summaryOf([state('dev', 1, 1)])?.text).toBe('dev diverged from origin')
+  expect(summaryOf([state('main', 0, 1), state('dev', 2, 3)])?.text).toBe('main behind origin; dev diverged from origin')
+  expect(summaryOf([state('main', 0, 0), state('dev', 2, 0)])).toBeUndefined()
 })

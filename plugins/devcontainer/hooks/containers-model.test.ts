@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { NARROW, TRIGGER, bandText, commandText, findingLine, POINTER, priorityOf, readReport } from './containers-model'
+import { NARROW, TRIGGER, bandText, commandText, findingLine, POINTER, priorityOf, readReport, summaryOf } from './containers-model'
 
 const FULL = '{"checked":true,"project":"shop","findings":[{"kind":"disk","free_gb":14,"floor_gb":20,"store":"/s"},{"kind":"dangling","count":2},{"kind":"volumes","count":1},{"kind":"buildah","count":21}]}'
 
@@ -111,4 +111,11 @@ test('only container work triggers a read', () => {
   for (const no of ['ls', 'git status', 'podman ps', 'docker images', 'echo podman build', 'wt.py list', 'cat docker run']) {
     expect(TRIGGER.test(no), no).toBe(false)
   }
+})
+
+test('the workspace summary: leftovers as one counted warning, never for a low disk or nothing', () => {
+  expect(summaryOf([])).toBeUndefined()
+  expect(summaryOf([{ kind: 'disk', free_gb: 14, floor_gb: 20 }, { kind: 'dangling', count: 2 }])).toBeUndefined()
+  expect(summaryOf([{ kind: 'dangling', count: 2 }, { kind: 'volumes', count: 1 }])).toEqual({ text: '3 container leftovers', tone: 'warn' })
+  expect(summaryOf([{ kind: 'mystery' }])).toEqual({ text: '1 container leftover', tone: 'warn' })
 })

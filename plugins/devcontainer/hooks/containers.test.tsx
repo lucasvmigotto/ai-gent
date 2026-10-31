@@ -373,3 +373,20 @@ test('both off registers nothing and reads nothing', { options: { containersBand
   expect(w.jsonRuns).toBe(0)
   expect(w.registered).toEqual([])
 })
+
+test('with the project plugin leading, leftovers fold into its workspace line', async ($, on) => {
+  const w = world(on, { project: true as never })
+  await started($, w)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find(band(/containers:/))).toBeUndefined()
+  await ui.unmount()
+})
+
+test('with the project plugin leading, a low disk still draws in full', async ($, on) => {
+  const w = world(on, { project: true as never })
+  w.json = WITH_DISK
+  await started($, w)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find(band(/containers: ⚠ disk 14 GB free/))).toBeDefined()
+  await ui.unmount()
+})

@@ -329,3 +329,11 @@ test('it draws when the bands above it leave room, and /bands lists it as info',
   const listing = (await $.command.run({ command: 'bands', args: '' } as never)).text
   expect(listing).toContain('release (git, info): shown')
 })
+
+test('with the project plugin leading, the release band folds into its workspace line', async ($, on) => {
+  const w = world(on)
+  w.others = true as never
+  await started($, w)
+  expect(await text($)).toBeUndefined()
+  expect((await $.command.run({ command: 'bands', args: '' } as never)).text).toContain('release (git, info): in the workspace line')
+})

@@ -66,6 +66,24 @@
       "min": 1,
       "max": 5
     },
+    "workspaceLine": {
+      "type": "boolean",
+      "title": "Workspace line above the prompt",
+      "description": "Fold the compact summaries of the git, repo and devcontainer bands (passing CI, next release, container leftovers, a branch behind its remote) into one Workspace line with a Details button; holds, failed CI and low disk keep their own bands. Off: every band draws alone, as before",
+      "default": true
+    },
+    "contextMeter": {
+      "type": "boolean",
+      "title": "Context meter under the prompt",
+      "description": "Add the context window's used and remaining percent, with a bar and an approaching or critical mark, to the end of the prompt's hint line, read at each turn end and session start. Off by default: it adds to a line the engine owns",
+      "default": false
+    },
+    "chromeAscii": {
+      "type": "boolean",
+      "title": "Workspace line and context meter: ASCII glyphs",
+      "description": "Draw the workspace line and the context meter with ASCII glyphs only, for a terminal whose font lacks the Unicode ones",
+      "default": false
+    },
     "bandsCommand": {
       "type": "boolean",
       "title": "/bands command",

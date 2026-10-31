@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { bandText, delayMs, gate, isDone, isFailed, isPush, markOf, newFailures, parseDetect, parseRuns, priorityOf, runListArgv, toastText } from './ci-model'
+import { bandText, delayMs, gate, isDone, isFailed, isPush, markOf, newFailures, parseDetect, parseRuns, priorityOf, runListArgv, summaryOf, toastText } from './ci-model'
 import type { CiRun } from '../types'
 
 const run = (id: number, workflow: string, status: string, conclusion = ''): CiRun => ({ id, workflow, name: workflow, status, conclusion })
@@ -128,4 +128,12 @@ test('the gate reads only on GitHub, signed in, and never decrypts pass unless a
   expect(gate(d('github', true, false), true)).toBe('signin')
   for (const p of ['gitlab', 'azure-devops', 'bitbucket', 'forgejo', '']) expect(gate(d(p, false, true), true), p).toBe('unsupported')
   expect(gate(null, false)).toBe('unsupported')
+})
+
+test('the workspace summary: none for a failure or no runs, running, passing, or finished otherwise', () => {
+  expect(summaryOf([])).toBeUndefined()
+  expect(summaryOf([run(1, 'a', 'completed', 'success'), run(2, 'b', 'completed', 'failure')])).toBeUndefined()
+  expect(summaryOf([run(1, 'a', 'in_progress'), run(2, 'b', 'completed', 'success')])).toEqual({ text: 'CI running', tone: 'info' })
+  expect(summaryOf([run(1, 'a', 'completed', 'success'), run(2, 'b', 'completed', 'success')])).toEqual({ text: 'CI passing', tone: 'ok' })
+  expect(summaryOf([run(1, 'a', 'completed', 'success'), run(2, 'b', 'completed', 'cancelled')])).toEqual({ text: 'CI finished', tone: 'info' })
 })

@@ -154,3 +154,13 @@ test('a plugin that throws or is absent adds no band, and the others still count
   expect(text).toContain('2 active bands')
   expect(text).toContain('ci (repo, failure): shown')
 })
+
+test('with the project plugin leading, the hygiene band folds into its workspace line and /bands says so', async ($, on) => {
+  world(on, { project: true as never })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await ui.find(behind)).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /more band/ })).toBeUndefined()
+  await ui.unmount()
+  expect((await $.command.run({ command: 'bands', args: '' } as never)).text).toContain('hygiene (git, normal): in the workspace line')
+})

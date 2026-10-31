@@ -10,11 +10,13 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Checkpoint } from '../types'
-import { bandsText, plan, recordBands } from './bands'
+import { allBands, bandsText, declareLeader, folding, plan, recordBands } from './bands'
 import type { Options as BandOptions } from './bands'
 import { CHECKPOINT, gated, parse } from './checkpoint'
 import { beforeWrite, nextStageAtTurnEnd, noteWrite, seedNextStage } from './nextstage'
 import type { NextStageOptions } from './nextstage'
+import { contextTail, readContextPercent, recordContext } from './context'
+import type { ContextOptions } from './context'
 import { nudgeAtTurnEnd, nudgeBeforeCompact } from './handoff'
 import type { HandoffOptions } from './handoff'
 import { PANE, close, open, press, readExpanded, readIsOpen, readPaneState, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
@@ -24,6 +26,8 @@ import type { Tone } from './pipeline-view'
 import { lines as guardLines, clampLimit, summarize } from './guards'
 import { readGuards } from './guards-read'
 import { repoRoot } from './repo'
+import { drawWorkspace } from './workspace'
+import { workspaceView } from './workspace-model'
 
 // Change the tag when Checkpoint's fields change: it declines what an earlier
 // version stored, which outlives a reload.
@@ -31,8 +35,9 @@ const checkpoint = atom({ plugin: 'project', key: 'checkpoint' } as const, null,
   shape: 'checkpoint-1',
 })
 const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, false)
+const isWorkspaceOpen = atom({ plugin: 'project', key: 'workspaceExpanded' } as const, false)
 
-type Options = BandOptions & HandoffOptions & NextStageOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number; guardLogLimit?: number; guardsPane?: boolean }
+type Options = BandOptions & HandoffOptions & NextStageOptions & ContextOptions & { workspaceLine?: boolean; holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number; guardLogLimit?: number; guardsPane?: boolean }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
@@ -90,6 +95,8 @@ async function registerGuards($: EngineInterface): Promise<void> {
 }
 
 export const register: Register = (on, options: Options) => {
+  const showWorkspace = options.workspaceLine !== false
+  const showMeter = options.contextMeter === true
   const showBand = options.holdsBand !== false
   const askOnGated = options.holdsGate !== false
 
@@ -100,6 +107,8 @@ export const register: Register = (on, options: Options) => {
     }
     await registerGuards($)
     await refresh($, showBand).catch(() => undefined)
+    await declareLeader($, showWorkspace).catch(() => undefined)
+    if (showMeter) await recordContext($, await readContextPercent($)).catch(() => undefined)
     seedNextStage($, options)
     if (options.pipelinePane !== false) {
       const canDock = e.isInteractive && e.surface !== null && e.surface !== 'mobile'
@@ -110,8 +119,12 @@ export const register: Register = (on, options: Options) => {
 
   on('turn.complete', async ($, e, next) => {
     const current = await refresh($, showBand).catch(() => null)
+    await declareLeader($, showWorkspace).catch(() => undefined)
+    // One read of the context figure serves the meter and the nudge (specs/031-session-chrome).
+    const known = showMeter && options.handoffNudge !== false ? { percent: await readContextPercent($) } : undefined
+    if (showMeter) await recordContext($, known === undefined ? await readContextPercent($) : known.percent).catch(() => undefined)
     // The hand-off nudge (spec 021): a toast, once, when the context is nearly full or a cap runs low.
-    await nudgeAtTurnEnd($, options, async () => current ?? (await readCheckpoint($))).catch(() => undefined)
+    await nudgeAtTurnEnd($, options, async () => current ?? (await readCheckpoint($)), known).catch(() => undefined)
     // The next-stage toast (spec 027): once per turn, when a pipeline file was written.
     await nextStageAtTurnEnd($, options).catch(() => undefined)
     return next(e)
@@ -148,36 +161,56 @@ export const register: Register = (on, options: Options) => {
   // Composes with whatever band is beneath (the git plugin's unpulled-release band), so both show.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const beneath = await next(e)
+    if (e.props.hasSurvey) return beneath
     const current = await read($, checkpoint)
-    const isQuiet =
-      !showBand ||
-      e.props.hasSurvey ||
-      current === null ||
-      current.holds.length === 0 ||
-      (await read($, isBandHidden))
-    if (isQuiet) return beneath
-    if (!(await plan($, HOLDS, options)).draws) return beneath
+    const isHoldsQuiet = !showBand || current === null || current.holds.length === 0 || (await read($, isBandHidden))
+    const holds = isHoldsQuiet || !(await plan($, HOLDS, options)).draws ? null : current
+
+    // The bands that carry a summary, folded into one line while this plugin leads (never a hold or a failure).
+    const view =
+      showWorkspace && !e.props.isWorking && (await folding($))
+        ? workspaceView(await allBands($), { columns: e.props.bodyColumns, ascii: options.chromeAscii === true })
+        : null
+    const workspace =
+      view === null
+        ? null
+        : drawWorkspace($, e, view, {
+            isOpen: await read($, isWorkspaceOpen),
+            ascii: options.chromeAscii === true,
+            onToggle: () => update($, isWorkspaceOpen, open => !open),
+          })
+    if (holds === null) {
+      if (workspace === null) return beneath
+      const { Box } = $.ui.resolve(e)
+      return (
+        <Box flexDirection="column">
+          {beneath}
+          {workspace}
+        </Box>
+      )
+    }
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const width = Math.max(20, e.props.bodyColumns - 12)
-    const shown = current.holds.slice(0, Math.max(1, Math.min(3, e.props.maxRows - 1)))
-    const more = current.holds.length - shown.length
+    const shown = holds.holds.slice(0, Math.max(1, Math.min(3, e.props.maxRows - 1)))
+    const more = holds.holds.length - shown.length
 
     return (
       <Box flexDirection="column">
         {beneath}
+        {workspace}
         <Box>
           <Text bold>Holds</Text>
           <Text dimColor>
             {' '}
             {CHECKPOINT}
-            {current.updated ? ` · updated ${current.updated}` : ''}
-            {current.isStale ? ' · older than the last commit' : ''}
+            {holds.updated ? ` · updated ${holds.updated}` : ''}
+            {holds.isStale ? ' · older than the last commit' : ''}
             {' '}
           </Text>
           <Button key="hide" label="Hide" onPress={async () => {
               await update($, isBandHidden, () => true)
-              await recordHolds($, current, showBand).catch(() => undefined)
+              await recordHolds($, holds, showBand).catch(() => undefined)
             }}
           />
         </Box>
@@ -191,6 +224,15 @@ export const register: Register = (on, options: Options) => {
       </Box>
     )
   })
+
+  // The context meter at the end of the prompt's hint line: the engine's own hint stays and the
+  // meter is its `tail` (dim, cut where the row ends). Opt-in: it adds to a line the engine owns.
+  if (showMeter) {
+    on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+      const tail = await contextTail($, options, e.viewport?.columns, [...e.props.hint].length)
+      return next(tail === null ? e : { ...e, props: { ...e.props, tail } })
+    })
+  }
 
   if (options.bandsCommand !== false) {
     on('command.run', { command: 'bands' }, async $ => ({ text: await bandsText($, options) }))
