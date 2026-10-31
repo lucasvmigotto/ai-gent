@@ -13,6 +13,8 @@ import type { Checkpoint } from '../types'
 import { bandsText, plan, recordBands } from './bands'
 import type { Options as BandOptions } from './bands'
 import { CHECKPOINT, gated, parse } from './checkpoint'
+import { beforeWrite, nextStageAtTurnEnd, noteWrite, seedNextStage } from './nextstage'
+import type { NextStageOptions } from './nextstage'
 import { nudgeAtTurnEnd, nudgeBeforeCompact } from './handoff'
 import type { HandoffOptions } from './handoff'
 import { PANE, close, open, press, readExpanded, readIsOpen, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
@@ -27,7 +29,7 @@ const checkpoint = atom({ plugin: 'project', key: 'checkpoint' } as const, null,
 })
 const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, false)
 
-type Options = BandOptions & HandoffOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number }
+type Options = BandOptions & HandoffOptions & NextStageOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
@@ -86,6 +88,7 @@ export const register: Register = (on, options: Options) => {
       await $.command.register({ name: 'bands', description: 'List the bands above the prompt, and which are hidden by the cap' }).catch(() => undefined)
     }
     await refresh($, showBand).catch(() => undefined)
+    seedNextStage($, options)
     if (options.pipelinePane !== false) {
       const canDock = e.isInteractive && e.surface !== null && e.surface !== 'mobile'
       await startPipeline($, options.pipelinePollSeconds ?? 5, canDock).catch(() => undefined)
@@ -97,6 +100,8 @@ export const register: Register = (on, options: Options) => {
     const current = await refresh($, showBand).catch(() => null)
     // The hand-off nudge (spec 021): a toast, once, when the context is nearly full or a cap runs low.
     await nudgeAtTurnEnd($, options, async () => current ?? (await readCheckpoint($))).catch(() => undefined)
+    // The next-stage toast (spec 027): once per turn, when a pipeline file was written.
+    await nextStageAtTurnEnd($, options).catch(() => undefined)
     return next(e)
   })
 
@@ -179,6 +184,20 @@ export const register: Register = (on, options: Options) => {
     on('command.run', { command: 'bands' }, async $ => ({ text: await bandsText($, options) }))
   }
 
+  // A stage that just wrote an artifact or flipped a status shows at once in the
+  // open pane, without waiting for the next poll, and is noted for the next-stage
+  // toast, which speaks at the turn's end.
+  on('tool.call', { tool: ['Edit', 'Write'] }, async ($, e, next) => {
+    const path = 'file_path' in e && typeof e.file_path === 'string' ? e.file_path : ''
+    const isWatched = path.includes('/docs/product/') || path.includes('/specs/')
+    const isNew = await beforeWrite($, options, path, e.tool === 'Write')
+    const ran = await next(e)
+    if (!isWatched) return ran
+    await noteWrite($, options, path, isNew).catch(() => undefined)
+    if (options.pipelinePane !== false && (await readIsOpen($))) await refreshPipeline($).catch(() => undefined)
+    return ran
+  }).catch(($, e, next) => next(e))
+
   if (options.pipelinePane === false) return
   const seconds = options.pipelinePollSeconds ?? 5
 
@@ -192,17 +211,6 @@ export const register: Register = (on, options: Options) => {
     const closed = await next(e)
     if (e.id === PANE) await close($)
     return closed
-  }).catch(($, e, next) => next(e))
-
-  // A stage that just wrote an artifact or flipped a status shows at once,
-  // without waiting for the next poll.
-  on('tool.call', { tool: ['Edit', 'Write'] }, async ($, e, next) => {
-    const ran = await next(e)
-    const path = 'file_path' in e && typeof e.file_path === 'string' ? e.file_path : ''
-    if ((path.includes('/docs/product/') || path.includes('/specs/')) && (await readIsOpen($))) {
-      await refreshPipeline($).catch(() => undefined)
-    }
-    return ran
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: 'pipeline' }, async ($, e, next) => {
