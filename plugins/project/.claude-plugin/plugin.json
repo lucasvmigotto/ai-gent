@@ -75,7 +75,7 @@
     "contextMeter": {
       "type": "boolean",
       "title": "Context meter under the prompt",
-      "description": "Add the context window's used and remaining percent, with a bar and an approaching or critical mark, to the end of the prompt's hint line, read at each turn end and session start. On by default; turn it off if you want the engine's hint line untouched",
+      "description": "Add an icon, a bar and the context window's used percent (a ⚠ or ✖ mark once approaching or critical, no words), to the end of the prompt's hint line, read at each turn end and session start. On by default; turn it off if you want the engine's hint line untouched",
       "default": true
     },
     "chromeAscii": {
