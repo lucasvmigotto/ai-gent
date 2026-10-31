@@ -7,9 +7,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { BranchState, Hygiene } from '../types'
-import { recordBands } from './bands'
+import { setBand } from './bands'
 import { hookLines, rowText, updateLine } from './hook-lines'
 import { CHAIN, branchesWithRemote, parseCounts, releasesIn, sentence } from './hygiene-model'
+import { git, runRelease } from './release'
 
 // Change the tag when Hygiene's fields change: it declines what an earlier
 // version stored, which outlives a reload.
@@ -18,11 +19,6 @@ const toastedAtom = atom({ plugin: 'git', key: 'toasted' } as const, {})
 
 // The comparison is read again at most this often between turns.
 const THROTTLE_MS = 60_000
-
-async function git($: EngineInterface, args: readonly string[]): Promise<string | null> {
-  const run = await $.process.run(['git', ...args], { timeoutMs: 10_000 }).catch(() => undefined)
-  return run?.exitCode === 0 ? run.stdout.trim() : null
-}
 
 // Local long-lived branches against the remote-tracking branches already there.
 async function compare($: EngineInterface): Promise<Hygiene | null> {
@@ -63,7 +59,7 @@ export async function refreshHygieneThrottled($: EngineInterface): Promise<void>
 export async function recordHygieneBand($: EngineInterface): Promise<void> {
   const hygiene = await read($, hygieneAtom)
   const isActive = hygiene !== null && sentence(hygiene.branches, 120, null) !== null
-  await recordBands($, isActive ? [{ id: 'hygiene', priority: 'normal' }] : [])
+  await setBand($, 'hygiene', isActive ? 'normal' : null)
 }
 
 export async function readHygiene($: EngineInterface): Promise<Hygiene | null> {
@@ -84,16 +80,11 @@ export async function relayUpdate($: EngineInterface, message: unknown): Promise
 // ----------------------------------------------------------- /release-preview
 
 export async function releasePreview($: EngineInterface): Promise<string> {
-  const top = await git($, ['rev-parse', '--show-toplevel'])
-  if (top === null) return 'Not a git repository.'
-  const script = `${top}/scripts/release.py`
-  if (!(await $.fs.exists(script).catch(() => false))) {
-    return 'No scripts/release.py in this repository. devsecops:pipeline sets one up from shared/release-single.py.'
-  }
-  // Always --dry-run: the preview never releases.
-  const run = await $.process.run(['python3', script, '--dry-run'], { cwd: top, timeoutMs: 60_000 }).catch(() => undefined)
-  if (run === undefined) return 'scripts/release.py could not be started (is python3 installed?).'
-  if (run.exitCode === 0) return run.stdout.trimEnd()
-  if (run.exitCode === 3) return 'No release needed (nothing releasable since the last tag).'
-  return `scripts/release.py --dry-run failed (exit ${run.exitCode}): ${(run.stderr || run.stdout).trim()}`
+  const ran = await runRelease($, [])
+  if (ran.state === 'no-repo') return 'Not a git repository.'
+  if (ran.state === 'no-script') return 'No scripts/release.py in this repository. devsecops:pipeline sets one up from shared/release-single.py.'
+  if (ran.state === 'no-start') return 'scripts/release.py could not be started (is python3 installed?).'
+  if (ran.exitCode === 0) return ran.stdout.trimEnd()
+  if (ran.exitCode === 3) return 'No release needed (nothing releasable since the last tag).'
+  return `scripts/release.py --dry-run failed (exit ${ran.exitCode}): ${(ran.stderr || ran.stdout).trim()}`
 }

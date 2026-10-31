@@ -312,6 +312,29 @@ class LeftoversJson(unittest.TestCase):
         self.assertTrue(consistency.check_leftovers_json(tree(files)))
 
 
+class ReleaseJson(unittest.TestCase):
+    PY = 'JSON_KEYS = ("version", "bump")\nTARGET_KEYS = ("kind", "label")\n'
+
+    def model(self, keys="'version', 'bump'", target="'kind', 'label'"):
+        return f"export const JSON_KEYS = [{keys}] as const\nexport const TARGET_KEYS = [{target}] as const\n"
+
+    def files(self, model):
+        return {"scripts/release.py": self.PY, "shared/release-single.py": self.PY, consistency.RELEASE_MODEL: model}
+
+    def test_equal_lists_pass(self):
+        self.assertEqual(consistency.check_release_json(tree(self.files(self.model()))), [])
+
+    def test_a_model_key_list_that_differs_fails(self):
+        self.assertEqual(len(consistency.check_release_json(tree(self.files(self.model(keys="'version'"))))), 1)
+        self.assertEqual(len(consistency.check_release_json(tree(self.files(self.model(target="'kind'"))))), 1)
+
+    def test_a_model_without_the_lists_fails(self):
+        self.assertEqual(len(consistency.check_release_json(tree(self.files("export const X = 1\n")))), 1)
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_release_json(consistency.ROOT), [])
+
+
 class Budget(unittest.TestCase):
     def test_ceiling(self):
         root = tree({"skills/a/SKILL.md": "---\nname: a\ndescription: " + "x" * 100 + "\n---\n"})

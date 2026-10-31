@@ -391,6 +391,7 @@ def check_release_subjects(root: Path) -> list[str]:
 
 
 RELEASE_SCRIPTS = ("scripts/release.py", "shared/release-single.py")
+RELEASE_MODEL = "plugins/git/hooks/release-model.ts"
 
 
 def check_release_json(root: Path) -> list[str]:
@@ -412,6 +413,17 @@ def check_release_json(root: Path) -> list[str]:
             found[rel] = tuple(lists)
     if len(set(found.values())) > 1:
         problems.append(f"{' and '.join(found)}: the --json key lists differ ({found})")
+    model = root / RELEASE_MODEL
+    if found and model.is_file():
+        text = model.read_text(encoding="utf-8")
+        got = []
+        for name in ("JSON_KEYS", "TARGET_KEYS"):
+            m = re.search(rf"^export const {name} = \[([^\]]*)\]", text, re.M)
+            got.append(tuple(re.findall(r"'([^']+)'", m.group(1))) if m else None)
+        if None in got:
+            problems.append(f"{RELEASE_MODEL}: JSON_KEYS and TARGET_KEYS not found (the check reads `export const NAME = ['a', ...]`)")
+        elif tuple(got) != next(iter(found.values())):
+            problems.append(f"{RELEASE_MODEL}: its key lists {tuple(got)} differ from the scripts' {next(iter(found.values()))}")
     return problems
 
 
