@@ -96,7 +96,7 @@ async function registerGuards($: EngineInterface): Promise<void> {
 
 export const register: Register = (on, options: Options) => {
   const showWorkspace = options.workspaceLine !== false
-  const showMeter = options.contextMeter === true
+  const showMeter = options.contextMeter !== false
   const showBand = options.holdsBand !== false
   const askOnGated = options.holdsGate !== false
 
