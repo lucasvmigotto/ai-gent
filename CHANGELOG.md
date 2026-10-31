@@ -4,6 +4,30 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **Burn rate and cap ETAs in the token status line** (`plugins/agents/hooks/token*.ts`, spec `specs/018-token-burn-rate`). `session left 3.10M (~2h10m)` and a toast when a cap's ETA crosses a threshold; `rate_window_minutes` in `budget.yaml`.
+- **A card's used against projected tokens, toasted when it lands** (spec `specs/019-card-cost-on-landing`), **`/cards-pane`** (a timeline of the ledger's cards, `specs/020-card-timeline-pane`) and **`/worktree-board`** (one row per worktree with ahead/behind, dirty, PR and CI, `specs/022-worktree-board`) in `agents`.
+- **A hand-off nudge** (`plugins/project/hooks/handoff*.ts`, spec `specs/021-handoff-nudge`): a toast when the context window or a usage cap runs low, pointing at `project:checkpoint`; `handoffNudgeContextPercent` (80) and `handoffNudgeCapPercent` (10).
+- **A next-stage toast** after a pipeline artifact is written (spec `specs/027-next-stage-prompt`).
+- **A CI watch band** in `repo` (spec `specs/023-ci-watch-band`): the pushed commit's runs on GitHub with a mark each, bounded back-off, a toast per failing run; read only.
+- **A container and disk band and `/containers`** in `devcontainer` (spec `specs/025-container-disk-band`), from `leftovers.sh --json`; **a release readiness band** in `git` on `dev` and `main` (spec `specs/028-release-readiness-band`), from `release.py --dry-run --json`.
+- **Band priority** (spec `specs/030-band-priority`): at most `bandCap` (2) bands above the prompt, by declared priority, in `project`, `git`, `repo` and `devcontainer`, with `+N more band (/bands)`; holds are never hidden.
+- **A Workspace line above the prompt** (spec `specs/031-session-chrome`) that folds the quiet bands (passing CI, the next release, container leftovers, a branch behind its remote) into one line with a Details button; holds, failed CI and low disk keep their own bands. **A context meter** on the prompt's hint line, on by default (`contextMeter`), read once per turn from `$.session.usage().context.percent` with the hand-off threshold deciding `approaching` and `critical`.
+- **A guard log** (spec `specs/024-guard-log`): each guard plugin keeps a bounded, verb-only `guardLog`; `/guards` and `/guards-pane` in `project` list recent denies and asks as counts.
+- **Warnings about credentials in tool results** (spec `specs/026-output-secret-warning`): a toast when a result holds a credential, and for `Bash` and `WebFetch` the credential is replaced in what Claude reads; fails open; `secretOutputWarning`, `secretOutputRedact`, `secretOutputTools`.
+- **`--json` output** for `token_report.py tasks --dry-run`, `leftovers.sh`, and `release.py` and `release-single.py --dry-run`.
+
+### Changed
+
+- **The pipeline pane draws a dashboard** (spec `specs/029-pipeline-pane-redesign`): summary line, artifacts table, stage strip, an implementation bar that fills the pane, a width-aware feature matrix, a collapsed-by-default Features section, open items and the next action with its command. `pipelineLayout: compact` keeps the old view.
+
+### Not built
+
+- Agent activity and the auto-mode row cannot be restyled from a hook, and the meter carries its level in words and glyphs rather than colour (engine limits, see `specs/031-session-chrome/spec.md`); the guard log's transcript script (`specs/024-guard-log`, story 3).
+
 ## 2.22.0 — 2026-10-29
 
 ### Added
