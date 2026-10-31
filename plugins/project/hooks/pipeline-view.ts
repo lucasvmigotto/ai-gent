@@ -168,10 +168,15 @@ export type Context = {
   pollMs: number
   ascii: boolean
   maxRows: number
+  // Widest the progress bar may be; unset, it fills the width (the drawn pane). The plain text caps it.
+  barMax?: number
 }
 
 // Under NARROW the compact text; through WIDE the condensed grid; above it the full matrix.
 export const WIDE = 90
+
+// The plain text keeps its bar at most this wide; the drawn pane's bar fills the row.
+const TEXT_BAR_MAX = 60
 
 // One table of glyphs: Unicode first, its ASCII fallback second. Every glyph
 // has a word or a legend beside it; colour never stands alone.
@@ -488,7 +493,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   // ---- progress
   const counted = progress(snapshot.features)
   const total = counted.implemented + counted.planned + counted.other
-  const barWidth = Math.min(60, Math.max(10, ctx.columns - 2))
+  const barWidth = Math.min(ctx.barMax ?? Infinity, Math.max(10, ctx.columns - 2))
   const lengths = barLengths([counted.implemented, counted.planned, counted.other], barWidth)
   const segments: [string, GlyphKey, Tone, string][] = [
     ['implemented', 'barDone', 'good', 'Implemented'],
@@ -592,7 +597,8 @@ function tableLines(section: Section, mode: Mode, ascii: boolean, edge: boolean)
 // The dashboard as plain lines: what the model says, in the order it is drawn.
 // The golden strings of spec 029 SC-005 are this output, and a surface that
 // cannot draw the tree could print it. Compact widths get 013's text.
-export function dashboardText(snapshot: Snapshot, ctx: Context): string[] {
+export function dashboardText(snapshot: Snapshot, input: Context): string[] {
+  const ctx: Context = { ...input, barMax: input.barMax ?? TEXT_BAR_MAX }
   const m = build(snapshot, ctx)
   if (m.mode === 'compact' || m.isEmpty) return view(snapshot, ctx.columns, ctx.expanded).map(line => line.text)
   const sep = ` ${glyph('sep', m.ascii)} `

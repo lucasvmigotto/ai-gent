@@ -414,3 +414,11 @@ test('the open state, the filter and a selected row are plain context, so a new 
   expect(closed.featuresOpen).toBe(false)
   expect(closed.sections.find(x => x.id === 'features')?.rows.find(r => r.key === 'feature:003')?.isOpen).toBe(true)
 })
+
+test('the progress bar fills the width of the pane, and the plain text caps it at 60', () => {
+  const total = (m: ReturnType<typeof build>) => m.progress.bar.reduce((n, seg) => n + seg.length, 0)
+  expect(total(build(snapshotOf(), ctx({ columns: 120 })))).toBe(118)
+  expect(total(build(snapshotOf(), ctx({ columns: 120, barMax: 60 })))).toBe(60)
+  const bar = dashboardText(snapshotOf(), ctx({ columns: 120 })).find(line => /^[█▒░]+$/.test(line)) ?? ''
+  expect(bar.length).toBe(60)
+})
