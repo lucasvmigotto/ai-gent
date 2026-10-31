@@ -4,7 +4,7 @@
 // this file differs from them. Edit the JSON, not this file.
 
 export const patterns = {
-  "comment": "Value patterns for credentials pasted into a conversation. Read by plugins/project/scripts/sessions.py (project:recap redacts transcripts with them) and by the secrets plugin's Claude Code mod (it masks what the person sends). Python re and JavaScript RegExp must read each source the same way: no inline flags (the flags field), no lookbehind, replacements use \\1 style groups. The order is the order they are applied in. skipIn lists the places a pattern is left out of: skill bodies are written text, so only the high-confidence kinds are applied there.",
+  "comment": "Value patterns for credentials pasted into a conversation. Read by plugins/project/scripts/sessions.py (project:recap redacts transcripts with them) and by the secrets plugin's Claude Code mod (it masks what the person sends). Python re and JavaScript RegExp must read each source the same way: no inline flags (the flags field), no lookbehind, replacements use \\1 style groups. The order is the order they are applied in. skipIn lists the places a pattern is left out of: skill bodies are written text, so only the high-confidence kinds are applied there, and so are tool results (\"result\"), where a variable name or a header is too often a false alarm.",
   "patterns": [
     {
       "kind": "private-key",
@@ -19,7 +19,8 @@ export const patterns = {
       "replacement": "\\1\\2<redacted>",
       "toggle": "maskAssignments",
       "skipIn": [
-        "skill"
+        "skill",
+        "result"
       ]
     },
     {
@@ -28,7 +29,8 @@ export const patterns = {
       "flags": "i",
       "replacement": "\\1 <redacted>",
       "skipIn": [
-        "skill"
+        "skill",
+        "result"
       ]
     },
     {
