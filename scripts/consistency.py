@@ -28,6 +28,8 @@
  10. The git plugin's repo-hygiene band recognizes a release by the subjects
      .github/workflows/release.yml and shared/release-platforms.md write
      (`chore(release): X.Y.Z`, `chore(release): merge X.Y.Z back into dev`).
+ 11. The JSON keys and finding kinds `leftovers.sh --json` prints are the ones
+     specs/025-container-disk-band/data-model.md documents (the band reads them).
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -387,6 +389,31 @@ def check_release_subjects(root: Path) -> list[str]:
     return problems
 
 
+LEFTOVERS = "plugins/devcontainer/hooks/leftovers.sh"
+LEFTOVERS_SPEC = "specs/025-container-disk-band/data-model.md"
+
+
+def check_leftovers_json(root: Path) -> list[str]:
+    """leftovers.sh --json prints exactly the keys and kinds the spec's data model shows."""
+    script, spec = root / LEFTOVERS, root / LEFTOVERS_SPEC
+    if not script.is_file() or not spec.is_file():
+        return []
+    code = script.read_text(encoding="utf-8")
+    block = re.search(r"## `--json` shape.*?```json\n(.*?)```", spec.read_text(encoding="utf-8"), re.S)
+    if not block:
+        return [f"{LEFTOVERS_SPEC}: no `--json` shape block"]
+    want_keys = set(re.findall(r'"(\w+)":', block.group(1)))
+    want_kinds = set(re.findall(r'"kind": "(\w+)"', block.group(1)))
+    emitted = "\n".join(line for line in code.splitlines() if not line.lstrip().startswith("#"))
+    got_keys = set(re.findall(r'\\?"(\w+)\\?":', emitted))
+    got_kinds = set(re.findall(r'\\"kind\\":\\"(\w+)\\"', emitted))
+    problems = []
+    for what, got, want in (("keys", got_keys, want_keys), ("kinds", got_kinds, want_kinds)):
+        if got != want:
+            problems.append(f"{LEFTOVERS}: --json {what} {sorted(got)} differ from {LEFTOVERS_SPEC} {sorted(want)}")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
     if "--sync-shared-code" in sys.argv[1:] or "--sync-guard-ux" in sys.argv[1:]:
         for shared, plugins in SHARED_CODE.items():
@@ -398,13 +425,13 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root) + check_release_subjects(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_guard_ux(root) + check_release_subjects(root) + check_leftovers_json(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, release subjects, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, release subjects, leftovers JSON, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

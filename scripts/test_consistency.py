@@ -242,6 +242,35 @@ class Tags(unittest.TestCase):
             tree({"shared/token-tags.json": json.dumps(dup), "shared/token-tags.md": VOCAB_DOC + " `fix`"}))))
 
 
+SPEC_DM = '## `--json` shape\n\n```json\n{"checked": true, "project": "p", "findings": [\n{"kind": "disk", "free_gb": 1, "floor_gb": 2, "store": "/"},\n{"kind": "dangling", "count": 2}]}\n{"checked": false, "reason": "no-engine"}\n```\n'
+SCRIPT = (
+    "#!/bin/sh\n# comment with \"ignored\":\n"
+    "printf '{\"checked\":false,\"reason\":\"%s\"}' x\n"
+    "printf '{\"checked\":true,\"project\":\"%s\",\"findings\":[%s]}' p f\n"
+    "add \"{\\\"kind\\\":\\\"disk\\\",\\\"free_gb\\\":$a,\\\"floor_gb\\\":$b,\\\"store\\\":\\\"s\\\"}\"\n"
+    "add \"{\\\"kind\\\":\\\"dangling\\\",\\\"count\\\":$n}\"\n"
+)
+
+
+class LeftoversJson(unittest.TestCase):
+    files = {consistency.LEFTOVERS: SCRIPT, consistency.LEFTOVERS_SPEC: SPEC_DM}
+
+    def test_matching_passes(self):
+        self.assertEqual(consistency.check_leftovers_json(tree(self.files)), [])
+
+    def test_renamed_key_fails(self):
+        files = {**self.files, consistency.LEFTOVERS: SCRIPT.replace("floor_gb", "floor")}
+        self.assertTrue(consistency.check_leftovers_json(tree(files)))
+
+    def test_unknown_kind_fails(self):
+        files = {**self.files, consistency.LEFTOVERS: SCRIPT + 'add "{\\"kind\\":\\"extra\\",\\"count\\":1}"\n'}
+        self.assertTrue(consistency.check_leftovers_json(tree(files)))
+
+    def test_spec_key_missing_from_script_fails(self):
+        files = {**self.files, consistency.LEFTOVERS_SPEC: SPEC_DM.replace('"store": "/"', '"store": "/", "extra": 1')}
+        self.assertTrue(consistency.check_leftovers_json(tree(files)))
+
+
 class Budget(unittest.TestCase):
     def test_ceiling(self):
         root = tree({"skills/a/SKILL.md": "---\nname: a\ndescription: " + "x" * 100 + "\n---\n"})
