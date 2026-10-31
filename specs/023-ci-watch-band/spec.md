@@ -119,3 +119,15 @@ Without a signed-in `gh`, an unsupported platform or no remote, the band never a
 - GitHub only and no `/ci-status` in the first cut (maintainer, 2026-10-31); GitLab joins after `glab ci list --sha` is checked against `reporun cli gitlab`'s classification.
 - Priority: `failure` while a run failed, `normal` otherwise; the band-priority rule itself is specified separately (maintainer's two-band cap, 2026-10-31).
 - Verified 2026-10-31 by running it: `reporun.py detect --json` reports, for this repository, `platforms.github.token_in_pass: false` and `cli: {name: gh, installed: true, signed_in: true}`, so with `ciBandUsePass` off the band works here with gh's own sign-in.
+
+## Decisions (2026-10-31, implementation)
+
+- Verified by `gh run list --help` (gh in this environment): `--commit SHA` and `--json` with `databaseId`, `name`, `status`, `conclusion`, `workflowName`, `headSha` exist. Tests use a recorded shape, never the network.
+- The engine reads a module's `on(...)` calls statically: `ciHooks(on, options)` is a statement whose value nothing keeps, and `$` is passed only to function declarations. So the pending timer and the once-per-session notes are module-level in `ci.ts`, not returned.
+- The "dim lines" (not signed in, token in pass with `ciBandUsePass` off, three failed reads) are toasts, once per session each; the band itself draws only runs.
+- An empty run list is final at the second read, not the first: runs can take a moment to appear after a push. The band says `no runs started for <sha> (paths, branches or a bot commit?)` until then and clears after the second empty read.
+- A finished band (every run completed) stays 60 s and clears; the hard stop (`ciBandMinutes`) clears it as well. Three failed reads keep the last band and stop the polling.
+- The band is not drawn while a survey is open or the model is working (as the hygiene band); the toast covers a failure then.
+- `repo` reads git's and project's `bands` atoms to apply the cap and records its own `bands` atom, but registers no `/bands` command (git and project already declare it). git and project do not read repo's atom yet, so across plugins the two-band cap holds from repo's side only until they do (their files are out of this change's scope).
+- `bandCap` is a `userConfig` value of `repo`, like in git and project.
+- Not verified here: a live `gh run list` for a real push (SC-002), and the assumption that a mod's `$.process.run` is not seen by `guard.sh`; both need a session with the plugin installed. `claude plugin test` ran on Claude Code 2.1.316 locally, CI pins 2.1.312.
