@@ -13,6 +13,8 @@ import type { Checkpoint } from '../types'
 import { bandsText, plan, recordBands } from './bands'
 import type { Options as BandOptions } from './bands'
 import { CHECKPOINT, gated, parse } from './checkpoint'
+import { nudgeAtTurnEnd, nudgeBeforeCompact } from './handoff'
+import type { HandoffOptions } from './handoff'
 import { PANE, close, open, press, readExpanded, readIsOpen, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
 import { text as pipelineText, view } from './pipeline-view'
 import type { Tone } from './pipeline-view'
@@ -25,7 +27,7 @@ const checkpoint = atom({ plugin: 'project', key: 'checkpoint' } as const, null,
 })
 const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, false)
 
-type Options = BandOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number }
+type Options = BandOptions & HandoffOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
@@ -92,9 +94,18 @@ export const register: Register = (on, options: Options) => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    await refresh($, showBand).catch(() => undefined)
+    const current = await refresh($, showBand).catch(() => null)
+    // The hand-off nudge (spec 021): a toast, once, when the context is nearly full or a cap runs low.
+    await nudgeAtTurnEnd($, options, async () => current ?? (await readCheckpoint($))).catch(() => undefined)
     return next(e)
   })
+
+  // Before a compaction the summary loses what the checkpoint keeps: say so, once,
+  // and pass the event on unchanged, whatever the trigger.
+  on('session.compact', async ($, e, next) => {
+    await nudgeBeforeCompact($, e.trigger, options, () => readCheckpoint($)).catch(() => undefined)
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   // A hold applies until the user lifts it, and a go-ahead from an earlier
   // session doesn't carry over: ask, naming the holds, before the step runs.
