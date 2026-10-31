@@ -266,15 +266,15 @@ test('gh not installed counts as not signed in', async ($, on) => {
   expect(w.toasts.length).toBe(1)
 })
 
-test('another platform, or an unknown one, shows nothing and spawns nothing after detect', async ($, on) => {
-  for (const platform of ['gitlab', 'azure-devops', 'bitbucket', 'forgejo']) {
+for (const platform of ['gitlab', 'azure-devops', 'bitbucket', 'forgejo']) {
+  test(`${platform}: shows nothing and spawns nothing after detect`, async ($, on) => {
     const w = world(on)
     w.detect = detect(platform)
     await pushed(w, $)
     expect(w.runs.filter(a => !a.includes('detect'))).toEqual([])
-    expect(w.toasts, platform).toEqual([])
-  }
-})
+    expect(w.toasts).toEqual([])
+  })
+}
 
 test('detect that does not parse is silent', async ($, on) => {
   const w = world(on)
