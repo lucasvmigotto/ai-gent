@@ -115,6 +115,8 @@ The band is read again at session start, after a Bash call that built, ran or re
 - The band's order follows the script's: disk, dangling images, volumes, buildah.
 - `/containers` is a plain `/<name>` command (017's rule for `/release-preview`).
 
+- Band priority (030): the band records itself in the `devcontainer` plugin's `bands` atom, `normal` while a `disk` finding is present and `info` for leftovers alone, because the spec declared none; it registers no `/bands` command (git and project do).
+
 ## Assumptions
 
 - [ASSUMPTION: `$.process.run` passes the session's environment to the script, so `CONTAINER_ENGINE` and `AI_GENT_NO_LEFTOVERS_CHECK` apply as they do for the hook.]
