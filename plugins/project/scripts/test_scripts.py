@@ -173,6 +173,20 @@ class SessionsTest(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertNotIn(hidden, sessions.redact(text))
 
+    def test_a_result_only_skip_is_applied_as_before(self):
+        # skipIn: ["result"] concerns the secrets mod's tool-output scope; sessions.py still applies the pattern.
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "p.json"
+            f.write_text(json.dumps({"patterns": [{"kind": "k", "source": "zz\\d+", "flags": "", "replacement": "<r>", "skipIn": ["result"]}]}))
+            plain = [(re.compile(r"zz\d+"), "<r>")]
+            self.assertEqual(sessions.load_patterns(f)[0][1], "<r>")
+            text = "a zz123 b"
+            out = text
+            for pat, repl in sessions.load_patterns(f):
+                out = pat.sub(repl, out)
+            self.assertEqual(out, plain[0][0].sub("<r>", text))
+            self.assertEqual(out, "a <r> b")
+
     def test_shared_secret_cases(self):
         # shared/secret-cases.json is also run by the secrets plugin's mod (secret-mask.test.ts): both must agree.
         root = Path(__file__).resolve().parents[3]
