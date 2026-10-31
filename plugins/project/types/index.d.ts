@@ -98,6 +98,12 @@ declare module 'claude-code' {
       pipelineIsOpen: boolean
       // Sections the person expanded, by name.
       pipelineExpanded: Record<string, boolean>
+      // The matrix filter, by readiness (`all` when never set).
+      pipelineFilter: 'all' | 'ready' | 'blocked' | 'done'
+      // When the poll last checked, in $.clock.now() milliseconds; 0 until the first check.
+      pipelineCheckedAt: number
+      // The interval the poll keeps now, in milliseconds; 0 when it is stopped or its last check failed.
+      pipelinePollMs: number
       // The last `snapshot.next` seen; seeded at session start without a toast.
       nextStageLast: Shaped<NextStageLast>
       // `stage reason` keys already toasted this session.
