@@ -214,6 +214,7 @@ reserve_pct: 10              # left unspent
 coordinator_overhead_pct: 35 # the main thread's cost on top of the subagents' (rstory: 38%)
 max_opus: 1                  # concurrent Opus subagents
 max_agents: 2                # concurrent subagents
+rate_window_minutes: 30      # the window the burn rate averages over
 ```
 
 Before dispatching a wave:
@@ -241,9 +242,20 @@ UTC with a `Z`. `--json` without `--dry-run` is rejected (exit 2), and nothing i
 written. Pass the project as `--project=<slug>` (the cwd with every character
 outside `A-Za-z0-9-` replaced by `-`, as `budget` derives it).
 
-`budget --json` prints the same verdict, the caps (`cap`, `used`, `left`), the
-cards with their projections and the batches as one JSON object, and nothing
-else; the Claude Code token status reads it. The text output is unchanged.
+`budget --json` prints the same verdict, the caps (`cap`, `used`, `left`,
+`eta_minutes`), the cards with their projections, the batches and the `rate` as
+one JSON object, and nothing else; the Claude Code token status reads it.
+
+The **burn rate** is the billable tokens of the last `rate_window_minutes`
+(default 30) of the week's messages, all projects, scaled to an hour: `rate` is
+`{per_hour, window_minutes, messages}`, and the text gains one `rate:` line
+after the caps. Each cap's `eta_minutes` is `left / per_hour * 60`, rounded.
+Fewer than 3 messages in the window (`MIN_RATE_MESSAGES`) make `rate` null and
+every ETA null, because one message after a quiet hour is not a pace; no usage
+in the window gives `per_hour` 0 and no ETA. The ETA ignores usage aging out
+of a rolling `session_window_hours`, so it is conservative there. The mod only
+formats these figures (`~2h10m`, `7.40M/h`) and toasts a cap whose ETA falls
+under `tokenEtaWarnMinutes`; the window is this file's key, not a mod option.
 
 Rules that go with it: Sonnet builders carry the confident, expensive cards
 and the thinker reviews inline unless a card needs a fresh context; no more

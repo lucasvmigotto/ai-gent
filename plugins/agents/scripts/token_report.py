@@ -1567,7 +1567,9 @@ def cmd_seed(a):
 
 # ---------------------------------------------------------------- budget
 
-BUDGET_DEFAULTS = {"max_opus": 1, "max_agents": 2, "reserve_pct": 10, "coordinator_overhead_pct": 35}
+BUDGET_DEFAULTS = {"max_opus": 1, "max_agents": 2, "reserve_pct": 10, "coordinator_overhead_pct": 35,
+                   "rate_window_minutes": 30}
+MIN_RATE_MESSAGES = 3  # fewer messages in the rate window read as noise, not as a pace
 
 
 def parse_budget(path):
@@ -1588,9 +1590,9 @@ def config_dirs():
     return [os.path.expanduser(env)] if env else sorted(glob.glob(os.path.expanduser("~/.claude*")))
 
 
-def usage_since(cutoff_iso, dirs, now=None):
-    """Billable tokens across every project of the given config dirs since a UTC timestamp
-    (dedupe by message id over all of them, so an account switch is not counted twice)."""
+def usage_messages(cutoff_iso, dirs):
+    """The (utc timestamp, model, usage) of every message of the given config dirs' projects from a UTC
+    timestamp on, deduplicated by message id over all of them (an account switch is not counted twice)."""
     msgs = {}
     floor = datetime.fromisoformat(cutoff_iso).replace(tzinfo=timezone.utc).timestamp() - 3600
     for cfg in dirs:
@@ -1598,7 +1600,19 @@ def usage_since(cutoff_iso, dirs, now=None):
                   glob.glob(os.path.join(cfg, "projects", "*", "*", "subagents", "agent-*.jsonl"))):
             if os.path.getmtime(f) >= floor:
                 collect(f, msgs)
-    return sum(bill(u) for t, _, u in msgs.values() if t and t >= cutoff_iso)
+    return [m for m in msgs.values() if m[0] and m[0] >= cutoff_iso]
+
+
+def usage_since(cutoff_iso, dirs, now=None):
+    """Billable tokens across every project of the given config dirs since a UTC timestamp."""
+    return sum(bill(u) for _, _, u in usage_messages(cutoff_iso, dirs))
+
+
+def usage_rate(msgs, now, minutes):
+    """(billable tokens per hour, messages) over the last `minutes` before `now` (a UTC datetime)."""
+    since = (now - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%S")
+    used = [bill(u) for t, _, u in msgs if t and t >= since]
+    return round(sum(used) * 60 / minutes), len(used)
 
 
 def roles_models(path=os.path.join(".ai-gent", "orchestrate.yaml")):
@@ -1677,15 +1691,21 @@ def cmd_budget(a):
         files = [f for r in roots for f in glob.glob(os.path.join(r, "*.jsonl"))]
         sid = os.path.splitext(os.path.basename(max(files, key=os.path.getmtime)))[0] if files else None
     now = datetime.now(timezone.utc)
+    week_msgs = usage_messages((now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S"), dirs)  # one scan serves the week, the rolling session and the rate
     if cfg.get("session_window_hours"):
         since = (now - timedelta(hours=cfg["session_window_hours"])).strftime("%Y-%m-%dT%H:%M:%S")
-        used_session, scope = usage_since(since, dirs), f"the last {cfg['session_window_hours']:g}h, all projects"
+        used_session = sum(bill(u) for t, _, u in week_msgs if t >= since)
+        scope = f"the last {cfg['session_window_hours']:g}h, all projects"
     elif sid:
         coords, rows, _, _ = gather(roots, [sid])
         used_session, scope = sum(r["billable"] for r in coords + rows), f"session {sid[:8]}"
     else:
         used_session, scope = 0, "no session found"
-    used_week = usage_since((now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S"), dirs)
+    used_week = sum(bill(u) for _, _, u in week_msgs)
+    window = max(1, cfg["rate_window_minutes"])
+    per_hour, n_msgs = usage_rate(week_msgs, now, window)
+    burn = {"per_hour": per_hour, "window_minutes": window, "messages": n_msgs} if n_msgs == 0 or n_msgs >= MIN_RATE_MESSAGES else None
+    eta = lambda left: round(left / burn["per_hour"] * 60) if burn and burn["per_hour"] and n_msgs >= MIN_RATE_MESSAGES else None
     feats = load_features(a.specs_dir)
     history = load_history(history_paths(a.history))
     cards = wave_cards(a, feats, history)
@@ -1719,6 +1739,12 @@ def cmd_budget(a):
               f"left {fmt_tok(max(0, cap - used))}")
     if not caps:
         say(f"no caps in {a.budget}: set session_billable and week_billable to enable the check")
+    if burn is None:
+        say(f"rate: too few messages ({n_msgs}) in the last {window:g} min")
+    elif not n_msgs:
+        say(f"rate: idle for {window:g} min")
+    else:
+        say(f"rate: {fmt_tok(per_hour)}/h over the last {window:g} min ({n_msgs} messages, all projects)")
     fit, acc = len(cards), total
     if avail is None:
         verdict, why = "proceed", "no caps set"
@@ -1749,7 +1775,9 @@ def cmd_budget(a):
         batches = [[c["label"] for c in b] for b in pack_batches(cards[:fit], max_agents, max_opus)] if fit else []
         print(json.dumps({
             "verdict": verdict, "why": why, "fit": fit, "total": total, "need": round(need),
-            "caps": [{"name": n, "cap": cap, "used": used, "left": max(0, cap - used)} for n, cap, used in caps],
+            "rate": burn,
+            "caps": [{"name": n, "cap": cap, "used": used, "left": max(0, cap - used), "eta_minutes": eta(max(0, cap - used))}
+                     for n, cap, used in caps],
             "cards": [{"label": c["label"], "model": c["model"], "projected": c["projected"], "p75": c["p75"],
                        "confidence": c["conf"], "how": c["how"]} for c in cards],
             "batches": batches,
