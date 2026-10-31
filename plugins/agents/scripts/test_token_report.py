@@ -463,6 +463,47 @@ class TagEstimateTest(unittest.TestCase):
         self.assertIn("context: x1.00", text)
 
 
+class TasksJsonTest(TasksFixture):
+    KEYS = ["card", "feature", "model", "projected", "used", "start", "end", "agents", "calls"]
+
+    def setUp(self):
+        super().setUp()
+        self.agent("a1", "T001, T002: 001-widget core", 391_000, ts="2026-10-20T10:00:00Z", calls=2)
+        self.agent("a2", "Review 001-core", 9_000, ts="2026-10-20T11:00:00Z")
+        self.agent("a3", "Survey the repo", 5_000)
+
+    def snapshot(self):
+        return {str(p.relative_to(self.home)): p.read_bytes() for p in self.home.rglob("*") if p.is_file()}
+
+    def test_json_shape_and_z_timestamps(self):
+        out = self.run_tasks("--dry-run", "--json")
+        d = json.loads(out)  # the object alone, no text table
+        self.assertEqual(sorted(d), ["cards", "unattributed"])
+        self.assertEqual(d["unattributed"], 1)
+        c = {x["card"]: x for x in d["cards"]}["001-core"]
+        self.assertEqual(list(c), self.KEYS)
+        self.assertEqual((c["feature"], c["model"], c["used"], c["agents"], c["calls"]), ("001-widget", "sonnet", 791_000, 2, 3))
+        self.assertEqual((c["start"], c["end"]), ("2026-10-20T10:00:00Z", "2026-10-20T11:00:00Z"))
+        self.assertIsInstance(c["projected"], int)
+
+    def test_json_writes_nothing(self):
+        before = self.snapshot()
+        self.run_tasks("--dry-run", "--json")
+        self.assertEqual(self.snapshot(), before)
+
+    def test_json_without_dry_run_is_rejected(self):
+        before = self.snapshot()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as cm:
+            tr.p.parse_args(["tasks", f"--project={self.slug}", "--json"])
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("--dry-run", err.getvalue())
+        self.assertEqual(self.snapshot(), before)
+
+    def test_text_output_unchanged_without_json(self):
+        self.assertIn("dry run, nothing written", self.run_tasks("--dry-run"))
+
+
 class IndexSeedTest(TasksFixture):
     def setUp(self):
         super().setUp()

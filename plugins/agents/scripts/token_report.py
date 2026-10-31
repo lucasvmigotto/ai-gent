@@ -1053,7 +1053,7 @@ def cmd_tasks(a):
     share, unassigned, coord_total = split_coordinator(main_msgs, groups, snaps)
 
     rollup = a.rollup_out or (None if a.no_legacy else DEFAULT_ROLLUP)
-    if rollup:
+    if rollup and not a.json:
         L, grand = render(project, sessions, roots, coords, rows, tagged, snaps)
         if not a.dry_run:
             os.makedirs(os.path.dirname(os.path.abspath(rollup)), exist_ok=True)
@@ -1067,7 +1067,7 @@ def cmd_tasks(a):
     for g in groups:
         if g["feature"]:
             feat_bill[g["feature"]] += g["billable"]
-    records, by_card, summary = [], {}, {}
+    records, by_card, summary, spans = [], {}, {}, []
     for fname, feat in feats.items():
         mine = [g for g in groups if g["feature"] == fname]
         units, extras = [], []
@@ -1079,6 +1079,10 @@ def cmd_tasks(a):
             cshare = share.get(fname, 0) * g["billable"] / feat_bill[fname] if feat_bill[fname] else 0
             rec = make_record(project, g, feats, cshare, repo=repo)
             records.append(rec)
+            if g["card"]:
+                spans.append({"card": g["card"], "feature": fname, "model": rec["executor_model"], "projected": rec["projected"],
+                              "used": g["billable"], "start": g["start"] + "Z", "end": g["end"] + "Z",
+                              "agents": len(g["rows"]), "calls": g["calls"]})
             u = {"label": f"`{g['card']}`" if g["card"] else (f"{tasks_key(g['tasks'])}" if g["tasks"] else None),
                  "tasks": g["tasks"], "projected": rec["projected"], "used": g["billable"], "cache_read": g["cache_read"],
                  "desc": g["desc"], "tags": planned_tags(g, feats)}
@@ -1105,6 +1109,10 @@ def cmd_tasks(a):
     else:
         n = len(records)
 
+    if a.json:
+        un = [g for g in groups if g["confidence"] == "agent" or not g["feature"]]
+        print(json.dumps({"cards": spans, "unattributed": len(un)}))
+        return
     print(f"{project}: {len(rows)} subagent(s) in {len(sessions)} session(s); "
           f"{'dry run, nothing written' if a.dry_run else 'wrote ' + a.history + f' ({n} records)'}")
     print("feature | used (subagents) | coordinator share | total | cards | task lines")
@@ -1748,8 +1756,16 @@ def cmd_budget(a):
         }))
 
 
+class Parser(argparse.ArgumentParser):
+    def parse_args(self, args=None, namespace=None):
+        a = super().parse_args(args, namespace)
+        if getattr(a, "cmd", None) == "tasks" and a.json and not a.dry_run:
+            self.error("tasks --json is read-only and needs --dry-run")
+        return a
+
+
 def build_parser():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("report")
     r.add_argument("--project", required=True, help="the session directory slug under ~/.claude*/projects/ "
@@ -1771,6 +1787,8 @@ def build_parser():
     t.add_argument("--no-legacy", action="store_true",
                    help="skip the deprecated specs/*/tokens.md files and roll-up (docs/product/token-usage.md)")
     t.add_argument("--dry-run", action="store_true", help="read everything, write nothing, print the attribution")
+    t.add_argument("--json", action="store_true",
+                   help="with --dry-run: print each card's attribution (start, end, used) as one JSON object")
     t.set_defaults(fn=cmd_tasks)
     e = sub.add_parser("estimate", help="the projection for a planned card, from history or the starting table")
     g = e.add_mutually_exclusive_group()
