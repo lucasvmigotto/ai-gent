@@ -670,6 +670,31 @@ class UsageSinceTest(TasksFixture):
         self.assertEqual(sorted(tr.bill(u) for _, _, u in msgs), [100, 200])
 
 
+class UsageRateTest(unittest.TestCase):
+    NOW = datetime(2026, 10, 31, 12, 0, 0, tzinfo=timezone.utc)
+
+    def msgs(self, *minutes_ago_and_out):
+        return [((self.NOW - timedelta(minutes=m)).strftime("%Y-%m-%dT%H:%M:%S"), "m", usage(out))
+                for m, out in minutes_ago_and_out]
+
+    def test_steady_rate_counts_only_the_window_and_only_billable_tokens(self):
+        msgs = self.msgs((1, 1000), (10, 1000), (20, 1000), (29, 1000), (45, 50_000))
+        self.assertEqual(tr.usage_rate(msgs, self.NOW, 30), (8000, 4))  # 4000 in 30 min = 8000 an hour
+
+    def test_idle_is_zero_messages(self):
+        self.assertEqual(tr.usage_rate(self.msgs((90, 5000)), self.NOW, 30), (0, 0))
+        self.assertEqual(tr.usage_rate([], self.NOW, 30), (0, 0))
+
+    def test_window_override(self):
+        msgs = self.msgs((1, 1000), (50, 1000), (55, 1000))
+        self.assertEqual(tr.usage_rate(msgs, self.NOW, 60), (3000, 3))
+        self.assertEqual(tr.usage_rate(msgs, self.NOW, 10), (6000, 1))
+
+    def test_minimum_messages_is_three(self):
+        self.assertEqual(tr.MIN_RATE_MESSAGES, 3)
+        self.assertEqual(tr.BUDGET_DEFAULTS["rate_window_minutes"], 30)
+
+
 class BudgetTest(TasksFixture):
     def stamp(self, **delta):
         return (datetime.now(timezone.utc) - timedelta(**delta)).strftime("%Y-%m-%dT%H:%M:%SZ")

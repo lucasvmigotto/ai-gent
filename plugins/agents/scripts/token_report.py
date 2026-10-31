@@ -1567,7 +1567,9 @@ def cmd_seed(a):
 
 # ---------------------------------------------------------------- budget
 
-BUDGET_DEFAULTS = {"max_opus": 1, "max_agents": 2, "reserve_pct": 10, "coordinator_overhead_pct": 35}
+BUDGET_DEFAULTS = {"max_opus": 1, "max_agents": 2, "reserve_pct": 10, "coordinator_overhead_pct": 35,
+                   "rate_window_minutes": 30}
+MIN_RATE_MESSAGES = 3  # fewer messages in the rate window read as noise, not as a pace
 
 
 def parse_budget(path):
@@ -1604,6 +1606,13 @@ def usage_messages(cutoff_iso, dirs):
 def usage_since(cutoff_iso, dirs, now=None):
     """Billable tokens across every project of the given config dirs since a UTC timestamp."""
     return sum(bill(u) for _, _, u in usage_messages(cutoff_iso, dirs))
+
+
+def usage_rate(msgs, now, minutes):
+    """(billable tokens per hour, messages) over the last `minutes` before `now` (a UTC datetime)."""
+    since = (now - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%S")
+    used = [bill(u) for t, _, u in msgs if t and t >= since]
+    return round(sum(used) * 60 / minutes), len(used)
 
 
 def roles_models(path=os.path.join(".ai-gent", "orchestrate.yaml")):
