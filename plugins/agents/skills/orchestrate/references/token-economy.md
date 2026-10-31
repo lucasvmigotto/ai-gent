@@ -98,3 +98,34 @@ budget the user set:
 This is a heuristic, not a guarantee: a projection is the median of similar
 past cards and `estimate` says how many it used and its p75 — pad for a wide
 spread, and weigh a handful of records less than twenty.
+
+## Reading the landing toast
+
+On Claude Code, the token status (`tokenStatus`) toasts a card when it lands
+with both figures of its ledger Tokens cell: `004-us1-core landed: used 391k
+vs ~420k projected (-7%)`. It appears when `token_report.py tasks` has
+written the used figure, which is why the skill runs it after each landing.
+The percentage is computed from the cells as written (`391k`, `~420k`),
+rounded half to even, so it can differ by a point from `tracker.md`'s Error
+column, which comes from the exact figures. When the last card in flight
+lands, one more toast counts the wave: cards landed, how many over and how
+many under their projection (a count, never a token sum).
+
+A miss of 25% or more, either way, adds a hint. 25% is the default of
+`cardCostHintPercent` (0 turns the hint off); this file states no tolerance
+of its own, so tune the option to the spread your cards show. What to check:
+
+- **Over (`wrong tags or effort?`).** Open the card in `cards.md`: its `Tags:`
+  (kind, layer, stack, risk, size), its effort and its task count. A missing
+  `integration` or `known-pattern` tag, a size `M` for a card that was `L`,
+  or a count that grew in review each move the estimate. Fix the tags, not
+  the number.
+- **Under (`projection too high`).** The wave budget shrank, or cards were
+  queued, for tokens the card never used. Check for an over-wide size or
+  risk tag, or a model priced above the one that built it.
+- **Then re-run `$TOKREP tasks`** (as in "Measuring") so
+  `docs/product/token-history.jsonl` records the corrected card; `estimate`
+  learns from the history, not from the toast.
+
+The mod changes none of these files: the hint is a pointer, and applying it
+is the coordinator's job.

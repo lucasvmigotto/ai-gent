@@ -257,6 +257,14 @@ of a rolling `session_window_hours`, so it is conservative there. The mod only
 formats these figures (`~2h10m`, `7.40M/h`) and toasts a cap whose ETA falls
 under `tokenEtaWarnMinutes`; the window is this file's key, not a mod option.
 
+The **landing toast** (`cardCostToast`, `cardCostHintPercent`) reads no script
+output at all: it takes the ledger's Tokens cell of a card that just turned
+`landed` and prints `used 391k vs ~420k projected (-7%)`. The percentage is
+computed from the cells' rounded values, half to even like `pct_error`'s
+`{:+.0f}`, so it can differ by a point from `tracker.md`'s Error column
+(`pct_error` over the exact figures). `hooks/pct-fixtures.ts` is the shared
+table that `test_token_report.py` runs `pct_error` against.
+
 Rules that go with it: Sonnet builders carry the confident, expensive cards
 and the thinker reviews inline unless a card needs a fresh context; no more
 than `max_opus` Opus subagents and `max_agents` subagents at once (rstory hit

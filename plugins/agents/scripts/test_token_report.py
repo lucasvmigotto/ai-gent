@@ -827,6 +827,37 @@ class BudgetTest(TasksFixture):
         self.assertIn("~  300k", out)
 
 
+class PctParityTests(unittest.TestCase):
+    """The landing toast's percentage (hooks/landing-model.ts) answers the same table as pct_error."""
+
+    FIXTURES = Path(__file__).resolve().parent.parent / "hooks" / "pct-fixtures.ts"
+
+    def rows(self, name, width):
+        import re
+        text = self.FIXTURES.read_text(encoding="utf-8")
+        body = text.split(f"export const {name}", 1)[1].split("\n]\n", 1)[0]
+        rows = re.findall(r"\[([^\]]+)\]", body.split("= [", 1)[1])
+        out = [[c.strip().strip("'") for c in r.split(",")] for r in rows]
+        self.assertTrue(out)
+        for r in out:
+            self.assertEqual(len(r), width)
+        return out
+
+    def test_pct_error_gives_each_fixture_percentage(self):
+        for p, u, want in self.rows("PCT_FIXTURES", 3):
+            self.assertEqual(tr.pct_error(int(p), int(u)), want, f"{p}/{u}")
+
+    def test_cells_and_exact_figures_may_differ_by_a_point(self):
+        for cp, cu, cwant, ep, eu, ewant in self.rows("PCT_GAP_FIXTURES", 6):
+            self.assertEqual(tr.pct_error(int(cp), int(cu)), cwant)
+            self.assertEqual(tr.pct_error(int(ep), int(eu)), ewant)
+            self.assertEqual((tr.fmt_tok(int(ep)), tr.fmt_tok(int(eu))), (tr.fmt_tok(int(cp)), tr.fmt_tok(int(cu))))
+            self.assertEqual(abs(int(cwant[:-1]) - int(ewant[:-1])), 1)
+
+    def test_ledger_cell_prints_what_the_toast_reads(self):
+        self.assertEqual(tr.ledger_cell({"projected": 420_000, "used": 391_000}), "~420k / 391k")
+
+
 def shutil_copy(src, dst):
     import shutil
     shutil.copytree(src, dst)

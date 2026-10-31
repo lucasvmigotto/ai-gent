@@ -32,6 +32,18 @@
       "title": "Token ETA warning (minutes)",
       "description": "A toast when a cap would run out within this many minutes at the current pace, once per crossing; 0 turns the toast off and keeps the status",
       "default": 30
+    },
+    "cardCostToast": {
+      "type": "boolean",
+      "title": "Card cost on landing",
+      "description": "A toast when a card lands with what it cost against what was projected (004-us1-core landed: used 391k vs ~420k projected (-7%)), and one when the wave's last card lands; read from the Tokens column of .ai-gent/orchestrate-status.md. Needs the token status on",
+      "default": true
+    },
+    "cardCostHintPercent": {
+      "type": "number",
+      "title": "Landing toast hint (percent)",
+      "description": "A miss of at least this many percent, over or under, adds a pointer to what to fix; 0 turns the hint off",
+      "default": 25
     }
   }
 }
