@@ -21,6 +21,8 @@ import { PANE, close, open, press, readExpanded, readIsOpen, readPaneState, read
 import { drawDashboard } from './pipeline-draw'
 import { build, text as pipelineText, view } from './pipeline-view'
 import type { Tone } from './pipeline-view'
+import { lines as guardLines, clampLimit, summarize } from './guards'
+import { readGuards } from './guards-read'
 import { repoRoot } from './repo'
 
 // Change the tag when Checkpoint's fields change: it declines what an earlier
@@ -30,7 +32,7 @@ const checkpoint = atom({ plugin: 'project', key: 'checkpoint' } as const, null,
 })
 const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, false)
 
-type Options = BandOptions & HandoffOptions & NextStageOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number }
+type Options = BandOptions & HandoffOptions & NextStageOptions & { holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number; guardLogLimit?: number; guardsPane?: boolean }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
@@ -79,6 +81,14 @@ async function refresh($: EngineInterface, isOn: boolean): Promise<Checkpoint | 
   return current
 }
 
+const GUARDS_PANE = 'guards'
+
+// Declares /guards and /guards-pane. Never opens the pane by itself.
+async function registerGuards($: EngineInterface): Promise<void> {
+  await $.command.register({ name: 'guards', description: 'List the last guard decisions and the entries that fired most' }).catch(() => undefined)
+  await $.command.register({ name: 'guards-pane', description: 'Dock the guard decisions list in a pane' }).catch(() => undefined)
+}
+
 export const register: Register = (on, options: Options) => {
   const showBand = options.holdsBand !== false
   const askOnGated = options.holdsGate !== false
@@ -88,6 +98,7 @@ export const register: Register = (on, options: Options) => {
     if (options.bandsCommand !== false) {
       await $.command.register({ name: 'bands', description: 'List the bands above the prompt, and which are hidden by the cap' }).catch(() => undefined)
     }
+    await registerGuards($)
     await refresh($, showBand).catch(() => undefined)
     seedNextStage($, options)
     if (options.pipelinePane !== false) {
@@ -198,6 +209,33 @@ export const register: Register = (on, options: Options) => {
     if (options.pipelinePane !== false && (await readIsOpen($))) await refreshPipeline($).catch(() => undefined)
     return ran
   }).catch(($, e, next) => next(e))
+
+  // The guard log (spec 024): /guards and /guards-pane over the guard plugins' atoms.
+  on('command.run', { command: 'guards' }, async ($, e) => {
+    const { rows, missing } = await readGuards($)
+    return { text: guardLines(summarize(rows, clampLimit(e.args, clampLimit(options.guardLogLimit))), missing).join('\n') }
+  })
+
+  on('command.run', { command: 'guards-pane' }, async $ => {
+    if (options.guardsPane === false) return { text: 'The guards pane is off (guardsPane); /guards prints the list.' }
+    const placed = await $.ui.open({ id: GUARDS_PANE, title: 'Guards', focus: true })
+    if (placed.isPlaced) return { text: 'Guards pane opened.' }
+    const { rows, missing } = await readGuards($)
+    return { text: ['no pane here — /guards prints the list', ...guardLines(summarize(rows, clampLimit(options.guardLogLimit)), missing)].join('\n') }
+  })
+
+  on('ui.render', { component: 'Pane', requestId: 'guards' }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const { rows, missing } = await readGuards($)
+    const width = Math.max(20, e.props.bodyColumns)
+    return (
+      <Box flexDirection="column">
+        {guardLines(summarize(rows, clampLimit(options.guardLogLimit)), missing, width).map((line, i) => (
+          <Text key={i} wrap="truncate-end">{line}</Text>
+        ))}
+      </Box>
+    )
+  })
 
   if (options.pipelinePane === false) return
   const seconds = options.pipelinePollSeconds ?? 5

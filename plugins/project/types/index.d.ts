@@ -86,6 +86,18 @@ export type Snapshot = {
 // change is told once.
 export type NextStageLast = Next | null
 
+// One decision of a guard plugin's guard, verb only (the five plugins' own
+// types declare the same shape; this contract has to be self-contained).
+export type GuardRow = {
+  at: number
+  guard: 'git' | 'db' | 'secrets' | 'repo' | 'containers'
+  decision: 'deny' | 'ask'
+  entry: string
+  tool: string
+  verb: string | null
+  outcome: 'asked' | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     project: {
@@ -111,9 +123,12 @@ declare module 'claude-code' {
       // `mtimeMs` of the watched artifacts at the last turn end, for writes made by other means.
       nextStageMtimes: Record<string, number>
     }
-    // The other band plugins' atoms, read-only here; each is absent when its plugin is not installed.
-    git: { bands: Band[] }
-    repo: { bands: Band[] }
-    devcontainer: { bands: Band[] }
+    // The other plugins' atoms, read-only here; each is absent when its plugin is not installed.
+    // guardLog is each guard plugin's own ring (spec 024); /guards reads all five.
+    git: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
+    repo: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
+    devcontainer: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
+    db: { guardLog: Shaped<GuardRow[]> }
+    secrets: { guardLog: Shaped<GuardRow[]> }
   }
 }

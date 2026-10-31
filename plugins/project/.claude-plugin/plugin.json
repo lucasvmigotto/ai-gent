@@ -93,6 +93,27 @@
       "default": 10,
       "min": 1,
       "max": 100
+    },
+    "guardLogLimit": {
+      "type": "number",
+      "title": "Guard log: rows listed",
+      "description": "How many of the guards' latest decisions /guards and the guards pane list; /guards N overrides it",
+      "default": 20,
+      "min": 1,
+      "max": 200
+    },
+    "guardsPane": {
+      "type": "boolean",
+      "title": "Guards pane",
+      "description": "The /guards-pane pane: the guards' latest decisions and the entries that fired most; it never opens by itself",
+      "default": true
     }
-  }
+  },
+  "dependencies": [
+    "git",
+    "db",
+    "secrets",
+    "repo",
+    "devcontainer"
+  ]
 }
