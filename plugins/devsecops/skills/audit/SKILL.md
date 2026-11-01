@@ -27,6 +27,14 @@ Where available: `zizmor` and `actionlint` (GitHub, Forgejo/Gitea),
 the platform linter. Treat tool output as leads to confirm, not as the
 report.
 
+A finding that rests on platform behavior (a default that changed, a
+runner or action advisory) may be researched
+(`../../references/research.md`, about 5 searches and 5 fetches in total):
+generic queries on the platform and action names only, never workflow
+content, repository names or secrets. Put the source and date in the
+finding's Evidence, labelled `[RESEARCHED: S<n>]` or `[ASSUMPTION]`
+("verify before relying" with no web tools).
+
 ## Checklist
 
 Work through the platform file's **Attack surface** list, then:

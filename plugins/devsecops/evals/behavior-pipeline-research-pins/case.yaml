@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: behavior-pipeline-research-pins
+description: Behavior — devsecops:pipeline without web tools labels action versions and pins Assumed with a verify-before-relying note, invents no SHAs or URLs
+tags: [behavior]
+runs: 1
+execution:
+  prompt: |
+    Run the design step of devsecops:pipeline for this project on GitHub Actions, no questions.
+    Write docs/product/delivery.md with the action versions and pins you would use and a Sources
+    section. Then reply with the pins table and the Sources section.
+  max_turns: 20
+  timeout_seconds: 420
+  allowed_tools: [Skill, Read, Glob, Grep, Bash, Write]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: says-no-web-and-labels-assumption
+    type: llm
+    focus: last_message
+    criteria: |
+      The response says web access or research is unavailable, or labels the action versions and
+      pins as `[ASSUMPTION]` / Assumed, and tells the reader to verify before relying on them. It
+      fails if versions or SHAs are presented as freshly verified.
+    arm: both
+  - name: no-invented-urls-or-shas
+    type: llm
+    focus: last_message
+    criteria: |
+      No web tool was available, so a specific release URL, or a full 40-character commit SHA
+      presented as the verified pin, is invented and fails. A response with no URLs, an
+      all-Assumed Sources section, and pins shown as version tags or placeholders passes.
+    arm: both

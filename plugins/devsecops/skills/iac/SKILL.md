@@ -35,6 +35,16 @@ IaC stack would be overkill.
 
 ## Tool
 
+Research the versions and limits the code depends on
+(`../../references/research.md`, about 5 searches and 5 fetches): provider
+and module versions and their breaking changes, OIDC and IAM specifics
+for the cloud, service limits and quotas, regions and deprecations.
+Query provider and service names only, never account, subscription or
+resource ids. Cite them in a Sources section of the plan doc and a
+comment header in each module (source, date), labelled
+`[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`; with no web tools, say
+so once and mark them `[ASSUMPTION]`, "verify before relying".
+
 Detect before choosing:
 
 | Found | Use |
