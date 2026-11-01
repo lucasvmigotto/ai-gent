@@ -1,0 +1,51 @@
+# Tasks: Token tools (`ai-gent tokens`)
+
+Format: `- [ ] Tnnn [P] [USn] description. Files. Verify. Fixture.` `[P]` = safe in parallel with other `[P]` tasks of the same phase (disjoint files). Each task fits one builder session. Paths under `rust/` follow D4; crate directory names are assumed until 032 lands. Project-level lines: Executor Sonnet builder, Reviewer Opus inline, unless noted.
+
+## Phase 0: Measure and build the oracle
+
+- [ ] T001 Count and map the Python tests. List every `def test` of `plugins/agents/scripts/test_token_report.py` into `specs/035-token-tools/fixture-map.md` (test name, fixture group, status). Files: `specs/035-token-tools/fixture-map.md`. Verify: `python3 -m unittest plugins/agents/scripts/test_token_report.py` prints `Ran 68 tests`, and the map has 68 rows. Fixture: all.
+- [ ] T002 Baseline measurement. Run the baseline of plan "Measurement" on the owner's machine (no transcript content read or written), fill `specs/035-token-tools/tracker.md`. Files: `tracker.md`. Verify: table filled with corpus size, files, median, p95. Fixture: n/a (SC-004 input). Needs the owner's machine: mark Blocked if run in CI.
+- [ ] T003 Scenario format and runners. Write `contracts/parity-fixtures.md` into the shared harness (align with 032) and `scripts/test-parity-tokens.py` (materialise, run Python, diff, `--bless`). Decide the clock mechanism (hidden `--now`). Files: `scripts/test-parity-tokens.py`, `rust/fixtures/tokens/README.md`. Verify: `python3 scripts/test-parity-tokens.py --self-test` passes with one trivial case. Fixture: harness.
+- [ ] T004 Capture unknown contracts. Bless runs for `estimate --json` (tag and untagged paths) and the no-session paths of `report`/`tasks`/`budget`; fill the [TO CAPTURE] items in `contracts/cli.md`. Files: `specs/035-token-tools/contracts/cli.md`, `rust/fixtures/tokens/estimate-*/`. Verify: no `[TO CAPTURE]` left (`grep -c 'TO CAPTURE' contracts/cli.md` is 0). Fixture: estimate-json-*.
+
+## Phase 1: Scanning layer, report, stage markers (US2, part of US5)
+
+- [ ] T010 [P] [US2] Transcript model and `collect`. `transcripts.rs`: discover sessions in all config dirs, dedupe by id keeping the larger output, skip `<synthetic>`, tolerate bad lines. Files: `rust/ai-gent-core/src/tokens/{mod,transcripts}.rs`. Verify: `cargo test -p ai-gent-core tokens::transcripts`. Fixture: `test_discover_sessions_finds_the_one_session`, `test_dedup_by_message_id_counts_once`, `test_resumed_agent_counts_once_across_config_dirs`.
+- [ ] T011 [P] [US2] `fmt_tok`, `parse_tok`, `to_utc`, `label_of`, `project_name`, `pct_error` pure helpers with Python's rounding. Files: `rust/ai-gent-core/src/tokens/fmt.rs`. Verify: `cargo test tokens::fmt`. Fixture: `pure.json` (`test_expand_ids_and_tokens_format`, `PctParityTests`).
+- [ ] T012 [P] Embed tags JSON. `tags.rs` with `include_str!` of a generated copy of `shared/token-tags.json`; `scripts/consistency.py` check that the copy is equal and `--sync-shared-code`-style rewrite. Files: `rust/ai-gent-core/src/tokens/tags.rs`, `rust/ai-gent-core/data/token-tags.json`, `scripts/consistency.py`, `scripts/test_consistency.py`. Verify: `python3 scripts/consistency.py` fails when the copy is edited, passes when synced. Fixture: `TagsTest`.
+- [ ] T013 [US2] `report` and `--summary`, idle rebuilds, snapshot and backfill-git (shell out to git). Files: `report.rs`, `coordinator.rs`, `rust/ai-gent/src/cmd/tokens.rs`. Verify: `cargo test -p ai-gent --test parity_tokens -- report snapshot`. Fixture: `TokenReportTest` group (10).
+
+## Phase 2: Attribution and writers (US1)
+
+- [ ] T020 [US1] Cards and tasks parsing (`parse_cards_md`, `parse_tasks_md`, `expand_ids`, `load_features`). Files: `attribute.rs`, `cards.rs`. Verify: `cargo test tokens::cards`. Fixture: `test_attribution_levels`, `test_expand_ids_and_tokens_format`.
+- [ ] T021 [US1] Attribution and grouping (`attribute`, `build_groups`, `layer_of`, `effort_of`, `projected_of`, events/resumes). Files: `attribute.rs`, `groups.rs`. Verify: `cargo test tokens::attribute`. Fixture: `EventsTest`, `TasksTest::test_attribution_levels`.
+- [ ] T022 [US1] Coordinator split by windows. Files: `coordinator.rs`. Verify: `cargo test tokens::coordinator`. Fixture: `test_coordinator_split_by_window_weights`.
+- [ ] T023 [US1] Writers: task lines, tracker block, ledger column, atomic rename, CRLF preservation. Files: `writers.rs`. Verify: `cargo test -p ai-gent --test parity_tokens -- tasks`. Fixture: `test_tasks_writes_lines_tracker_history_ledger`, `test_rerun_updates_numbers_without_duplicating`, `test_dry_run_writes_nothing`.
+- [ ] T024 [US1] History record and upsert; `tasks --json`, `--summary`, `--top`, legacy output. Files: `history.rs`, `cmd/tokens.rs`. Verify: parity group `tasks-*` green. Fixture: `TasksJsonTest` (6), `LegacyTest::test_tasks_still_writes_tokens_md...`.
+
+## Phase 3: Tags, estimate, index, seed (US3, US5)
+
+- [ ] T030 [P] [US3] Tag parse/format/aliases/`infer_tags`/`repo_info` (reads manifests read-only). Files: `tags.rs`, `repo_info.rs`. Verify: `cargo test tokens::tags`. Fixture: `TagsTest` (3).
+- [ ] T031 [US3] `estimate_card`, `estimate_by_tags`, context factors, bias, weighted quantile, starting tables, untagged tiers. Files: `estimate.rs`. Verify: `cargo test tokens::estimate`. Fixture: `EstimateTest` (6), `TagEstimateTest` (9).
+- [ ] T032 [US3] `estimate` command text and `--json`. Files: `cmd/tokens.rs`. Verify: parity group `estimate-*`. Fixture: `test_estimate_command_prints_projection_basis_and_card_line`, `test_command_prints_level_confidence_and_context`.
+- [ ] T033 [P] [US5] `index` and `seed`. Files: `history.rs`, `seed.rs`. Verify: parity group `index-*`, `seed-*`. Fixture: `IndexSeedTest` (3).
+
+## Phase 4: Budget (US4)
+
+- [ ] T040 [P] [US4] `parse_budget`, `usage_messages` (single week scan), `usage_since`, `usage_rate`. Files: `budget.rs`. Verify: `cargo test tokens::budget`. Fixture: `UsageSinceTest`, `UsageRateTest` (4), `test_parse_budget_reads_flat_keys_with_suffixes_and_defaults`.
+- [ ] T041 [US4] `wave_cards`, verdict, event risk, Opus parallel risk, `pack_batches`, text and `--json`. Files: `budget.rs`, `cmd/tokens.rs`. Verify: parity group `budget-*`. Fixture: `BudgetTest` (13).
+
+## Phase 5: Windows, performance
+
+- [ ] T050 [P] Windows cases: slug, `%USERPROFILE%` config dirs, CRLF, atomic rename over an open file, path separators in written files. Files: `rust/fixtures/tokens/win-*/`, platform notes in `plan.md`. Verify: CI Windows job runs `cargo test`. Fixture: new `win-*`.
+- [ ] T051 [P] [US6] `scripts/bench-tokens.sh` with `--synth SIZE` corpus generator. Files: `scripts/bench-tokens.sh`. Verify: prints median of N runs for both implementations. Fixture: n/a.
+- [ ] T052 [US6] Optimise only if T051 shows the target missed: parallel file scan, partial deserialization. Files: `transcripts.rs`. Verify: SC-004 table in `tracker.md`. Fixture: all parity still green.
+
+## Phase 6: Cutover (gated on SC-001..SC-005, owner approval of the edit list)
+
+- [ ] T060 Edit skills, references, `shared/token-tracking.md`, README, AGENTS.md per plan "Cutover" step 1. Files: the 10 files listed there. Verify: `scripts/check.sh --quick`. Fixture: n/a.
+- [ ] T061 Switch the mods and their tests/fixtures (plan step 2) and the plugin manifests (step 3). Files: listed there. Verify: `claude plugin test plugins/agents` and `plugins/project` (as run by `scripts/check.sh`). Fixture: mods' own tests.
+- [ ] T062 Edit `scripts/check.sh` and `scripts/consistency.py` (step 4). Verify: `scripts/check.sh`.
+- [ ] T063 Delete `plugins/agents/scripts/token_report.py`, `test_token_report.py`, `scripts/test-parity-tokens.py`; update `scripts/package.py` allowlist if it names them. Verify: `git grep -n 'token_report\.py' -- . ':!CHANGELOG.md' ':!specs' ':!docs/product'` is empty; `python3 scripts/package.py --check`.
+- [ ] T064 `CHANGELOG.md` `## Unreleased` breaking note; set the row in `specs/README.md` to Implemented only after the release verifies. Verify: `scripts/release.py --dry-run` shows the expected bump.
