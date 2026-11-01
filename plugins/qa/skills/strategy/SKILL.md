@@ -22,6 +22,8 @@ description: Define a risk-based test strategy for the project and each feature 
    there a staging?), who does UAT, release cadence, tolerance for
    pipeline duration.
 
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
+
 ## Process
 
 1. **Risk per feature** — score impact (money, data, safety, reputation,

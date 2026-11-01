@@ -29,6 +29,8 @@ source of truth.
    each feature's `ui.md` if `frontend:spec` has run (the screens' data
    needs are consumers of your contract).
 
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
+
 ## Process
 
 ### 1. Coverage matrix

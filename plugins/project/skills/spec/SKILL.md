@@ -115,6 +115,8 @@ execute it, then close it with `/speckit-converge`. Name it in the handoff.
 
 ### 5. Contract skeleton — `contracts/openapi.yaml`
 
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
+
 OpenAPI 3.1, assembled from every feature's `contracts/`: one tag per
 feature, resources named with glossary terms, every operation with an
 `operationId`, summary, auth requirement, and request/response schema

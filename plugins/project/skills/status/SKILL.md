@@ -26,6 +26,11 @@ present, missing, or stale:
   (`git diff <downstream commit>.. -- <upstream path>`, summarized).
 - Missing artifacts are only a problem when a later stage already ran
   (for example `specs/` without `architecture.md`).
+- **Not applicable** artifacts are the rows of `specs/README.md`'s
+  `## Applicability` table (`| Artifact | Status | Reason |`, status `N/A`,
+  reason required). List them apart as "not applicable (reason)", never as
+  missing or as gaps, and never recommend their stage. Report a row that
+  names an unknown artifact or has no reason.
 
 ## 2. Features
 
