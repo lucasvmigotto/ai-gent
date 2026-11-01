@@ -21,7 +21,8 @@ export KIRO_SKILLS_DIR="$HOME/.kiro/skills"
 export WINDSURF_SKILLS_DIR="$HOME/.codeium/windsurf/skills"
 export XDG_STATE_HOME="$HOME/.local/state"
 targets_state="$XDG_STATE_HOME/ai-gent/targets"
-unset XDG_DATA_HOME AI_GENT_DIR AI_GENT_REPO AI_GENT_BRANCH
+unset XDG_DATA_HOME AI_GENT_DIR AI_GENT_REPO AI_GENT_BRANCH AI_GENT_MODE AI_GENT_HOME VERSION
+export AI_GENT_MODE=git # the clone mode is the one tested here; scripts/test-package.sh covers the package default
 
 failures=0
 check() { # check <description> <command...>
@@ -314,10 +315,11 @@ check "no config: created with the plugin" test "$(json_get "$cfg" 'd["plugins"]
 oc_run "$h" --uninstall
 check "uninstall: a created, untouched config is removed" test ! -e "$cfg"
 
-echo "      -- install.sh (clone, then update)"
+echo "      -- install.sh (git dev mode: clone, then update)"
 AI_GENT_REPO="$REPO_DIR" sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1 || cat "$SANDBOX/out"
 clone="$HOME/.local/share/ai-gent"
 check "clones into the default directory" test -f "$clone/setup.sh"
+check "says it is a dev mode going away in v3" grep -q "DEV mode and goes away in v3" "$SANDBOX/out"
 cloned=$(count "$clone/skills" "$clone/plugins" -mindepth 1 -maxdepth 1 -type d)
 check "links point into the clone" test "$(links_into "$CLAUDE_SKILLS_DIR" "$clone")" -eq "$cloned"
 AI_GENT_REPO="$REPO_DIR" sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1

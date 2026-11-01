@@ -3,7 +3,7 @@
 # shell scripts, the git, db, secrets, repo and containers guard hooks, dbrun, reporun,
 # the project scripts, compact:code, the prose consistency checks, the release
 # script and its single-version template, and installer tests
-# in a throwaway HOME.
+# in a throwaway HOME, the release package and its installer.
 # Run before every commit; CI runs the same script.
 #
 #   scripts/check.sh                 everything
@@ -362,6 +362,16 @@ else
   warn "neither bun nor node on PATH; skipped the opencode guard rule test"
 fi
 
+# ------------------------------------------------------ release package
+
+if python3 scripts/package.py --check >"${TMPDIR:-/tmp}/ai-gent-package.out" 2>&1; then
+  pass "release package ($(sed -n 's/^package ok: //p' "${TMPDIR:-/tmp}/ai-gent-package.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-package.out"
+  fail "release package (scripts/package.py --check)"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-package.out"
+
 # ---------------------------------------------------------- installer tests
 
 if ((QUICK)); then
@@ -370,6 +380,14 @@ elif scripts/test-install.sh; then
   pass "installer tests"
 else
   fail "installer tests"
+fi
+
+if ((QUICK)); then
+  warn "--quick: skipped package install tests"
+elif scripts/test-package.sh; then
+  pass "package install tests"
+else
+  fail "package install tests"
 fi
 
 # ------------------------------------------------------ update-check tests
