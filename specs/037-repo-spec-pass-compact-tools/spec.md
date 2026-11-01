@@ -30,7 +30,7 @@ Four tools in one spec. They share only the pass-store module and the cutover pr
 
 ### Group A: pass-store module
 
-#### User Story A1 - Read and check entries without leaking (Priority: P1)
+### User Story 1 - Pass store: Read and check entries without leaking (Priority: P1)
 
 Rust code asks `passstore::has(entry)` (a file check, no passphrase), `read(entry)` (first line is the secret, later lines are notes) and `write(entry, value)` (`pass insert --multiline`, never overwrites). Names obey `ENTRY_RE`, forbid `..`, leading `-` or `/`. `AI_GENT_PASS_PREFIX` and `PASSWORD_STORE_DIR` are honoured.
 
@@ -42,7 +42,7 @@ Rust code asks `passstore::has(entry)` (a file check, no passphrase), `read(entr
 3. **Given** `pass show` exits non-zero, times out (90 s) or returns an empty first line, **Then** `read` fails with a message ending with "unlock it in your own terminal" and no stderr value.
 4. **Given** `write` on an existing entry, **Then** it fails with "already exists".
 
-#### User Story A2 - Windows without pass in PATH (Priority: P2)
+### User Story 2 - Pass store: Windows without pass in PATH (Priority: P2)
 
 On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when on PATH, else `gopass` [RESEARCHED: S4, gopass installs on Windows with `winget install gopass.gopass` plus Git and Gpg4win, and can use age instead of GPG]. When neither exists, `read` fails with "pass is not installed" and the install pointer, and the plain-text-file path of the tool remains the documented last resort.
 
@@ -54,7 +54,7 @@ On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when
 
 ### Group B: `ai-gent spec`
 
-#### User Story B1 - Plan, record, features (Priority: P1)
+### User Story 3 - Spec: Plan, record, features (Priority: P1)
 
 `ai-gent spec plan <NNN|specs/NNN-feature> [--json]` prints the items a feature implies (one per feature, one per user story with its tasks as a checklist, each with a state); `record` writes a batch's results into `tracker.md`; `features` lists every feature's state and pending changes.
 
@@ -67,7 +67,7 @@ On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when
 
 ### Group C: `ai-gent repo`
 
-#### User Story C1 - Detect without decrypting (Priority: P1)
+### User Story 4 - Repo: Detect without decrypting (Priority: P1)
 
 `ai-gent repo detect [--json]` reports the platform, the CLI and the token state (entry present or not) for this repository; nothing is decrypted.
 
@@ -75,7 +75,7 @@ On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when
 
 **Acceptance Scenarios**: GitHub, Azure DevOps (several URL forms), GitLab, Bitbucket, Forgejo/Gitea/Codeberg, Jira remotes are recognised; `git config` overrides force a platform.
 
-#### User Story C2 - Run the platform CLI with the token in its environment (Priority: P1)
+### User Story 5 - Repo: Run the platform CLI with the token in its environment (Priority: P1)
 
 `ai-gent repo cli <platform> [--write] -- <args>` runs `gh`, `az`, `glab` or `jira` with the token in that process's environment only; reads need no flag, writes need `--write`; token-printing and arbitrary-code subcommands are blocked; output is redacted.
 
@@ -83,7 +83,7 @@ On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when
 
 **Acceptance Scenarios**: classification by READ_VERBS/`BLOCKED_CLI`; `--write` required otherwise (exit 3 "refused"); the secret never appears in argv, stdout, stderr or errors.
 
-#### User Story C3 - REST API with auth built in-process (Priority: P1)
+### User Story 6 - Repo: REST API with auth built in-process (Priority: P1)
 
 `ai-gent repo api <platform> METHOD PATH [--data FILE|-] [--query k=v ...] [--write] [--paginate] [--max-pages N]`, with `{placeholders}` filled from the remote, bearer/basic/token headers per platform, `Link`/next-page following, write detection by method and by GraphQL body, hosts restricted to the platform's own.
 
@@ -91,7 +91,7 @@ On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when
 
 **Acceptance Scenarios**: GitHub bearer, Azure basic + `api-version`, Forgejo `token` header, Jira basic with email, GitLab path-encoded project, Bitbucket pagination, other hosts refused, errors redacted, missing entry reported with the `pass insert` hint, `Forgejo` has no CLI.
 
-#### User Story C4 - Project status, batch and chain (Priority: P2)
+### User Story 7 - Repo: Project status, batch and chain (Priority: P2)
 
 `project-status` (GitHub Projects v2 field and option matching, case- and punctuation-insensitive, aliases), `batch FILE [--write] [--dry-run] [--out FILE]` (several calls from a JSON plan with `{results.name.field}` references, one confirmation, stops at the first failure), `chain [--json]` (work, integration, staging?, production).
 
@@ -99,7 +99,7 @@ On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when
 
 ### Group D: `ai-gent compact`
 
-#### User Story D1 - Compact view of the languages that matter (Priority: P2)
+### User Story 8 - Compact: Compact view of the languages that matter (Priority: P2)
 
 `ai-gent compact [-l LANG] [-L 0..4] [-c] [--outline DEPTH] [-n] [-w N] [-o FILE] [-q] [--no-verify] [--no-ast] [--list-languages] PATH...` prints source with indentation, newlines and optional spaces removed, strings and comments kept, every result verified, with automatic fallback to a safer level.
 
