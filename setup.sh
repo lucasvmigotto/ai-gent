@@ -96,6 +96,7 @@ NO_CONFIG_EDITS=0
 VERBOSE=0
 SKIP_PROMPT=0
 TARGET=""
+MIGRATE=0
 
 # The agents, in the selector's order: an id, a label, and the commands or
 # directories that show it's installed (any one is enough).
@@ -117,7 +118,7 @@ SHARED_AGENTS=" codex cursor copilot amp "
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--target <agents>] [--skip-prompt] [--dry-run] [--force] [--uninstall] [--verbose]
+Usage: $(basename "$0") [--target <agents>] [--skip-prompt] [--dry-run] [--force] [--migrate] [--uninstall] [--verbose]
 
 Installs skills/* and plugins/* from $REPO_DIR for the chosen coding agents.
 On a terminal, a selector (fzf, or a numbered prompt) asks which, with Claude
@@ -132,6 +133,8 @@ Code and the previous choice preselected.
                first time (also what happens without a terminal)
   --dry-run    print what would change, change nothing
   --force      back up and replace a real directory or foreign symlink in the way
+  --migrate    relink skills that point into ANOTHER ai-gent tree (an old git clone)
+               to this one; without it such links are only reported, never changed
   --uninstall  remove everything this script installed, or only for --target
                (the shared ~/.agents/skills stays while a remaining agent uses it)
   --yes        apply the opencode config edits without asking
@@ -168,6 +171,7 @@ while (($#)); do
     --dry-run) DRY_RUN=1 ;;
     --force) FORCE=1 ;;
     --uninstall) UNINSTALL=1 ;;
+    --migrate) MIGRATE=1 ;;
     --skip-prompt) SKIP_PROMPT=1 ;;
     --yes | -y) YES=1 ;;
     --no-config-edits) NO_CONFIG_EDITS=1 ;;
@@ -345,6 +349,17 @@ points_into_repo() {
   [[ "$(readlink "$1")" == "$REPO_DIR"/* ]]
 }
 
+# foreign_tree_link <dest> — a symlink into <X>/plugins|skills/<name> of another
+# ai-gent tree (one with a setup.sh), e.g. the old git clone
+foreign_tree_link() {
+  local t x
+  [[ -L "$1" ]] || return 1
+  t="$(readlink "$1")"
+  [[ "$t" == */plugins/* || "$t" == */skills/* ]] || return 1
+  x="${t%/*}"; x="${x%/*}"
+  [[ "$x" != "$REPO_DIR" && -f "$x/setup.sh" ]]
+}
+
 # link <src> <dest>
 link() {
   local src="$1" dest="$2" name
@@ -353,6 +368,11 @@ link() {
   if [[ -L "$dest" ]]; then
     if [[ "$(readlink "$dest")" == "$src" ]]; then
       item ok "$name"
+      return
+    fi
+    if ! points_into_repo "$dest" && ((MIGRATE)) && foreign_tree_link "$dest"; then
+      item relink "$name (from $(readlink "$dest"))"
+      run ln -sfn "$src" "$dest"
       return
     fi
     if ! points_into_repo "$dest" && ((!FORCE)); then
@@ -407,7 +427,17 @@ install_claude() {
   prune_links "$CLAUDE_DIR"
   if ((UNINSTALL)); then section_end; return; fi
 
-  local dir
+  local dir dest old=0 old_from=""
+  for dest in "$CLAUDE_DIR"/*; do
+    if foreign_tree_link "$dest"; then
+      old=$((old + 1)); old_from="$(readlink "$dest")"
+    fi
+  done
+  if ((old && MIGRATE)); then
+    echo "--migrate: $old link(s) in $CLAUDE_DIR point into another ai-gent tree (e.g. ${old_from%/*/*}); they will be repointed to $REPO_DIR. The old tree itself is not touched."
+  elif ((old)); then
+    echo "note: $old link(s) in $CLAUDE_DIR point into another ai-gent tree (e.g. ${old_from%/*/*}) and are left as they are; run with --migrate to repoint them to $REPO_DIR."
+  fi
   for dir in "$REPO_DIR"/skills/*/; do
     dir="${dir%/}"
     [[ -f "$dir/SKILL.md" ]] && link "$dir" "$CLAUDE_DIR/$(basename "$dir")"

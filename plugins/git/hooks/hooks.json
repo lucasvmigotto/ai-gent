@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/../../scripts/update-check.sh\"",
+            "command": "f=\"${CLAUDE_PLUGIN_ROOT}/../../scripts/update-check.sh\"; if [ -f \"$f\" ]; then exec bash \"$f\"; fi; exit 0",
             "timeout": 15
           }
         ]

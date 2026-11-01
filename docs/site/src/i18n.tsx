@@ -204,7 +204,7 @@ export const enUS: Messages = {
 	},
 	install: {
 		title: "Install ai-gent",
-		lede: "One command. On a terminal it asks which agents to install for, with Claude Code preselected. Re-run it to update.",
+		lede: "One command downloads a release package, checks its SHA-256 and installs it under a versioned directory. On a terminal it asks which agents to install for, with Claude Code preselected. Re-run it to update.",
 		choose: "Choose your agents",
 		claude: "Claude Code (default)",
 		claudeBody:
@@ -215,7 +215,7 @@ export const enUS: Messages = {
 		verify: "Verify",
 		updates: "Updates",
 		updatesBody:
-			"When a Claude Code session starts, a SessionStart check prints one line if a newer release is known — the check reads a weekly cache and never blocks startup. Pinned checkouts stay silent, and AI_GENT_NO_UPDATE_CHECK=1 disables it. The session that notices an update only proposes it; applying it takes effect next session.",
+			"When a Claude Code session starts, a SessionStart check prints one line if a newer release is known — the check reads a weekly cache and never blocks startup. AI_GENT_NO_UPDATE_CHECK=1 disables it. The session that notices an update only proposes it; applying it (scripts/ai-gent-update.sh re-runs the installer) takes effect next session. Pin with VERSION=x.y.z, list with --list, undo with --rollback, drop old versions with --prune. The old git-clone install is a dev mode (AI_GENT_MODE=git) that goes away in v3.",
 		firstSkill: "Invoke your first skill",
 		firstSkillBody:
 			"Type what you want in plain words and the matching skill loads, or invoke one directly.",
@@ -243,8 +243,8 @@ export const enUS: Messages = {
 			},
 			{
 				problem: "A newer release is announced.",
-				fix: "Update the checkout, then re-run setup so new or renamed skills are linked; start a new session.",
-				command: "scripts/ai-gent-update.sh && ./setup.sh",
+				fix: "Re-run the installer (the updater does this for a package install, and fast-forwards a git clone); it keeps the previous version for --rollback. Start a new session.",
+				command: "~/.local/share/ai-gent/current/scripts/ai-gent-update.sh",
 			},
 			{
 				problem: "A directory or link is in the way.",

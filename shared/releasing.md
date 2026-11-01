@@ -171,8 +171,8 @@ prepare any change: on a working branch off `dev`, with the notes under
   then `scripts/release.py`. A release bumps the `version` of each plugin
   whose files (or the shared files it links) changed, promotes
   `CHANGELOG.md`'s `## Unreleased` section (or generates one from the
-  commits), commits `chore(release): X.Y.Z`, tags `X.Y.Z` and publishes a
-  GitHub Release.
+  commits), commits `chore(release): X.Y.Z`, tags `X.Y.Z` and creates the
+  GitHub Release as a draft, which the package job below publishes.
 - Don't bump plugin versions or tag by hand; a version already changed by
   hand since the last tag is left alone.
 - Preview with `scripts/release.py --dry-run`.
@@ -183,3 +183,34 @@ prepare any change: on a working branch off `dev`, with the notes under
   together.
 - After pushing, the bot's release commit lands on `main`: run
   `git pull --ff-only` before the next local commit.
+
+### The release package
+
+The installer's default is a package, not a clone. After the release job
+creates the draft Release, the `package` job (the only job with
+`id-token: write` and `attestations: write`) checks out the new tag and:
+
+1. builds `dist/ai-gent-X.Y.Z.tar.gz` with `scripts/package.py --version X.Y.Z`
+   (an allowlist: `plugins/` minus evals and tests, the `shared/` files the
+   plugins link to, `opencode/guard`, `setup.sh`, `install.sh`, the update
+   scripts, `LICENSE`, `README.md`, `VERSION` and a `MANIFEST` of sha256s;
+   relative symlinks are kept, and a dangling or escaping one fails the
+   build; sorted entries, fixed mtime and ids, so two builds are
+   byte-identical), plus `dist/SHA256SUMS`;
+2. attests the tarball and `install.sh` with
+   `actions/attest-build-provenance` (pinned by commit SHA);
+3. uploads tarball, `SHA256SUMS` and `install.sh` and only then publishes the
+   Release (`--draft=false --latest`), so `releases/latest`, which the
+   installer and `update-check.sh` read, never points at a release without
+   its package. If the job fails the release stays a draft and
+   `report-failure` opens an issue; the next release supersedes it.
+
+`scripts/package.py --check` builds twice into a temp dir, compares, and
+verifies the contents (MANIFEST, symlinks, no dev-only files); `check.sh`
+runs it on every PR, and `scripts/test-package.sh` covers the installer
+against a package served over `file://` (`AI_GENT_RELEASE_BASE`). Installer
+behavior (versions under `$AI_GENT_HOME`, `current`/`previous`, checksum
+before extraction, `--rollback`, `--prune`, optional
+`--verify-attestation`): `install.sh --help` header. A file the package
+needs at runtime must be on the `ROOT_FILES`/`TREES` allowlist in
+`scripts/package.py`, or it will not ship.

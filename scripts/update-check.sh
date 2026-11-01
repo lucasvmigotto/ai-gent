@@ -6,6 +6,8 @@
 # otherwise. Reads a timestamped cache file; refreshes it detached when
 # stale, so the foreground path never touches the network. Always exits 0.
 #
+# Works in a git clone (newest tag) and in a release-package install (VERSION).
+#
 # Sourced by tests, executed by session-start hooks (Claude Code
 # SessionStart; see plugins/git/hooks/hooks.json). Pinned checkouts
 # (detached HEAD at a tag) stay silent — pinning is deliberate.
@@ -59,10 +61,24 @@ _ai_gent_update_root() {
     (cd "$(dirname "$self")/.." && pwd -P)
 }
 
-# _ai_gent_local_tag [root]: newest local SemVer tag, or fails.
+# _ai_gent_is_package [root]: true for a release-package install (a VERSION
+# file and no .git), false for a git clone.
+_ai_gent_is_package() {
+    local root="${1:-$(_ai_gent_update_root)}"
+    [[ -n "${root}" && -f "${root}/VERSION" && ! -e "${root}/.git" ]]
+}
+
+# _ai_gent_local_tag [root]: the installed version (package: VERSION) or the
+# newest local SemVer tag (clone), or fails.
 _ai_gent_local_tag() {
     local root="${1:-$(_ai_gent_update_root)}" tag
     [[ -n "${root}" ]] || return 1
+    if _ai_gent_is_package "${root}"; then
+        tag="$(head -n 1 "${root}/VERSION" 2>/dev/null)"
+        [[ "${tag}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+        printf '%s' "${tag}"
+        return 0
+    fi
     tag="$(git -C "${root}" tag --list '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname 2>/dev/null | head -n 1)"
     [[ -n "${tag}" ]] || return 1
     printf '%s' "${tag}"
@@ -72,6 +88,7 @@ _ai_gent_local_tag() {
 _ai_gent_pinned() {
     local root="${1:-$(_ai_gent_update_root)}"
     [[ -n "${root}" ]] || return 1
+    _ai_gent_is_package "${root}" && return 1
     git -C "${root}" symbolic-ref --quiet HEAD >/dev/null 2>&1 && return 1
     git -C "${root}" describe --tags --exact-match HEAD >/dev/null 2>&1
 }
@@ -128,6 +145,8 @@ _ai_gent_update_check() {
     local root local_tag state checked remote now maxage
     root="$(_ai_gent_update_root)" || return 0
     _ai_gent_pinned "${root}" && return 0
+    # a package pinned by VERSION=x.y.z at install time (see install.sh)
+    _ai_gent_is_package "${root}" && [[ -f "${root%/*}/pinned" ]] && return 0
     state="$(_ai_gent_update_state_file)"
     now="$(date +%s 2>/dev/null)" || return 0
     maxage=$(( ${AI_GENT_UPDATE_DAYS:-7} * 86400 ))
@@ -144,7 +163,11 @@ _ai_gent_update_check() {
     local_tag="$(_ai_gent_local_tag "${root}")" || return 0
     [[ -n "${local_tag}" ]] || return 0
     if _ai_gent_ver_gt "${remote}" "${local_tag}"; then
-        printf '[ai-gent] update available: %s → %s — run scripts/ai-gent-update.sh in the ai-gent checkout (propose first, never self-apply in-session)\n' "${local_tag}" "${remote}"
+        if _ai_gent_is_package "${root}"; then
+            printf '[ai-gent] update available: %s → %s — run scripts/ai-gent-update.sh from the ai-gent install (re-runs the installer; propose first, never self-apply in-session)\n' "${local_tag}" "${remote}"
+        else
+            printf '[ai-gent] update available: %s → %s — run scripts/ai-gent-update.sh in the ai-gent checkout (propose first, never self-apply in-session)\n' "${local_tag}" "${remote}"
+        fi
     fi
     return 0
 }

@@ -38,6 +38,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # push the release commit and tag, create the release
+    outputs:
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,6 +61,7 @@ jobs:
           esac
 
       - name: Release
+        id: release
         if: ${{ steps.plan.outputs.release == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -73,7 +76,10 @@ jobs:
           # Rejected (and nothing published) if main moved since this run started;
           # the next run releases those commits too.
           git push --atomic origin HEAD:refs/heads/main "refs/tags/$version"
-          gh release create "$version" --title "$version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+          # A draft until the package job below has attached the tarball: the
+          # installer and update-check resolve "latest" to published releases only.
+          gh release create "$version" --draft --title "$version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+          echo "version=$version" >>"$GITHUB_OUTPUT"
           # Back-merge: bring the release commit and tag into dev, so its
           # plugin versions and CHANGELOG don't lag. dev's ruleset requires
           # pull requests and a personal-account repo can't let
@@ -89,8 +95,48 @@ jobs:
             fi
           fi
 
+  # Builds the release package for the new tag, attests its provenance,
+  # attaches it to the (draft) release and publishes the release. Only this
+  # job holds id-token and attestations write. scripts/package.py --check runs
+  # the same build without publishing (scripts/check.sh, on every PR).
+  package:
+    needs: release
+    if: ${{ needs.release.outputs.version != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # attach assets to the release and publish it
+      id-token: write # the OIDC token the attestation is signed with
+      attestations: write # store the attestation
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release.outputs.version }}
+          persist-credentials: false
+
+      - name: Build the package
+        run: |
+          python3 scripts/package.py --version "$VERSION" --out dist
+          ls -l dist
+          (cd dist && sha256sum -c SHA256SUMS) # the tarball and install.sh
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/ai-gent-${{ needs.release.outputs.version }}.tar.gz
+            dist/install.sh
+
+      - name: Attach to the release and publish it
+        run: |
+          gh release upload "$VERSION" "dist/ai-gent-$VERSION.tar.gz" dist/SHA256SUMS dist/install.sh --clobber
+          gh release edit "$VERSION" --draft=false --latest
+
   report-failure:
-    needs: [check, release]
+    needs: [check, release, package]
     if: failure()
     permissions:
       issues: write
