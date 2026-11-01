@@ -9,6 +9,7 @@ opencode parity vectors; every `want` and `reason` is what the real guard.sh pri
     guard-fixtures.py lint
     guard-fixtures.py run [--guard git|db|secrets|repo|containers|all] [--impl sh|mjs|bin]
                           [--shell sh|powershell|cmd|all] [--bin PATH]
+    guard-fixtures.py mutate [--guard ...] [--impl bin|mjs] [--oracle sh] [--bin PATH] [--limit N]
 
 `--impl sh` is the oracle (plugins/*/hooks/guard.sh), `mjs` is opencode/guard/rules.mjs
 and `bin` is `ai-gent guard` through a subprocess (the path hooks use). Output lines use
@@ -233,6 +234,61 @@ def cmd_run(a):
     return 1 if failures else 0
 
 
+MUTATIONS = (
+    ("leading spaces", lambda c: "  " + c),
+    ("leading tab", lambda c: "\t" + c),
+    ("sudo", lambda c: "sudo " + c),
+    ("env prefix", lambda c: "FOO=1 " + c),
+    ("cd and", lambda c: "cd /tmp && " + c),
+    ("trailing true", lambda c: c + " ; true"),
+    ("trailing line", lambda c: c + "\necho done"),
+    ("leading line", lambda c: "echo start\n" + c),
+    ("subshell", lambda c: "( " + c + " )"),
+    ("doubled spaces", lambda c: c.replace(" ", "  ")),
+    ("pipe tail", lambda c: c + " | cat"),
+    ("background", lambda c: c + " &"),
+)
+
+
+def decide(impl, g, ev, binpath):
+    if impl == "sh":
+        argv = ["sh", os.path.join(REPO, GUARDS[g])]
+    else:
+        argv = [binpath, "guard", "--guard", g]
+    r = subprocess.run(argv, input=json.dumps(ev), capture_output=True, text=True)
+    return parse_hook(r.stdout)
+
+
+def cmd_mutate(a):
+    """Variations nobody wrote by hand: the oracle and the implementation must agree on each."""
+    guards = list(GUARDS) if a.guard == "all" else [a.guard]
+    binpath = find_bin(a.bin) if a.impl == "bin" else None
+    sb = Sandbox()
+    n = diffs = 0
+    try:
+        for g, c in all_cases(guards):
+            if "parity" not in c.get("tags", []) or "command" not in c or c.get("shell", "sh") != "sh":
+                continue
+            for name, fn in MUTATIONS:
+                if a.limit and n >= a.limit:
+                    break
+                mutated = fn(c["command"])
+                ev = event(c, mutated, sb)
+                want = decide(a.oracle, g, ev, None)
+                if a.impl == "mjs":
+                    got = run_mjs([(g, c, ev, "sh")])[0]
+                else:
+                    got = decide("bin", g, ev, binpath)
+                n += 1
+                if got != want:
+                    diffs += 1
+                    print("      DIFF  %s [%s] oracle %s, %s %s: %s" % (c["id"], name, want, a.impl, got, mutated.replace("\n", "\u23ce")))
+    finally:
+        sb.close()
+    print("guard-fixtures: %d mutations, %d differences (oracle %s, impl %s)" % (n, diffs, a.oracle, a.impl))
+    return 1 if diffs else 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sp = ap.add_subparsers(dest="cmd", required=True)
@@ -244,6 +300,13 @@ def main():
     r.add_argument("--shell", default="sh", choices=list(SHELLS) + ["all"])
     r.add_argument("--bin")
     r.set_defaults(fn=cmd_run)
+    m = sp.add_parser("mutate")
+    m.add_argument("--guard", default="all", choices=list(GUARDS) + ["all"])
+    m.add_argument("--impl", default="bin", choices=["mjs", "bin"])
+    m.add_argument("--oracle", default="sh", choices=["sh"])
+    m.add_argument("--bin")
+    m.add_argument("--limit", type=int, default=0)
+    m.set_defaults(fn=cmd_mutate)
     a = ap.parse_args()
     sys.exit(a.fn(a))
 

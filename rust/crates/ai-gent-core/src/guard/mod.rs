@@ -7,6 +7,7 @@ pub mod event;
 pub mod reasons;
 pub mod rules;
 pub mod segment;
+pub mod shadow;
 
 pub use event::{Decision, Event, GuardId, Level};
 pub use segment::Shell;

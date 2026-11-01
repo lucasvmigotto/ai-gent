@@ -43,6 +43,15 @@ pub struct GuardArgs {
     /// Input and output format: claude or opencode.
     #[arg(long, default_value = "claude")]
     pub format: String,
+    /// Compare with the shell guard's decision, append a shadow record, print nothing.
+    #[arg(long, requires = "shell_decision")]
+    pub shadow: bool,
+    /// With --shadow: what the shell guard decided (deny, ask or none).
+    #[arg(long, value_parser = ["deny", "ask", "none"])]
+    pub shell_decision: Option<String>,
+    /// With --shadow: the shell guard's reason, to compare.
+    #[arg(long)]
+    pub shell_reason: Option<String>,
 }
 
 /// Guard subcommands.
@@ -50,4 +59,13 @@ pub struct GuardArgs {
 pub enum GuardAction {
     /// Print every reason entry.
     ListReasons,
+    /// Summarize the shadow log; exit 1 when a disagreement is unexplained.
+    ShadowReport {
+        /// Only records newer than this (`90s`, `15m`, `24h`, `7d`).
+        #[arg(long)]
+        since: Option<String>,
+        /// Only this guard.
+        #[arg(long)]
+        guard: Option<String>,
+    },
 }
