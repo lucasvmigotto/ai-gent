@@ -45,7 +45,7 @@ Scope: the documentation site (`docs/site/`) and the scripts that run things —
 | Runners | Python 3.9+ standard library only | — (drivers fetched at run time by `uv`: psycopg[binary], PyMySQL, pymssql, oracledb — unpinned) | `dbrun.py:9-13,36-44`; `reporun.py:18`; `specsync.py:19`; `wt.py:14` |
 | Installer | POSIX sh + bash ≥ 4 | git, optional fzf, python3 for opencode config | `install.sh:1,38-39`; `setup.sh:1,71` |
 
-Full dependency inventory: `docs/product/sbom.cdx.json` (337 npm components from `docs/site/bun.lock`).
+Full dependency inventory: `docs/product/sbom.cdx.json` (339 npm components from `docs/site/bun.lock`, rebuilt by `scripts/sbom-from-bunlock.py`).
 
 ## Data stores
 

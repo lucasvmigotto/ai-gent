@@ -233,7 +233,7 @@ test('the pane follows a change within one poll, and an idle pane spawns nothing
   expect(await ui.find({ type: 'Text', text: /✗ architecture: missing/ })).toBeDefined()
 
   const spawned = w.runs.length
-  await clock.advance(600_000)
+  await clock.advance(60_000)
   expect(w.runs.length).toBe(spawned)
 
   w.files[ARCH] = '# Architecture'

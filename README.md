@@ -445,7 +445,7 @@ plugins/<name>/evals/                           trigger and behavior evals
 skills/<name>/SKILL.md                          personal skills (skill-docs)     → /<name>
 shared/                                         pipeline, container, release and code-reading rules, symlinked into plugins' references/
 opencode/guard/                                 the OpenCode V2 guard plugin, its rules and parity test
-scripts/                                        check.sh, release.py, opencode-config.py, test-dbrun-engines.py and the tests
+scripts/                                        check.sh, release.py, run-evals.py, sbom-from-bunlock.py, opencode-config.py, test-dbrun-engines.py and the tests
 .github/workflows/                              check (pull requests), release (pushes to main)
 ```
 

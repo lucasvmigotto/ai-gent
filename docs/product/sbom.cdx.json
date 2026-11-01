@@ -2,26 +2,26 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
   "serialNumber": "urn:uuid:00445ffc-0182-4751-91e9-5eaf14b4e086",
-  "version": 1,
+  "version": 3,
   "metadata": {
-    "timestamp": "2026-10-18T11:00:16+00:00",
+    "timestamp": "2026-11-01T13:38:12+00:00",
     "tools": {
       "components": [
         {
           "type": "application",
-          "name": "project:introspec bun.lock reader",
-          "description": "Reconstructed by project:introspec; syft/cdxgen were not installed"
+          "name": "scripts/sbom-from-bunlock.py",
+          "description": "Reads docs/site/bun.lock; syft and cdxgen are not required"
         }
       ]
     },
     "component": {
       "type": "application",
       "name": "ai-gent-docs",
-      "version": "1.1.0",
+      "version": "1.6.0",
       "properties": [
         {
           "name": "ai-gent:commit",
-          "value": "384c771"
+          "value": "dbd3a61"
         },
         {
           "name": "ai-gent:note",
@@ -68,72 +68,87 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/biome@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/biome@2.6.4",
       "name": "@biomejs/biome",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/biome@2.5.15",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/biome@2.6.4"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/cli-darwin-arm64@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/cli-android-arm64@2.6.4",
+      "name": "@biomejs/cli-android-arm64",
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-android-arm64@2.6.4"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/%40biomejs/cli-android-x64@2.6.4",
+      "name": "@biomejs/cli-android-x64",
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-android-x64@2.6.4"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/%40biomejs/cli-darwin-arm64@2.6.4",
       "name": "@biomejs/cli-darwin-arm64",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/cli-darwin-arm64@2.5.15"
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-darwin-arm64@2.6.4"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/cli-darwin-x64@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/cli-darwin-x64@2.6.4",
       "name": "@biomejs/cli-darwin-x64",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/cli-darwin-x64@2.5.15"
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-darwin-x64@2.6.4"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/cli-linux-arm64@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/cli-linux-arm64@2.6.4",
       "name": "@biomejs/cli-linux-arm64",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/cli-linux-arm64@2.5.15"
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-linux-arm64@2.6.4"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/cli-linux-arm64-musl@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/cli-linux-arm64-musl@2.6.4",
       "name": "@biomejs/cli-linux-arm64-musl",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/cli-linux-arm64-musl@2.5.15"
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-linux-arm64-musl@2.6.4"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/cli-linux-x64@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/cli-linux-x64@2.6.4",
       "name": "@biomejs/cli-linux-x64",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/cli-linux-x64@2.5.15"
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-linux-x64@2.6.4"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/cli-linux-x64-musl@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/cli-linux-x64-musl@2.6.4",
       "name": "@biomejs/cli-linux-x64-musl",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/cli-linux-x64-musl@2.5.15"
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-linux-x64-musl@2.6.4"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/cli-win32-arm64@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/cli-win32-arm64@2.6.4",
       "name": "@biomejs/cli-win32-arm64",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/cli-win32-arm64@2.5.15"
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-win32-arm64@2.6.4"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40biomejs/cli-win32-x64@2.5.15",
+      "bom-ref": "pkg:npm/%40biomejs/cli-win32-x64@2.6.4",
       "name": "@biomejs/cli-win32-x64",
-      "version": "2.5.15",
-      "purl": "pkg:npm/%40biomejs/cli-win32-x64@2.5.15"
+      "version": "2.6.4",
+      "purl": "pkg:npm/%40biomejs/cli-win32-x64@2.6.4"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/%40emnapi/core@1.11.3",
+      "name": "@emnapi/core",
+      "version": "1.11.3",
+      "purl": "pkg:npm/%40emnapi/core@1.11.3"
     },
     {
       "type": "library",
@@ -141,6 +156,13 @@
       "name": "@emnapi/runtime",
       "version": "1.11.3",
       "purl": "pkg:npm/%40emnapi/runtime@1.11.3"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/%40emnapi/wasi-threads@1.2.3",
+      "name": "@emnapi/wasi-threads",
+      "version": "1.2.3",
+      "purl": "pkg:npm/%40emnapi/wasi-threads@1.2.3"
     },
     {
       "type": "library",
@@ -389,10 +411,17 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40oxc-project/types@0.152.0",
+      "bom-ref": "pkg:npm/%40napi-rs/wasm-runtime@1.2.4",
+      "name": "@napi-rs/wasm-runtime",
+      "version": "1.2.4",
+      "purl": "pkg:npm/%40napi-rs/wasm-runtime@1.2.4"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/%40oxc-project/types@0.156.0",
       "name": "@oxc-project/types",
-      "version": "0.152.0",
-      "purl": "pkg:npm/%40oxc-project/types@0.152.0"
+      "version": "0.156.0",
+      "purl": "pkg:npm/%40oxc-project/types@0.156.0"
     },
     {
       "type": "library",
@@ -403,108 +432,108 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-android-arm-eabi@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-android-arm-eabi@1.2.16",
       "name": "@rolldown/binding-android-arm-eabi",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-android-arm-eabi@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-android-arm-eabi@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-android-arm64@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-android-arm64@1.2.16",
       "name": "@rolldown/binding-android-arm64",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-android-arm64@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-android-arm64@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-darwin-arm64@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-darwin-arm64@1.2.16",
       "name": "@rolldown/binding-darwin-arm64",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-darwin-arm64@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-darwin-arm64@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-darwin-x64@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-darwin-x64@1.2.16",
       "name": "@rolldown/binding-darwin-x64",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-darwin-x64@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-darwin-x64@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-freebsd-x64@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-freebsd-x64@1.2.16",
       "name": "@rolldown/binding-freebsd-x64",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-freebsd-x64@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-freebsd-x64@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-linux-arm-gnueabihf@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-linux-arm-gnueabihf@1.2.16",
       "name": "@rolldown/binding-linux-arm-gnueabihf",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-linux-arm-gnueabihf@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-linux-arm-gnueabihf@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-linux-arm64-gnu@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-linux-arm64-gnu@1.2.16",
       "name": "@rolldown/binding-linux-arm64-gnu",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-linux-arm64-gnu@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-linux-arm64-gnu@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-linux-arm64-musl@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-linux-arm64-musl@1.2.16",
       "name": "@rolldown/binding-linux-arm64-musl",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-linux-arm64-musl@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-linux-arm64-musl@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-linux-ppc64-gnu@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-linux-ppc64-gnu@1.2.16",
       "name": "@rolldown/binding-linux-ppc64-gnu",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-linux-ppc64-gnu@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-linux-ppc64-gnu@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-linux-s390x-gnu@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-linux-s390x-gnu@1.2.16",
       "name": "@rolldown/binding-linux-s390x-gnu",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-linux-s390x-gnu@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-linux-s390x-gnu@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-linux-x64-gnu@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-linux-x64-gnu@1.2.16",
       "name": "@rolldown/binding-linux-x64-gnu",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-linux-x64-gnu@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-linux-x64-gnu@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-linux-x64-musl@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-linux-x64-musl@1.2.16",
       "name": "@rolldown/binding-linux-x64-musl",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-linux-x64-musl@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-linux-x64-musl@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-openharmony-arm64@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-openharmony-arm64@1.2.16",
       "name": "@rolldown/binding-openharmony-arm64",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-openharmony-arm64@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-openharmony-arm64@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-win32-arm64-msvc@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-win32-arm64-msvc@1.2.16",
       "name": "@rolldown/binding-win32-arm64-msvc",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-win32-arm64-msvc@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-win32-arm64-msvc@1.2.16"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40rolldown/binding-win32-x64-msvc@1.2.12",
+      "bom-ref": "pkg:npm/%40rolldown/binding-win32-x64-msvc@1.2.16",
       "name": "@rolldown/binding-win32-x64-msvc",
-      "version": "1.2.12",
-      "purl": "pkg:npm/%40rolldown/binding-win32-x64-msvc@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/%40rolldown/binding-win32-x64-msvc@1.2.16"
     },
     {
       "type": "library",
@@ -526,97 +555,6 @@
       "name": "@tailwindcss/node",
       "version": "4.3.3",
       "purl": "pkg:npm/%40tailwindcss/node@4.3.3"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss@1.32.0",
-      "name": "lightningcss",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-android-arm64@1.32.0",
-      "name": "lightningcss-android-arm64",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-android-arm64@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-darwin-arm64@1.32.0",
-      "name": "lightningcss-darwin-arm64",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-darwin-arm64@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-darwin-x64@1.32.0",
-      "name": "lightningcss-darwin-x64",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-darwin-x64@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-freebsd-x64@1.32.0",
-      "name": "lightningcss-freebsd-x64",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-freebsd-x64@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-linux-arm-gnueabihf@1.32.0",
-      "name": "lightningcss-linux-arm-gnueabihf",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-linux-arm-gnueabihf@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-linux-arm64-gnu@1.32.0",
-      "name": "lightningcss-linux-arm64-gnu",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-linux-arm64-gnu@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-linux-arm64-musl@1.32.0",
-      "name": "lightningcss-linux-arm64-musl",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-linux-arm64-musl@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-linux-x64-gnu@1.32.0",
-      "name": "lightningcss-linux-x64-gnu",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-linux-x64-gnu@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-linux-x64-musl@1.32.0",
-      "name": "lightningcss-linux-x64-musl",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-linux-x64-musl@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-win32-arm64-msvc@1.32.0",
-      "name": "lightningcss-win32-arm64-msvc",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-win32-arm64-msvc@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/lightningcss-win32-x64-msvc@1.32.0",
-      "name": "lightningcss-win32-x64-msvc",
-      "version": "1.32.0",
-      "purl": "pkg:npm/lightningcss-win32-x64-msvc@1.32.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/magic-string@0.30.21",
-      "name": "magic-string",
-      "version": "0.30.21",
-      "purl": "pkg:npm/magic-string@0.30.21"
     },
     {
       "type": "library",
@@ -697,41 +635,6 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40emnapi/core@1.11.3",
-      "name": "@emnapi/core",
-      "version": "1.11.3",
-      "purl": "pkg:npm/%40emnapi/core@1.11.3"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/%40emnapi/wasi-threads@1.2.3",
-      "name": "@emnapi/wasi-threads",
-      "version": "1.2.3",
-      "purl": "pkg:npm/%40emnapi/wasi-threads@1.2.3"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/%40napi-rs/wasm-runtime@1.2.4",
-      "name": "@napi-rs/wasm-runtime",
-      "version": "1.2.4",
-      "purl": "pkg:npm/%40napi-rs/wasm-runtime@1.2.4"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/%40tybys/wasm-util@0.10.4",
-      "name": "@tybys/wasm-util",
-      "version": "0.10.4",
-      "purl": "pkg:npm/%40tybys/wasm-util@0.10.4"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/tslib@2.8.1",
-      "name": "tslib",
-      "version": "2.8.1",
-      "purl": "pkg:npm/tslib@2.8.1"
-    },
-    {
-      "type": "library",
       "bom-ref": "pkg:npm/%40tailwindcss/oxide-win32-arm64-msvc@4.3.3",
       "name": "@tailwindcss/oxide-win32-arm64-msvc",
       "version": "4.3.3",
@@ -749,13 +652,7 @@
       "bom-ref": "pkg:npm/%40tailwindcss/vite@4.3.3",
       "name": "@tailwindcss/vite",
       "version": "4.3.3",
-      "purl": "pkg:npm/%40tailwindcss/vite@4.3.3",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/%40tailwindcss/vite@4.3.3"
     },
     {
       "type": "library",
@@ -766,43 +663,24 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/aria-query@5.3.0",
-      "name": "aria-query",
-      "version": "5.3.0",
-      "purl": "pkg:npm/aria-query@5.3.0"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/dom-accessibility-api@0.5.16",
-      "name": "dom-accessibility-api",
-      "version": "0.5.16",
-      "purl": "pkg:npm/dom-accessibility-api@0.5.16"
-    },
-    {
-      "type": "library",
       "bom-ref": "pkg:npm/%40testing-library/jest-dom@7.0.1",
       "name": "@testing-library/jest-dom",
       "version": "7.0.1",
-      "purl": "pkg:npm/%40testing-library/jest-dom@7.0.1",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/%40testing-library/jest-dom@7.0.1"
     },
     {
       "type": "library",
       "bom-ref": "pkg:npm/%40testing-library/react@16.3.3",
       "name": "@testing-library/react",
       "version": "16.3.3",
-      "purl": "pkg:npm/%40testing-library/react@16.3.3",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/%40testing-library/react@16.3.3"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/%40tybys/wasm-util@0.10.4",
+      "name": "@tybys/wasm-util",
+      "version": "0.10.4",
+      "purl": "pkg:npm/%40tybys/wasm-util@0.10.4"
     },
     {
       "type": "library",
@@ -869,42 +747,31 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40types/node@26.6.4",
+      "bom-ref": "pkg:npm/%40types/node@26.6.6",
       "name": "@types/node",
-      "version": "26.6.4",
-      "purl": "pkg:npm/%40types/node@26.6.4",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "version": "26.6.6",
+      "purl": "pkg:npm/%40types/node@26.6.6"
     },
     {
       "type": "library",
       "bom-ref": "pkg:npm/%40types/react@19.3.0",
       "name": "@types/react",
       "version": "19.3.0",
-      "purl": "pkg:npm/%40types/react@19.3.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/%40types/react@19.3.0"
     },
     {
       "type": "library",
       "bom-ref": "pkg:npm/%40types/react-dom@19.3.0",
       "name": "@types/react-dom",
       "version": "19.3.0",
-      "purl": "pkg:npm/%40types/react-dom@19.3.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/%40types/react-dom@19.3.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/%40types/unist@2.0.11",
+      "name": "@types/unist",
+      "version": "2.0.11",
+      "purl": "pkg:npm/%40types/unist@2.0.11"
     },
     {
       "type": "library",
@@ -1076,30 +943,24 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40vitejs/plugin-react@6.1.1",
+      "bom-ref": "pkg:npm/%40vitejs/plugin-react@6.1.2",
       "name": "@vitejs/plugin-react",
-      "version": "6.1.1",
-      "purl": "pkg:npm/%40vitejs/plugin-react@6.1.1",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "version": "6.1.2",
+      "purl": "pkg:npm/%40vitejs/plugin-react@6.1.2"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40vitest/mocker@5.0.3",
+      "bom-ref": "pkg:npm/%40vitest/mocker@5.0.5",
       "name": "@vitest/mocker",
-      "version": "5.0.3",
-      "purl": "pkg:npm/%40vitest/mocker@5.0.3"
+      "version": "5.0.5",
+      "purl": "pkg:npm/%40vitest/mocker@5.0.5"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40vitest/spy@5.0.3",
+      "bom-ref": "pkg:npm/%40vitest/spy@5.0.5",
       "name": "@vitest/spy",
-      "version": "5.0.3",
-      "purl": "pkg:npm/%40vitest/spy@5.0.3"
+      "version": "5.0.5",
+      "purl": "pkg:npm/%40vitest/spy@5.0.5"
     },
     {
       "type": "library",
@@ -1114,6 +975,20 @@
       "name": "ansi-styles",
       "version": "4.3.0",
       "purl": "pkg:npm/ansi-styles@4.3.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/ansi-styles@5.2.0",
+      "name": "ansi-styles",
+      "version": "5.2.0",
+      "purl": "pkg:npm/ansi-styles@5.2.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/aria-query@5.3.0",
+      "name": "aria-query",
+      "version": "5.3.0",
+      "purl": "pkg:npm/aria-query@5.3.0"
     },
     {
       "type": "library",
@@ -1285,6 +1160,13 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/dom-accessibility-api@0.5.16",
+      "name": "dom-accessibility-api",
+      "version": "0.5.16",
+      "purl": "pkg:npm/dom-accessibility-api@0.5.16"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/dom-accessibility-api@0.6.3",
       "name": "dom-accessibility-api",
       "version": "0.6.3",
@@ -1369,16 +1251,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/happy-dom@20.14.5",
+      "bom-ref": "pkg:npm/happy-dom@21.0.4",
       "name": "happy-dom",
-      "version": "20.14.5",
-      "purl": "pkg:npm/happy-dom@20.14.5",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "version": "21.0.4",
+      "purl": "pkg:npm/happy-dom@21.0.4"
     },
     {
       "type": "library",
@@ -1483,13 +1359,7 @@
       "bom-ref": "pkg:npm/jest-axe@11.0.0",
       "name": "jest-axe",
       "version": "11.0.0",
-      "purl": "pkg:npm/jest-axe@11.0.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/jest-axe@11.0.0"
     },
     {
       "type": "library",
@@ -1497,20 +1367,6 @@
       "name": "jest-diff",
       "version": "30.4.1",
       "purl": "pkg:npm/jest-diff@30.4.1"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/pretty-format@30.4.1",
-      "name": "pretty-format",
-      "version": "30.4.1",
-      "purl": "pkg:npm/pretty-format@30.4.1"
-    },
-    {
-      "type": "library",
-      "bom-ref": "pkg:npm/ansi-styles@5.2.0",
-      "name": "ansi-styles",
-      "version": "5.2.0",
-      "purl": "pkg:npm/ansi-styles@5.2.0"
     },
     {
       "type": "library",
@@ -1549,10 +1405,24 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/lightningcss@1.32.0",
+      "name": "lightningcss",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss@1.32.0"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/lightningcss@1.33.0",
       "name": "lightningcss",
       "version": "1.33.0",
       "purl": "pkg:npm/lightningcss@1.33.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-android-arm64@1.32.0",
+      "name": "lightningcss-android-arm64",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-android-arm64@1.32.0"
     },
     {
       "type": "library",
@@ -1563,10 +1433,24 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-darwin-arm64@1.32.0",
+      "name": "lightningcss-darwin-arm64",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-darwin-arm64@1.32.0"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/lightningcss-darwin-arm64@1.33.0",
       "name": "lightningcss-darwin-arm64",
       "version": "1.33.0",
       "purl": "pkg:npm/lightningcss-darwin-arm64@1.33.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-darwin-x64@1.32.0",
+      "name": "lightningcss-darwin-x64",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-darwin-x64@1.32.0"
     },
     {
       "type": "library",
@@ -1577,10 +1461,24 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-freebsd-x64@1.32.0",
+      "name": "lightningcss-freebsd-x64",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-freebsd-x64@1.32.0"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/lightningcss-freebsd-x64@1.33.0",
       "name": "lightningcss-freebsd-x64",
       "version": "1.33.0",
       "purl": "pkg:npm/lightningcss-freebsd-x64@1.33.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-linux-arm-gnueabihf@1.32.0",
+      "name": "lightningcss-linux-arm-gnueabihf",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-linux-arm-gnueabihf@1.32.0"
     },
     {
       "type": "library",
@@ -1591,10 +1489,24 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-linux-arm64-gnu@1.32.0",
+      "name": "lightningcss-linux-arm64-gnu",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-linux-arm64-gnu@1.32.0"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/lightningcss-linux-arm64-gnu@1.33.0",
       "name": "lightningcss-linux-arm64-gnu",
       "version": "1.33.0",
       "purl": "pkg:npm/lightningcss-linux-arm64-gnu@1.33.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-linux-arm64-musl@1.32.0",
+      "name": "lightningcss-linux-arm64-musl",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-linux-arm64-musl@1.32.0"
     },
     {
       "type": "library",
@@ -1605,10 +1517,24 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-linux-x64-gnu@1.32.0",
+      "name": "lightningcss-linux-x64-gnu",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-linux-x64-gnu@1.32.0"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/lightningcss-linux-x64-gnu@1.33.0",
       "name": "lightningcss-linux-x64-gnu",
       "version": "1.33.0",
       "purl": "pkg:npm/lightningcss-linux-x64-gnu@1.33.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-linux-x64-musl@1.32.0",
+      "name": "lightningcss-linux-x64-musl",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-linux-x64-musl@1.32.0"
     },
     {
       "type": "library",
@@ -1619,10 +1545,24 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-win32-arm64-msvc@1.32.0",
+      "name": "lightningcss-win32-arm64-msvc",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-win32-arm64-msvc@1.32.0"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/lightningcss-win32-arm64-msvc@1.33.0",
       "name": "lightningcss-win32-arm64-msvc",
       "version": "1.33.0",
       "purl": "pkg:npm/lightningcss-win32-arm64-msvc@1.33.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/lightningcss-win32-x64-msvc@1.32.0",
+      "name": "lightningcss-win32-x64-msvc",
+      "version": "1.32.0",
+      "purl": "pkg:npm/lightningcss-win32-x64-msvc@1.32.0"
     },
     {
       "type": "library",
@@ -1647,16 +1587,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/lucide-react@1.50.0",
+      "bom-ref": "pkg:npm/lucide-react@1.64.0",
       "name": "lucide-react",
-      "version": "1.50.0",
-      "purl": "pkg:npm/lucide-react@1.50.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "runtime"
-        }
-      ]
+      "version": "1.64.0",
+      "purl": "pkg:npm/lucide-react@1.64.0"
     },
     {
       "type": "library",
@@ -1667,10 +1601,17 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/magic-string@1.4.2",
+      "bom-ref": "pkg:npm/magic-string@0.30.21",
       "name": "magic-string",
-      "version": "1.4.2",
-      "purl": "pkg:npm/magic-string@1.4.2"
+      "version": "0.30.21",
+      "purl": "pkg:npm/magic-string@0.30.21"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/magic-string@1.4.3",
+      "name": "magic-string",
+      "version": "1.4.3",
+      "purl": "pkg:npm/magic-string@1.4.3"
     },
     {
       "type": "library",
@@ -2003,17 +1944,17 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/nanoid@3.3.19",
+      "bom-ref": "pkg:npm/nanoid@3.3.20",
       "name": "nanoid",
-      "version": "3.3.19",
-      "purl": "pkg:npm/nanoid@3.3.19"
+      "version": "3.3.20",
+      "purl": "pkg:npm/nanoid@3.3.20"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/obug@2.2.1",
+      "bom-ref": "pkg:npm/obug@3.0.0",
       "name": "obug",
-      "version": "2.2.1",
-      "purl": "pkg:npm/obug@2.2.1"
+      "version": "3.0.0",
+      "purl": "pkg:npm/obug@3.0.0"
     },
     {
       "type": "library",
@@ -2031,13 +1972,6 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/%40types/unist@2.0.11",
-      "name": "@types/unist",
-      "version": "2.0.11",
-      "purl": "pkg:npm/%40types/unist@2.0.11"
-    },
-    {
-      "type": "library",
       "bom-ref": "pkg:npm/picocolors@1.1.1",
       "name": "picocolors",
       "version": "1.1.1",
@@ -2052,10 +1986,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/postcss@8.5.28",
+      "bom-ref": "pkg:npm/postcss@8.5.31",
       "name": "postcss",
-      "version": "8.5.28",
-      "purl": "pkg:npm/postcss@8.5.28"
+      "version": "8.5.31",
+      "purl": "pkg:npm/postcss@8.5.31"
     },
     {
       "type": "library",
@@ -2063,6 +1997,13 @@
       "name": "pretty-format",
       "version": "27.5.1",
       "purl": "pkg:npm/pretty-format@27.5.1"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/pretty-format@30.4.1",
+      "name": "pretty-format",
+      "version": "30.4.1",
+      "purl": "pkg:npm/pretty-format@30.4.1"
     },
     {
       "type": "library",
@@ -2080,29 +2021,17 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/react@19.3.0",
+      "bom-ref": "pkg:npm/react@19.3.1",
       "name": "react",
-      "version": "19.3.0",
-      "purl": "pkg:npm/react@19.3.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "runtime"
-        }
-      ]
+      "version": "19.3.1",
+      "purl": "pkg:npm/react@19.3.1"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/react-dom@19.3.0",
+      "bom-ref": "pkg:npm/react-dom@19.3.1",
       "name": "react-dom",
-      "version": "19.3.0",
-      "purl": "pkg:npm/react-dom@19.3.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "runtime"
-        }
-      ]
+      "version": "19.3.1",
+      "purl": "pkg:npm/react-dom@19.3.1"
     },
     {
       "type": "library",
@@ -2130,26 +2059,14 @@
       "bom-ref": "pkg:npm/react-markdown@10.1.0",
       "name": "react-markdown",
       "version": "10.1.0",
-      "purl": "pkg:npm/react-markdown@10.1.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "runtime"
-        }
-      ]
+      "purl": "pkg:npm/react-markdown@10.1.0"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/react-router@8.4.0",
+      "bom-ref": "pkg:npm/react-router@8.5.1",
       "name": "react-router",
-      "version": "8.4.0",
-      "purl": "pkg:npm/react-router@8.4.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "runtime"
-        }
-      ]
+      "version": "8.5.1",
+      "purl": "pkg:npm/react-router@8.5.1"
     },
     {
       "type": "library",
@@ -2170,13 +2087,7 @@
       "bom-ref": "pkg:npm/remark-gfm@4.0.1",
       "name": "remark-gfm",
       "version": "4.0.1",
-      "purl": "pkg:npm/remark-gfm@4.0.1",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "runtime"
-        }
-      ]
+      "purl": "pkg:npm/remark-gfm@4.0.1"
     },
     {
       "type": "library",
@@ -2201,10 +2112,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/rolldown@1.2.12",
+      "bom-ref": "pkg:npm/rolldown@1.2.16",
       "name": "rolldown",
-      "version": "1.2.12",
-      "purl": "pkg:npm/rolldown@1.2.12"
+      "version": "1.2.16",
+      "purl": "pkg:npm/rolldown@1.2.16"
     },
     {
       "type": "library",
@@ -2222,16 +2133,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/selenium-webdriver@4.50.0",
+      "bom-ref": "pkg:npm/selenium-webdriver@4.51.0",
       "name": "selenium-webdriver",
-      "version": "4.50.0",
-      "purl": "pkg:npm/selenium-webdriver@4.50.0",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "version": "4.51.0",
+      "purl": "pkg:npm/selenium-webdriver@4.51.0"
     },
     {
       "type": "library",
@@ -2252,13 +2157,7 @@
       "bom-ref": "pkg:npm/sharp@0.35.5",
       "name": "sharp",
       "version": "0.35.5",
-      "purl": "pkg:npm/sharp@0.35.5",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/sharp@0.35.5"
     },
     {
       "type": "library",
@@ -2328,13 +2227,7 @@
       "bom-ref": "pkg:npm/tailwindcss@4.3.3",
       "name": "tailwindcss",
       "version": "4.3.3",
-      "purl": "pkg:npm/tailwindcss@4.3.3",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/tailwindcss@4.3.3"
     },
     {
       "type": "library",
@@ -2345,10 +2238,10 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/tinybench@6.2.0",
+      "bom-ref": "pkg:npm/tinybench@6.2.2",
       "name": "tinybench",
-      "version": "6.2.0",
-      "purl": "pkg:npm/tinybench@6.2.0"
+      "version": "6.2.2",
+      "purl": "pkg:npm/tinybench@6.2.2"
     },
     {
       "type": "library",
@@ -2387,16 +2280,17 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/tslib@2.8.1",
+      "name": "tslib",
+      "version": "2.8.1",
+      "purl": "pkg:npm/tslib@2.8.1"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/typescript@7.0.2",
       "name": "typescript",
       "version": "7.0.2",
-      "purl": "pkg:npm/typescript@7.0.2",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "purl": "pkg:npm/typescript@7.0.2"
     },
     {
       "type": "library",
@@ -2470,29 +2364,17 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/vite@8.3.2",
+      "bom-ref": "pkg:npm/vite@8.3.5",
       "name": "vite",
-      "version": "8.3.2",
-      "purl": "pkg:npm/vite@8.3.2",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "version": "8.3.5",
+      "purl": "pkg:npm/vite@8.3.5"
     },
     {
       "type": "library",
-      "bom-ref": "pkg:npm/vitest@5.0.3",
+      "bom-ref": "pkg:npm/vitest@5.0.5",
       "name": "vitest",
-      "version": "5.0.3",
-      "purl": "pkg:npm/vitest@5.0.3",
-      "properties": [
-        {
-          "name": "ai-gent:direct",
-          "value": "dev"
-        }
-      ]
+      "version": "5.0.5",
+      "purl": "pkg:npm/vitest@5.0.5"
     },
     {
       "type": "library",

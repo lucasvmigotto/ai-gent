@@ -25,7 +25,7 @@ Status: Draft
 | Containers | none for the project itself; dbrun uses `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`, Docs CI `selenium/standalone-chrome` | `dbrun.py:44`, `docs-ci.yml:135` |
 | IaC | none | — |
 | License | GPL v3+ | `LICENSE`, footer test |
-| SBOM | `docs/product/sbom.cdx.json` — 337 npm components from `bun.lock` (CycloneDX 1.5). syft and cdxgen were not installed, so it was generated from the lockfile by a one-off reader; the Python runners have no third-party dependencies to list | this commit |
+| SBOM | `docs/product/sbom.cdx.json` — 339 npm components from `bun.lock` (CycloneDX 1.5). Introspec built it from the lockfile because syft and cdxgen were not installed; it is now rebuilt by `scripts/sbom-from-bunlock.py` (2026-11-01); the Python runners have no third-party dependencies to list | this commit |
 
 ### Entry points
 
