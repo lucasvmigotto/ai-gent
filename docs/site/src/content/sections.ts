@@ -32,9 +32,9 @@ export type Section =
 	| { kind: "custom"; id: string };
 
 const INSTALL_CMD =
-	"curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh";
+	"curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh";
 const INSTALL_CMD_TARGETS =
-	"curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,opencode,codex,cursor";
+	"curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh -s -- --target claude,opencode,codex,cursor";
 const VERIFY_CMD =
 	"claude plugin details project@skills-dir\nopencode plugin list";
 

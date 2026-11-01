@@ -84,6 +84,10 @@ the bump. Full flow: `shared/releasing.md`.
 - Don't bump plugin versions or tag by hand.
 - Notes written under `## Unreleased` are used as they are.
 - Preview with `scripts/release.py --dry-run`.
+- The release ships a package (`scripts/package.py`, an allowlist): a file
+  the installed skills or hooks need at runtime must be added to it, and
+  `scripts/package.py --check` (part of `check.sh`) must stay green.
+  Details: `shared/releasing.md`.
 - After pushing, run `git pull --ff-only` before the next local commit (the bot's release commit).
 
 ## Evals

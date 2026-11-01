@@ -18,34 +18,46 @@ They cover the whole path of a software project, from idea to docs site, plus th
 ## Install / update
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh
+curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh
 ```
 
-That clones the repository into `~/.local/share/ai-gent` and runs `setup.sh`, which asks which agents to install for: an [fzf](https://github.com/junegunn/fzf) selector (a numbered prompt without fzf), with Claude Code and your previous choice preselected. Without a terminal, or with `--skip-prompt`, it installs your previous choice, or Claude Code alone the first time. Run the same command again to update. It fast-forwards the clone, or leaves it alone if you have local changes, and re-links.
+That downloads the latest release package (`ai-gent-<version>.tar.gz`) and its `SHA256SUMS`, verifies the checksum **before** unpacking anything, unpacks into `~/.local/share/ai-gent/<version>/`, points `current` at it (keeping `previous` for rollback) and runs the package's `setup.sh`, which asks which agents to install for: an [fzf](https://github.com/junegunn/fzf) selector (a numbered prompt without fzf), with Claude Code and your previous choice preselected. Without a terminal, or with `--skip-prompt`, it installs your previous choice, or Claude Code alone the first time. Run the same command again to update. Needs `curl`, `tar`, `bash` and `sha256sum` (or `shasum`); no `git`, no sudo, nothing outside `AI_GENT_HOME` except the agents' skill links.
 
-Pass `setup.sh` flags after `-s --`, and choose where the clone lives with `AI_GENT_DIR`:
+Pass `setup.sh` flags after `-s --`; the installer's own flags manage versions:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --target claude,opencode,codex
-curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | sh -s -- --skip-prompt
-curl -fsSL https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh | AI_GENT_DIR=~/codes/ai-gent sh
+curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh -s -- --target claude,opencode,codex
+curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | VERSION=2.26.0 sh        # pin a release
+sh ~/.local/share/ai-gent/current/install.sh --list        # installed versions
+sh ~/.local/share/ai-gent/current/install.sh --rollback    # current <-> previous
+sh ~/.local/share/ai-gent/current/install.sh --prune       # keep current and previous only
+sh ~/.local/share/ai-gent/current/install.sh --verify-attestation   # also `gh attestation verify` (needs gh; optional)
 ```
 
 | Variable | Default |
 | --: | :-- |
-| `AI_GENT_DIR` | `${XDG_DATA_HOME:-~/.local/share}/ai-gent` |
-| `AI_GENT_REPO` | `https://github.com/lucasvmigotto/ai-gent.git` |
-| `AI_GENT_BRANCH` | the repository's default branch; a release tag (`1.2.0`) pins that release |
+| `VERSION` | `latest` (or `x.y.z`) |
+| `AI_GENT_HOME` | `${XDG_DATA_HOME:-~/.local/share}/ai-gent` |
+| `AI_GENT_RELEASE_BASE` | the repository's GitHub releases; any `<base>/<version>/` directory with the tarball and `SHA256SUMS` (and `<base>/LATEST` for `latest`) works, `file://` included |
 
-A pinned clone stays on its tag until you pass another one, or the default branch's name to follow it again. Releases are listed in `CHANGELOG.md`.
+Each release's tarball and `install.sh` carry a [build-provenance attestation](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds); the checksum protects against corruption, the attestation against a tampered asset. Releases are listed in `CHANGELOG.md`.
 
-When a Claude Code session starts in a checkout with the git plugin installed, a SessionStart hook prints one line if a newer release is known — the check reads a weekly cache and never blocks startup:
+**Moving from the git clone.** An old install at `~/.local/share/ai-gent` is a git clone; the installer refuses to unpack beside it. Move it aside, install, then repoint the links (`--migrate` is the only thing that ever changes existing links, and it says what first):
+
+```bash
+mv ~/.local/share/ai-gent ~/.local/share/ai-gent.clone
+curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh -s -- --migrate
+```
+
+**Dev mode (git clone), going away in v3.** Contributors who want edits to take effect live keep the clone: `AI_GENT_MODE=git` (or setting `AI_GENT_BRANCH`) clones into `AI_GENT_DIR` (default `~/.local/share/ai-gent`; `AI_GENT_REPO` picks the remote, `AI_GENT_BRANCH` a branch or tag such as `1.2.0`), and re-running fast-forwards it. The installer prints a notice that this mode is a dev mode. Or clone it yourself and run `./setup.sh`.
+
+When a Claude Code session starts with the git plugin installed, a SessionStart hook prints one line if a newer release is known — the check reads a weekly cache and never blocks startup:
 
 ```text
 [ai-gent] update available: 1.9.0 → 1.10.0 — run scripts/ai-gent-update.sh in the ai-gent checkout (propose first, never self-apply in-session)
 ```
 
-Pinned checkouts stay silent, and `AI_GENT_NO_UPDATE_CHECK=1` disables the check. An update rewrites the agent's own instructions, so the session that notices it only proposes — applying it (`scripts/ai-gent-update.sh`, then re-running `setup.sh`) takes effect next session. (opencode has no session-start hook point yet, so the notice is Claude-only for now.)
+Pinned git checkouts stay silent, and `AI_GENT_NO_UPDATE_CHECK=1` disables the check. An update rewrites the agent's own instructions, so the session that notices it only proposes — applying it (`scripts/ai-gent-update.sh`, which re-runs the installer for a package install) takes effect next session. (opencode has no session-start hook point yet, so the notice is Claude-only for now.)
 
 With the devcontainer plugin installed, a second SessionStart hook reports the project's container leftovers — dangling images and volumes carrying its `me.lucasvmigotto.ai-gent.project` label, volumes of worktrees that are gone, buildah working containers from interrupted builds — and a container store under its disk floor (20 GB or 10 % of the disk, whichever is larger). It only reports, never removes; it's silent when there's nothing to say, and `AI_GENT_NO_LEFTOVERS_CHECK=1` disables it. Removal stays label-scoped and in the skills (`wt.py remove`, `wt.py finish`, the project's `clean` recipe, `containers.md` §9a).
 
@@ -53,20 +65,13 @@ With the devcontainer plugin installed, a second SessionStart hook reports the p
 > Piping a script into `sh` runs it unseen. To read it first, download, inspect, then run:
 
 > ```bash
-> curl -fsSLo install.sh https://raw.githubusercontent.com/lucasvmigotto/ai-gent/HEAD/install.sh
+> curl -fsSLo install.sh https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh
 > less install.sh && sh install.sh
 > ```
 
-Or clone it yourself:
-
-```bash
-git clone https://github.com/lucasvmigotto/ai-gent.git ~/codes/ai-gent
-~/codes/ai-gent/setup.sh
-```
-
 ### `setup.sh`
 
-Re-run it after adding, renaming or removing a skill or plugin, or after changing a plugin skill's description. It's idempotent, and it prunes whatever it installed whose source is gone. Edits to skill bodies need no re-run, since everything points straight at this repository.
+Re-run it after adding, renaming or removing a skill or plugin, or after changing a plugin skill's description. It's idempotent, and it prunes whatever it installed whose source is gone. Edits to skill bodies need no re-run in a clone, since everything points straight at the tree; in a package install the tree is read-only by intent (a new version replaces it). `--migrate` repoints links that lead into another ai-gent tree (the old clone) to this one.
 
 > [!NOTE]
 > Every agent reads its set of skills (and Claude Code its hooks) when a session starts. After running `setup.sh`, start a new session.
@@ -77,6 +82,7 @@ Re-run it after adding, renaming or removing a skill or plugin, or after changin
 | `--skip-prompt` | no selector: the previous choice, or Claude Code alone the first time |
 | `--dry-run` | show what would change |
 | `--force` | back up (`<name>.bak-<timestamp>`) and replace a real directory or foreign symlink in the way |
+| `--migrate` | repoint links that lead into another ai-gent tree (the old git clone) to this one; without it they are only reported |
 | `--uninstall` | remove everything the script installed, or only for `--target`, including the opencode config edits below |
 | `--yes` | apply the opencode config edits without asking |
 | `--no-config-edits` | never edit `opencode.json` or a shell profile; print what to add instead |
