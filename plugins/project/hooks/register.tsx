@@ -15,7 +15,8 @@ import type { Options as BandOptions } from './bands'
 import { CHECKPOINT, gated, parse } from './checkpoint'
 import { beforeWrite, nextStageAtTurnEnd, noteWrite, seedNextStage } from './nextstage'
 import type { NextStageOptions } from './nextstage'
-import { contextTail, readContextPercent, recordContext } from './context'
+import { contextExtras, contextTail, readUsage, recordContext } from './context'
+import { recordLimits } from './usage'
 import type { ContextOptions } from './context'
 import { nudgeAtTurnEnd, nudgeBeforeCompact } from './handoff'
 import type { HandoffOptions } from './handoff'
@@ -94,9 +95,17 @@ async function registerGuards($: EngineInterface): Promise<void> {
   await $.command.register({ name: 'guards-pane', description: 'Dock the guard decisions list in a pane' }).catch(() => undefined)
 }
 
+// Records the context figure (when its meter is on) and the rate-limit windows from one usage read.
+async function recordUsage($: EngineInterface, usage: Awaited<ReturnType<typeof readUsage>>, withContext: boolean): Promise<void> {
+  if (withContext) await recordContext($, usage?.context.percent)
+  await recordLimits($, usage?.rateLimits)
+}
+
 export const register: Register = (on, options: Options) => {
   const showWorkspace = options.workspaceLine !== false
   const showMeter = options.contextMeter !== false
+  const showUsage = options.usageMeter !== false
+  const readsUsage = showMeter || showUsage
   const showBand = options.holdsBand !== false
   const askOnGated = options.holdsGate !== false
 
@@ -108,7 +117,7 @@ export const register: Register = (on, options: Options) => {
     await registerGuards($)
     await refresh($, showBand).catch(() => undefined)
     await declareLeader($, showWorkspace).catch(() => undefined)
-    if (showMeter) await recordContext($, await readContextPercent($)).catch(() => undefined)
+    if (readsUsage) await recordUsage($, await readUsage($), showMeter).catch(() => undefined)
     seedNextStage($, options)
     if (options.pipelinePane !== false) {
       const canDock = e.isInteractive && e.surface !== null && e.surface !== 'mobile'
@@ -121,8 +130,9 @@ export const register: Register = (on, options: Options) => {
     const current = await refresh($, showBand).catch(() => null)
     await declareLeader($, showWorkspace).catch(() => undefined)
     // One read of the context figure serves the meter and the nudge (specs/031-session-chrome).
-    const known = showMeter && options.handoffNudge !== false ? { percent: await readContextPercent($) } : undefined
-    if (showMeter) await recordContext($, known === undefined ? await readContextPercent($) : known.percent).catch(() => undefined)
+    const usage = readsUsage ? await readUsage($) : undefined
+    const known = readsUsage && options.handoffNudge !== false ? { percent: usage?.context.percent } : undefined
+    if (readsUsage) await recordUsage($, usage, showMeter).catch(() => undefined)
     // The hand-off nudge (spec 021): a toast, once, when the context is nearly full or a cap runs low.
     await nudgeAtTurnEnd($, options, async () => current ?? (await readCheckpoint($)), known).catch(() => undefined)
     // The next-stage toast (spec 027): once per turn, when a pipeline file was written.
@@ -169,7 +179,11 @@ export const register: Register = (on, options: Options) => {
     // The bands that carry a summary, folded into one line while this plugin leads (never a hold or a failure).
     const view =
       showWorkspace && !e.props.isWorking && (await folding($))
-        ? workspaceView(await allBands($), { columns: e.props.bodyColumns, ascii: options.chromeAscii === true })
+        ? workspaceView(await allBands($), {
+            columns: e.props.bodyColumns,
+            ascii: options.chromeAscii === true,
+            extras: await contextExtras($, options, e.props.bodyColumns - 2),
+          })
         : null
     const workspace =
       view === null
@@ -225,13 +239,23 @@ export const register: Register = (on, options: Options) => {
     )
   })
 
-  // The context meter at the end of the prompt's hint line: the engine's own hint stays and the
-  // meter is its `tail` (dim, cut where the row ends). Opt-in: it adds to a line the engine owns.
-  if (showMeter) {
+  // The usage bar at the end of the prompt's hint line: the engine's own hint stays and the meter is its
+  // `tail` (dim, cut where the row ends). The five-hour window (usageMeter) with the week beside it when
+  // wide, else the context (contextMeter). Opt-in: it adds to a line the engine owns.
+  if (readsUsage) {
     on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-      const tail = await contextTail($, options, e.viewport?.columns, [...e.props.hint].length)
+      const tail = await contextTail($, options, e.viewport?.columns, [...e.props.hint].length, e.props.isWorking)
       return next(tail === null ? e : { ...e, props: { ...e.props, tail } })
     })
+  }
+
+  // The account's rate-limit windows, pushed after each turn and when a window moves a whole point:
+  // no polling, no extra usage read. A missing or invalid window clears.
+  if (readsUsage) {
+    on('session.measure', async ($, e, next) => {
+      await recordLimits($, e.rateLimits).catch(() => undefined)
+      return next(e)
+    }).catch(($, e, next) => next(e))
   }
 
   if (options.bandsCommand !== false) {
