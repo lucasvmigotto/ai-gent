@@ -492,6 +492,36 @@ class Research(unittest.TestCase):
             self.assertEqual(check(consistency.ROOT), [], check.__name__)
 
 
+PLUGIN = '{"name": "git", "license": "GPL-3.0-or-later"}'
+WS = '[workspace]\nmembers = ["crates/a"]\n[workspace.package]\nlicense = "GPL-3.0-or-later"\n'
+
+
+class RustWorkspace(unittest.TestCase):
+    def files(self, crate: str, extra: dict[str, str] | None = None) -> Path:
+        return tree({"plugins/git/.claude-plugin/plugin.json": PLUGIN, "rust/Cargo.toml": WS, "rust/crates/a/Cargo.toml": crate, **(extra or {})})
+
+    def test_no_workspace_is_fine(self):
+        self.assertEqual(consistency.check_rust_workspace(tree({"README.md": "x"})), [])
+
+    def test_inherited_and_literal_license_pass(self):
+        self.assertEqual(consistency.check_rust_workspace(self.files('[package]\nname = "a"\nlicense.workspace = true\n')), [])
+        self.assertEqual(consistency.check_rust_workspace(self.files('[package]\nname = "a"\nlicense = "GPL-3.0-or-later"\n')), [])
+
+    def test_other_license_fails(self):
+        problems = consistency.check_rust_workspace(self.files('[package]\nname = "a"\nlicense = "MIT"\n'))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("license is 'MIT'", problems[0])
+
+    def test_rust_is_not_a_plugin(self):
+        root = self.files('[package]\nname = "a"\nlicense.workspace = true\n', {"rust/skills/x/SKILL.md": "no frontmatter"})
+        self.assertEqual(len(consistency.check_rust_workspace(root)), 1)
+        # and the skill checks never read rust/ (they would fail on this file)
+        self.assertEqual(consistency.check_budget(root)[0], [])
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_rust_workspace(consistency.ROOT), [])
+
+
 class Budget(unittest.TestCase):
     def test_ceiling(self):
         root = tree({"skills/a/SKILL.md": "---\nname: a\ndescription: " + "x" * 100 + "\n---\n"})
