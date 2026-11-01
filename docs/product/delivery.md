@@ -2,7 +2,7 @@
 
 Status: Draft
 Date: 2026-10-31
-Owner stage: `devsecops:pipeline` (format), written by hand for this repository from its own workflows. Nothing here was web-researched; everything is read from the files cited under Sources. What could not be read from the repository is labelled `[ASSUMPTION]`.
+Owner stage: `devsecops:pipeline` (format), written by hand for this repository from its own workflows. Nothing here was web-researched; everything is read from the files cited under Sources. What could not be read from the repository was labelled `[ASSUMPTION]` and has since been confirmed by the maintainer (2026-10-31), marked `[CONFIRMED 2026-10-31]`.
 
 ## Scope
 
@@ -42,7 +42,7 @@ work branch (off dev) ──PR──▶ dev ──promotion PR (merge commit)─
 4. **Docs deploy.** When `release` completes successfully on `main`, `Docs CI` is triggered by `workflow_run` and its `deploy` job publishes the site, so the footer shows the new tag.
 5. **After the release.** The bot's `chore(release)` commit lands on `main` only; the job tries to merge it back into `dev`, and CLAUDE.md asks local clones to `git pull --ff-only` before the next commit.
 
-**Required checks.** The workflow files do not say which checks branch protection requires; that is a repository setting, not a file. `[ASSUMPTION]`: `check` is required on `dev` and `main`. The comments in `release.yml` do state that `dev` has a ruleset requiring pull requests that the bot cannot bypass, and that `main` must let `github-actions[bot]` push (README repeats this).
+**Required checks.** The workflow files do not say which checks branch protection requires; that is a repository setting, not a file. `[CONFIRMED 2026-10-31]` by the maintainer: `check` is required on `dev` and `main`. The comments in `release.yml` do state that `dev` has a ruleset requiring pull requests that the bot cannot bypass, and that `main` must let `github-actions[bot]` push (README repeats this).
 
 ## Release
 
@@ -74,7 +74,7 @@ Rules (`scripts/release.py`, `shared/releasing.md`, CLAUDE.md "Releases"):
 
 | Name | Kind | Used by | Where configured |
 |---|---|---|---|
-| `CLOUDFLARE_R2_ACCOUNT_SECRET` | secret | `deploy` (as `AWS_SECRET_ACCESS_KEY`) | `[ASSUMPTION]` environment `ai-gent-docs` or repository secrets; the file does not say |
+| `CLOUDFLARE_R2_ACCOUNT_SECRET` | secret | `deploy` (as `AWS_SECRET_ACCESS_KEY`) | `[CONFIRMED 2026-10-31]` as stated by the maintainer: environment `ai-gent-docs` or repository secrets (the file does not say which) |
 | `CLOUDFLARE_R2_ACCOUNT_ID` | variable | `deploy` (as `AWS_ACCESS_KEY_ID`) | repository or environment variable, same caveat |
 | `CLOUDFLARE_R2_ENDPOINT_S3_CLIENT` | variable | `deploy` (`R2_ENDPOINT`, must start with `https://`) | same |
 | `CLOUDFLARE_R2_BUCKET_ID` | variable | `deploy` (`R2_BUCKET`) | same |
@@ -97,7 +97,7 @@ Not present: dependency or vulnerability scanning (SCA), SAST, secret scanning i
 
 ## Rollback
 
-- **Toolkit**: git is the only mechanism. Revert the offending change in a PR to `dev` and promote; the next release publishes the revert (`revert` alone does not trigger a release: `fix` or `refactor` does, so a revert is committed as `fix: revert ...` when a release is wanted). `[ASSUMPTION]`: tags and GitHub Releases are not protected; the repository does not configure tag protection or immutable releases, and by project rule are never moved or deleted by hand. Users pin or roll back with `install.sh` pinning (`spec 006`, "clone/update/pin").
+- **Toolkit**: git is the only mechanism. Revert the offending change in a PR to `dev` and promote; the next release publishes the revert (`revert` alone does not trigger a release: `fix` or `refactor` does, so a revert is committed as `fix: revert ...` when a release is wanted). `[CONFIRMED 2026-10-31]` by the maintainer: tags and GitHub Releases are not protected; the repository does not configure tag protection or immutable releases, and by project rule are never moved or deleted by hand. Users pin or roll back with `install.sh` pinning (`spec 006`, "clone/update/pin").
 - **Docs site**: no versioned deploy. Each deploy overwrites the prefix; to roll back, revert on `main` and let the next release trigger the deploy, or re-run the `Docs CI` deploy from a prior run of the `release` workflow. Previous hashed assets are pruned at the end of every deploy, so there is no old copy in R2.
 - A release that fails mid-way is safe by construction: the atomic push publishes the commit and tag together or not at all; `gh release create` runs after the push, so a failure there leaves a tag without a Release, which is completed by hand.
 
