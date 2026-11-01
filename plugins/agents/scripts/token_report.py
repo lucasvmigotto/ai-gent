@@ -22,7 +22,8 @@ message's final usage - the API's own numbers, never an estimate. Python standar
       rebuild ~/.ai-gent/token-history.jsonl from the repos' committed histories
   token_report.py seed     [--project SLUG]...
       seed that index from past sessions (read-only on sessions and repos), with a confidence each
-  token_report.py report   --project=SLUG --out PATH     the project-wide roll-up (by stage, label, agent)
+  token_report.py report   --project=SLUG (--out PATH | --summary) [--top N]
+      the project-wide roll-up (by stage, label, agent); --summary prints a few lines, with idle cache rebuilds
   token_report.py snapshot --label "..." [--at ISO8601]  a stage marker by hand
   token_report.py backfill-git --repo PATH|- [--ref origin/dev]   stage markers from first-parent landings
 
@@ -266,7 +267,7 @@ def gather(roots, sessions):
     return coords, rows, tagged, main_msgs
 
 
-def render(project, sessions, roots, coords, rows, tagged, snaps):
+def render(project, sessions, roots, coords, rows, tagged, snaps, top=None):
     everyone = rows + coords
     grand = {f: sum(r[f] for r in everyone) for f in FIELDS + ("total", "billable")}
 
@@ -313,16 +314,22 @@ def render(project, sessions, roots, coords, rows, tagged, snaps):
         p["total"] += r["total"]
         p["n"] += 1
         p["models"].update(x.strip() for x in r["models"].split(","))
-    for name, p in sorted(by_label.items(), key=lambda x: -x[1]["billable"]):
+    labels = sorted(by_label.items(), key=lambda x: -x[1]["billable"])
+    for name, p in labels[:top]:
         L.append(f"| {name} | {p['n']} | {', '.join(sorted(p['models']))} | {k(p['billable'])} | {k(p['total'])} |")
+    if top is not None and len(labels) > top:
+        L.append(f"| … {len(labels) - top} more not shown (--top {top}) | | | | |")
     L += [f"| **All** | {len(everyone)} | | **{k(grand['billable'])}** | {k(grand['total'])} |", ""]
 
     L += ["## By agent", "",
           "| Started | Who | Label | Task | Model | Calls | Billable | Total |",
           "|---|---|---|---|---|---|---|---|"]
-    for r in coords + rows:
+    by_agent = sorted(coords + rows, key=lambda r: -r["billable"]) if top is not None else coords + rows
+    for r in by_agent[:top]:
         L.append(f"| {short(r['start'])} | {r['who']} | {r['label']} | {r['desc']} | {r['models']} | "
                  f"{r['calls']} | {k(r['billable'])} | {k(r['total'])} |")
+    if top is not None and len(by_agent) > top:
+        L.append(f"| … {len(by_agent) - top} more not shown (--top {top}) | | | | | | | |")
     L += ["", "## Notes", "",
           "- A resumed subagent keeps its id, so its row covers every resume after a usage limit.",
           "- Each coordinator row spans one session's main thread across account switches (several config dirs).",
@@ -331,16 +338,62 @@ def render(project, sessions, roots, coords, rows, tagged, snaps):
     return L, grand
 
 
+def idle_rebuilds(msgs, gap=300, floor=20_000):
+    """(count, cache-write tokens) of the calls that came after an idle gap longer than `gap` seconds
+    and wrote at least `floor` tokens to the cache: the cache (about 5 minutes) had expired, so the
+    context was rebuilt. msgs are (timestamp, model, usage) tuples of one thread."""
+    seq = sorted((t, u) for t, _, u in msgs if t)
+    n = written = 0
+    for (t0, _), (t1, u) in zip(seq, seq[1:]):
+        try:
+            idle = (datetime.fromisoformat(t1[:19]) - datetime.fromisoformat(t0[:19])).total_seconds()
+        except ValueError:
+            continue
+        w = int(u.get("cache_creation_input_tokens") or 0)
+        if idle > gap and w >= floor:
+            n += 1
+            written += w
+    return n, written
+
+
+def summary_lines(project, sessions, coords, rows, main_msgs, top):
+    everyone = rows + coords
+    bill = sum(r["billable"] for r in everyone)
+    tot = sum(r["total"] for r in everyone)
+    cw = sum(r["cache_creation_input_tokens"] for r in everyone)
+    cr = sum(r["cache_read_input_tokens"] for r in everyone)
+    L = [f"{project}: {len(sessions)} session(s), {len(rows)} subagent(s); billable {k(bill)}, total {k(tot)} "
+         f"(cache reads {k(cr)}, cache writes {k(cw)})"]
+    by = defaultdict(int)
+    for r in everyone:
+        by[r["label"]] += r["billable"]
+    for name, v in sorted(by.items(), key=lambda x: -x[1])[:top]:
+        L.append(f"  {k(v):>9}  {name[:60]}")
+    n = w = 0
+    for msgs in main_msgs.values():
+        a, b = idle_rebuilds(list(msgs.values()))
+        n, w = n + a, w + b
+    if n:
+        L.append(f"coordinator idle rebuilds: {n} gap(s) over 5 min re-wrote {k(w)} of cache "
+                 "(wait with a background watcher or checkpoint instead of idling)")
+    return L
+
+
 def cmd_report(a):
     roots = sorted(glob.glob(os.path.expanduser(f"~/.claude*/projects/{a.project}")))
     sessions = a.session or discover_sessions(roots)
-    coords, rows, tagged, _ = gather(roots, sessions)
+    coords, rows, tagged, main_msgs = gather(roots, sessions)
     snaps = load_snapshots(a.snapshots)
-    L, grand = render(project_name(a.project), sessions, roots, coords, rows, tagged, snaps)
-    with open(a.out, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(L))
-    print(f"wrote {a.out}: {len(rows)} subagents, {len(snaps)} stage markers, "
-          f"billable {k(grand['billable'])}, total {k(grand['total'])}")
+    L, grand = render(project_name(a.project), sessions, roots, coords, rows, tagged, snaps, top=a.top)
+    if a.out:
+        with open(a.out, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(L))
+    if a.summary:
+        print("\n".join(summary_lines(project_name(a.project), sessions, coords, rows, main_msgs,
+                                       5 if a.top is None else a.top)))
+    else:
+        print(f"wrote {a.out}: {len(rows)} subagents, {len(snaps)} stage markers, "
+              f"billable {k(grand['billable'])}, total {k(grand['total'])}")
 
 
 # ----------------------------------------------------------------- tags
@@ -752,6 +805,10 @@ def build_groups(rows, feats):
         main = [r for r in rs if kinds[r["aid"]] is None] or [r for r in rs if kinds[r["aid"]] != "fix_rounds"] or rs
         lead = max(main, key=lambda r: r["billable"])
         g["model"] = lead["family"]
+        ids = defaultdict(int)
+        for _t, mdl, _u in lead["msgs"]:
+            ids[mdl] += 1
+        g["model_id"] = max(ids, key=ids.get) if ids else None
         g["desc"] = lead["desc"]
         ev = defaultdict(int)
         extra_cost = 0
@@ -885,7 +942,7 @@ def make_record(project, g, feats, coord_card, source="measured", repo=None):
             "card": g["card"], "tasks": g["tasks"], "layer": layer, "effort": effort_of(g, feats),
             "tags": tags, "tags_source": ("planned+inferred" if planned and set(guess) - set(planned) else "planned") if planned else "inferred",
             "executor_role": (c and c["executor"]) or ROLE_OF_FAMILY.get(model, "builder"), "executor_model": model,
-            "files": len(g["files"]), "lines": g["lines"], "projected": projected_of(g, feats), "used": g["billable"],
+            "model_id": g.get("model_id"), "files": len(g["files"]), "lines": g["lines"], "projected": projected_of(g, feats), "used": g["billable"],
             "used_clean": g["billable"] - g["event_cost"], "events": g["events"],
             "cache_read": g["cache_read"], "coordinator": round(coord_card) if coord_card is not None else None,
             "calls": g["calls"], "agents": sorted(r["aid"] for r in g["rows"]), "desc": g["desc"][:120],
@@ -1115,18 +1172,22 @@ def cmd_tasks(a):
         return
     print(f"{project}: {len(rows)} subagent(s) in {len(sessions)} session(s); "
           f"{'dry run, nothing written' if a.dry_run else 'wrote ' + a.history + f' ({n} records)'}")
-    print("feature | used (subagents) | coordinator share | total | cards | task lines")
-    for fname, s in sorted(summary.items()):
-        if s["used"] or s["cards"]:
-            print(f"{fname} | {fmt_tok(s['used'])} | {fmt_tok(round(s['coordinator']))} | "
-                  f"{fmt_tok(s['used'] + round(s['coordinator']))} | {s['cards']} | {s['lines']}")
-    if not a.no_legacy:
+    if not a.summary:
+        print("feature | used (subagents) | coordinator share | total | cards | task lines")
+        for fname, s in sorted(summary.items()):
+            if s["used"] or s["cards"]:
+                print(f"{fname} | {fmt_tok(s['used'])} | {fmt_tok(round(s['coordinator']))} | "
+                      f"{fmt_tok(s['used'] + round(s['coordinator']))} | {s['cards']} | {s['lines']}")
+    if not a.no_legacy and not a.summary:
         print(f"deprecated legacy output: {legacy[0]} specs/*/tokens.md, {legacy[1]} unmapped card(s) in {rollup} "
               "(--no-legacy turns it off; both go in a later major)")
     un = sum(g["billable"] for g in unattributed)
     print(f"unattributed (reported, not guessed): {len(unattributed)} agent(s), {fmt_tok(un)}")
-    for g in unattributed:
+    shown = sorted(unattributed, key=lambda g: -g["billable"])[:a.top]
+    for g in shown:
         print(f"  {fmt_tok(g['billable']):>7}  {g['model']:<6} {g['desc'][:80]}")
+    if len(shown) < len(unattributed):
+        print(f"  … {len(unattributed) - len(shown)} more not shown (--top {a.top})")
     print(f"coordinator: {fmt_tok(round(coord_total))} billable in all, {fmt_tok(round(unassigned))} in windows "
           f"with no attributed subagents")
     agent_total = sum(r["billable"] for r in rows)
@@ -1228,8 +1289,12 @@ SIZE_MULT = {"S": 0.6, "M": 1.0, "L": 1.6}
 # medium card (4-6 tasks). Calibrated on rstory's first autonomous run (2026-10): Sonnet feature
 # builders 0.3-0.8M each (median about 0.6M, a high-effort card), Opus agents 0.5-0.9M each. Haiku
 # is an assumption. It is used only while history has fewer than MIN_SAMPLES similar records.
+STARTING_PREVIOUS = {"sonnet": {"low": (150_000, 250_000), "medium": (350_000, 550_000), "high": (600_000, 850_000)}}
+# Re-baselined 2026-10 on this repo's history: Sonnet 5.5 builder cards, n=20, median 128k, p75 179k
+# (the medium row); low and high keep the previous table's proportions (about 0.43x and 1.7x).
+# STARTING_PREVIOUS is the older default, kept for reference and for non-sonnet-class comparison.
 STARTING = {
-    "sonnet": {"low": (150_000, 250_000), "medium": (350_000, 550_000), "high": (600_000, 850_000)},
+    "sonnet": {"low": (55_000, 80_000), "medium": (128_000, 179_000), "high": (220_000, 275_000)},
     "opus": {"low": (250_000, 400_000), "medium": (450_000, 650_000), "high": (700_000, 950_000)},
     "haiku": {"low": (60_000, 120_000), "medium": (120_000, 200_000), "high": (200_000, 320_000)},
 }
@@ -1789,6 +1854,8 @@ class Parser(argparse.ArgumentParser):
         a = super().parse_args(args, namespace)
         if getattr(a, "cmd", None) == "tasks" and a.json and not a.dry_run:
             self.error("tasks --json is read-only and needs --dry-run")
+        if getattr(a, "cmd", None) == "report" and not a.out and not a.summary:
+            self.error("report needs --out or --summary")
         return a
 
 
@@ -1799,7 +1866,9 @@ def build_parser():
     r.add_argument("--project", required=True, help="the session directory slug under ~/.claude*/projects/ "
                    "(starts with '-': pass it as --project=<slug>)")
     r.add_argument("--session", action="append", help="repeat to restrict to specific sessions; default: all found")
-    r.add_argument("--out", required=True)
+    r.add_argument("--out", help="the report file (required unless --summary)")
+    r.add_argument("--summary", action="store_true", help="print a few lines (totals, the top labels, idle cache rebuilds) instead of one line")
+    r.add_argument("--top", type=int, help="keep only the N costliest labels and agents in the file (default all; 5 in --summary)")
     r.add_argument("--snapshots", default=DEFAULT_SNAPSHOTS)
     r.set_defaults(fn=cmd_report)
     t = sub.add_parser("tasks")
@@ -1815,6 +1884,8 @@ def build_parser():
     t.add_argument("--no-legacy", action="store_true",
                    help="skip the deprecated specs/*/tokens.md files and roll-up (docs/product/token-usage.md)")
     t.add_argument("--dry-run", action="store_true", help="read everything, write nothing, print the attribution")
+    t.add_argument("--summary", action="store_true", help="print the totals only (no per-feature table)")
+    t.add_argument("--top", type=int, help="list at most N unattributed agents (default all)")
     t.add_argument("--json", action="store_true",
                    help="with --dry-run: print each card's attribution (start, end, used) as one JSON object")
     t.set_defaults(fn=cmd_tasks)

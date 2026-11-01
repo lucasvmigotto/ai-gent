@@ -23,6 +23,12 @@ uncached input, cache writes, cache reads and output.
   (billions in a big run) and cost a small fraction per token; counting them
   would hide what a card actually spent. They matter for one thing: a
   bloated context makes every later call dearer, so keep the thinker's lean.
+- **Idle gaps rebuild the cache.** The prompt cache lives about 5 minutes. A
+  coordinator that idles longer re-writes its whole context on the next turn
+  (in this repo's audit, about 30% of billable). Never idle more than ~4
+  minutes in a long session: wait on a background watcher or checkpoint and
+  resume fresh (`agents:orchestrate`, its context-discipline reference).
+  `report --summary` prints the gaps over 5 minutes that re-wrote 20k or more.
 - Messages are **deduplicated by message id** (streamed chunks and account
   switches repeat them) and local `<synthetic>` placeholders, which stand in
   for a limit or an error, are skipped. A message keeps its last, most
@@ -48,7 +54,7 @@ second tracker block or a second history line.
 
 A history record: `id`, `source` (`measured` or `seed`), `confidence`,
 `project`, `feature`, `card`, `tasks`, `layer`, `effort`, `executor_role`,
-`executor_model`, `files` and `lines` (what the card's agents wrote through
+`executor_model`, `model_id` (the full model id of the card's lead agent, e.g. `claude-sonnet-5-5`; absent in older records), `files` and `lines` (what the card's agents wrote through
 Edit/Write, a size signal rather than a diff), `projected`, `used`,
 `cache_read`, `coordinator`, `calls`, `agents` (agent ids, so nothing counts
 twice), `desc`, `date`.
@@ -77,6 +83,13 @@ decide where it belongs:
 Because task ids repeat across features (every feature has a `T001`), put the
 card id or the feature number in the dispatch description:
 `T001, T002: 004-daemon foundation`.
+
+Attribution needs cards to match against: a repo with no `specs/*/cards.md`
+(or whose dispatch descriptions carry no card id, task ids with a feature
+number, or the card's dispatch description) reports `cards: []` and every
+subagent unattributed. That is a convention gap, not a bug: start every
+dispatch description with the card id. Branch names and free titles
+(`Build <feature>`) are not matched, since they would be a guess.
 
 ## The coordinator split
 
@@ -162,13 +175,22 @@ back to the **starting table**, per model and effort, for a medium card:
 
 | Model | low | medium | high |
 |---|---|---|---|
-| Sonnet | 150k (p75 250k) | 350k (550k) | 600k (850k) |
+| Sonnet | 55k (p75 80k) | 128k (179k) | 220k (275k) |
 | Opus | 250k (400k) | 450k (650k) | 700k (950k) |
 | Haiku | 60k (120k) | 120k (200k) | 200k (320k) |
 
-Size scales the table: S x0.6, L x1.6. It was calibrated on rstory's first
-autonomous run (Sonnet feature builders 0.3-0.8M each, Opus agents 0.5-0.9M
-each) and is only a start; history takes over as records accumulate.
+Size scales the table: S x0.6, L x1.6. The Sonnet row is **measured**: 20
+Sonnet 5.5 builder cards in this repo's history (Oct 2026) had a median of 128k
+and a p75 of 179k per card; low and high keep the previous table's proportions.
+The **previous defaults** (Sonnet 150k (p75 250k), 350k (550k), 600k (850k), calibrated
+on rstory's first autonomous run) are kept as `STARTING_PREVIOUS` in
+`token_report.py`; the Opus and Haiku rows are unchanged from them. The measured
+row is the one used when no history exists, for Sonnet-class builders. It is
+only a start; history takes over as records accumulate.
+
+Output size: `report` and `tasks` can print thousands of tokens. Use `report
+--summary [--top N]` (a few lines) and `tasks --summary [--top N]` (totals and
+the N costliest unattributed agents) unless you need the full tables.
 
 Records carry a **confidence**: `exact` (a card or its task ids matched),
 `feature` (only the feature matched) and `agent` (nothing did). Estimates

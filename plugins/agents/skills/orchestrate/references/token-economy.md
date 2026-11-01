@@ -19,6 +19,9 @@ calls, 2.5 M output tokens, 44 M written to cache and 1.35 B read from it).
 
 ## What to do
 
+Context size, idle gaps, the coordinator's model, tool-call budgets and check
+frequency have their own page: `context-discipline.md`.
+
 | Practice | Why it saves |
 |---|---|
 | Builder reads the files, thinker reads the diff | Bulk reading happens once, in the cheaper model |
