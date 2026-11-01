@@ -45,7 +45,7 @@ ai-gent-core/src/
 
 ### Why `update` delegates to `install.sh`
 
-A Rust re-implementation of download, checksum, unpack, symlink flip and `setup.sh` would be a second implementation of the verified path, against D16's "stays a short POSIX bootstrap" and D7's no dual paths. Fetching the **target** release's `install.sh` (not the installed one) matters for the 2.x to 3.0.0 jump, where asset names change (032 FR-009): the old installer would ask for an asset that no longer exists. The fetched script is verified against the same release's `SHA256SUMS`, which is the same trust as the tarball today (integrity, not provenance; provenance is `--verify-attestation` with `gh`, 032 FR-010). Cost: `update` needs `sh` and `curl`. Windows without them is out of scope (open question 2); `doctor` says so.
+A Rust re-implementation of download, checksum, unpack, symlink flip and `setup.sh` would be a second implementation of the verified path, against D16's "stays a short POSIX bootstrap" and D7's no dual paths. Fetching the **target** release's `install.sh` (not the installed one) matters for the 2.x to 3.0.0 jump, where asset names change (032 FR-009): the old installer would ask for an asset that no longer exists. The fetched script is verified against the same release's `SHA256SUMS`, which is the same trust as the tarball today (integrity, not provenance; provenance is `--verify-attestation` with `gh`, 032 FR-010). Cost: `update` needs `sh` and `curl`. On Windows the same idea runs `install.ps1` (D24).
 
 ### Install root discovery
 
@@ -56,10 +56,10 @@ A Rust re-implementation of download, checksum, unpack, symlink flip and `setup.
 | Release | `scripts/update-check.sh` | `scripts/ai-gent-update.sh` | hook | tests |
 |---|---|---|---|---|
 | 2.27 | unchanged | unchanged | unchanged | unchanged (the binary ships `version` and a doctor stub, 032) |
-| 2.28 | removed from `package.py` and the repo; its logic is `update --check` | stays (upgrade path of 2.26-2.27 installs and of clones) | `hooks.json` calls the binary (FR-012) | `scripts/test-update-check.sh` deleted after its inventory is covered (SC-002); `scripts/check.sh` runs Rust tests and `scripts/test-update.sh` |
-| 3.0.0 | gone | removed with git mode | same | `test-update.sh` extended for the package-only world |
+| 2.28 | stays, for git clones | stays (upgrade path of 2.26-2.27 installs and of clones; it fetches the target installer, 039 G28-7) | binary first for package installs, shell script for clones (FR-012) | `scripts/test-update-check.sh` stays for the clone path; new Rust tests and `scripts/test-update.sh` cover the binary; inventory in `quickstart.md` |
+| 3.0.0 | deleted | deleted with git mode | binary only | `test-update-check.sh` deleted after the inventory is covered (SC-002) |
 
-Overlap safety: during 2.28 both could in theory run (an old hook plus the new binary); they share the cache and print at most one notice per session start because only one hook is wired in any one version's `hooks.json`.
+Overlap safety: one hook command runs either the binary or the script (`exec`), never both, and both share the cache, so at most one notice is printed per session start.
 
 ### Doctor design
 
@@ -87,7 +87,7 @@ Checks are independent functions returning `{id, status, detail, hint}`; the run
 | `install.sh` of an old release lacks `--skip-prompt` or a flag | `update --to <old>` fails | the target release's own installer is used, so flags match it; `--to` older than 2.26 refused |
 | GitHub redirect format changes | wrong version string | validate `^[0-9]+\.[0-9]+\.[0-9]+$` on the last path segment, else treat as failure (as the shell script validates the tag) |
 | Doctor false alarms on unusual agent setups | trust loss | `warn` not `fail` for anything outside ai-gent's own tree |
-| Windows symlink privilege | `current` cannot be created | open question 2, outside this spec |
+| Windows `current` flip is not atomic | a brief window without `current` | junction flip documented in 032 FR-020; `--rollback` repairs |
 
 ## Phased approach
 

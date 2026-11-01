@@ -21,6 +21,10 @@
 - [ ] T022 [US3] `--rollback` and `--list` delegating to the current install's `install.sh`. Verify: same test file; exit 3 with no `previous`.
 - [ ] T023 [US2] `scripts/test-update.sh` end-to-end: install 9.9.0 then 9.9.1 from `file://` with the real `install.sh` and the real binary built from `rust/`; update, rollback, bad checksum, pinned silence. Wire in `scripts/check.sh` (skipped with `--quick`, like the installer tests). Verify: `scripts/test-update.sh`.
 
+## Phase 2b - Windows (D24)
+
+- [ ] T024 [US2] `update` on Windows fetches and runs the target release's `install.ps1` (junction layout of 032 FR-020); `doctor` checks `powershell` instead of `sh`. Verify: the windows leg of `scripts/test-install-ps1.ps1` extended with an update and rollback case.
+
 ## Phase 3 - doctor (US4)
 
 - [ ] T030 [US4] Decide and implement the agent registry source for `agent_links` (generated `agents.json` from `setup.sh` `AGENT_IDS`, checked by `scripts/consistency.py`), and record the choice in `plan.md`. Verify: `python3 scripts/consistency.py`.
@@ -33,10 +37,11 @@
 
 ## Phase 4 - cutover, 2.28 (US5)
 
-- [ ] T040 [US5] `plugins/git/hooks/hooks.json` SessionStart command per FR-012; `scripts/package.py` allowlist and required-file list; delete `scripts/update-check.sh` and `scripts/test-update-check.sh`; `scripts/check.sh` update-check block replaced. Verify: `python3 scripts/package.py --check`, `scripts/check.sh`.
+- [ ] T040 [US5] `plugins/git/hooks/hooks.json` SessionStart command per FR-012 (binary first, script for clones); the scripts and `scripts/test-update-check.sh` stay in 2.28; add the Rust tests and `scripts/test-update.sh` to `scripts/check.sh`. Verify: `python3 scripts/package.py --check`, `scripts/check.sh`.
 - [ ] T041 [US5] A hook-wiring test replacing `test-update-check.sh:216-251`: the hook command in a package layout and in a plugin outside any tree stays silent and exits 0. Verify: `scripts/test-update.sh` section.
 - [ ] T042 [US5] Doc tasks (not edited by this spec): README update section (lines ~55-60), docs site install page, `shared/releasing.md` mention, notice text in the `git` plugin docs. Verify: `scripts/check.sh` links.
 
 ## Phase 5 - 3.0.0
 
+- [ ] T049 [US5] Delete `scripts/update-check.sh`, `scripts/test-update-check.sh`, remove the script branch from the hook, update `package.py`'s allowlist and required-file list. Verify: SC-006, `python3 scripts/package.py --check`.
 - [ ] T050 [US5] Delete `scripts/ai-gent-update.sh` with git mode; `doctor` `environment` check keeps warning on the removed variables for one more release. Verify: SC-006.

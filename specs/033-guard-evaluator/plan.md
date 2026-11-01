@@ -16,7 +16,7 @@ A faithful port of the five shell guards (and the opencode rules) into `ai-gent-
 |---|---|---|
 | D10 parity gate: existing tests become shared fixtures run against both | pass | FR-005, FR-006, Phase 1 |
 | D11 sh, PowerShell and cmd with fixtures for all three | pass | FR-003, FR-004, `variants` |
-| D12 shadow first, then decides | pass | FR-009, FR-010, phases 3-4 |
+| D12 shadow first, then decides (from 2.28 for package installs, D7 amended) | pass | FR-009, FR-010, phases 3-4 |
 | D13 opencode calls the binary, `rules.mjs` dropped | pass | US4, Phase 5 |
 | CLAUDE.md: `guard.sh` and `rules.mjs` must decide the same until replaced | pass | the oracle suites stay green through Phase 3; the parity test is the fixtures |
 | CLAUDE.md: hook scripts are POSIX sh, tested by the five `test-*guard.sh` | pass | scripts keep their names; the launcher is POSIX sh and tested by them (`--impl sh` runs the launcher after the cutover) |
@@ -69,7 +69,9 @@ PowerShell escapes with the backtick, only inside double-quoted strings, and tre
 |---|---|---|
 | now | `${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh` | shell |
 | 2.27 shadow | same; `guard.sh` gains, after its decision is printed, `[ -x "$bin" ] && ( printf '%s' "$input" \| "$bin" guard --guard git --shadow --shell-decision "$d" >/dev/null 2>&1 & )` (3 lines, five scripts) | shell |
-| 2.28 | same path; `guard.sh` is the launcher | binary |
+| 2.28 (package install) | same path; `guard.sh` begins with the launcher head (package detected by `../../VERSION`) | binary |
+| 2.28 (git clone) | same path; falls through to the shell logic | shell |
+| 3.0.0 | `guard.sh` is only the launcher; shell logic and `rules.mjs` deleted | binary |
 
 The launcher (POSIX sh, about 10 lines): resolve `bin` from `${CLAUDE_PLUGIN_ROOT}/../../bin/ai-gent`, then `command -v ai-gent`; if none, print the `ask` line with the install command; else `out=$("$bin" guard --guard <id> --format claude 2>/dev/null)`; if the exit code is non-zero or the process was killed, print the `ask` line "guard failed"; else print `$out`. A timeout of 2 s uses `timeout` when present (GNU, absent on stock macOS), otherwise the hook's own `timeout` in `hooks.json` (10 s) is the backstop and the binary enforces its 2 s internally. Claude Code treats a non-blocking hook error as not blocking the tool [KNOWN, verify in T051], which is why the launcher must convert failures into `ask` itself instead of relying on exit codes.
 
@@ -104,5 +106,6 @@ Baseline (this host, Linux, 100 runs, `git status --short`): git 3.3 ms, db 1.1 
 - **Phase 1 - evaluator, sh**: segmenter, five rule modules, reasons, CLI, parity tests; all fixtures pass.
 - **Phase 2 - PowerShell and cmd**: segmenters, variants, Windows-only cases, Windows CI legs.
 - **Phase 3 - shadow (2.27)**: shadow record, `shadow-report`, `replay`, hook change, docs; release 2.27 with shadow on (Linux first, per the release plan; macOS and Windows follow when D14 allows).
-- **Phase 4 - cutover (2.28)**: promotion check, launcher, delete shell logic, consistency.py via reasons.json, failure tests, bench gate.
+- **Phase 4 - cutover (2.28 for package installs)**: promotion check, launcher head, consistency.py via reasons.json (reads both the shell logic and `reasons.json` while clones remain), failure tests, bench gate.
+- **Phase 4b - 3.0.0**: delete the shell logic and `rules.mjs` with git mode; `guard.sh` is the launcher alone.
 - **Phase 5 - opencode**: plugin calls the binary, delete `rules.mjs` and the parity test, update `opencode/guard/index.ts`, CLAUDE.md rule text.

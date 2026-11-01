@@ -72,7 +72,7 @@ Verified on 2026-11-01:
 
 **Acceptance Scenarios**:
 
-1. **Given** 2.28 is installed, **Then** the SessionStart hook runs `ai-gent update --check` and `scripts/update-check.sh` is not in the package.
+1. **Given** 2.28 is installed as a package, **Then** the SessionStart hook runs `ai-gent update --check`; a git clone's hook still runs `scripts/update-check.sh` (D7 amended: no dual path survives 3.0.0).
 2. **Given** a user on 2.26 or 2.27 runs their installed `scripts/ai-gent-update.sh`, **Then** it still upgrades them to 2.28 (the old script and the old installer see the content-only asset of 032 FR-009).
 3. **Given** 3.0.0, **Then** `scripts/ai-gent-update.sh` and `scripts/update-check.sh` do not exist and `scripts/test-update-check.sh` is replaced by the Rust tests and `scripts/test-update.sh`.
 
@@ -83,13 +83,13 @@ Verified on 2026-11-01:
 - **FR-003**: Cache: the same file and format as `update-check.sh` (`<epoch> <tag>` at `${XDG_STATE_HOME:-~/.local/state}/ai-gent/update-check`, Windows `%LOCALAPPDATA%\ai-gent\state\update-check`), written by write-temp-then-rename, so the shell script and the binary can coexist during the transition and the cache survives either.
 - **FR-004**: Refresh: detached child process (`update --refresh`) with a hard 8 s limit, no output, no effect on the caller's exit code. The latest version is read from the redirect target of `https://github.com/lucasvmigotto/ai-gent/releases/latest` (what `install.sh` does; no JSON parsing and no API rate limit) through the system `curl`; `AI_GENT_RELEASE_BASE` (with `<base>/LATEST`) overrides it for tests; `AI_GENT_UPDATE_REPO` overrides the slug. The binary links no TLS or HTTP crate (032 FR-003).
 - **FR-005**: Interval: `AI_GENT_UPDATE_DAYS` (default 7). `AI_GENT_NO_UPDATE_CHECK` (any value) disables check and refresh. A `pinned` file next to the version directories silences both (D15).
-- **FR-006**: `update` obtains the **target release's** `install.sh` (asset of that release), verifies it against that release's `SHA256SUMS` (and with `gh attestation verify` when `--verify-attestation` and `gh` exist), then runs it with `VERSION`, `AI_GENT_HOME` and `--skip-prompt`. There is no second implementation of download, checksum, unpack or link flipping in Rust (D16: the bootstrap stays one POSIX script; "same verified path as `install.sh`"). On native Windows without `sh` the command prints the manual instructions and exits 3 until a Windows installer exists (open question 2).
+- **FR-006**: `update` obtains the **target release's** `install.sh` (asset of that release), verifies it against that release's `SHA256SUMS` (and with `gh attestation verify` when `--verify-attestation` and `gh` exist), then runs it with `VERSION`, `AI_GENT_HOME` and `--skip-prompt`. There is no second implementation of download, checksum, unpack or link flipping in Rust (D16: the bootstrap stays one POSIX script; "same verified path as `install.sh`"). On native Windows it fetches and runs the target release's `install.ps1` instead (D24; 032 contract `install-ps1.md`), verified the same way (the `SHA256SUMS` line for `install.ps1`).
 - **FR-007**: `--rollback` and `--list` run `install.sh --rollback` and `--list` from `current/` (the installer shipped inside the installed version).
 - **FR-008**: The notice is one line, `[ai-gent] update available: <local> -> <remote> - run: ai-gent update (propose first, never self-apply in-session)`, printed by `--check` to stdout so the SessionStart hook adds it to the session context; nothing else is printed by `--check`.
 - **FR-009**: `doctor` is offline (no network access, no subprocess that contacts one), read-only, and finishes in under 2 s on a healthy install. Checks are listed in `contracts/cli.md` (`binary`, `install_root`, `version_match`, `install_integrity`, `path_link`, `agent_links`, `hooks`, `guard_selftest`, `tools`, `state`, `update_cache`, `environment`, `permissions`). Exit 0 unless a check is `fail` (or `warn` with `--strict`).
 - **FR-010**: `doctor` never reads a secret value; the `permissions` check inspects file modes only (credential files of `shared/secrets.md` should be 0600 on Unix).
-- **FR-011**: Retirement: 2.28 removes `scripts/update-check.sh` from the package allowlist and wires the hook to the binary; `scripts/ai-gent-update.sh` stays until 3.0.0 (it is the upgrade path for 2.26-2.27 installs and for git-mode clones), then goes with git mode. The cache format is unchanged so both can read it.
-- **FR-012**: The hook command in `plugins/git/hooks/hooks.json` becomes `b="${CLAUDE_PLUGIN_ROOT}/../../bin/ai-gent"; if [ -x "$b" ]; then exec "$b" update --check; fi; exit 0` (silent when the binary is missing, like today's missing-file no-op; the missing binary is reported by `doctor` and by the guards, not by the update notice).
+- **FR-011**: Retirement (D7 amended): 2.28 wires the package hook to the binary and keeps `scripts/update-check.sh` and `scripts/ai-gent-update.sh` for git clones and for the upgrade of 2.26-2.27 installs; both are deleted at 3.0.0 with git mode. The cache format is unchanged so both can read it.
+- **FR-012**: The hook command in `plugins/git/hooks/hooks.json` becomes `b="${CLAUDE_PLUGIN_ROOT}/../../bin/ai-gent"; if [ -x "$b" ]; then exec "$b" update --check; fi; f="${CLAUDE_PLUGIN_ROOT}/../../scripts/update-check.sh"; if [ -f "$f" ]; then exec bash "$f"; fi; exit 0` (binary first, the shell script for clones, silent otherwise; at 3.0.0 the second branch is deleted). The missing binary is reported by `doctor` and the guards, not by the update notice. On native Windows without `sh` the hook form is the open point of spec 033 question 6.
 - **FR-013**: `update` and `doctor` follow the global CLI contract of 032 (`--json`, exit codes).
 
 ### Key entities
@@ -103,7 +103,7 @@ See `data-model.md`: Install root, Update cache, Pin, Doctor check result, Relea
 - The installed version is newer than the latest release (a pre-release build): no notice.
 - `current` is a dangling link: `doctor` fails `install_root` and prints `sh install.sh` as the fix.
 - A user ran `install.sh` with a custom `AI_GENT_HOME` and starts an agent without it set: the binary finds its root from its own path, so `AI_GENT_HOME` is only a fallback.
-- Windows: `current` and `previous` need a symlink or junction; the install tree on Windows is part of open question 2 and not decided here.
+- Windows: `current` and `previous` are directory junctions (032 FR-020); `InstallRoot::discover` resolves them like symlinks.
 
 ## Out of scope
 
@@ -124,6 +124,6 @@ See `data-model.md`: Install root, Update cache, Pin, Doctor check result, Relea
 ## Open questions (for the owner)
 
 1. **Interval and notice cadence**: keep 7 days (D15). Recommended: also print the notice at most once per day even if sessions restart, by storing the last notified date in the cache line (third field). The shell script notified at every session start; this is a small behavior change.
-2. **Windows update path**: `update` needs `sh` (FR-006). Recommended: Git Bash/WSL for 3.0.0; a PowerShell installer is a 3.x spec; `doctor` warns on Windows when no `sh` is found.
+2. **Answered by D24**: Windows uses `install.ps1`; `doctor` checks for `powershell` instead of `sh` on Windows.
 3. **`doctor` network check**: offline only (D15 spirit). Recommended: a separate `doctor --online` is not built; `update --check` already covers the network.
 4. **Should `ai-gent update` offer the notice in non-Claude agents?** The notice is a Claude Code SessionStart feature (README says opencode has no session-start hook point). Recommended: unchanged; others run `ai-gent update --check` by hand.

@@ -46,15 +46,19 @@
 
 ## Phase 4 - cutover, release 2.28 (US1, US5, US6)
 
-- [ ] T050 [US5] Write the launcher once as `shared/guard-launcher.sh` (about 10 lines) and copy it into the five `hooks/guard.sh` with the guard id substituted; `scripts/consistency.py` fails if a copy differs (the `--sync-shared-code` pattern). Verify: `python3 scripts/consistency.py`.
+- [ ] T050 [US5] Write the launcher head once as `shared/guard-launcher.sh` (about 10 lines; detects a package install by `../../VERSION`, else falls through) and copy it at the top of the five `hooks/guard.sh` with the guard id substituted; `scripts/consistency.py` fails if a copy differs (the `--sync-shared-code` pattern). Verify: `python3 scripts/consistency.py`.
 - [ ] T051 [US5] Failure tests in the five `test-*guard.sh` via the fixture runner: binary renamed, binary exits 1 with no output, binary sleeps over the budget; each must print the `ask` line with the install command. Verify: `scripts/test-guard.sh` (and siblings) with `--impl sh` now exercising the launcher; SC-006.
-- [ ] T052 [US1] Replace the five scripts' rule logic with the launcher in one commit per guard; fixtures now run `--impl bin` (and `--impl sh` = launcher). Verify: SC-005 grep; `scripts/check.sh` green.
+- [ ] T052 [US1] Add the launcher head to the five scripts in one commit per guard (shell logic stays below it for clones); fixtures run `--impl sh` (clone path), `--impl launcher` (package path with the real binary) and `--impl bin`. Verify: `scripts/check.sh` green; fixture counts equal for the three.
 - [ ] T053 [US6] Bench gate: `scripts/bench-guard.py --impl bin --check` in the Linux CI job (budget FR-012); macOS and Windows jobs run it informationally and the numbers go into the PR. Verify: CI log lines.
 - [ ] T054 [US1] Update `docs`: the `plugins/*/hooks` header comments, `CLAUDE.md` layout rule text ("The OpenCode guard rules and the shell guards must decide the same" becomes "all agents call `ai-gent guard`"), `shared/guard-ux.ts` header. Verify: `scripts/check.sh`.
-- [ ] T055 [US5] git-mode clone support: `scripts/dev-bin.sh` (builds `rust/` or downloads the matching release binary into `bin/`). Verify: a fresh clone runs the guard tests after `scripts/dev-bin.sh`.
+- [ ] T055 [US5] Optional binary for clone contributors: `scripts/dev-bin.sh` (builds `rust/` or downloads the matching release binary into `bin/`). Verify: a fresh clone runs the guard tests after `scripts/dev-bin.sh`.
+
+## Phase 4b - 3.0.0 deletion (US1)
+
+- [ ] T056 [US1] With git mode removed (039 T010): delete the shell logic below the launcher in the five `guard.sh`, switch the five `test-*guard.sh` to `--impl launcher`, update `scripts/consistency.py` to read only `reasons.json`. Verify: SC-005 grep; `scripts/check.sh`.
 
 ## Phase 5 - opencode (US4)
 
-- [ ] T060 [US4] `opencode/guard/index.ts`: call `ai-gent guard --guard all --format opencode` through `execFileSync` with a timeout; apply FR-014 on failure. Keep `branchOf` out (the binary resolves branches). Verify: `opencode/guard/test/adapter.test.mjs` (new) with a fake binary: decisions mapped, failure => ask.
-- [ ] T061 [US4] Delete `opencode/guard/rules.mjs` and the old parity test; point `scripts/check.sh` at the binary-backed adapter test; adjust `scripts/package.py` `TREES` if `opencode/guard` shrinks. Verify: `scripts/check.sh` and `python3 scripts/package.py --check`.
+- [ ] T060 [US4] `opencode/guard/index.ts` (2.28): when running from a package install call `ai-gent guard --guard all --format opencode` through `execFileSync` with a timeout; apply FR-014 on failure. Keep `branchOf` out (the binary resolves branches). Verify: `opencode/guard/test/adapter.test.mjs` (new) with a fake binary: decisions mapped, failure => ask.
+- [ ] T061 [US4] At 3.0.0 delete `opencode/guard/rules.mjs` and the old parity test; point `scripts/check.sh` at the binary-backed adapter test; adjust `scripts/package.py` `TREES` if `opencode/guard` shrinks. Verify: `scripts/check.sh` and `python3 scripts/package.py --check`.
 - [ ] T062 [US4] `scripts/opencode-config.py` and `setup.sh` unchanged unless the plugin path moves; run `scripts/test-install.sh`. Verify: the opencode install checks pass.
