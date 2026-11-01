@@ -79,7 +79,7 @@ Claim to test: transcript scanning (`usage_messages`, `collect`) is the hot path
 Baseline task (owner or a builder on the owner's machine; never committed, never read for content):
 1. `find ~/.claude*/projects -name '*.jsonl' -mtime -7 | xargs du -ch | tail -1` records the corpus size (bytes and file count are the only things written down).
 2. `hyperfine --warmup 2 --runs 10 'python3 plugins/agents/scripts/token_report.py budget --projected 400k --json'` (cold and warm page cache noted) records median and spread. The command prints only totals; no transcript text reaches the terminal. If `hyperfine` is missing use `scripts/bench-tokens.sh` (a loop with `date +%s%N`).
-3. Record the table in `specs/035-token-tools/tracker.md`: machine, OS, corpus size, files, Python version, median, p95.
+3. Record the table in `specs/035-token-tools/measurements.md`: machine, OS, corpus size, files, Python version, median, p95.
 4. The Rust binary is measured the same way; SC-004 is judged on that table. Also measure a synthetic corpus generated from fixtures (so CI-free reproducibility): `scripts/bench-tokens.sh --synth 1GB`.
 Expected shape [ASSUMPTION]: parse cost dominates; Rust `serde_json` with typed partial deserialization and `rayon` across files should be several times faster, but a warm-cache Python run on a small week may already be sub-second, in which case the win is not user-visible. If the win is under 2x, say so in the release notes and do not market it.
 
