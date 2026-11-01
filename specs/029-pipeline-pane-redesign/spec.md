@@ -46,7 +46,7 @@ The header badge reads `LIVE` only while the pane is really kept current, and sa
 
 **Acceptance Scenarios**:
 
-1. **Given** the poll is running and the last check was within three poll intervals, **When** drawn, **Then** the badge is `LIVE` with the caption `Checked 14:02:11 · every 5 s`.
+1. **Given** the poll is running and the last check was within three poll intervals, **When** drawn, **Then** the badge is `LIVE` with the caption `Checked 14:02:11 · ⏱ 5 s`.
 2. **Given** no check for more than three intervals (the poll stopped, the machine slept), **When** the pane next redraws, **Then** the badge is `STALE` (amber) with `Last checked 14:02:11`.
 3. **Given** a poll tick that finds nothing changed, **When** it runs, **Then** the checked time still advances though the snapshot does not.
 4. **Given** headless or the compact layout, **When** the text prints, **Then** there is no badge, only `as of 14:02:11`.
