@@ -21,7 +21,9 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
 ## Before starting
 
 1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case), `../../references/spec-kit.md`
-   and `../../references/visual-direction.md`.
+   and `../../references/visual-direction.md`. Also read
+   `../../references/build-verification.md` (rendered review, CSS); read
+   `../../references/design-tokens.md` only when a token value is unclear.
 2. Required inputs: `specs/000-design-system/` and at least one feature
    with `ui.md` and a `## Frontend` section in `tasks.md`. If missing,
    stop and propose `frontend:spec`.
@@ -132,7 +134,7 @@ For each phase:
 - **Motion**: only what the design system specifies; honor
   `prefers-reduced-motion`.
 - Watch CSS specificity — utility/component styles cancelling each other
-  out (see `visual-direction.md`).
+  out (see `build-verification.md`).
 
 ### Checkpoint — verification per phase
 
@@ -146,7 +148,7 @@ devcontainer) and check, for the screens this phase touched:
    browser (`selenium/standalone-chrome` by default, per the qa plugin's
    references/browsers.md rules), never a host browser install. Look at them.
 3. **Self-critique** against `ux-vision.md` principles and
-   `visual-direction.md`'s AI-default list: does it read as generic? Is
+   `visual-direction.md`'s generic-defaults list and differentiation review: does it read as generic? Is
    the hierarchy right? Is one thing memorable and everything else quiet?
    Fix, re-screenshot. Remove one accessory.
 4. **Keyboard-only** pass through the phase's flows; visible focus

@@ -1,4 +1,4 @@
-# v3 notes: what the 2.26 package install taught us
+# Release 3.0.0 notes: what the 2.26 package install taught us
 
 2.26 makes the release package the default install and keeps the git clone as
 a flagged dev mode. This is a test of the idea, not a plan.
@@ -24,7 +24,7 @@ a flagged dev mode. This is a test of the idea, not a plan.
   tarball and `install.sh`, which is also attested.
 - `skills/skill-docs` is a contributor skill and is not in the package.
 
-## What v3 would change (breaking)
+## What 3.0.0 would change (breaking)
 
 - Remove git mode (`AI_GENT_MODE=git`, `AI_GENT_BRANCH`, `AI_GENT_REPO`,
   `AI_GENT_DIR`) and the clone-specific branches of `ai-gent-update.sh` and

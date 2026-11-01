@@ -20,6 +20,18 @@ export type WorkspaceView = {
   details: string[]
   // How many bands folded.
   count: number
+  // The model and effort, drawn at the right of the Details row (`Opus (high)`); null when not known.
+  tail: string | null
+}
+
+const FAMILIES = ['opus', 'sonnet', 'haiku', 'fable']
+
+// `claude-opus-5-5` reads `Opus`; an id of no known family stays as it is. The effort follows in brackets.
+export function modelLabel(model: string | null | undefined, effort: string | number | null | undefined): string | null {
+  if (!model) return null
+  const family = FAMILIES.find(f => model.toLowerCase().includes(f))
+  const name = family ? family[0]!.toUpperCase() + family.slice(1) : model
+  return effort === null || effort === undefined || effort === '' ? name : `${name} (${effort})`
 }
 
 const glyphs = (ascii: boolean) => ({
@@ -63,11 +75,10 @@ function fit(prefix: string, items: readonly string[], sep: string, max: number,
 // the line is just the Details button.
 export function workspaceView(
   bands: readonly Band[],
-  options: { columns: number; ascii: boolean; extras?: { rows: readonly string[]; warnings: readonly string[] } },
+  options: { columns: number; ascii: boolean; model?: string | null; effort?: string | number | null; extras?: { rows: readonly string[]; warnings: readonly string[] } },
 ): WorkspaceView | null {
   const { folded } = split(bands, true)
   const extras = options.extras ?? { rows: [], warnings: [] }
-  if (folded.length === 0 && extras.rows.length === 0 && extras.warnings.length === 0) return null
   const g = glyphs(options.ascii)
   const mode = modeOf(options.columns)
   // Room for the Details button beside the line.
@@ -87,5 +98,6 @@ export function workspaceView(
       ...extras.rows,
     ],
     count: folded.length,
+    tail: modelLabel(options.model, options.effort),
   }
 }

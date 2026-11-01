@@ -17,10 +17,10 @@ const DISK = band('containers', 'devcontainer', 'normal')
 const view = (bands: Band[], columns = 100, ascii = false) => workspaceView(bands, { columns, ascii })
 
 test('nothing folds without a summary, and a hold or a failure never folds even with one', () => {
-  expect(view([HOLD, CI_FAIL, DISK])).toBeNull()
+  expect(view([HOLD, CI_FAIL, DISK])).toMatchObject({ count: 0, line: null, warnings: null, details: [] })
   const sneaky: Band[] = [{ ...HOLD, summary: { text: 'x', tone: 'ok' } }, { ...CI_FAIL, summary: { text: 'y', tone: 'ok' } }]
   expect(sneaky.map(isFoldable)).toEqual([false, false])
-  expect(view(sneaky)).toBeNull()
+  expect(view(sneaky)).toMatchObject({ count: 0, line: null })
 })
 
 test('several plugins fold into one line and one warnings line, in band order', () => {

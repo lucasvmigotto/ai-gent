@@ -90,11 +90,25 @@ test('a healthy CI with nothing else is one compact line', async ($, on) => {
   await ui.unmount()
 })
 
-test('no bands: no workspace line', async ($, on) => {
+test('no bands: no Workspace line, but the Details button stays and opens on nothing to report', async ($, on) => {
   world(on)
   await $.session.start(START)
   const ui = await mount($)
-  expect(await ui.find(text(/Workspace|Details/))).toBeUndefined()
+  expect(await ui.find(text(/Workspace/))).toBeUndefined()
+  await ui.press({ key: 'workspace-details' })
+  expect(await ui.find(text(/Nothing to report/))).toBeDefined()
+  await ui.unmount()
+})
+
+test('the model and effort of the last request sit at the right of the Details row', async ($, on) => {
+  world(on)
+  on('turn.step', async function* (_, e) {
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [] }
+  })
+  await $.session.start(START)
+  for await (const _chunk of $.turn.step({ turnId: 't1', index: 0, model: 'claude-opus-5-5', effort: 'high', messageCount: 1 } as never)) void _chunk
+  const ui = await mount($)
+  expect(await ui.find(text(/^Opus \(high\)$/))).toBeDefined()
   await ui.unmount()
 })
 

@@ -20,8 +20,8 @@ balancing user, business and technical requirements.
 1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) — ownership rules matter here:
    this skill **adds a UI layer** to features `project:spec` owns — and
    `../../references/spec-kit.md` for the `tasks` step it extends.
-2. Read `../../references/visual-direction.md` for token/component
-   decisions.
+2. Read `../../references/visual-direction.md` and
+   `../../references/design-tokens.md` for token/component decisions.
 3. Required inputs:
    - `docs/product/ux-vision.md` — if missing, stop and propose running
      `frontend:uiux` first.
@@ -74,7 +74,7 @@ templates (`spec.md`, `plan.md`, `tasks.md`) plus:
   the WAI-ARIA APG patterns chosen, with dated URLs, in
   `000-design-system/research.md`. Label `[RESEARCHED: S<n>]`, `[KNOWN]`
   or `[ASSUMPTION]`; offline, "verify before relying".
-- **Accessibility rules** — the WCAG 2.2 AA targets from the vision as
+- **Accessibility rules** — the vision's targets (WCAG 2.2 AA minimum, never lowered) as
   testable rules (focus ring spec, minimum target size, contrast, live
   region usage).
 - **i18n** — string key convention (from the vision's copy keys), locale
