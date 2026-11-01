@@ -146,6 +146,14 @@ The point of this skill. Details and measured examples:
   restart it from zero.
 - Record `used` after each landing and summarize the projection error for
   the user (`../../references/token-tracking.md`).
+- Keep your own context small and warm: never idle over ~4 minutes with
+  more than ~100k of context (the cache expires; wait in the background or
+  checkpoint), compact or restart at ~150k, and prefer a mid-size model for
+  the coordinator, the strongest only at planning and review gates. Cards:
+  scoped and self-contained rather than forks, about 40 tool calls each,
+  the full `scripts/check.sh` once per card and `--quick --quiet` inside the
+  loop, batched shell steps, no polling loops. Why and how:
+  `references/context-discipline.md`.
 
 ## Guardrails
 

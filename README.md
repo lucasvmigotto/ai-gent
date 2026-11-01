@@ -453,7 +453,7 @@ scripts/                                        check.sh, release.py, opencode-c
 
 Conventions for editing skills and plugins are in `AGENTS.md` (also available as `CLAUDE.md`).
 
-**Checks.** Run `scripts/check.sh` before committing; CI runs the same script.
+**Checks.** Run `scripts/check.sh` before committing; CI runs the same script. `--quick` skips the installer tests and `--quiet` prints only failures and the final line (use it inside an agent's loop).
 - **Metadata:** skill names and description budgets (400 characters, since every session loads them), and plugin manifests.
 - **References:** `plugin:skill` references, relative paths and symlinks.
 - **Scripts:** shell scripts through shellcheck.

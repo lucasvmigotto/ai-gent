@@ -13,6 +13,10 @@ file covers changing things.
 - Versioning follows `git:workflow` (`plugins/git/skills/workflow/SKILL.md`),
   and its guard hook is active here too.
 - Run `scripts/check.sh` before every commit; CI runs the same script.
+  `--quick` skips the installer tests, `--quiet` prints only failures and the
+  final line (combine them inside a loop; run the full script once at the end).
+  `--quick` skips the installer tests, `--quiet` prints only failures and the
+  final line (combine them inside a loop; run the full script once at the end).
 - Before pushing a change to `plugins/repo/scripts/reporun.py`, also run
   `scripts/test-reporun-github.py`: it drives reporun against a throwaway
   private GitHub repository (issues, sub-issues, rebase and merge-commit PRs,
