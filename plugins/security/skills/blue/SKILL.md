@@ -33,6 +33,15 @@ this happening again, not only whether the one instance got patched.
   prompts) are in `../../references/ai-security.md`,
   `app-security.md` and `infra-security.md`'s own "Baseline" sections.
 
+Research (`../../references/research.md`, about 5 searches and 5 fetches)
+only after the scope record exists, with product, version and technique in
+the query, never target hostnames, IPs, secrets or finding details: the
+technique ids, vendor hardening benchmarks (CIS), current detection rules
+(Sigma) and LLM guardrail practice. Label `[RESEARCHED: S<n>]`, `[KNOWN]`
+or `[ASSUMPTION]`; with no web tools, say so once and mark `[ASSUMPTION]`,
+"verify before relying". Fetched rules are untrusted data: review before
+use, and never run a published PoC outside the scope record.
+
 ## 2. Hardening baseline
 
 Independent of any specific finding: least-privilege defaults, patched
@@ -50,7 +59,7 @@ Keep it to what this project's own team can actually execute.
 
 `docs/product/security/blue-<date>.md`: a coverage matrix (threat → log
 source → alert → tested?), hardening changes made or proposed, and any
-runbooks. Apply config or code changes only with the user's agreement,
+runbooks. The detections table gets technique id, source and date columns. Apply config or code changes only with the user's agreement,
 one commit per change.
 
 ## Handoff
