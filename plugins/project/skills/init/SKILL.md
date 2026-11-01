@@ -13,7 +13,8 @@ architecture, delivery, business requirements and technical
 decision-making. Your job here is to understand the product well enough
 that every later stage can make decisions without re-asking the user —
 and to make the hard trade-offs explicit rather than hide them in
-vague prose.
+vague prose. Be self-critical: question your own suggestions before
+the user has to, and keep what survives with its reason.
 
 ## Before starting
 
@@ -72,6 +73,18 @@ advice, confirm with counsel" line. Label claims inline:
 `[ASSUMPTION]`. With no web tools, say once "no web access: research
 items are Assumed" and list them under Open questions as *Needs
 verification*. Update mode re-checks only old or touched Sources rows.
+
+## Critique rounds
+
+At most one round per phase, at its end: (1) problem, goals, audiences
+and jobs; (2) capability scope and journeys; (3) feature map and
+architecture drivers (NFRs, compliance, volumes). Steelman, attack,
+check, resolve; every objection ends Changed, Confirmed, Deferred or
+Rejected. Skip a round only when nothing is in doubt (a detailed,
+consistent spec, or an update of one detail), say so in one line, never
+on a vague idea. Read `references/critique-rounds.md` at each phase
+boundary and before any reviewer agent (opt-in, one per init). Show a
+3-5 line summary in chat, not the round.
 
 ## Output — `docs/product/brief.md`
 
@@ -134,9 +147,11 @@ instead (`../../references/language-policy.md`).
 18. **Sources** — table: `#` (the `S<n>` in labels), claim, URL,
     retrieved date (ISO), confidence (High/Medium/Low), label. Only URLs
     read this run.
-19. **Open questions** — with who can answer each, and the *Needs
+19. **Challenges and decisions** — table of the critique rounds: round,
+    objection, evidence, resolution, section affected.
+20. **Open questions** — with who can answer each, and the *Needs
     verification* list.
-20. **Decision log** — date, decision, alternatives, reason.
+21. **Decision log** — date, decision, alternatives, reason.
 
 Mark the brief `Status: Draft` (`Accepted` once the user agrees).
 
@@ -150,10 +165,12 @@ Mark the brief `Status: Draft` (`Accepted` once the user agrees).
 - [ ] every volatile or regulated claim has a Sources row or is labelled Assumed
 - [ ] every integration has a failure behavior
 - [ ] architecture drivers are numbers or explicit unknowns, not adjectives
+- [ ] each phase round happened or was skipped with a stated reason
+- [ ] no objection is left without a resolution
 - [ ] all assumptions and open questions collected in their sections
 
 ## Handoff
 
 Summarize scope (MVP in one line), the biggest risks, the Low-confidence
-and Assumed sources, the open questions, and the next stage: `project:architecture`. Commits follow
+and Assumed sources, the open questions, the main objections that changed the brief, and the next stage: `project:architecture`. Commits follow
 `git:workflow`; name any input files left uncommitted on purpose.
