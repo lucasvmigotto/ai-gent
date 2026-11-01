@@ -105,7 +105,10 @@ toolchain versions, lockfiles and network aliases.
 Per module, following `containers.md` §2–§7:
 
 - **One multi-stage Containerfile** (`base` → `deps` → `tools` → `build`
-  → `runtime`), hardened images pinned by digest, sources and caches
+  → `runtime`). Research the base images (`../../references/research.md`,
+  about 5 searches and 5 fetches): current tags, EOL status and Podman or
+  Docker changes, with dated URLs; label `[RESEARCHED: S<n>]`, else
+  `[ASSUMPTION]`, "verify before relying". Hardened images pinned by digest, sources and caches
   mounted instead of copied, a deny-by-default `.dockerignore`. If the
   module already has a production Dockerfile, extend it with the missing
   stages rather than writing a second one.

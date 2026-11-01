@@ -39,6 +39,12 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
    axe for unit/a11y, Playwright for e2e — record the decision back as an
    `[UPSTREAM GAP]` for `plan.md`.
 
+Before using a framework API, check the current docs and migration notes
+so no stale API goes in (`../../references/research.md`, about 5 searches
+and 5 fetches; package names and versions only, never project code).
+Record them in the feature's `research.md` as `[RESEARCHED: S<n>]` with
+dated URLs; offline, `[ASSUMPTION]`, "verify before relying".
+
 Read code the cheap way: `../../references/reading-code.md` — `compact:code`
 for large or many files in a brace language.
 

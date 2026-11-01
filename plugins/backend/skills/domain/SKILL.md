@@ -76,6 +76,10 @@ how long data is kept, which numbers are money/time/quantities.
 10. **Data ownership & lifecycle.** Per entity: owning context,
     personal-data classification (none / personal / sensitive under
     LGPD/GDPR), retention and deletion/anonymization rules, audit needs.
+    Research the categories and the industry vocabulary against primary
+    sources (`../../references/research.md`, about 5 searches and 5
+    fetches; generic terms only, never paste real data); not legal
+    advice, confirm with counsel.
 11. **Integrations.** Per external system: direction, sync vs. async,
     the anti-corruption translation, idempotency, failure behavior.
 12. **Volumes.** Expected counts and rates per aggregate and hot path,
@@ -91,7 +95,8 @@ Sections: Summary · Inputs used (and missing) · Event storming list ·
 Context map · Per context: aggregates, value objects, lifecycles,
 policies · Authorization model · Read models & access patterns ·
 Consistency & concurrency · Data ownership, privacy & retention ·
-Integrations · Volumes · Open questions · Decision log.
+Integrations · Volumes · Open questions · Decision log · a Sources line
+(`S<n>`, claim, URL, retrieved date; `[ASSUMPTION]` when offline).
 
 Use glossary names exactly; any new term goes into the brief's glossary
 first (pipeline rule). Mark the file `Status: Draft` (`Accepted` once the user agrees).

@@ -123,7 +123,12 @@ For each phase:
   dependencies, liveness doesn't.
 - **Security**: input validation on every field, allow-listed binding
   (no mass assignment), rate limits where specified, dependency audit
-  and secret scanning in CI.
+  and secret scanning in CI. **Research** the chosen libraries
+  (`../../references/research.md`, about 5 searches and 5 fetches; package
+  names and versions only, never project code): current versions, known
+  advisories (OSV, GHSA, NVD) and maintenance status, cited with dated
+  URLs in the feature's `research.md`. Label `[RESEARCHED: S<n>]`,
+  `[KNOWN]` or `[ASSUMPTION]`; offline, "verify before relying".
 
 ### Checkpoint — verification per phase
 

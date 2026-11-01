@@ -69,6 +69,11 @@ templates (`spec.md`, `plan.md`, `tasks.md`) plus:
   applies), content rules (label length, truncation), and do/don't.
 - **Motion** — durations/easings as tokens, which interactions animate,
   reduced-motion behavior.
+- **Research** (`../../references/research.md`, about 5 searches and 5
+  fetches): component library versions, browser support baselines and
+  the WAI-ARIA APG patterns chosen, with dated URLs, in
+  `000-design-system/research.md`. Label `[RESEARCHED: S<n>]`, `[KNOWN]`
+  or `[ASSUMPTION]`; offline, "verify before relying".
 - **Accessibility rules** — the WCAG 2.2 AA targets from the vision as
   testable rules (focus ring spec, minimum target size, contrast, live
   region usage).

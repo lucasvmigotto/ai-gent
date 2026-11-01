@@ -83,6 +83,10 @@ Only what the survey came across, each with its evidence:
 - runtimes or frameworks at or past end of life, lockfiles missing,
   dependencies years behind — flagged here, triaged by `project:retrofit`;
 - no tests, or tests CI doesn't run; CI missing or failing;
+- optionally, and only when the user opts in (the survey is read-only on
+  first contact, so no lookups by default), a quick end-of-life lookup for
+  the stack found (`../../references/research.md`, runtime and framework
+  names with versions only), labelled `[RESEARCHED: S<n>]` with a date;
 - docs that contradict the code; drift between main branches with no
   release in sight.
 
