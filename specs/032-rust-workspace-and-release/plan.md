@@ -143,4 +143,4 @@ Differences from rstory worth recording: rstory is tag-triggered with a `verify`
 - **Phase 1 - workspace and gates**: toolchain, deny, lints, `check.sh` and CI wiring, `consistency.py`.
 - **Phase 2 - packaging and installer**: `package.py`, tests, `install.sh`, `setup.sh`.
 - **Phase 3 - release integration**: `release.yml`, attestation, release.py/Cargo.lock, shape test, rehearsal.
-- **Phase 4 - owner steps and the 2.27 release**: Trusted Publishing configured (placeholders are already published), `shared/secrets.md` row for `ai-gent/crates.io/pat`, the variable stays off, cut 2.27.
+- **Phase 4 - owner steps and the 2.27 release**: Trusted Publishing configured (placeholders are already published), the variable stays off, cut 2.27.
