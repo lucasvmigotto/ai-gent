@@ -1,0 +1,23 @@
+{
+ "name": "estimate-starting-table-opus-json",
+ "derived_from": "EstimateTest::test_few_records_fall_back_to_the_starting_table (opus)",
+ "files": {
+  "work/h.jsonl": ""
+ },
+ "runs": [
+  {
+   "argv": [
+    "estimate",
+    "--model=opus",
+    "--effort=high",
+    "--tasks=9",
+    "--json",
+    "--history=h.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\"query\": \"opus \\u00b7 effort high \\u00b7 9 task(s)\", \"median\": 1120000, \"p75\": 1520000, \"n\": 0, \"basis\": \"starting table\", \"tier\": null, \"mix\": {}, \"confidence_label\": \"low\"}\n"
+  }
+ ],
+ "expect_files": {}
+}

@@ -1,0 +1,21 @@
+{
+ "name": "estimate-seed-dedup",
+ "derived_from": "EstimateTest::test_load_history_drops_a_seed_the_repo_already_measured",
+ "files": {
+  "work/h.jsonl": "{\"id\": \"p:1\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c1\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 10, \"date\": \"2026-10-21\", \"agents\": [\"x\"]}\n{\"id\": \"p:2\", \"source\": \"seed\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c2\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 20, \"date\": \"2026-10-22\", \"agents\": [\"x\"]}\n{\"id\": \"p:3\", \"source\": \"seed\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c3\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 30, \"date\": \"2026-10-23\", \"agents\": [\"y\"]}\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "estimate",
+    "--role=builder",
+    "--json",
+    "--history=h.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\"query\": \"sonnet \\u00b7 effort medium\", \"median\": 128000, \"p75\": 179000, \"n\": 2, \"basis\": \"starting table\", \"tier\": null, \"mix\": {}, \"confidence_label\": \"low\"}\n"
+  }
+ ],
+ "expect_files": {}
+}

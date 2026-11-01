@@ -293,6 +293,18 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-token-report.out"
 
+# Parity gate of `ai-gent tokens` (spec 035): the shared fixtures still describe what token_report.py does.
+# The binary side runs in cargo test (parity_tokens). Deleted with token_report.py at the 3.0.0 cutover.
+if [ -f scripts/test-parity-tokens.py ]; then
+  if python3 scripts/test-parity-tokens.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-parity-tokens.out" 2>&1; then
+    pass "tokens parity oracle ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-parity-tokens.out" | cut -c1-60))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-parity-tokens.out"
+    fail "tokens parity fixtures (scripts/test-parity-tokens.py)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-parity-tokens.out"
+fi
+
 if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
   pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
 else

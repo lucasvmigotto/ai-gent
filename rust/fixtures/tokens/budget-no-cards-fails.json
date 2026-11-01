@@ -1,0 +1,23 @@
+{
+ "name": "budget-no-cards-fails",
+ "derived_from": "cmd_budget: sys.exit when no cards are named",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "budget",
+    "--project=-tmp-widgets",
+    "--budget=none.yaml"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": ""
+  }
+ ],
+ "expect_files": {}
+}
