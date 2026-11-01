@@ -185,7 +185,7 @@ test('a critical context or week shows while Details is closed', async ($, on) =
   await ui.unmount()
 })
 
-test('with no bands the line is just the Details button; with no figures there is no line', async ($, on) => {
+test('with no bands the line is just the Details button; with no figures it is still the Details button', async ($, on) => {
   const w = world(on, { limits: [WEEK] })
   await $.session.start(START)
   const ui = await above($)
@@ -195,7 +195,7 @@ test('with no bands the line is just the Details button; with no figures there i
   w.limits = []
   await turn($)
   const empty = await above($)
-  expect(await empty.find({ type: 'Button' } as never)).toBeUndefined()
+  expect(await empty.find({ type: 'Button', props: { label: '▸ Details' } } as never)).toBeDefined()
   await empty.unmount()
 })
 
