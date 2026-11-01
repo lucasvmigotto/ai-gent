@@ -1,6 +1,6 @@
 # CLI contract: `ai-gent tokens`
 
-Parity baseline: `plugins/agents/scripts/token_report.py` `build_parser` (lines 1862-1934). Anything marked [TO CAPTURE] must be copied from a blessed Python run in task T004/T012, not guessed.
+Parity baseline: `plugins/agents/scripts/token_report.py` `build_parser` (lines 1862-1934). What is stated here was captured from blessed Python runs (`rust/fixtures/tokens/`, task T004), not guessed.
 
 Global: `--json` outputs are one JSON document on stdout, diagnostics on stderr. Slugs start with `-`, so `--project=SLUG` and `--project -slug` both parse.
 
@@ -44,8 +44,15 @@ Key order as above (Python dict order). Consumers: `plugins/agents/hooks/token-m
 
 ## `estimate --json`
 
-`{"query": <label>, "median", "p75", "n", "basis": "history|starting table", "tier", "mix", "confidence_label", ...}` plus the tag-path extras (level, confidence, context factor, bias tags) [TO CAPTURE exact keys from `estimate_by_tags` return value, lines 1432-1476].
+One JSON document (default `json.dumps`: `ensure_ascii`, `", "` and `": "` separators), key order as captured:
+
+- history or starting table: `{"query", "median", "p75", "n", "basis": "history|starting table", "tier": str|null, "mix": {confidence: count}, "confidence_label": "low"|null}`
+- tag path (`--tags` matched): `{"query", "median", "p75", "n", "basis": "tags", "tier", "level", "confidence_label": "high|medium|low", "mix", "context": [factor, "learned|prior"], "bias": {"factor", "from": [..]}}`
+
+`query` is `<family> · effort <E>[ · layer L][ · N task(s)][ · tags ...]` (the `·` is escaped as `\u00b7`). Fixtures: `estimate-history-json`, `estimate-tags-json`, `estimate-starting-table-opus-json`.
+
+No-session paths (T004): `report`, `tasks` and `budget` over a slug with no sessions exit 0 and print zero totals; `budget` with no cards exits 1 (`budget: name the wave's cards with --cards ID,ID or --projected [model:]400k,...` on stderr); `report` with neither `--out` nor `--summary` and `tasks --json` without `--dry-run` exit 2. Fixtures: `budget-no-cards-fails`, `report-needs-out-or-summary`, `tasks-json-needs-dry-run`.
 
 ## Environment
 
-`CLAUDE_CONFIG_DIR` (single config dir), `AI_GENT_HOME` (index location), `NO_COLOR` unused (plain text). No variable controls the clock in release builds; tests use a hidden `--now ISO` flag (decision T003).
+`CLAUDE_CONFIG_DIR` (single config dir), `AI_GENT_HOME` (index location), `NO_COLOR` unused (plain text). No variable controls the clock. Tests use a hidden `--now ISO` flag on `tokens` (decision T003) for the "Generated" line, `snapshot` without `--at` and the budget windows. The Python tool has no such flag, so the fixtures write timestamps as `@NOW-<seconds>@`, expanded at run time, and both runners use the real clock.
