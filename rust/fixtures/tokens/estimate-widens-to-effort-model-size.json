@@ -1,0 +1,23 @@
+{
+ "name": "estimate-widens-to-effort-model-size",
+ "derived_from": "EstimateTest::test_history_takes_over_with_median_p75_and_widens_the_match (mixed)",
+ "files": {
+  "work/h.jsonl": "{\"id\": \"p:0\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c0\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 100, \"date\": \"2026-10-20\", \"agents\": [\"ag0\"]}\n{\"id\": \"p:1\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c1\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 200, \"date\": \"2026-10-21\", \"agents\": [\"ag1\"]}\n{\"id\": \"p:2\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c2\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 300, \"date\": \"2026-10-22\", \"agents\": [\"ag2\"]}\n{\"id\": \"p:3\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c3\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"qa\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 400, \"date\": \"2026-10-23\", \"agents\": [\"ag3\"]}\n{\"id\": \"p:4\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c4\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"qa\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 500, \"date\": \"2026-10-24\", \"agents\": [\"ag4\"]}\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "estimate",
+    "--role=builder",
+    "--layer=backend",
+    "--tasks=2",
+    "--json",
+    "--history=h.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\"query\": \"sonnet \\u00b7 effort medium \\u00b7 layer backend \\u00b7 2 task(s)\", \"median\": 300, \"p75\": 400, \"n\": 5, \"basis\": \"history\", \"tier\": \"effort+model+size\", \"mix\": {\"exact\": 5}, \"confidence_label\": null}\n"
+  }
+ ],
+ "expect_files": {}
+}

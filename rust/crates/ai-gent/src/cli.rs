@@ -27,6 +27,8 @@ pub enum Command {
     Update(crate::cmd::update::UpdateArgs),
     /// Evaluate a guard on a hook event read from stdin (shadow phase: the shell guards decide).
     Guard(GuardArgs),
+    /// Token usage per card, estimates and the budget (a port of `token_report.py`).
+    Tokens(crate::cmd::tokens::TokensArgs),
 }
 
 /// Arguments of `guard`.

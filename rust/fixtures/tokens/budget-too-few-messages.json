@@ -1,0 +1,40 @@
+{
+ "name": "budget-too-few-messages",
+ "derived_from": "BudgetTest::test_budget_below_the_minimum_messages_has_no_rate_and_no_eta",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n",
+  "home/.claude/projects/-tmp-widgets/s1.jsonl": "{\"type\": \"assistant\", \"timestamp\": \"@NOW-60@\", \"message\": {\"id\": \"r0\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 50000}}}\n{\"type\": \"assistant\", \"timestamp\": \"@NOW-360@\", \"message\": {\"id\": \"r1\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 50000}}}",
+  "work/budget.yaml": "session_billable: 1M\nweek_billable: 5M\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "budget",
+    "--project=-tmp-widgets",
+    "--budget=budget.yaml",
+    "--specs-dir=specs",
+    "--projected=sonnet:10k",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\"verdict\": \"proceed\", \"why\": \"within the 810k left after a 10% reserve\", \"fit\": 1, \"total\": 10000, \"need\": 14580, \"rate\": null, \"caps\": [{\"name\": \"session\", \"cap\": 1000000, \"used\": 100000, \"left\": 900000, \"eta_minutes\": null}, {\"name\": \"week\", \"cap\": 5000000, \"used\": 100000, \"left\": 4900000, \"eta_minutes\": null}], \"cards\": [{\"label\": \"sonnet:10k\", \"model\": \"sonnet\", \"projected\": 10000, \"p75\": null, \"confidence\": null, \"how\": \"given\"}], \"batches\": [[\"sonnet:10k\"]]}\n"
+  },
+  {
+   "argv": [
+    "budget",
+    "--project=-tmp-widgets",
+    "--budget=budget.yaml",
+    "--specs-dir=specs",
+    "--projected=sonnet:10k"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "wave: 1 card(s)\n  sonnet:10k               sonnet  ~   10k  (given)\nprojected 10k + coordinator 35% + event risk 8% (prior: resumes, fix rounds, flake hunts) = 15k billable\nsession: cap 1.00M, used 100k (session s1), left 900k\nweek: cap 5.00M, used 100k (last 7 days, all projects), left 4.90M\nrate: too few messages (2) in the last 30 min\nverdict: proceed - within the 810k left after a 10% reserve\ndispatch (at most 2 subagent(s) at once, 1 on Opus):\n  batch 1: sonnet:10k (sonnet)\nPrefer Sonnet builders, review inline unless the card needs a fresh context.\n"
+  }
+ ],
+ "expect_files": {}
+}

@@ -1,0 +1,44 @@
+{
+ "name": "seed-infers-tags-from-manifests-and-files",
+ "derived_from": "IndexSeedTest::test_seed_infers_coarse_low_confidence_tags_from_manifests_and_touched_files",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n",
+  "codes/widgets/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "codes/widgets/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "codes/widgets/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "codes/widgets/Cargo.toml": "[dependencies]\ntokio = \"1\"\nreact-dom = \"1\"\n",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a1.jsonl": "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": \"p\"}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:01:00Z\", \"message\": {\"id\": \"a1m\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 1, \"cache_creation_input_tokens\": 10, \"cache_read_input_tokens\": 100, \"output_tokens\": 2}, \"content\": [{\"type\": \"tool_use\", \"id\": \"tu1\", \"name\": \"Write\", \"input\": {\"file_path\": \"src/a.py\", \"content\": \"a\\nb\\nc\"}}]}}",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a1.meta.json": "{\"description\": \"Fix socket protocol findings\"}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "seed",
+    "--project=-tmp-widgets",
+    "--codes-dir=<ROOT>/codes",
+    "--index=<ROOT>/ai-home/token-history.jsonl",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "dry run: seeded 1 record(s) into <ROOT>/ai-home/token-history.jsonl (sessions and specs read-only)\nproject | config dirs | sessions | subagents | records by confidence | billable\nwidgets | 1 | 1 | 1 | 0 exact, 0 feature, 1 agent | 0k\n"
+  },
+  {
+   "argv": [
+    "seed",
+    "--project=-tmp-widgets",
+    "--codes-dir=<ROOT>/codes",
+    "--index=<ROOT>/ai-home/token-history.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "seeded 1 record(s) into <ROOT>/ai-home/token-history.jsonl (sessions and specs read-only)\nproject | config dirs | sessions | subagents | records by confidence | billable\nwidgets | 1 | 1 | 1 | 0 exact, 0 feature, 1 agent | 0k\n"
+  }
+ ],
+ "expect_files": {
+  "ai-home/token-history.jsonl": "{\"id\": \"seed:widgets:agent:a1\", \"source\": \"seed\", \"confidence\": \"agent\", \"project\": \"widgets\", \"feature\": null, \"card\": null, \"tasks\": [], \"layer\": \"general\", \"effort\": null, \"tags\": {\"kind\": \"fix\", \"surface\": \"protocol\", \"lang\": \"python\", \"size\": \"S\"}, \"tags_source\": \"inferred\", \"executor_role\": \"builder\", \"executor_model\": \"sonnet\", \"model_id\": \"claude-sonnet-5-5\", \"files\": 1, \"lines\": 3, \"projected\": null, \"used\": 13, \"used_clean\": 13, \"events\": {}, \"cache_read\": 100, \"coordinator\": null, \"calls\": 1, \"agents\": [\"a1\"], \"desc\": \"Fix socket protocol findings\", \"date\": \"2026-10-20\"}\n"
+ }
+}

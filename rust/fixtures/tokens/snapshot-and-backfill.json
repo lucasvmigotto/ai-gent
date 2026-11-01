@@ -1,0 +1,31 @@
+{
+ "name": "snapshot-and-backfill",
+ "derived_from": "TokenReportTest::test_snapshot_and_backfill_merge_without_duplicates",
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "snapshot",
+    "--label=manual one",
+    "--at=2026-10-20T00:00:00Z",
+    "--snapshots=snaps.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "snapshot 'manual one' at 2026-10-20T00:00:00 (1 total)\n"
+  },
+  {
+   "argv": [
+    "backfill-git",
+    "--repo=-",
+    "--snapshots=snaps.json"
+   ],
+   "stdin": "2026-10-19T00:00:00+00:00|chore: initial commit\n2026-10-20T00:00:00+00:00|manual one\n2026-10-21T00:00:00+02:00|Merge branch 'feat/x' into dev\n",
+   "exit": 0,
+   "stdout": "backfilled 3 markers from origin/dev (3 total)\n"
+  }
+ ],
+ "expect_files": {
+  "work/snaps.json": "[\n {\n  \"at\": \"2026-10-19T00:00:00\",\n  \"label\": \"chore: initial commit\",\n  \"source\": \"git\"\n },\n {\n  \"at\": \"2026-10-20T00:00:00\",\n  \"label\": \"manual one\",\n  \"source\": \"git\"\n },\n {\n  \"at\": \"2026-10-20T22:00:00\",\n  \"label\": \"feat/x\",\n  \"source\": \"git\"\n }\n]"
+ }
+}

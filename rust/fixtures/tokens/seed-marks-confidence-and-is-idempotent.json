@@ -1,0 +1,46 @@
+{
+ "name": "seed-marks-confidence-and-is-idempotent",
+ "derived_from": "IndexSeedTest::test_seed_marks_confidence_and_writes_only_the_index",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n",
+  "codes/widgets/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "codes/widgets/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "codes/widgets/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a1.jsonl": "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": \"\"}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:00:00Z\", \"message\": {\"id\": \"a1-0\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 300}}}",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a1.meta.json": "{\"description\": \"T001, T002: 001-widget core\"}",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a2.jsonl": "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": \"\"}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:00:00Z\", \"message\": {\"id\": \"a2-0\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 200}}}",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a2.meta.json": "{\"description\": \"Do the 001 follow-ups\"}",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a3.jsonl": "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": \"\"}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:00:00Z\", \"message\": {\"id\": \"a3-0\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 100}}}",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a3.meta.json": "{\"description\": \"Survey the repo\"}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "seed",
+    "--project=-tmp-widgets",
+    "--codes-dir=<ROOT>/codes",
+    "--index=<ROOT>/ai-home/token-history.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "seeded 3 record(s) into <ROOT>/ai-home/token-history.jsonl (sessions and specs read-only)\nproject | config dirs | sessions | subagents | records by confidence | billable\nwidgets | 1 | 1 | 3 | 1 exact, 1 feature, 1 agent | 1k\n"
+  },
+  {
+   "argv": [
+    "seed",
+    "--project=-tmp-widgets",
+    "--codes-dir=<ROOT>/codes",
+    "--index=<ROOT>/ai-home/token-history.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "seeded 3 record(s) into <ROOT>/ai-home/token-history.jsonl (sessions and specs read-only)\nproject | config dirs | sessions | subagents | records by confidence | billable\nwidgets | 1 | 1 | 3 | 1 exact, 1 feature, 1 agent | 1k\n"
+  }
+ ],
+ "expect_files": {
+  "ai-home/token-history.jsonl": "{\"id\": \"seed:widgets:001-widget:001-core\", \"source\": \"seed\", \"confidence\": \"exact\", \"project\": \"widgets\", \"feature\": \"001-widget\", \"card\": \"001-core\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"high\", \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"size\": \"M\", \"lang\": \"rust\", \"stack\": [\"tokio\"], \"novelty\": \"known-pattern\", \"verification\": \"integration\"}, \"tags_source\": \"planned\", \"executor_role\": \"builder\", \"executor_model\": \"sonnet\", \"model_id\": \"claude-sonnet-5-5\", \"files\": 0, \"lines\": 0, \"projected\": 400000, \"used\": 300, \"used_clean\": 300, \"events\": {}, \"cache_read\": 1000, \"coordinator\": null, \"calls\": 1, \"agents\": [\"a1\"], \"desc\": \"T001, T002: 001-widget core\", \"date\": \"2026-10-20\"}\n{\"id\": \"seed:widgets:agent:a2\", \"source\": \"seed\", \"confidence\": \"feature\", \"project\": \"widgets\", \"feature\": \"001-widget\", \"card\": null, \"tasks\": [], \"layer\": \"general\", \"effort\": null, \"tags\": {\"kind\": \"extend\", \"surface\": \"other\"}, \"tags_source\": \"inferred\", \"executor_role\": \"builder\", \"executor_model\": \"sonnet\", \"model_id\": \"claude-sonnet-5-5\", \"files\": 0, \"lines\": 0, \"projected\": null, \"used\": 200, \"used_clean\": 200, \"events\": {}, \"cache_read\": 1000, \"coordinator\": null, \"calls\": 1, \"agents\": [\"a2\"], \"desc\": \"Do the 001 follow-ups\", \"date\": \"2026-10-20\"}\n{\"id\": \"seed:widgets:agent:a3\", \"source\": \"seed\", \"confidence\": \"agent\", \"project\": \"widgets\", \"feature\": null, \"card\": null, \"tasks\": [], \"layer\": \"general\", \"effort\": null, \"tags\": {\"kind\": \"extend\", \"surface\": \"other\"}, \"tags_source\": \"inferred\", \"executor_role\": \"builder\", \"executor_model\": \"sonnet\", \"model_id\": \"claude-sonnet-5-5\", \"files\": 0, \"lines\": 0, \"projected\": null, \"used\": 100, \"used_clean\": 100, \"events\": {}, \"cache_read\": 1000, \"coordinator\": null, \"calls\": 1, \"agents\": [\"a3\"], \"desc\": \"Survey the repo\", \"date\": \"2026-10-20\"}\n"
+ }
+}
