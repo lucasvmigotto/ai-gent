@@ -32,36 +32,14 @@ skill doesn't repeat those rules.
 
 ## Phase 0 — Discovery
 
-Inventory before designing; `references/discovery.md` has the full list
-(read it when there are sibling projects, an unusual stack, or a curated
-image catalog). The essentials:
-
-- Modules, the language and **exact version** each uses (from the
-  manifest), the package manager in use, the formatter and linter configs
-  already checked in, existing Dockerfiles, compose files, CI and task
-  runners. Don't discard partial devcontainer config before understanding
-  why it looks the way it does.
-- The container engine, and for Podman whether cgroup v2 limits and the
-  user socket are available (`containers.md` §1); the hardened image for
-  each runtime (§3).
-- **Classify the project's shape first — Phase 1 keys off it:**
-  **API + client** (a backend serving an API and a frontend consuming it,
-  in separate folders or packages — even if both are TypeScript);
-  **full-stack single app** (one framework serves UI and server code from
-  one process or build: Next.js, Nuxt, SvelteKit, Remix, server-rendered
-  Rails, Django, Laravel); **other** (a service, library, CLI, workers).
-- Sibling or reference projects: read their devcontainer and compose
-  config before designing. An established convention people know how to
-  operate beats a novel one, but it is evidence of *style*, not license
-  to skip a split.
-- The project's **own** production facts any simulation must match (proxy
-  path prefixes, env var names, service names and ports, real prod
-  versions) — read from its `.env.example`, proxy config, CI or manifests;
-  never invent a stand-in when the real value is one file-read away.
-- Check the reference catalogs before picking anything:
-  `containers.dev/features` for features, and the user's own curated image
-  family if there is one, before a generic `mcr.microsoft.com/devcontainers/*`
-  base. Never add a feature the base image already provides.
+Inventory before designing; read `references/discovery.md` for the full list
+(stack and exact versions, engine, sibling projects, production facts, image
+catalogs). **Classify the project's shape first — Phase 1 keys off it:**
+**API + client** (a backend serving an API and a frontend consuming it, in
+separate folders or packages — even if both are TypeScript); **full-stack
+single app** (one framework serves UI and server code from one process or
+build); **other** (a service, library, CLI, workers). A sibling project's
+convention is evidence of *style*, not license to skip a split.
 
 ## Phase 1 — How many devcontainers?
 
@@ -152,28 +130,11 @@ Per module, following `containers.md` §2–§7:
 
 For people: a comfortable shell, completion and IDE support, so a heavier
 image is fine. It still uses the single version source, joins the same
-network and can run the same recipes. `references/devcontainer-json.md`
-has the detail; read it when writing the file. The rules:
-
-- **Base image, in order:** the user's curated catalog image for the exact
-  language, version and distro; else an official `mcr.microsoft.com/devcontainers/*`
-  image with `ghcr.io/devcontainers/features/*` on top; a project-specific
-  Dockerfile only for a genuine requirement. Never hand-roll what a
-  feature or catalog image solves.
-- **Engine access inside the container** only if the module's own
-  build or tests need it: Podman — forward the user socket and set
-  `DOCKER_HOST`; Docker — `docker-outside-of-docker` over `docker-in-docker`
-  unless isolation from the host daemon is a real requirement.
-- **Two caches, two volumes** (editor extensions; dependencies and build
-  output), each named `<project>-<module>-<purpose>`. A fresh named volume
-  is root-owned: fix a non-root user's access once in `postCreateCommand`
-  (`sudo chown -R <user>:<user> <target>`), not by hand.
-- **Formatter and linter settings mirror what the project already
-  enforces**, never a fresh default: the matching extension,
-  `editor.defaultFormatter` set explicitly, format on save. A mismatch
-  with CI's lint step is a bug.
-- Enable autobuild/watch where the stack supports it — Phase 6 depends
-  on it.
+network and can run the same recipes. Read `references/devcontainer-json.md`
+when writing the file (base image order, engine access, the two cache
+volumes and their ownership, formatter settings that mirror the project's
+CI, autobuild/watch which Phase 6 depends on). Never hand-roll what a
+feature or catalog image solves.
 
 ## Phase 4 — Env & secrets
 

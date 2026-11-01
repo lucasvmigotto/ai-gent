@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the pipeline's brief, domain model and specs (labelled Planned until built), branded from the UX vision — plus llms.txt and Markdown pages for LLMs, with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
+description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the brief, domain model and specs (Planned until built) — plus llms.txt and Markdown pages for LLMs, with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
 ---
 
 # Project documentation websites
@@ -87,29 +87,13 @@ recorded from `vhs` tapes, re-rendered in CI so they can't go stale.
 
 ## Phase 2 — Scaffold
 
-Bun · React · TypeScript (the current stable major, pinned; verify the
-resolved version with `bunx tsc --version` + `bun pm ls typescript`) · Vite · Tailwind CSS ·
-React Router **`HashRouter`** (static hosts provide no SPA fallback, so
-hash routing keeps deep links working) · Biome (not ESLint). No runtime
-backend, no heavy doc framework.
-
-- Versions injected at build time from the host's sources of truth
-  (e.g. read `Cargo.toml` in `vite.config.ts`), never hand-maintained.
-  The footer names every versioned part and then the site itself —
-  `<project>@v<version> · docs@v<docs version>` (`app@v1.2.0 · api@v1.2.0
-  · docs@v1.0.0` for a multi-part repo) — each linked to the repository
-  tree at its release tag, or at the commit (`v1.2.0+abc1234`) for a build
-  past it. The docs version is `docs/site/package.json`'s, raised by the
-  release flow when the site changes. Read
-  `references/version-footer.md` when building or fixing the footer.
-- Page metadata + Open Graph + favicon + `index.html`; distinct project
-  branding (dark-first tokens adapted per project, restrained motifs).
-- **Visual identity.** If `docs/product/ux-vision.md` exists, derive the
-  site's tokens from it (and from `specs/000-design-system/` if built),
-  so the docs look like the product's family. If not, invoke
-  `frontend:uiux` scoped to the docs site (audience: the site's readers)
-  for a lightweight direction — its visual-direction method avoids the
-  templated docs look. Hold the site to `frontend:build`'s quality floor.
+Bun · React · TypeScript (current stable major, pinned) · Vite · Tailwind CSS ·
+React Router **`HashRouter`** (static hosts have no SPA fallback) · Biome (not
+ESLint). No runtime backend, no heavy doc framework. Versions are injected at
+build time from the host's sources of truth; the footer reads
+`<project>@v<version> · docs@v<docs version>`. Branding derives from
+`docs/product/ux-vision.md` when it exists. Read `references/scaffold.md` before
+scaffolding: footer rules, metadata, visual identity.
 
 ## Phase 3 — Components (only what pages need)
 
@@ -167,60 +151,10 @@ error states) before calling anything done.
 
 ## Phase 7 — Ship
 
-- **Paths:** every CI step, cache key and the Docker build context use
-  the site directory — `docs/site/` normally, `site/` for a hub-type repo
-  (`working-directory: <site>`, `paths: [<site>/**]` triggers). Content
-  read from `docs/product/` or `specs/` must also trigger a rebuild.
-- **GitHub Actions, written here.** Unless the project already uses
-  another platform, the skill writes the site's workflow itself —
-  `.github/workflows/<site>.yml` with a `verify` job (checkout → setup Bun
-  pinned → install → lint → typecheck → test → build → upload `dist/`) and
-  a `deploy` job (`needs: verify`) that publishes on the default branch
-  only. When a release workflow tags the default branch after the push,
-  deploy on its completion instead (`workflow_run`), or the footer
-  shows the previous version (`references/version-footer.md`).
-  `devsecops:pipeline` still owns the supply-chain baseline (action
-  pinning, SBOM, signing) and reviews/hardens this file; it does not invent
-  its shape.
-- **Register the deployment.** The publishing job must declare a GitHub
-  Actions **environment** — a run that only syncs files is invisible in the
-  repository's Deployments and has nowhere to attach protection rules:
-
-  ```yaml
-  deploy:
-    needs: verify
-    if: github.ref == 'refs/heads/main'
-    environment:
-      name: <repo>-docs        # e.g. rusteams-docs
-      url: <public site URL>   # e.g. https://docs.lucasvmigotto.me/rusteams/
-  ```
-
-  `environment:` is what makes GitHub treat the run as a real Deployment:
-  it lists under Deployments, keeps its own history, and becomes the home
-  for environment-scoped variables/secrets and, later, required reviewers.
-  A job merely *named* `deploy` without it is still just steps. One
-  environment per site (`<repo>-docs`) so sibling repos don't share
-  protection rules by accident; the job's display name stays descriptive
-  (`Sync static site to …`).
-- **R2 deploy steps:** the `deploy` job runs checkout → setup Bun (pinned) →
-  install → lint → typecheck → test → build → artifact → S3 sync to
-  Cloudflare R2.
-  Immutable long-lived caching for hashed assets, `no-cache` for entry
-  HTML, `llms.txt`, `llms-full.txt` and the `.md` pages, which are served
-  as `text/markdown; charset=utf-8` (`.txt` as `text/plain;
-  charset=utf-8`). Concurrency cancel-in-progress, least-privilege permissions,
-  endpoint validation. Credentials via Variables/Secrets placeholders —
-  **the names are `devsecops:pipeline`'s scheme, not a per-project
-  spelling**: `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCOUNT_SECRET`,
-  `CLOUDFLARE_R2_ENDPOINT_S3_CLIENT`, `CLOUDFLARE_R2_BUCKET_ID`.
-- **Docker (optional):** per `../../references/containers.md` — a Bun
-  build stage with the sources bind-mounted and Bun's cache mounted, a
-  hardened (or unprivileged) nginx runtime pinned by digest that copies
-  only `dist/`, a deny-by-default `.dockerignore`, non-root user,
-  security headers, gzip, and `types` for `.md` as `text/markdown`. Repeat security headers inside every
-  `location` block — location-level `add_header` disables server-level
-  inheritance. Hash routing needs no SPA fallback (`try_files
-  $uri $uri/ =404`).
-- **Final report:** architecture, reference deltas (reused / adapted /
-  intentionally changed + why), accessibility mechanisms, i18n design,
-  deployment, validation results, remaining work, future work.
+Every CI step and the Docker context use the site directory. Unless the project
+uses another platform, write `.github/workflows/<site>.yml` (`verify` then
+`deploy`, publishing on the default branch only, with a declared `environment:`)
+and deploy to R2 with `devsecops:pipeline`'s secret names; Docker is optional.
+Read `references/ship.md` before writing the workflow or Dockerfile. End with
+the final report: architecture, reference deltas, accessibility, i18n,
+deployment, validation results, remaining work.

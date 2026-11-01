@@ -1,6 +1,6 @@
 ---
 name: iac
-description: Write infrastructure as code for the environments the architecture chose — OpenTofu or Terraform by default, or the project's Pulumi, Bicep or CDK — with modules, per-environment state, OIDC deploy identities, least-privilege IAM, private networking, policy checks and plan-on-PR, apply-on-approval wiring. Use for "write the Terraform", "provision the cloud resources", "infrastructure as code".
+description: Write infrastructure as code for the environments the architecture chose — OpenTofu or Terraform by default, or Pulumi, Bicep or CDK — with modules, per-environment state, OIDC deploy identities, least-privilege IAM and plan-on-PR, apply-on-approval wiring. Use for "write the Terraform", "provision the cloud resources", "infrastructure as code".
 ---
 
 # Infrastructure as code

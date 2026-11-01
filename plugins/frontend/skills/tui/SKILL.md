@@ -1,6 +1,6 @@
 ---
 name: tui
-description: Build a terminal interface the user asked for — a TUI and the CLI it sits on (subcommands, --json, exit codes), or a CLI alone — with Go/Bubble Tea, Rust/Ratatui, Python/Textual, Java/Lanterna, TypeScript/Ink or .NET/Spectre.Console, against the API contract, with snapshot and keystroke tests and packaging. Use for "build a TUI", "terminal dashboard", "design the CLI". Never creates a TUI unasked.
+description: Build a terminal interface the user asked for — a TUI and the CLI it sits on (subcommands, --json, exit codes), or a CLI alone — in the stack that fits (Go, Rust, Python, TypeScript, .NET, Java), with snapshot and keystroke tests. Use for "build a TUI", "terminal dashboard", "design the CLI". Never creates a TUI unasked.
 ---
 
 # Terminal interfaces — TUI and CLI
@@ -89,9 +89,7 @@ only after the last checkpoint passes.
 
 ## Handoff
 
-After any push of this work, follow its CI with `devsecops:watch`
-(pipeline rule 8 in `../../references/pipeline.md`): a red run caused by
-the change is fixed here before the feature counts as done.
+After any push, follow CI with `devsecops:watch` (pipeline rule 8, `../../references/pipeline.md`); fix a red run this change caused before calling the feature done.
 
 The commands and screens built, the stack and its ADR, test and tape
 results, the release artifacts, and what's open. `qa:e2e` covers

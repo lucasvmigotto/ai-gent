@@ -97,14 +97,7 @@ branch.
 
 ## Handoff
 
-On Claude Code with the `agents` plugin, record what the phase cost:
-`python3 <agents plugin>/scripts/token_report.py tasks --project=<session
-slug> --specs-dir specs` writes `used` next to each card's projected tokens
-on its task lines, in the feature's `tracker.md` and in
-`docs/product/token-history.jsonl`. A subagent leaves it to the coordinator
-that dispatched it (its own transcript is still open), and work done in the
-main thread alone is not attributed to a card
-(`../../references/token-tracking.md`).
+On Claude Code with the `agents` plugin, record what the phase cost (`../../references/token-tracking.md`, *Recording a phase's cost*).
 
 Journeys covered per feature, pass/flake results, defects filed with
 evidence, statuses changed, and the CI job. Then clean up per

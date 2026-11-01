@@ -1,6 +1,6 @@
 ---
 name: red
-description: Simulate an attacker against a scoped target — application (authz, injection, OWASP Top 10), infrastructure (cloud and IaC misconfigurations, network exposure) and AI/LLM systems (prompt injection, tool and agent abuse, OWASP LLM Top 10) — a threat model, an attack plan and evidenced, severity-ranked findings with fixes. Use for a penetration test, a red team exercise, "think like an attacker."
+description: Simulate an attacker against a scoped target — application (authz, injection, OWASP Top 10), infrastructure (cloud and IaC misconfigurations) and AI/LLM systems (prompt injection, agent abuse) — with a threat model and evidenced, severity-ranked findings with fixes. Use for a penetration test, a red team exercise, "think like an attacker".
 ---
 
 # Red team security testing

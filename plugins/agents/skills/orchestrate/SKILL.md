@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Run a spec'd feature or task list with role-separated agents — a strong model plans and reviews, a fast model builds, a small one searches — routed by task to save tokens, with self-contained cards, a worktree per parallel branch and merges asked first. Agent-agnostic, Claude by default. Use for "orchestrate feature 012", "opus plans and sonnet implements", "split this work between agents".
+description: Run a spec'd feature or task list with role-separated agents — a strong model plans and reviews, a fast one builds, a small one searches — routed by task to save tokens, with a worktree per parallel branch. Use for "orchestrate feature 012", "opus plans and sonnet implements", "split this work between agents".
 ---
 
 # Orchestrate — the right agent for each task

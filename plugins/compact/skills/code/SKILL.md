@@ -1,6 +1,6 @@
 ---
 name: code
-description: Read source code token-lean — a compact view with indentation, newlines and optional spaces removed (strings, comments and preprocessor lines kept, every result self-verified) and an outline with original line numbers, for Java, C#, C/C++, Go, Rust, JS/TS, Kotlin, PHP and more. Read-only. Use before reading large or many source files, mapping or reviewing a codebase, or when tokens are tight.
+description: Read source code token-lean — a compact view with indentation and optional spaces removed (strings and comments kept, self-verified) and an outline with original line numbers, for Java, C#, C/C++, Go, Rust, JS/TS and more. Read-only. Use before reading large or many source files, mapping a codebase, or when tokens are tight.
 ---
 
 # Compact code reading

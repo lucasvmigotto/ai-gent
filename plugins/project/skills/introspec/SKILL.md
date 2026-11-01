@@ -1,6 +1,6 @@
 ---
 name: introspec
-description: Reverse-engineer an existing codebase into the pipeline's full specification — brief, as-is architecture, domain model, Spec Kit features with evidence-based statuses, and an OpenAPI contract from the real routes — labelling each claim Observed (file:line), Inferred or Assumed. May read a dev database, never production. Use for "reverse-engineer the spec", "document what this legacy app does".
+description: Reverse-engineer an existing codebase into the pipeline's full specification — brief, as-is architecture, domain model, Spec Kit features with evidence-based statuses, OpenAPI contract from the real routes — each claim labelled Observed, Inferred or Assumed. Never reads production. Use for "reverse-engineer the spec", "document what this legacy app does".
 ---
 
 # Introspective specification

@@ -1,6 +1,6 @@
 ---
 name: status
-description: Report where a project stands in the product pipeline — which artifacts exist, each feature's frontend, backend and QA status, open gaps, assumptions and clarifications, status claims the repo contradicts — and recommend the next stage to run. Read-only. Use for "where are we", "what's next", "project status", "which stage should I run", or at the start of a session on a pipeline project.
+description: Report where a project stands in the product pipeline — which artifacts exist, each feature's frontend, backend and QA status, open gaps, status claims the repo contradicts — and recommend the next stage. Read-only. Use for "where are we", "what's next", "project status", "which stage should I run", or at a session start on a pipeline project.
 ---
 
 # Pipeline status

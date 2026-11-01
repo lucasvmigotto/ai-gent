@@ -317,3 +317,22 @@ narrower card with only what is left.
   above the median) is a reason to pad. Say so to the user.
 - **Not a price.** Billable tokens are a cost proxy; turn them into money only
   with the vendor's own price list, never from memory.
+
+## Recording a phase's cost
+
+On Claude Code with the `agents` plugin, a build or test phase records what it
+cost: `python3 <agents plugin>/scripts/token_report.py tasks --project=<session
+slug> --specs-dir specs` writes `used` next to each card's projected tokens on
+its task lines, in the feature's `tracker.md` and in
+`docs/product/token-history.jsonl`. A subagent leaves it to the coordinator
+that dispatched it (its own transcript is still open), and work done in the
+main thread alone is not attributed to a card.
+
+## Maintaining the tooling
+
+`plugins/agents/scripts/token_report.py` is stdlib only; its tests are in
+`test_token_report.py`, run by `scripts/check.sh`. The tests never read real
+transcripts or `~/.ai-gent`; they build a fake `HOME`. The tag vocabulary is
+`token-tags.json` plus its documentation `token-tags.md`; to add a value,
+change both. `scripts/consistency.py` fails if they differ, if a value is in
+two facets, or if a `cards.md` card lacks `Tags:` or `Tokens: projected`.
