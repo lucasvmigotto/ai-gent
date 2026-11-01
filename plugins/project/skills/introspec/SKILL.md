@@ -55,6 +55,14 @@ Every claim in every artifact carries one:
 - `[ASSUMPTION: …]` — the pipeline's marker, for what only the user can
   confirm (why a rule exists, who the audiences are, business goals).
 
+**Research never upgrades a claim.** The web may resolve an Inferred
+claim about a third-party library or API from its public docs
+(`../../references/research.md`, about 5 searches and 5 fetches; library
+names and versions only, never the repository's code). The claim stays
+Inferred and gains `[RESEARCHED: S<n>]` with a dated URL; Observed stays
+code-only and is never set or changed by a source. Offline, nothing
+changes.
+
 Prefer the cheapest strong evidence; a test that asserts a rule beats the
 code implementing it, which beats a comment or a README.
 

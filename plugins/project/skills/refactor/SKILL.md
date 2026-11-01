@@ -69,6 +69,12 @@ for large or many files in a brace language.
    - **business**: workflows the evidence says hurt (manual steps,
      frequent support fixes, rules that contradict each other, dead
      options) and what a better policy would look like.
+   **Research** (`../../references/research.md`, about 5 searches and 5
+   fetches) the "could work better" patterns and the target technology's
+   current status and versions, cited with dated URLs. Queries carry
+   generic pattern and framework names only: never send proprietary code,
+   internal names or business data. Label `[RESEARCHED: S<n>]`, `[KNOWN]`
+   or `[ASSUMPTION]`; offline, "verify before relying".
 4. **Business change records.** Each proposed change to a business policy
    or accidental behavior becomes `docs/product/bcr/NNNN-<change>.md`:
    current behavior (with evidence), proposed behavior, why, who and what
@@ -91,6 +97,7 @@ for large or many files in a brace language.
      parallel run or shadow traffic comparing old and new outputs where
      the risk is high;
    - cutover and rollback per slice; decommissioning of the old path.
+   Close `refactor.md` with a Sources section (`S<n>`, claim, URL, date).
    Order slices by value and risk: an early, low-risk slice proves the
    seam and the pipeline.
 6. **Execute through the chain.** Each slice goes through the usual

@@ -27,6 +27,12 @@ cite (cases, tests, features) from the repository, now.
   ("meta" in pt-BR).
 - **Ask once** before writing: anything that must stay off the page (a
   backstory, a person, an internal conflict), and who will read it.
+- **Market or industry framing only when the user asks**
+  (`../../references/research.md`, about 5 searches and 5 fetches; generic
+  terms, never the project's internals). Every such number carries a URL
+  and a retrieved date, like every other figure; without both it is
+  dropped or labelled a target. Offline: `[ASSUMPTION]`, "verify before
+  relying".
 - No personal data; people by role, unless the user asks otherwise.
 
 ## 2. Shape it
