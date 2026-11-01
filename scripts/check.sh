@@ -305,6 +305,17 @@ if [ -f scripts/test-parity-tokens.py ]; then
   rm -f "${TMPDIR:-/tmp}/ai-gent-parity-tokens.out"
 fi
 
+# Parity gate of `ai-gent spec` (spec 037): same shape. Deleted with specsync.py at the 3.0.0 cutover.
+if [ -f scripts/test-parity-spec.py ]; then
+  if python3 scripts/test-parity-spec.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-parity-spec.out" 2>&1; then
+    pass "spec parity oracle ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-parity-spec.out" | cut -c1-60))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-parity-spec.out"
+    fail "spec parity fixtures (scripts/test-parity-spec.py)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-parity-spec.out"
+fi
+
 if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
   pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
 else

@@ -29,6 +29,8 @@ pub enum Command {
     Guard(GuardArgs),
     /// Token usage per card, estimates and the budget (a port of `token_report.py`).
     Tokens(crate::cmd::tokens::TokensArgs),
+    /// Plan a feature's tracker items from its specs (a port of `specsync.py`).
+    Spec(crate::cmd::spec::SpecArgs),
 }
 
 /// Arguments of `guard`.

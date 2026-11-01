@@ -1,0 +1,30 @@
+{
+ "name": "features-list",
+ "derived_from": "specsync.cmd_features",
+ "files": {
+  "work/specs/README.md": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 012 | export | P1 | — | In progress | In progress |\n| 013 | legacy | P3 | — | — | — |\n\n| # | Notes |\n|---|---|\n",
+  "work/specs/012-export/spec.md": "# Feature Specification: CSV export\n\n## User Scenarios & Testing\n\n### User Story 1 - Export a timesheet (Priority: P1)\n\nA manager downloads the month's timesheet as CSV.\n\n**Acceptance Scenarios**:\n\n1. **Given** a closed month, **When** export runs, **Then** a CSV downloads.\n\n### User Story 2 — Schedule exports (Priority: P2)\n\nExports arrive by email every Monday.\n\n## Requirements\n\n- **FR-001** …\n",
+  "work/specs/013-legacy/.keep": "",
+  "work/specs/012-export/tasks.md": "# Tasks: export\n\n## Phase 1: Setup\n\n- [x] T001 Add the csv writer dependency\n\n## Phase 2: User Story 1 - Export a timesheet (P1)\n\n- [x] T002 [P] Test: CSV columns match the contract\n- [ ] T003 Implement the writer in `api/export.py`\n\n## Phase 3: User Story 2 — Schedule exports (P2)\n\n- [ ] T004 Cron entry in `jobs/schedule.py`\n\n## Frontend\n\n- [x] T010 [P] [US1] Export button on the timesheet page\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "features"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "012-export                               doing   not synced  3 pending\n013-legacy                               todo    not synced  1 pending\n"
+  },
+  {
+   "argv": [
+    "features",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "[\n  {\n    \"feature\": \"012-export\",\n    \"synced\": false,\n    \"pending\": 3,\n    \"state\": \"doing\"\n  },\n  {\n    \"feature\": \"013-legacy\",\n    \"synced\": false,\n    \"pending\": 1,\n    \"state\": \"todo\"\n  }\n]\n"
+  }
+ ],
+ "expect_files": {}
+}
