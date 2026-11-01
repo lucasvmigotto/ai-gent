@@ -4,6 +4,16 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## 2.27.0 — 2026-11-01
+
+### Added
+
+- **project:** always draw the Details button, with the model and effort at its right
+
+### Changed
+
+- **frontend:** split the visual-direction reference and trim it to the core
+
 ## 2.26.0 — 2026-11-01
 
 ### Added
