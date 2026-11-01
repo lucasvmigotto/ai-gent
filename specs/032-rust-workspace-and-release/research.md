@@ -1,0 +1,14 @@
+# Research: 032 Rust workspace and release
+
+Method: `shared/research.md`; generic queries only; about 8 searches and 2 fetches on 2026-11-01. "Fetched" means the page was opened; "search" means the URL came back from a search and its summary was used, not the page (Medium confidence at best).
+
+| # | Claim | URL | Retrieved | Confidence | Label |
+|---|---|---|---|---|---|
+| S1 | crates.io lets owners require Trusted Publishing ("enforce" per crate); `pull_request_target` and `workflow_run` triggers cannot publish through it. The post does not describe per-crate setup or workflow-file rules. | https://blog.rust-lang.org/2026/01/21/crates-io-development-update | 2026-11-01 (fetched) | High | [RESEARCHED: S1] |
+| S2 | Free public-repo runner labels: `ubuntu-24.04-arm`, `windows-11-arm`, `windows-11-vs2026-arm`, `macos-15`, `macos-15-intel`, `macos-26`, `macos-26-intel`. | https://docs.github.com/en/actions/reference/runners/github-hosted-runners | 2026-11-01 (fetched) | High | [RESEARCHED: S2] |
+| S3 | `curl`-downloaded files do not get the `com.apple.quarantine` attribute, so Gatekeeper does not check them; browser downloads do; `tar` extraction does not add it. | https://unit42.paloaltonetworks.com/gatekeeper-bypass-macos | 2026-11-01 (search) | Medium | [RESEARCHED: S3] |
+| S4 | An unsigned file downloaded with the Mark of the Web gets a SmartScreen reputation warning ("Run anyway"); Smart App Control on Windows 11 can block unsigned executables regardless of the download path. | https://learn.microsoft.com/et-ee/windows/apps/package-and-deploy/smartscreen-reputation | 2026-11-01 (search) | Medium | [RESEARCHED: S4] |
+| S5 | PowerShell escapes with the backtick (only interpreted in double-quoted strings); cmd.exe escapes with the caret; `^` is mostly literal in PowerShell; native executables are called through cmd-style argument quoting. | https://learn.microsoft.com/pt-br/powershell/module/microsoft.powershell.core/about/about_special_characters?view=powershell-7.6 | 2026-11-01 (search) | Medium | [RESEARCHED: S5] |
+| S6 | Arm64 hosted runners for public repositories reached general availability on 2025-08-07; the Windows arm64 runner was public preview in April 2025. | https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/ | 2026-11-01 (search) | Medium | [RESEARCHED: S6] |
+
+Not found: `cargo-dist`'s own documentation (the search returned only an issue thread), so the cargo-dist reasons in `plan.md` are `[ASSUMPTION]`. Not found: crates.io's documentation of per-crate Trusted Publishing configuration for workspaces; `plan.md` states the per-crate setup as `[KNOWN]` from the registry's settings page and tells the owner to confirm it when configuring. Cross-compiling with `cargo-zigbuild` is a documented practice [KNOWN]; it was not weighed further because native runners are free for this repository.
