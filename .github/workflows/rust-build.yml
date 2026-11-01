@@ -71,6 +71,11 @@ jobs:
           cargo --version
           rustc -vV
 
+      # release.py writes the crate versions and Cargo.lock together; a lock that disagrees fails here, before a build.
+      - name: Cargo.lock is consistent with the manifests
+        working-directory: rust
+        run: cargo metadata --locked --format-version 1 > /dev/null
+
       - name: Build
         working-directory: rust
         run: cargo build --release --locked --target "$TARGET"
@@ -87,6 +92,12 @@ jobs:
           echo "$out" | grep -q "\"target\":\"$TARGET\""
           echo "$out" | grep -q '"profile":"release"'
           "$bin" --version
+          # A release build carries the tag: ai-gent --version equals the package VERSION (D23).
+          if [ "$AI_GENT_RELEASE" != dev ]; then
+            echo "$out" | grep -q "\"release\":\"$AI_GENT_RELEASE\""
+            echo "$out" | grep -q "\"crate\":\"$AI_GENT_RELEASE\""
+            "$bin" --version | grep -q "^ai-gent $AI_GENT_RELEASE ($TARGET)$"
+          fi
           # doctor may fail on install_root only: a runner has no install.
           set +e
           dout=$("$bin" doctor --json)

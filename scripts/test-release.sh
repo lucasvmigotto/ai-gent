@@ -312,6 +312,16 @@ run
 check "  after the real run both Cargo.toml files and the lock agree with the plan" test "$(versions)" == "bin=1.0.2/1.0.2 core=0.1.1/0.1.1 req=0.1.1"
 check "  after the release commit and tag, planning again finds nothing to release (exit 3, not a mismatch)" bash -c 'cd "$1" && git add -A && git -c user.name=t -c user.email=t@t commit -q -m "chore(release): 1.0.2" && git tag -a 1.0.2 -m 1.0.2 && python3 "$2" --dry-run >/dev/null 2>&1; test $? -eq 3' _ "$repo" "$RELEASE"
 
+# The release job's own `git add` lines (taken from release.yml) cover every file release.py wrote.
+rfresh
+edit rust/crates/ai-gent-core/src/lib.rs "fix(core): handle empty input"
+edit plugins/a/README.md "feat(a): something"
+run
+adds="$(grep -E '^ *(git add CHANGELOG|if \[ -f rust/Cargo.lock \])' "$REPO_DIR/.github/workflows/release.yml")"
+check "release.yml has the git add lines for the changelog, manifests, both Cargo.toml files and Cargo.lock" bash -c '[ "$(grep -c . <<<"$1")" -eq 2 ] && grep -q "rust/crates/\*/Cargo.toml rust/Cargo.lock" <<<"$1"' _ "$adds"
+check "running them stages every file release.py wrote (nothing left modified)" bash -c 'cd "$1" && sh -e -c "$2" && test -z "$(git diff --name-only)" && git diff --cached --name-only | LC_ALL=C sort | tr "\n" " " | grep -qx "CHANGELOG.md plugins/a/.claude-plugin/plugin.json rust/Cargo.lock rust/crates/ai-gent-core/Cargo.toml rust/crates/ai-gent/Cargo.toml "' _ "$repo" "$adds"
+check "  and the same lines still work in a repository without rust/" bash -c 'fresh() { :; }; cd "$1" && git reset -q --hard && git rm -rq rust && git commit -q -m "chore: drop rust" && echo x >> plugins/a/README.md && sh -e -c "$2"' _ "$repo" "$adds"
+
 echo "      -- changelog"
 fresh
 python3 - "$repo/CHANGELOG.md" <<'EOF'

@@ -349,6 +349,23 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-release-single.out"
 
+# The Rust build and release workflows (pins, permissions, the publish gate) and the crates.io publisher.
+if scripts/test-rust-workflows.sh >"${TMPDIR:-/tmp}/ai-gent-rust-workflows.out" 2>&1; then
+  pass "rust workflows ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-rust-workflows.out") checks)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-rust-workflows.out"
+  fail "rust workflows (scripts/test-rust-workflows.sh)"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-rust-workflows.out"
+
+if scripts/test-rust-publish.sh >"${TMPDIR:-/tmp}/ai-gent-rust-publish.out" 2>&1; then
+  pass "crates.io publisher ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-rust-publish.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-rust-publish.out"
+  fail "crates.io publisher (scripts/test-rust-publish.sh)"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-rust-publish.out"
+
 # ------------------------------------------------------- opencode guard
 
 runtime="$(command -v bun || command -v node || true)"

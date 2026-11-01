@@ -1,8 +1,20 @@
 name: rust
 
-# Rehearsal of the Rust build (spec 032 FR-012): never tags, releases, attests or publishes.
-# Dispatch only at this stage; pull_request triggers arrive with the check.yml wiring (T014).
+# Rehearsal of the Rust build and of the release's packaging (spec 032 FR-012, T035): it builds
+# the six binaries, packages them with the very script release.yml runs, installs the result
+# into a scratch home with install.sh, and dry-runs the crates.io publish. It never tags,
+# releases, attests or publishes: no contents write, no id-token, no attestations, no secrets.
 on:
+  pull_request:
+    paths:
+      - "rust/**"
+      - "shared/guard-fixtures/**"
+      - ".github/workflows/rust*.yml"
+      - ".github/workflows/release.yml"
+      - "scripts/package.py"
+      - "scripts/package-release.sh"
+      - "scripts/rust-publish.sh"
+      - "install.sh"
   workflow_dispatch:
 
 permissions:
@@ -21,3 +33,85 @@ jobs:
       ref: ${{ github.sha }}
       release: dev
       dry_run: true
+
+  # The release's `package` job without the tag, the attestation and the upload.
+  package:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bin-*
+          path: bins
+
+      - name: Package every target, SHA256SUMS and the release notes (the release job's script)
+        run: |
+          printf 'Rehearsal: these notes are a placeholder.\n' > "$RUNNER_TEMP/notes.md"
+          scripts/package-release.sh --version 0.0.0 --bins bins --out dist --notes "$RUNNER_TEMP/notes.md"
+          python3 scripts/package.py --check --with-binaries bins
+
+      - name: Assert on what a release would attach
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c SHA256SUMS
+          archives=$(ls ai-gent-0.0.0*.tar.gz ai-gent-0.0.0*.zip | wc -l | tr -d ' ')
+          echo "archives: $archives" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$archives" -ge 6  # content-only + the required triples (the arm64 Windows leg may be absent)
+          test -f ai-gent-0.0.0.tar.gz
+          for t in x86_64-unknown-linux-musl aarch64-unknown-linux-musl aarch64-apple-darwin x86_64-apple-darwin; do
+            test -f "ai-gent-0.0.0-$t.tar.gz"
+          done
+          test -f ai-gent-0.0.0-x86_64-pc-windows-msvc.zip
+          grep -q 'Checksums' release-notes.md
+          for f in ai-gent-0.0.0*.tar.gz ai-gent-0.0.0*.zip install.sh; do grep -q "  $f$" release-notes.md; done
+          { echo '### Release assets (rehearsal)'; ls -l; echo; cat release-notes.md; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install the Linux x86_64 archive into a scratch home
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rel/0.0.0"
+          cp dist/* "$RUNNER_TEMP/rel/0.0.0/"
+          cp dist/LATEST "$RUNNER_TEMP/rel/LATEST"
+          export HOME="$RUNNER_TEMP/home"
+          mkdir -p "$HOME"
+          AI_GENT_RELEASE_BASE="file://$RUNNER_TEMP/rel" AI_GENT_HOME="$RUNNER_TEMP/ai-gent-home" \
+            sh install.sh --skip-prompt --target claude
+          "$HOME/.local/bin/ai-gent" version --json
+          "$RUNNER_TEMP/ai-gent-home/current/bin/ai-gent" --version
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rehearsal-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  # `cargo publish --dry-run` and the metadata gate for the crates; publishes nothing.
+  crates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Rust toolchain (pinned by rust/rust-toolchain.toml)
+        working-directory: rust
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          cargo --version
+
+      - name: Metadata gate and publish dry run
+        run: scripts/rust-publish.sh dry-run
