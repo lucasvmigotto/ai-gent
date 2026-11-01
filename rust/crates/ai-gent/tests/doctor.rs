@@ -3,7 +3,7 @@
 #![cfg(unix)]
 #![allow(clippy::many_single_char_names)]
 mod common;
-use common::{build_releases, cmd, have, repo};
+use common::{build_releases, cmd, have};
 use serde_json::Value;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -79,7 +79,7 @@ fn detail(v: &Value, id: &str) -> String {
 }
 
 fn fixture() -> Option<Fx> {
-    if !have("curl") || !have("python3") || !have("bash") {
+    if !have("python3") || !have("tar") {
         return None;
     }
     let d = tempfile::tempdir().unwrap();
@@ -88,21 +88,39 @@ fn fixture() -> Option<Fx> {
     build_releases(&base, &["9.9.0"], TARGET, &common::cargo_bin());
     let home = p.join("home");
     let h = p.join("h");
-    let o = std::process::Command::new("sh")
-        .arg(repo().join("install.sh"))
-        .args(["--skip-prompt", "--target", "claude"])
-        .env_clear()
-        .envs(std::env::vars().filter(|(k, _)| k == "PATH"))
-        .env("HOME", &h)
-        .env("CLAUDE_SKILLS_DIR", h.join("claude"))
-        .env("XDG_STATE_HOME", p.join("state"))
-        .env("AI_GENT_BIN_DIR", h.join("bin"))
-        .env("AI_GENT_HOME", &home)
-        .env("AI_GENT_TARGET", TARGET)
-        .env("AI_GENT_RELEASE_BASE", format!("file://{}", base.display()))
+    // Built directly rather than by install.sh: its setup.sh needs bash 4, and macOS ships 3.2.
+    let ver = home.join("9.9.0");
+    std::fs::create_dir_all(&ver).unwrap();
+    let archive = base.join(format!("9.9.0/ai-gent-9.9.0-{TARGET}.tar.gz"));
+    let o = std::process::Command::new("tar")
+        .arg("-xzf")
+        .arg(&archive)
+        .arg("-C")
+        .arg(&ver)
+        .args(["--strip-components=1"])
         .output()
         .unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    common::put_binary(&ver.join("bin/ai-gent"));
+    std::os::unix::fs::symlink("9.9.0", home.join("current")).unwrap();
+    // what setup.sh links: the binary into the bin dir, each skill into the agent's directory
+    std::fs::create_dir_all(h.join("bin")).unwrap();
+    std::os::unix::fs::symlink(home.join("current/bin/ai-gent"), h.join("bin/ai-gent")).unwrap();
+    std::fs::create_dir_all(h.join("claude")).unwrap();
+    for plugin in ["git", "db"] {
+        for e in std::fs::read_dir(ver.join("plugins").join(plugin).join("skills"))
+            .unwrap()
+            .flatten()
+        {
+            let name = format!("{plugin}-{}", e.file_name().to_string_lossy());
+            let target = home
+                .join("current/plugins")
+                .join(plugin)
+                .join("skills")
+                .join(e.file_name());
+            std::os::unix::fs::symlink(target, h.join("claude").join(name)).unwrap();
+        }
+    }
     Some(Fx {
         d: tempfile::Builder::new().tempdir().map(|_| d).unwrap(),
         home,
