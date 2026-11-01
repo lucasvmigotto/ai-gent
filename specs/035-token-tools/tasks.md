@@ -5,7 +5,7 @@ Format: `- [ ] Tnnn [P] [USn] description. Files. Verify. Fixture.` `[P]` = safe
 ## Phase 0: Measure and build the oracle
 
 - [ ] T001 Count and map the Python tests. List every `def test` of `plugins/agents/scripts/test_token_report.py` into `specs/035-token-tools/fixture-map.md` (test name, fixture group, status). Files: `specs/035-token-tools/fixture-map.md`. Verify: `python3 -m unittest plugins/agents/scripts/test_token_report.py` prints `Ran 68 tests`, and the map has 68 rows. Fixture: all.
-- [ ] T002 Baseline measurement. Run the baseline of plan "Measurement" on the owner's machine (no transcript content read or written), fill `specs/035-token-tools/tracker.md`. Files: `tracker.md`. Verify: table filled with corpus size, files, median, p95. Fixture: n/a (SC-004 input). Needs the owner's machine: mark Blocked if run in CI.
+- [ ] T002 Baseline measurement. Run the baseline of plan "Measurement" on the owner's machine (no transcript content read or written), fill `specs/035-token-tools/measurements.md`. Files: `tracker.md`. Verify: table filled with corpus size, files, median, p95. Fixture: n/a (SC-004 input). Needs the owner's machine: mark Blocked if run in CI.
 - [ ] T003 Scenario format and runners. Write `contracts/parity-fixtures.md` into the shared harness (align with 032) and `scripts/test-parity-tokens.py` (materialise, run Python, diff, `--bless`). Decide the clock mechanism (hidden `--now`). Files: `scripts/test-parity-tokens.py`, `rust/fixtures/tokens/README.md`. Verify: `python3 scripts/test-parity-tokens.py --self-test` passes with one trivial case. Fixture: harness.
 - [ ] T004 Capture unknown contracts. Bless runs for `estimate --json` (tag and untagged paths) and the no-session paths of `report`/`tasks`/`budget`; fill the [TO CAPTURE] items in `contracts/cli.md`. Files: `specs/035-token-tools/contracts/cli.md`, `rust/fixtures/tokens/estimate-*/`. Verify: no `[TO CAPTURE]` left (`grep -c 'TO CAPTURE' contracts/cli.md` is 0). Fixture: estimate-json-*.
 
@@ -40,7 +40,7 @@ Format: `- [ ] Tnnn [P] [USn] description. Files. Verify. Fixture.` `[P]` = safe
 
 - [ ] T050 [P] Windows cases: slug, `%USERPROFILE%` config dirs, CRLF, atomic rename over an open file, path separators in written files. Files: `rust/fixtures/tokens/win-*/`, platform notes in `plan.md`. Verify: CI Windows job runs `cargo test`. Fixture: new `win-*`.
 - [ ] T051 [P] [US6] `scripts/bench-tokens.sh` with `--synth SIZE` corpus generator. Files: `scripts/bench-tokens.sh`. Verify: prints median of N runs for both implementations. Fixture: n/a.
-- [ ] T052 [US6] Optimise only if T051 shows the target missed: parallel file scan, partial deserialization. Files: `transcripts.rs`. Verify: SC-004 table in `tracker.md`. Fixture: all parity still green.
+- [ ] T052 [US6] Optimise only if T051 shows the target missed: parallel file scan, partial deserialization. Files: `transcripts.rs`. Verify: SC-004 table in `measurements.md`. Fixture: all parity still green.
 
 ## Phase 6: Cutover (gated on SC-001..SC-005, owner approval of the edit list)
 

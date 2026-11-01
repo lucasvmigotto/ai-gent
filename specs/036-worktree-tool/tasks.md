@@ -35,7 +35,7 @@ Format: `- [ ] Tnnn [P] [USn] description. Files. Verify. Fixture.` Executor Son
 
 - [ ] T050 [P] Windows fixtures: `core.symlinks=false` warning, long path warning, backslash and drive-letter porcelain, branch with `/`. Verify: Windows CI job. Fixture: new `win-*`.
 - [ ] T051 [P] macOS run: porcelain, `/private/var` temp paths, process list. Verify: macOS CI job. Fixture: parity groups.
-- [ ] T052 Manual check against real podman: add, list, remove with a real labelled volume (owner machine; records output in tracker). Verify: tracker entry. Fixture: n/a.
+- [ ] T052 Manual check against real podman: add, list, remove with a real labelled volume (owner machine; records output in `measurements.md`). Verify: a `measurements.md` entry. Fixture: n/a.
 
 ## Phase 6: Cutover (gated on SC-001..SC-004, owner approval of the file list)
 
