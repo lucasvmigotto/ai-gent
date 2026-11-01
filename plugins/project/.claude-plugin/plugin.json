@@ -74,8 +74,14 @@
     },
     "contextMeter": {
       "type": "boolean",
-      "title": "Context meter under the prompt",
-      "description": "Add an icon, a bar and the context window's used percent (a ⚠ or ✖ mark once approaching or critical, no words), to the end of the prompt's hint line, read at each turn end and session start. On by default; turn it off if you want the engine's hint line untouched",
+      "title": "Context meter and the Details row",
+      "description": "Show the context window's used percent (icon, bar, a ⚠ or ✖ mark once approaching or critical) on the prompt's hint line when there is no five-hour usage reading, and in the workspace line's Details a row with the context and the week limit (seven_day, spend_limit); a critical one also shows in the line's warnings while Details is closed. Read at each turn end and session start. On by default; turn it off to leave both out",
+      "default": true
+    },
+    "usageMeter": {
+      "type": "boolean",
+      "title": "Usage-limit bar on the hint line",
+      "description": "Replace the context bar on the prompt's hint line with the account's five-hour usage-limit bar, ◷ ██████░░ 41% ↻ in 4h 12m, with a ⚠ or ✖ mark (from 75 percent used, and from 100 minus handoffNudgeCapPercent), and the seven-day percent beside it on a wide pane. Drawn only where the engine reports the windows (a subscription), fed by the pushed session.measure event without polling; with no five-hour reading the context meter shows instead. On by default; turn it off to keep the context bar on the hint line. The week row in Details follows contextMeter",
       "default": true
     },
     "chromeAscii": {

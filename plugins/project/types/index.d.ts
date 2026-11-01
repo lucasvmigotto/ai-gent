@@ -112,6 +112,8 @@ declare module 'claude-code' {
       workspaceExpanded: boolean
       // The context window's used percent as of the last turn or session start; null when the engine gave none.
       contextPercent: number | null
+      // The account's rate-limit windows as of the last session.measure, turn or session start (percent used, one decimal; resetsAt is ISO 8601); empty when none was reported.
+      rateLimits: { kind: 'five_hour' | 'seven_day' | 'spend_limit'; percent: number; resetsAt?: string }[]
       pipelineSnapshot: Shaped<Snapshot | null>
       pipelineIsOpen: boolean
       // Sections the person expanded, by name.
