@@ -1,0 +1,686 @@
+{
+  "schema": 1,
+  "guard": "git",
+  "marker": "git:workflow guard:",
+  "sandbox": {
+    "repos": {
+      "main": "main",
+      "staging": "staging",
+      "dev": "dev",
+      "feat": "feat/x"
+    }
+  },
+  "cases": [
+    {
+      "id": "git-001",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit --no-verify -m \"fix: x\"",
+      "want": "deny",
+      "reason": "git:workflow guard: hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-002",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit -n -m \"fix: x\"",
+      "want": "deny",
+      "reason": "git:workflow guard: hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-003",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git -C /tmp/repo merge --no-verify feat/x",
+      "want": "deny",
+      "reason": "git:workflow guard: hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-004",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit -m \"$(cat <<'EOF'\nfeat: x\n\nCo-Authored-By: Someone <a@b.c>\nEOF\n)\"",
+      "want": "deny",
+      "reason": "git:workflow guard: this user's commits, issues, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-005",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "gh issue create --title x --body \"$(cat <<'EOF'\nbody\n\nCo-Authored-By: Someone <a@b.c>\nEOF\n)\"",
+      "want": "deny",
+      "reason": "git:workflow guard: this user's commits, issues, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-006",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "gh pr comment 1 --body \"$(cat <<'EOF'\nlooks good\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\nEOF\n)\"",
+      "want": "deny",
+      "reason": "git:workflow guard: this user's commits, issues, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-007",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "gh issue create --title x --body \"plain body\"",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-008",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "grep -rn \"co-authored-by\" docs/",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-009",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit -m \"fix(git): deny Co-Authored-By trailers and generated with signatures\"",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-010",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git push --force origin feat/x",
+      "want": "deny",
+      "reason": "git:workflow guard: force pushes use --force-with-lease, and only on the user's explicit order",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-011",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git push -f",
+      "want": "deny",
+      "reason": "git:workflow guard: force pushes use --force-with-lease, and only on the user's explicit order",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-012",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git push --force-with-lease origin feat/x",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-013",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git push origin feat/x",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-014",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd /tmp && git push",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-015",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git fetch && git push origin --delete feat/old",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-016",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "gh pr create --fill",
+      "want": "ask",
+      "reason": "git:workflow guard: opening a PR publishes the branch; allow only on the user's explicit request",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-017",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git branch -D feat/old",
+      "want": "ask",
+      "reason": "git:workflow guard: git branch -D deletes unmerged work; the workflow uses git branch -d",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-018",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git reset --hard HEAD~1",
+      "want": "ask",
+      "reason": "git:workflow guard: this rewrites history or discards work; allow only on the user's explicit request",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-019",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git clean -fd",
+      "want": "ask",
+      "reason": "git:workflow guard: this rewrites history or discards work; allow only on the user's explicit request",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-020",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit --amend --no-edit",
+      "want": "ask",
+      "reason": "git:workflow guard: this rewrites history or discards work; allow only on the user's explicit request",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-021",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git filter-repo --mailmap m",
+      "want": "ask",
+      "reason": "git:workflow guard: this rewrites history or discards work; allow only on the user's explicit request",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-022",
+      "tool": "Bash",
+      "cwd": "@main",
+      "shell": "sh",
+      "command": "git commit -m \"fix: x\"",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits or merges on main; the workflow works on a branch (allow only if the user asked for it)",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-023",
+      "tool": "Bash",
+      "cwd": "@main",
+      "shell": "sh",
+      "command": "git merge --ff-only feat/x",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits or merges on main; the workflow works on a branch (allow only if the user asked for it)",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-024",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git -C {main} commit -m \"fix: x\"",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits or merges on main; the workflow works on a branch (allow only if the user asked for it)",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-025",
+      "tool": "Bash",
+      "cwd": "@staging",
+      "shell": "sh",
+      "command": "git merge --no-ff dev",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits or merges on staging; promotion up the branch chain needs the user's explicit request",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-026",
+      "tool": "Bash",
+      "cwd": "@staging",
+      "shell": "sh",
+      "command": "git commit -m \"fix: x\"",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits or merges on staging; promotion up the branch chain needs the user's explicit request",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-027",
+      "tool": "Bash",
+      "cwd": "@dev",
+      "shell": "sh",
+      "command": "git commit -m \"fix: x\"",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits directly on dev; work goes on a branch merged into it (conclude a merge with git merge --continue)",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-028",
+      "tool": "Bash",
+      "cwd": "@dev",
+      "shell": "sh",
+      "command": "git merge --no-ff feat/x && git commit -m \"fix: x\"",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits directly on dev; work goes on a branch merged into it (conclude a merge with git merge --continue)",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-029",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git -C {dev} commit -m \"fix: x\"",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits directly on dev; work goes on a branch merged into it (conclude a merge with git merge --continue)",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-030",
+      "tool": "Bash",
+      "cwd": "@dev",
+      "shell": "sh",
+      "command": "git merge --no-ff feat/x",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-031",
+      "tool": "Bash",
+      "cwd": "@dev",
+      "shell": "sh",
+      "command": "git merge --ff-only feat/x",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-032",
+      "tool": "Bash",
+      "cwd": "@dev",
+      "shell": "sh",
+      "command": "git merge --continue",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-033",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit -m \"fix: x\"",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-034",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit -m \"feat(git): block --no-verify and -n in the guard\"",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-035",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit -m \"docs: explain git push --force\"",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-036",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git merge --no-ff feat/x-db",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-037",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git branch -d feat/x-db",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-038",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git status && git log --oneline -5",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-039",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "echo \"git push\" > notes.txt",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-040",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "grep -rn -- --no-verify docs/",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-041",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git push-notes-helper",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-042",
+      "tool": "Bash",
+      "cwd": "@main",
+      "shell": "sh",
+      "command": "git switch -c feat/new",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "git-043",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ls -la",
+      "want": "none",
+      "source": [
+        "scripts/test-guard.sh",
+        "opencode/guard/test/rules.test.mjs:gitVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    }
+  ]
+}

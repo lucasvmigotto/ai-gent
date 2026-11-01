@@ -1,0 +1,240 @@
+{
+  "schema": 1,
+  "guard": "repo",
+  "marker": "repo guard:",
+  "cases": [
+    {
+      "id": "repo-001",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-002",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-003",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-004",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "cd /x && python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-005",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "reporun cli gitlab --write -- mr note 4 -m ok",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-006",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'ok\n\nCo-Authored-By: Someone <a@b.c>'",
+      "want": "deny",
+      "reason": "repo guard: this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-007",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr comment 3 --body 'looks good\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'",
+      "want": "deny",
+      "reason": "repo guard: this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-008",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'denies Co-Authored-By trailers'",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-009",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-010",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-011",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-012",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query 'q=--write'",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-013",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "git commit -m \"docs: reporun --write asks first\"",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-014",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "echo reporun --write",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "repo-015",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "ls -la",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    }
+  ]
+}
