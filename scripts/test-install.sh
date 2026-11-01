@@ -348,4 +348,38 @@ check "stays pinned without AI_GENT_BRANCH" grep -q "pinned to 9.9.0" "$SANDBOX/
 AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" AI_GENT_BRANCH=9.9.1 sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
 check "moves the pin to a newer tag" test "$(git -C "$pinned" rev-parse HEAD)" == "$(g rev-parse '9.9.1^{commit}')"
 
+echo "      -- setup.sh links the binary (a tree with bin/ai-gent, like a release package)"
+bt="$SANDBOX/bintree/current"
+mkdir -p "$bt/bin" "$bt/plugins" "$bt/skills"
+cp "$REPO_DIR/setup.sh" "$bt/setup.sh"
+printf '#!/bin/sh\necho stub\n' >"$bt/bin/ai-gent"
+chmod 755 "$bt/bin/ai-gent"
+bindir="$SANDBOX/binhome/bin"
+export AI_GENT_BIN_DIR="$bindir"
+bt_setup() { "$bt/setup.sh" --target claude --skip-prompt "$@" >"$SANDBOX/out" 2>&1; }
+bt_setup --dry-run
+check "--dry-run says it would link, and links nothing" bash -c 'grep -q "ai-gent" "$1" && test ! -e "$2/ai-gent" && test ! -d "$2"' _ "$SANDBOX/out" "$bindir"
+PATH="$bindir:$PATH" bt_setup
+check "links bin/ai-gent into AI_GENT_BIN_DIR" test "$(readlink "$bindir/ai-gent")" == "$bt/bin/ai-gent"
+check "...and it runs" test "$("$bindir/ai-gent")" == stub
+check "nothing to add to PATH when the directory is on it" bash -c '! grep -q "not on PATH" "$1"' _ "$SANDBOX/out"
+bt_setup
+check "a re-run is idempotent and prints the PATH line when the directory is not on PATH" bash -c 'test "$(readlink "$1/ai-gent")" == "$2" && grep -q "not on PATH; add: export PATH=" "$3"' _ "$bindir" "$bt/bin/ai-gent" "$SANDBOX/out"
+rm "$bindir/ai-gent"
+echo "mine" >"$bindir/ai-gent"
+bt_setup
+check "a real file in the way is kept" test "$(cat "$bindir/ai-gent")" == mine
+bt_setup --force
+check "--force backs it up and links" bash -c 'test -L "$1/ai-gent" && test "$(cat "$1"/ai-gent.bak-*)" == mine' _ "$bindir"
+bt_setup --uninstall --target claude
+check "--uninstall --target keeps the link (it belongs to the package)" test -L "$bindir/ai-gent"
+"$bt/setup.sh" --skip-prompt --uninstall >"$SANDBOX/out" 2>&1
+check "a full --uninstall removes the link" test ! -e "$bindir/ai-gent" -a ! -L "$bindir/ai-gent"
+ln -s /bin/sh "$bindir/ai-gent"
+"$bt/setup.sh" --skip-prompt --uninstall >"$SANDBOX/out" 2>&1
+check "...but only one that points into an ai-gent tree" test -L "$bindir/ai-gent"
+rm -f "$bindir/ai-gent"
+check "a git clone (no bin/) links nothing" bash -c 'rm -f "$1/ai-gent"; "$2/setup.sh" --target claude --skip-prompt >/dev/null 2>&1; test ! -e "$1/ai-gent"' _ "$bindir" "$REPO_DIR"
+unset AI_GENT_BIN_DIR
+
 exit $((failures > 0))
