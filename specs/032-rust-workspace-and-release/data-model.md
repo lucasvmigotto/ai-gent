@@ -38,3 +38,16 @@ No database. The entities are build and install artifacts.
 ## Size budget (to be measured in T015)
 
 Binary at most 8 MB stripped per target [ASSUMPTION]; archive at most 10 MB; release total at most 80 MB. If exceeded, review dependencies before raising the budget.
+
+### Measured (T015, 2026-11-01, `ai-gent 0.1.0` with `version` and `doctor` only)
+
+Release profile in `rust/Cargo.toml`: `opt-level = "z"`, `lto = true`, `strip = true`, `codegen-units = 1`, `panic = "unwind"` (the binary catches panics for exit code 101).
+
+| Build | `x86_64-unknown-linux-musl` bytes |
+|---|---|
+| Cargo default release profile | 1,165,048 |
+| `opt-level = 3`, lto, strip | 754,232 |
+| `opt-level = "z"`, lto, strip (chosen) | 639,544 |
+
+`x86_64-unknown-linux-gnu` host build with the chosen profile: 546,344 bytes. Per-target sizes from the first CI rehearsal (default profile, before this task): aarch64-apple-darwin 945,792; x86_64-apple-darwin 975,000; x86_64-pc-windows-msvc 740,864; aarch64-pc-windows-msvc 653,824; aarch64-unknown-linux-musl 1,184,616; x86_64-unknown-linux-musl 1,160,904. All far under the 8 MB budget; the budget will be re-measured when the real subcommands (spec 033-038) land.
+
