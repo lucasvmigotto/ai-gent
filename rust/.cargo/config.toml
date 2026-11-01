@@ -1,0 +1,3 @@
+# Windows binaries link the C runtime statically so no Visual C++ redistributable is needed (FR-007).
+[target.'cfg(windows)']
+rustflags = ["-C", "target-feature=+crt-static"]

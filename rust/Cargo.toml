@@ -1,0 +1,31 @@
+[workspace]
+resolver = "3"
+members = ["crates/ai-gent-core", "crates/ai-gent"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.92"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/lucasvmigotto/ai-gent"
+homepage = "https://docs.lucasvmigotto.me/ai-gent/"
+authors = ["Lucas Migotto"]
+
+[workspace.dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+assert_cmd = "2"
+insta = { version = "1", features = ["json"] }
+tempfile = "3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"

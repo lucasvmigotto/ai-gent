@@ -1,0 +1,22 @@
+[package]
+name = "ai-gent-core"
+version = "0.1.0"
+description = "Shared library of the ai-gent command line: output envelope, exit codes, paths and version"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+keywords = ["ai-agent", "claude-code", "skills", "cli"]
+categories = ["command-line-utilities"]
+include = ["/src/**", "/build.rs", "/README.md"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
