@@ -68,7 +68,8 @@ already know. Template and examples: `references/cards.md`. Every card has:
   that share a checkout never commit, and stage only explicit paths.
 - **Routing.** `builder` cards go to the builder model, `scout` lookups to
   the small model; reviews go to the reviewer in a fresh context. Never
-  hand bulk reading or mechanical edits to the thinker model.
+  hand bulk reading or mechanical edits to the thinker model. A web
+  lookup goes to a `scout` **research card** (`references/cards.md`).
 - **Running.** In Claude Code, subagents (Agent tool, `model` per role, in
   the background) with the card as the prompt. In Codex, OpenCode and
   others, their subagent or task feature; with none, run the cards one

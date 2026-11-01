@@ -85,7 +85,9 @@ audiences that must not be alienated).
    its list of AI defaults and against a similar product — revise
    anything generic and state what changed. Record the result as **draft
    tokens** (`color.bg`, `color.text.muted`, `space.3`, `radius.control`,
-   `motion.duration.short`, …) for `frontend:spec` to finalize.
+   `motion.duration.short`, …) for `frontend:spec` to finalize. Design
+   references may be researched (`../../references/research.md`); never
+   upload brand material, and query with generic terms only.
 6. **Interaction and states.** Patterns used everywhere: forms and
    validation timing, feedback (toast vs. inline vs. page), confirmation
    for destructive actions, loading (skeleton vs. spinner, when),
@@ -96,7 +98,12 @@ audiences that must not be alienated).
 8. **Accessibility targets.** WCAG 2.2 AA minimum: contrast pairs checked
    for the drafted palette, focus visibility, keyboard paths for each key
    flow, reduced motion, target size, language of page, screen-reader
-   announcements for async results.
+   announcements for async results. **Research** (method in
+   `../../references/research.md`, about 5 searches and 5 fetches): the
+   current WCAG 2.2 and 3.0 status, the platform HIG, and the legal
+   standards that apply (EAA, ADA, Section 508), each cited with a dated
+   URL as `[RESEARCHED: S<n>]`, else `[ASSUMPTION]` with "verify before
+   relying" (not legal advice; confirm with counsel).
 9. **Language.**
    - **Which language, first.** Infer the interface's primary language
      from what's given and confirm it with the user before writing any
@@ -138,7 +145,7 @@ tokens · Interaction patterns & states · Responsive behavior ·
 Accessibility targets · Voice & tone · Terminology · Microcopy patterns ·
 Key-screen copy · Localization · Terminal interface (only when requested)
 · Open questions · Decision log (choices made, alternatives rejected,
-why).
+why) · Sources (`S<n>`, claim, URL, retrieved date).
 
 Mark the file `Status: Draft` (`Accepted` once the user agrees). Use real product content everywhere.
 

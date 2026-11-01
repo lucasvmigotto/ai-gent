@@ -75,6 +75,13 @@ CI/CD, README/LICENSE, version, platforms (the README itself follows
 projects for reusable patterns (visual family, router strategy, test
 harness, locale architecture, R2 deploy + cache strategy).
 
+Check external facts the pages state, and the current versions of the
+static-site tools, on the web (`../../references/research.md`, about 5
+searches and 5 fetches); docs content is public, but never send
+unreleased text, only product and tool names. Cite `[RESEARCHED: S<n>]`
+with dated URLs in the page or its source list; offline, `[ASSUMPTION]`,
+"verify before relying".
+
 Then read the pipeline artifacts (table above). For each spec feature,
 check the code: the truth table gets one row per feature and user story
 with its real status. Planned material goes on clearly marked roadmap

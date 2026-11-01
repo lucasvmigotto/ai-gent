@@ -72,6 +72,11 @@ and the ADRs, and the bar a finished constitution has to clear. In short:
 - number them, so `plan.md` and `/speckit-converge` can cite
   "Constitution III".
 
+**Research** (`../../references/research.md`, about 5 searches and 5 fetches):
+cite the standards a principle gates on (WCAG, OWASP ASVS, RFCs) with dated
+URLs, generic queries only. Label `[RESEARCHED: S<n>]`, `[KNOWN]` or
+`[ASSUMPTION]`; with no web tools, `[ASSUMPTION]`, "verify before relying".
+
 Cut any principle the project genuinely doesn't need, and list the cuts
 in the handoff with the reason — a constitution carrying a principle the
 project ignores teaches every later stage that it is advisory.
@@ -99,7 +104,11 @@ exported once the feature exists. In order, each gated on the previous step:
 one is decided and recorded as `[DECIDED: …]`), `/speckit-plan` (stack from
 `architecture.md`), `/speckit-tasks` (tag each task's role and reviewer).
 Read `references/feature-loop.md` before running a feature: each step's
-content, gates and tags in full.
+content, gates and tags in full. At `/speckit-plan`, research the chosen
+frameworks' current versions and best practices (method in
+`../../references/research.md`; re-research facts older than about 30
+days) and record them, with dated URLs, in the plan and in Spec Kit's
+`research.md`.
 
 The **implement** step is not yours: `frontend:build` and `backend:build`
 execute it, then close it with `/speckit-converge`. Name it in the handoff.
