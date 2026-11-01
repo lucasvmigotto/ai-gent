@@ -27,7 +27,7 @@ the brief's goal is explicitly conversion on that surface.
 1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) (relative to this skill's base
    directory) — the artifact paths, ownership and rules used below.
 2. Read `../../references/visual-direction.md` — the visual-design method
-   and the list of AI-default looks to avoid. This skill applies it.
+   and its list of generic defaults to challenge. This skill applies it.
 3. Read every upstream artifact that exists: `docs/product/brief.md`
    (especially its Glossary), `docs/product/domain-model.md`, any
    `specs/`. Without a brief, work from the user's text and say so in the
@@ -80,8 +80,8 @@ audiences that must not be alienated).
 4. **Screen inventory.** Every screen/route with: purpose (one sentence),
    primary action, content priority order, persona served, and an ASCII
    wireframe for the most important ones at mobile and desktop widths.
-5. **Visual direction.** Follow `visual-direction.md`'s two-pass method:
-   draft palette (4–6 named hex values, light and dark), typefaces and
+5. **Visual direction.** Follow `visual-direction.md` (design hypothesis, explored
+   directions, differentiation review): draft palette (4–6 named hex values, light and dark), typefaces and
    roles, type scale, spacing scale, radius/elevation logic, motion
    principles, iconography and imagery; then review the draft against
    its list of AI defaults and against a similar product — revise
@@ -157,7 +157,7 @@ Mark the file `Status: Draft` (`Accepted` once the user agrees). Use real produc
 - [ ] every screen has purpose, primary action and states (empty/loading/error/success)
 - [ ] wireframes for the primary screens at mobile and desktop
 - [ ] palette has checked contrast pairs for text, UI and focus, light and dark
-- [ ] visual direction reviewed against the AI-default list; revisions stated
+- [ ] visual direction reviewed against the generic-defaults list; revisions stated
 - [ ] every term used in UI matches the brief's glossary
 - [ ] real copy with keys for every key screen, including errors and empty states
 - [ ] keyboard path described for each key flow
