@@ -1,0 +1,108 @@
+name: rust-build
+
+# Reusable (spec 032 FR-012): builds the ai-gent binary natively on six runners, smoke-tests each
+# binary on its own OS and architecture, and uploads it as the artifact bin-<triple>. It holds
+# read-only permissions and no secrets; releasing and attesting belong to release.yml.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to build (empty means the caller's ref).
+        type: string
+        default: ""
+      release:
+        description: Release version embedded in the binary (AI_GENT_RELEASE), dev outside a release.
+        type: string
+        default: dev
+      dry_run:
+        description: A rehearsal; builds and uploads artifacts only.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    # A retired or flaky arm64 Windows label must not block releases before the 3.0.0 gate (spec 032 risks).
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false # becomes true at the 3.0.0 gate (spec 039)
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-24.04, exe: "", experimental: false }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm, exe: "", experimental: false }
+          - { target: aarch64-apple-darwin, os: macos-15, exe: "", experimental: false }
+          - { target: x86_64-apple-darwin, os: macos-15-intel, exe: "", experimental: false }
+          - { target: x86_64-pc-windows-msvc, os: windows-2025, exe: ".exe", experimental: false }
+          - { target: aarch64-pc-windows-msvc, os: windows-11-arm, exe: ".exe", experimental: true }
+    defaults:
+      run:
+        shell: bash
+    env:
+      AI_GENT_RELEASE: ${{ inputs.release }}
+      TARGET: ${{ matrix.target }}
+      EXE: ${{ matrix.exe }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Install rustup when the runner image lacks it
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            case "$TARGET" in
+              aarch64-pc-windows-msvc) url=https://win.rustup.rs/aarch64 ;;
+              *) url=https://win.rustup.rs/x86_64 ;;
+            esac
+            curl --proto '=https' --tlsv1.2 -fsSL "$url" -o rustup-init.exe
+            ./rustup-init.exe -y --default-toolchain none --profile minimal
+            echo "$USERPROFILE/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: Install the pinned toolchain (rust/rust-toolchain.toml)
+        working-directory: rust
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          cargo --version
+          rustc -vV
+
+      - name: Build
+        working-directory: rust
+        run: cargo build --release --locked --target "$TARGET"
+
+      - name: Smoke - the binary runs on its own OS and architecture
+        working-directory: rust
+        run: |
+          set -eu
+          bin="target/$TARGET/release/ai-gent$EXE"
+          ls -l "$bin"
+          out=$("$bin" version --json)
+          echo "$out"
+          echo "$out" | grep -q '"ok":true'
+          echo "$out" | grep -q "\"target\":\"$TARGET\""
+          echo "$out" | grep -q '"profile":"release"'
+          "$bin" --version
+          # doctor may fail on install_root only: a runner has no install.
+          set +e
+          dout=$("$bin" doctor --json)
+          code=$?
+          set -e
+          echo "$dout"
+          if [ "$code" -ne 0 ]; then
+            test "$(echo "$dout" | grep -o '"status":"fail"' | wc -l)" -eq 1
+            echo "$dout" | grep -q '"id":"install_root","status":"fail"'
+          fi
+          size=$(wc -c < "$bin" | tr -d ' ')
+          echo "binary $TARGET: $size bytes" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bin-${{ matrix.target }}
+          path: rust/target/${{ matrix.target }}/release/ai-gent${{ matrix.exe }}
+          if-no-files-found: error
+          retention-days: 7
