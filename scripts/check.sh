@@ -8,6 +8,8 @@
 #
 #   scripts/check.sh                 everything
 #   scripts/check.sh --quick         skip the installer tests
+#   scripts/check.sh --quiet         print only failures and the final line (saves tokens
+#                                    when an agent runs it); combines with --quick
 #
 # Environment:
 #   DESC_BUDGET  soft limit for skill descriptions, in characters (default 400);
@@ -27,12 +29,19 @@ cd "$REPO_DIR"
 
 DESC_BUDGET="${DESC_BUDGET:-400}"
 QUICK=0
-[[ "${1:-}" == "--quick" ]] && QUICK=1
+QUIET=0
+for arg in "$@"; do
+  case "$arg" in
+    --quick) QUICK=1 ;;
+    --quiet) QUIET=1 ;;
+    *) echo "usage: scripts/check.sh [--quick] [--quiet]" >&2; exit 2 ;;
+  esac
+done
 
 failures=0
 fail() { printf 'FAIL  %s\n' "$*"; failures=$((failures + 1)); }
-pass() { printf 'ok    %s\n' "$*"; }
-warn() { printf 'warn  %s\n' "$*"; }
+pass() { ((QUIET)) || printf 'ok    %s\n' "$*"; }
+warn() { ((QUIET)) || printf 'warn  %s\n' "$*"; }
 
 NAME_RE='^[a-z0-9]+(-[a-z0-9]+)*$'
 
@@ -314,7 +323,11 @@ else
   python3 scripts/test_consistency.py || true
   fail "consistency checks (tests)"
 fi
-python3 scripts/consistency.py || failures=$((failures + 1))
+if ((QUIET)); then
+  cons_out="$(python3 scripts/consistency.py)" || { printf '%s\n' "$cons_out" | grep -v '^ok ' || true; failures=$((failures + 1)); }
+else
+  python3 scripts/consistency.py || failures=$((failures + 1))
+fi
 
 # ----------------------------------------------------------------- release
 
@@ -369,7 +382,7 @@ else
   fail "update-check tests"
 fi
 
-echo
+((QUIET)) || echo
 if ((failures)); then
   echo "$failures check(s) failed"
   exit 1
