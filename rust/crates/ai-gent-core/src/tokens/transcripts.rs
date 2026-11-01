@@ -77,11 +77,92 @@ fn str_field<'a>(o: &'a J, k: &str) -> Option<&'a str> {
     o.get(k).and_then(J::as_str).filter(|s| !s.is_empty())
 }
 
+#[derive(serde::Deserialize)]
+struct FastRec<'a> {
+    #[serde(rename = "type", borrow)]
+    kind: Option<std::borrow::Cow<'a, str>>,
+    #[serde(borrow)]
+    timestamp: Option<std::borrow::Cow<'a, str>>,
+    message: Option<FastMsg<'a>>,
+}
+
+#[derive(serde::Deserialize)]
+struct FastMsg<'a> {
+    #[serde(borrow)]
+    id: Option<std::borrow::Cow<'a, str>>,
+    #[serde(borrow)]
+    model: Option<std::borrow::Cow<'a, str>>,
+    usage: Option<std::collections::BTreeMap<String, serde_json::Value>>,
+}
+
+fn num_of(m: &std::collections::BTreeMap<String, serde_json::Value>, k: &str) -> i64 {
+    m.get(k).map_or(0, |v| {
+        v.as_i64()
+            .or_else(|| v.as_f64().map(|f| f as i64))
+            .unwrap_or(0)
+    })
+}
+
+/// The usage scan without the subagent extras (the hot path of `budget`): typed and borrowed, no
+/// tree. Same result as the tree reader; a line the typed form rejects falls back to it.
+fn collect_fast(bytes: &[u8], msgs: &mut MsgMap) {
+    for raw in bytes.split(|&b| b == b'\n') {
+        // Cheap reject: only a record carrying usage can matter.
+        if !raw.windows(7).any(|w| w == b"\"usage\"") {
+            continue;
+        }
+        let Ok(rec) = serde_json::from_slice::<FastRec>(raw) else {
+            collect_slow(raw, msgs, None);
+            continue;
+        };
+        if rec.kind.as_deref() != Some("assistant") {
+            continue;
+        }
+        let Some(m) = rec.message else { continue };
+        let Some(u) = m.usage.filter(|u| !u.is_empty()) else {
+            continue;
+        };
+        let Some(id) = m.id.filter(|i| !i.is_empty()) else {
+            continue;
+        };
+        if m.model.as_deref() == Some("<synthetic>") {
+            continue;
+        }
+        let usage = Usage {
+            input: num_of(&u, "input_tokens"),
+            cache_w: num_of(&u, "cache_creation_input_tokens"),
+            cache_r: num_of(&u, "cache_read_input_tokens"),
+            output: num_of(&u, "output_tokens"),
+        };
+        if msgs
+            .get(&id)
+            .is_none_or(|prev| usage.output >= prev.usage.output)
+        {
+            let ts = rec.timestamp.filter(|t| !t.is_empty());
+            msgs.set(
+                &id,
+                Msg {
+                    ts: ts.as_deref().and_then(to_utc).unwrap_or_default(),
+                    model: m.model.as_deref().unwrap_or("?").to_string(),
+                    usage,
+                },
+            );
+        }
+    }
+}
+
 /// Read one transcript: keeps the most complete record per message id. Bad lines are skipped.
-pub fn collect(path: &Path, msgs: &mut MsgMap, mut extra: Option<&mut Extra>) {
+pub fn collect(path: &Path, msgs: &mut MsgMap, extra: Option<&mut Extra>) {
     let Ok(bytes) = std::fs::read(path) else {
         return;
     };
+    match extra {
+        None => collect_fast(&bytes, msgs),
+        Some(ex) => collect_slow(&bytes, msgs, Some(ex)),
+    }
+}
+
+fn collect_slow(bytes: &[u8], msgs: &mut MsgMap, mut extra: Option<&mut Extra>) {
     for raw in bytes.split(|&b| b == b'\n') {
         let Ok(line) = std::str::from_utf8(raw) else {
             continue;

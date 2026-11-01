@@ -62,6 +62,46 @@ fn jsonl_files(dir: &Path) -> Vec<PathBuf> {
     v
 }
 
+/// Read the files on a few threads; the per-file results come back in file order, so merging them
+/// in that order is the same as reading the files one after the other.
+fn scan_parallel(files: &[PathBuf]) -> Vec<MsgMap> {
+    let threads = std::thread::available_parallelism()
+        .map_or(1, usize::from)
+        .min(8)
+        .min(files.len().max(1));
+    if threads <= 1 {
+        return files
+            .iter()
+            .map(|f| {
+                let mut m = MsgMap::new();
+                collect(f, &mut m, None);
+                m
+            })
+            .collect();
+    }
+    let chunk = files.len().div_ceil(threads);
+    std::thread::scope(|sc| {
+        let handles: Vec<_> = files
+            .chunks(chunk)
+            .map(|part| {
+                sc.spawn(move || {
+                    part.iter()
+                        .map(|f| {
+                            let mut m = MsgMap::new();
+                            collect(f, &mut m, None);
+                            m
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap_or_default())
+            .collect()
+    })
+}
+
 /// Every message of the given config dirs' projects from a UTC timestamp on, deduplicated by
 /// message id over all of them (an account switch is not counted twice).
 #[must_use]
@@ -97,9 +137,16 @@ pub fn usage_messages(cutoff_iso: &str, dirs: &[PathBuf]) -> Vec<Msg> {
                 }));
             }
         }
-        for f in files {
-            if fresh(&f) {
-                collect(&f, &mut msgs, None);
+        let files: Vec<PathBuf> = files.into_iter().filter(|f| fresh(f)).collect();
+        for part in scan_parallel(&files) {
+            for (id, m) in part.iter() {
+                // The same rule as `collect`: the larger output wins, the later file on a tie.
+                if msgs
+                    .get(id)
+                    .is_none_or(|prev| m.usage.output >= prev.usage.output)
+                {
+                    msgs.set(id, m.clone());
+                }
             }
         }
     }
