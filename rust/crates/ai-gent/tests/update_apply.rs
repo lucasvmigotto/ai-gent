@@ -23,6 +23,7 @@ struct Fx {
     home: PathBuf,
     base: PathBuf,
     exe: PathBuf,
+    bash: PathBuf,
 }
 
 impl Fx {
@@ -39,6 +40,7 @@ impl Fx {
             .env("AGENTS_SKILLS_DIR", h.join("agents"))
             .env("AI_GENT_BIN_DIR", h.join("bin"))
             .env("AI_GENT_TARGET", TARGET)
+            .env("AI_GENT_BASH", &self.bash)
             .env(
                 "AI_GENT_RELEASE_BASE",
                 format!("file://{}", self.base.display()),
@@ -68,9 +70,13 @@ impl Fx {
 /// Releases 9.9.0 and 9.9.1 under a base, 9.9.0 installed with the real installer, then the real
 /// binary dropped into 9.9.0's `bin/`.
 fn fixture() -> Option<Fx> {
-    if !have("curl") || !have("python3") || !have("bash") || !have("tar") {
+    if !have("curl") || !have("python3") || !have("tar") {
         return None;
     }
+    let Some(modern) = common::modern_bash() else {
+        eprintln!("skipped: no bash 4 or newer (setup.sh needs it; on macOS: brew install bash)");
+        return None;
+    };
     let d = tempfile::tempdir().unwrap();
     let p = d.path().canonicalize().unwrap();
     std::fs::create_dir_all(p.join("h")).unwrap();
@@ -105,6 +111,7 @@ fn fixture() -> Option<Fx> {
         home: home.clone(),
         base,
         exe: home.join("9.9.0/bin/ai-gent"),
+        bash: modern.clone(),
     };
     let out = std::process::Command::new("sh")
         .arg(repo().join("install.sh"))
@@ -117,6 +124,7 @@ fn fixture() -> Option<Fx> {
         .env("XDG_STATE_HOME", p.join("state"))
         .env("AI_GENT_BIN_DIR", p.join("h/bin"))
         .env("AI_GENT_HOME", &home)
+        .env("AI_GENT_BASH", &modern)
         .env("AI_GENT_TARGET", TARGET)
         .env(
             "AI_GENT_RELEASE_BASE",
