@@ -61,7 +61,9 @@ paraphrase.
 - No web tools, or they fail: say once, "no web access: research items
   are Assumed". Label the affected claims `[ASSUMPTION]` and list them
   under Open questions as *Needs verification*, compliance first. Do not
-  fabricate sources.
+  fabricate sources. Write no URL from memory, not even a well-known one:
+  name the body or document ("W3C WCAG 2.2", "Directive (EU) 2019/882") in
+  the claim and leave the URL cell empty with "not retrieved".
 - Thin or conflicting results: say so, lower the confidence, keep the
   claim `[ASSUMPTION]` or Low, and add it to *Needs verification*.
 
