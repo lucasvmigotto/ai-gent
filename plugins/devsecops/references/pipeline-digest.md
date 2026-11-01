@@ -1,0 +1,1 @@
+../../../shared/pipeline-digest.md
