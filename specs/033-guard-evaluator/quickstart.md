@@ -41,6 +41,22 @@ Measured by the author on the development host (Linux 6.12, one machine, 100 seq
 
 T001 replaces this with p50/p95/p99 from `bench-guard.py` on each OS. Budget: FR-012.
 
+## Latency, measured with `scripts/bench-guard.py` (T001, 2026-11-01)
+
+Linux 6.12, one development host under load (load average 1.5 to 3), 100 runs after 5 warmups, process start included, ms. Not measured on macOS or Windows (T002).
+
+| Case | `sh` p50 / p95 / p99 | `bin` p50 / p95 / p99 (musl release) |
+|---|---|---|
+| clean `ls` | 38.8 / 40.3 / 41.3 | 4.2 / 5.5 / 5.9 |
+| `git push` (ask) | 24.3 / 29.4 / 29.7 | 3.3 / 4.5 / 5.8 |
+| commit, branch lookup | 34.3 / 52.2 / 53.4 | 9.5 / 15.0 / 16.0 |
+| 200-line heredoc | 27.4 / 45.8 / 46.2 | 5.8 / 7.9 / 11.1 |
+| db `Read` path | 7.4 / 8.5 / 8.9 | 1.6 / 2.3 / 2.4 |
+
+The shell column is slower than the idle baseline above (a busy host with a slow `fork`); the point is the ratio. The binary meets the 15 ms Linux budget except for the branch-lookup case, whose p95 (15.0) is the `git symbolic-ref` child process; reading `.git/HEAD` directly is the deferred optimization (plan, design decision 4).
+
+Binary size: musl x86_64 release 1,209,136 bytes against the 639,544-byte baseline (+569,592, +89%), almost all of it the `regex` crate.
+
 ## Shadow evidence to collect for promotion (FR-010)
 
 Per guard: evaluations, agreements, disagreements, expected divergences; the corpus replay counts; the CI fixture counts per OS; the bench table. Kept in this file when T046 runs.

@@ -249,6 +249,17 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-ctrguard.out"
 
+# The shared guard fixtures (spec 033): well-formed, and the shell guards (the oracle) still decide
+# what each case records.
+if python3 scripts/guard-fixtures.py lint >"${TMPDIR:-/tmp}/ai-gent-fixtures.out" 2>&1 &&
+  python3 scripts/guard-fixtures.py run --impl sh >>"${TMPDIR:-/tmp}/ai-gent-fixtures.out" 2>&1; then
+  pass "guard fixtures ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-fixtures.out") cases vs the shell guards)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-fixtures.out"
+  fail "guard fixtures (scripts/guard-fixtures.py)"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-fixtures.out"
+
 if python3 -m unittest plugins/repo/scripts/test_reporun.py plugins/repo/scripts/test_specsync.py \
   </dev/null >"${TMPDIR:-/tmp}/ai-gent-reporun.out" 2>&1; then
   pass "reporun, specsync ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-reporun.out"))"
@@ -377,6 +388,13 @@ if [[ -n "$runtime" ]]; then
     fail "opencode guard rules (vs plugins/*/hooks/guard.sh)"
   fi
   rm -f "${TMPDIR:-/tmp}/ai-gent-ocguard.out"
+  if python3 scripts/guard-fixtures.py run --impl mjs >"${TMPDIR:-/tmp}/ai-gent-ocfixtures.out" 2>&1; then
+    pass "opencode guard rules on the shared fixtures ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-ocfixtures.out") cases)"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-ocfixtures.out"
+    fail "opencode guard rules on the shared fixtures"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-ocfixtures.out"
 else
   warn "neither bun nor node on PATH; skipped the opencode guard rule test"
 fi

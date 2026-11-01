@@ -16,7 +16,11 @@ include = ["/src/**", "/build.rs", "/README.md"]
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+regex.workspace = true
 thiserror.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

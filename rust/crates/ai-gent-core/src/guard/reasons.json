@@ -1,0 +1,184 @@
+[
+  {
+    "id": "git.nohook",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "deny",
+    "text": "hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again"
+  },
+  {
+    "id": "git.attrib",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "deny",
+    "text": "this user's commits, issues, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again"
+  },
+  {
+    "id": "git.force",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "deny",
+    "text": "force pushes use --force-with-lease, and only on the user's explicit order"
+  },
+  {
+    "id": "git.push",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "ask",
+    "text": "git push publishes; allow only if the user explicitly asked for this push"
+  },
+  {
+    "id": "git.pr_create",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "ask",
+    "text": "opening a PR publishes the branch; allow only on the user's explicit request"
+  },
+  {
+    "id": "git.branch_d",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "ask",
+    "text": "git branch -D deletes unmerged work; the workflow uses git branch -d"
+  },
+  {
+    "id": "git.rewrite",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "ask",
+    "text": "this rewrites history or discards work; allow only on the user's explicit request"
+  },
+  {
+    "id": "git.on_main",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "ask",
+    "text": "this commits or merges on {branch}; the workflow works on a branch (allow only if the user asked for it)"
+  },
+  {
+    "id": "git.on_chain",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "ask",
+    "text": "this commits or merges on {branch}; promotion up the branch chain needs the user's explicit request"
+  },
+  {
+    "id": "git.on_dev",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "ask",
+    "text": "this commits directly on {branch}; work goes on a branch merged into it (conclude a merge with git merge --continue)"
+  },
+  {
+    "id": "db.creds",
+    "guard": "db",
+    "marker": "db guard:",
+    "decision": "deny",
+    "text": "that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test"
+  },
+  {
+    "id": "db.restore",
+    "guard": "db",
+    "marker": "db guard:",
+    "decision": "deny",
+    "text": "{tool} restores into a database; local restores go through dbrun restore, anything else is a script for a person to run"
+  },
+  {
+    "id": "db.sql_write",
+    "guard": "db",
+    "marker": "db guard:",
+    "decision": "deny",
+    "text": "a direct {tool} call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)"
+  },
+  {
+    "id": "db.bypass",
+    "guard": "db",
+    "marker": "db guard:",
+    "decision": "ask",
+    "text": "{tool} bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call"
+  },
+  {
+    "id": "secrets.gpg",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "deny",
+    "text": "decrypting the password store directly shows secret values; the runner that needs a secret reads it"
+  },
+  {
+    "id": "secrets.run_db",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "deny",
+    "text": "ai-gent/db/ entries are read only by dbrun; use dbrun test / query"
+  },
+  {
+    "id": "secrets.run_print",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "deny",
+    "text": "that hands the secret to a command that can print it; run the tool that needs it after --"
+  },
+  {
+    "id": "secrets.clip",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "deny",
+    "text": "pass -c/-q exposes a secret value; the agent never reads one — the runner that needs it does"
+  },
+  {
+    "id": "secrets.insert",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "deny",
+    "text": "the agent never writes a credential; ask the user to run `pass insert <entry>` in their own terminal"
+  },
+  {
+    "id": "secrets.store_change",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "ask",
+    "text": "pass {sub} changes the password store; the user decides"
+  },
+  {
+    "id": "secrets.show",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "deny",
+    "text": "that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it"
+  },
+  {
+    "id": "repo.attrib",
+    "guard": "repo",
+    "marker": "repo guard:",
+    "decision": "deny",
+    "text": "this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again"
+  },
+  {
+    "id": "repo.write",
+    "guard": "repo",
+    "marker": "repo guard:",
+    "decision": "ask",
+    "text": "reporun --write changes an issue, work item or pull request on the platform; confirm this exact change"
+  },
+  {
+    "id": "containers.prune",
+    "guard": "containers",
+    "marker": "containers guard:",
+    "decision": "deny",
+    "text": "prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)"
+  },
+  {
+    "id": "containers.all",
+    "guard": "containers",
+    "marker": "containers guard:",
+    "decision": "deny",
+    "text": "removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)"
+  },
+  {
+    "id": "containers.listing",
+    "guard": "containers",
+    "marker": "containers guard:",
+    "decision": "deny",
+    "text": "that removes whatever an unfiltered listing returns, other projects' included; filter the listing by label=me.lucasvmigotto.ai-gent.project=<project> (or your own name= prefix) (containers.md §9a)"
+  }
+]

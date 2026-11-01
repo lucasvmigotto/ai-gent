@@ -534,5 +534,32 @@ class Budget(unittest.TestCase):
             del os.environ["DESC_TOTAL_CEILING"]
 
 
+class GuardReasons(unittest.TestCase):
+    UX = "marker: 'repo guard:',\n    entries: [\n      { match: 'sign-off' },\n    ],\n"
+    GUARD = '#!/bin/sh\ndecide deny "no sign-off here"\n'
+
+    def files(self, text):
+        return {
+            consistency.GUARD_UX: self.UX,
+            "plugins/repo/hooks/guard.sh": self.GUARD,
+            consistency.REASONS_JSON: json.dumps([{"id": "repo.attrib", "guard": "repo", "marker": "repo guard:", "decision": "deny", "text": text}]),
+        }
+
+    def test_equal_is_clean(self):
+        root = tree(self.files("no sign-off here"))
+        self.assertEqual(consistency.check_guard_reasons(root, consistency.guard_matches(root)), [])
+
+    def test_a_reason_the_script_does_not_print_fails(self):
+        root = tree(self.files("a sign-off other text"))
+        problems = consistency.check_guard_reasons(root, consistency.guard_matches(root))
+        self.assertEqual(len(problems), 2, problems)
+
+    def test_a_reason_without_a_ux_entry_fails(self):
+        root = tree(self.files("no sign-off here"))
+        (root / consistency.GUARD_UX).write_text("marker: 'repo guard:',\n    entries: [\n      { match: 'other' },\n    ],\n")
+        problems = consistency.check_guard_reasons(root, consistency.guard_matches(root))
+        self.assertTrue(any("no entry" in p for p in problems), problems)
+
+
 if __name__ == "__main__":
     unittest.main()

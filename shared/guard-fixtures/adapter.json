@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "guard": "all",
+  "cases": [
+    {
+      "id": "adapter-001",
+      "event": {
+        "action": "shell",
+        "resources": [
+          "git push origin feat/x"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "ask",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-002",
+      "event": {
+        "action": "shell",
+        "resources": [
+          "git commit --no-verify -m x"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "deny",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-003",
+      "event": {
+        "action": "shell",
+        "resources": [
+          "psql -c 'DELETE FROM t'"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "deny",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-004",
+      "event": {
+        "action": "shell",
+        "resources": [
+          "ls -la"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "none",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-005",
+      "event": {
+        "action": "shell",
+        "resources": [
+          "pass show ai-gent/github/pat"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "deny",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-006",
+      "event": {
+        "action": "shell",
+        "resources": [
+          "pass rm ai-gent/db/old"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "ask",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-007",
+      "event": {
+        "action": "shell",
+        "resources": [
+          "reporun cli github --write -- pr merge 3"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "ask",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-008",
+      "event": {
+        "action": "shell",
+        "resources": [
+          "podman system prune -a"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "deny",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-009",
+      "event": {
+        "action": "read",
+        "resources": [
+          "/home/me/.config/ai-gent/db/connections.env"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "deny",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-010",
+      "event": {
+        "action": "read",
+        "resources": [
+          "/home/me/project/readme.md"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "none",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    },
+    {
+      "id": "adapter-011",
+      "event": {
+        "action": "edit",
+        "resources": [
+          "/home/me/.config/ai-gent/db/connections.env"
+        ]
+      },
+      "cwd": "@feat",
+      "want": "deny",
+      "source": [
+        "opencode/guard/test/rules.test.mjs:adapterCases"
+      ]
+    }
+  ]
+}
