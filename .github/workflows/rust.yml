@@ -4,8 +4,6 @@ name: rust
 # Dispatch only at this stage; pull_request triggers arrive with the check.yml wiring (T014).
 on:
   workflow_dispatch:
-  push: # TEMPORARY: dispatch needs the file on the default branch; removed before the PR
-    branches: [feat/rust-workspace-bootstrap]
 
 permissions:
   contents: read

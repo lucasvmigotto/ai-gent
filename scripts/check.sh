@@ -20,6 +20,8 @@
 #                then the one on PATH; else the lint is skipped)
 #   SHELLCHECK_VERSION  shellcheck-py release to pin (default below)
 #   PYGMENTS_VERSION    Pygments release compact:code's tests run with (default below)
+#   CHECK_SKIP_RUST     any value skips the Rust gates (CI sets it when a pull request
+#                       touches nothing they check)
 #   UV_VERSION          uv release fetched through pipx when uv isn't installed
 
 set -euo pipefail
@@ -419,7 +421,9 @@ rust_gate() { # rust_gate <label> <command...>
   rm -f "$out"
 }
 
-if ! command -v cargo >/dev/null 2>&1; then
+if [[ -n "${CHECK_SKIP_RUST:-}" ]]; then
+  warn "CHECK_SKIP_RUST set (CI: no Rust files changed); skipped the Rust gates"
+elif ! command -v cargo >/dev/null 2>&1; then
   warn "cargo not on PATH; skipped the Rust gates (fmt, clippy, test, deny)"
 else
   rust_gate fmt cargo fmt --all -- --check
