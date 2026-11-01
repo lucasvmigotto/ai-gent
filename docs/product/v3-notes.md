@@ -19,6 +19,9 @@ a flagged dev mode. This is a test of the idea, not a plan.
   optional because it needs `gh`.
 - `releases/latest` must never point at a release without a package, so the
   Release is created as a draft and published by the package job.
+- An explicit `VERSION=x.y.z` writes a `pinned` marker in the install root
+  and update-check stays silent; `latest` clears it. `SHA256SUMS` lists the
+  tarball and `install.sh`, which is also attested.
 - `skills/skill-docs` is a contributor skill and is not in the package.
 
 ## What v3 would change (breaking)

@@ -242,6 +242,14 @@ OUT="$(env -u AI_GENT_UPDATE_ROOT CLAUDE_PLUGIN_ROOT="$SANDBOX/home2/skills/git"
 check "package: works through the skills symlink and current" test "$(printf '%s' "$OUT" | grep -c 'update available')" = 1
 PKG="$SANDBOX/home2/ai-gent/0.0.1"
 
+printf '%s 9.9.9\n' "$(date +%s)" >"$XDG_STATE_HOME/ai-gent/update-check"
+echo 0.0.1 >"$SANDBOX/home2/ai-gent/pinned"
+OUT="$(env -u AI_GENT_UPDATE_ROOT AI_GENT_UPDATE_ROOT="$SANDBOX/home2/ai-gent/0.0.1" bash "$REPO_DIR/scripts/update-check.sh")"
+check "package: a pinned install stays silent" test -z "$OUT"
+rm "$SANDBOX/home2/ai-gent/pinned"
+OUT="$(AI_GENT_UPDATE_ROOT="$SANDBOX/home2/ai-gent/0.0.1" bash "$REPO_DIR/scripts/update-check.sh")"
+check "package: unpinned (marker removed) notifies again" test "$(printf '%s' "$OUT" | grep -c 'update available')" = 1
+
 # --- ai-gent-update.sh from a package install: re-runs the installer ---
 cat >"$PKG/install.sh" <<'STUB'
 #!/bin/sh

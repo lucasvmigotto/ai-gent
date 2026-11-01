@@ -145,6 +145,8 @@ _ai_gent_update_check() {
     local root local_tag state checked remote now maxage
     root="$(_ai_gent_update_root)" || return 0
     _ai_gent_pinned "${root}" && return 0
+    # a package pinned by VERSION=x.y.z at install time (see install.sh)
+    _ai_gent_is_package "${root}" && [[ -f "${root%/*}/pinned" ]] && return 0
     state="$(_ai_gent_update_state_file)"
     now="$(date +%s 2>/dev/null)" || return 0
     maxage=$(( ${AI_GENT_UPDATE_DAYS:-7} * 86400 ))

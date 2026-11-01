@@ -27,7 +27,7 @@ Pass `setup.sh` flags after `-s --`; the installer's own flags manage versions:
 
 ```bash
 curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh -s -- --target claude,opencode,codex
-curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | VERSION=2.26.0 sh        # pin a release
+curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | VERSION=2.26.0 sh        # pin a release (no update notices until VERSION=latest)
 sh ~/.local/share/ai-gent/current/install.sh --list        # installed versions
 sh ~/.local/share/ai-gent/current/install.sh --rollback    # current <-> previous
 sh ~/.local/share/ai-gent/current/install.sh --prune       # keep current and previous only

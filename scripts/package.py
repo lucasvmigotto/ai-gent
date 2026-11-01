@@ -2,7 +2,7 @@
 """Build the ai-gent release package (stdlib only).
 
   scripts/package.py --version 2.26.0 [--out dist]   build dist/ai-gent-<ver>.tar.gz,
-                                                     dist/SHA256SUMS and dist/LATEST
+                                                     dist/install.sh, dist/SHA256SUMS and dist/LATEST
   scripts/package.py --check                         build into a temp dir and verify it;
                                                      publishes nothing (wired into check.sh)
 
@@ -228,8 +228,12 @@ def build(version, out_dir):
     os.replace(tmp, final)
     with open(final, "rb") as fh:
         digest = sha256_of(fh.read())
+    # install.sh is released beside the tarball (curl | sh); its checksum is listed too.
+    shutil.copyfile(os.path.join(ROOT, "install.sh"), os.path.join(out_dir, "install.sh"))
+    with open(os.path.join(ROOT, "install.sh"), "rb") as fh:
+        installer = sha256_of(fh.read())
     with open(os.path.join(out_dir, "SHA256SUMS"), "w") as fh:
-        fh.write(f"{digest}  {name}\n")
+        fh.write(f"{digest}  {name}\n{installer}  install.sh\n")
     with open(os.path.join(out_dir, "LATEST"), "w") as fh:  # for mirrors (AI_GENT_RELEASE_BASE)
         fh.write(version_txt)
     return final, len(entries)

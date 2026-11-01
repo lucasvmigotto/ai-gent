@@ -14,7 +14,7 @@
 # Nothing is written under $AI_GENT_HOME until the download passed its checksum.
 #
 # Environment:
-#   VERSION               latest (default) or x.y.z
+#   VERSION               latest (default) or x.y.z (x.y.z pins: no update notices)
 #   AI_GENT_HOME          install root (default: ${XDG_DATA_HOME:-$HOME/.local/share}/ai-gent)
 #   AI_GENT_RELEASE_BASE  where releases live (default: the GitHub releases URL of
 #                         lucasvmigotto/ai-gent). <base>/<ver>/ai-gent-<ver>.tar.gz and
@@ -166,6 +166,8 @@ do_install() {
     [ -z "$cur" ] || flip "$cur" "$home/previous"
     flip "$ver" "$home/current"
   fi
+  # An explicit VERSION=x.y.z pins (update-check.sh stays silent); latest or no VERSION clears it.
+  if [ -n "${VERSION:-}" ] && [ "$VERSION" != latest ]; then printf '%s\n' "$ver" >"$home/pinned"; else rm -f "$home/pinned"; fi
   run_setup "$@"
   say "installed $ver in $home; to update run this installer again, to undo: sh install.sh --rollback"
 }
