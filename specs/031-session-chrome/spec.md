@@ -42,6 +42,8 @@ Only the workspace status above the prompt and one line under it. Out of scope a
 
 `workspaceLine` on (the consolidation asked for; it changes nothing unless the project plugin is present); `contextMeter` on (changed from off); the amber threshold is 75% of the nudge's; the meter text is dim and carries the level in words; no `—` placeholder (nothing is drawn instead).
 
+- 2026-10-31: usage-limit segment added at the maintainer's request after a `Usage limit reached` notice while the context showed 18%; the two are different metrics (the context window versus the account's rate-limit windows). The hint line's bar is the `five_hour` window (`usageMeter`, with the `seven_day` percent beside it on a wide pane and a `↻` recharge delta), fed by the pushed `session.measure` and the one usage read; the context meter (`contextMeter`) falls back there with no five-hour reading and, with the week and `spend_limit`, is a row in the workspace line's Details, a critical one also in its warnings. Marks: approaching from 75 percent used, critical from 100 minus `handoffNudgeCapPercent`. While a turn runs the tail is sized as if the engine's own row were at least 60 cells.
+
 ## Out of scope / limitations
 
 Agent activity, the auto-mode row, colour on the meter, a plugin-update count, a container count, and hiding a folded release band (its Hide button lives on the band, which no longer draws; use `releaseBand` off).
