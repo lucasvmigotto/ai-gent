@@ -37,6 +37,7 @@ const checkpoint = atom({ plugin: 'project', key: 'checkpoint' } as const, null,
 })
 const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, false)
 const isWorkspaceOpen = atom({ plugin: 'project', key: 'workspaceExpanded' } as const, false)
+const sessionModel = atom({ plugin: 'project', key: 'sessionModel' } as const, null)
 
 type Options = BandOptions & HandoffOptions & NextStageOptions & ContextOptions & { workspaceLine?: boolean; holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number; guardLogLimit?: number; guardsPane?: boolean }
 
@@ -126,6 +127,16 @@ export const register: Register = (on, options: Options) => {
     return started
   })
 
+  // Observe only: the model and effort the engine resolved for this request, for the Details row.
+  on('turn.step', async function* ($, e, next) {
+    if (e.agentId === undefined) {
+      const effort = e.effort === undefined ? null : String(e.effort)
+      const known = await read($, sessionModel)
+      if (known?.model !== e.model || known?.effort !== effort) await update($, sessionModel, () => ({ model: e.model, effort })).catch(() => undefined)
+    }
+    return yield* next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     const current = await refresh($, showBand).catch(() => null)
     await declareLeader($, showWorkspace).catch(() => undefined)
@@ -177,11 +188,14 @@ export const register: Register = (on, options: Options) => {
     const holds = isHoldsQuiet || !(await plan($, HOLDS, options)).draws ? null : current
 
     // The bands that carry a summary, folded into one line while this plugin leads (never a hold or a failure).
+    const chosen = await read($, sessionModel)
     const view =
       showWorkspace && !e.props.isWorking && (await folding($))
         ? workspaceView(await allBands($), {
             columns: e.props.bodyColumns,
             ascii: options.chromeAscii === true,
+            model: chosen?.model,
+            effort: chosen?.effort,
             extras: await contextExtras($, options, e.props.bodyColumns - 2),
           })
         : null
