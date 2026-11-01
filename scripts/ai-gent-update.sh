@@ -10,6 +10,9 @@
 #                                       # the current branch); pinned stays put
 #   scripts/ai-gent-update.sh <ref>     # a branch, tag, or sha
 #
+# In a release-package install (a VERSION file, no .git) it re-runs the
+# installer instead: VERSION=latest, or the version given as <ref>.
+#
 # AI_GENT_UPDATE_ROOT overrides checkout detection (tests).
 
 set -euo pipefail
@@ -24,6 +27,15 @@ while [[ -L $self ]]; do
     if [[ $link == /* ]]; then self="$link"; else self="$(dirname "$self")/$link"; fi
 done
 root="${AI_GENT_UPDATE_ROOT:-$(cd "$(dirname "$self")/.." && pwd -P)}"
+if [[ -f "$root/VERSION" && ! -e "$root/.git" ]]; then
+    # Release-package install: re-run the installer, which verifies the
+    # download, unpacks the new version and flips `current`.
+    [[ -f "$root/install.sh" ]] || die "$root has no install.sh"
+    home="$(dirname "$root")"
+    say "package install $(cat "$root/VERSION"); asking the installer for ${1:-latest} (AI_GENT_HOME=$home)"
+    AI_GENT_HOME="$home" VERSION="${1:-latest}" sh "$root/install.sh" --skip-prompt
+    exit $?
+fi
 [[ -d "$root/.git" ]] || die "$root is not a git checkout — re-clone https://github.com/lucasvmigotto/ai-gent.git"
 [[ -n "$(git -C "$root" status --porcelain)" ]] && die "$root has local changes — stash or commit them first"
 

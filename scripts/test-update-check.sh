@@ -213,13 +213,45 @@ AI_GENT_UPDATE_ROOT="$WORK" bash "$REPO_DIR/scripts/ai-gent-update.sh" >/dev/nul
   failures=$((failures + 1))
 } || printf '      ok    dirty checkout refuses\n'
 
-# --- hook wiring ---
+# --- hook wiring: the SessionStart command, in a clone and in a package ---
 HOOK_CMD="$(python3 -c "import json; print(json.load(open('$REPO_DIR/plugins/git/hooks/hooks.json'))['hooks']['SessionStart'][0]['hooks'][0]['command'])")"
-HOOK_PATH="${HOOK_CMD#bash }"
-HOOK_PATH="${HOOK_PATH%\"}"
-HOOK_PATH="${HOOK_PATH#\"}"
-HOOK_PATH="${HOOK_PATH//\$\{CLAUDE_PLUGIN_ROOT\}/$REPO_DIR/plugins/git}"
-check "SessionStart hook command resolves" test -x "$HOOK_PATH"
+check "clone: the hook's relative path exists" test -f "$REPO_DIR/plugins/git/../../scripts/update-check.sh"
+check "clone: the hook exits 0" env CLAUDE_PLUGIN_ROOT="$REPO_DIR/plugins/git" AI_GENT_NO_UPDATE_CHECK=1 sh -c "$HOOK_CMD"
+check "a plugin outside any ai-gent tree: the hook is a silent no-op" \
+  env CLAUDE_PLUGIN_ROOT="$SANDBOX/nowhere/plugins/git" sh -c "$HOOK_CMD"
+
+PKG="$SANDBOX/pkg"
+mkdir -p "$PKG"
+python3 "$REPO_DIR/scripts/package.py" --version 0.0.1 --out "$PKG/dist" >/dev/null
+tar -xzf "$PKG/dist/ai-gent-0.0.1.tar.gz" -C "$PKG" --strip-components=1
+check "package: the hook's relative path exists inside the package" test -f "$PKG/plugins/git/../../scripts/update-check.sh"
+printf '%s 9.9.9\n' "$(date +%s)" >"$XDG_STATE_HOME/ai-gent/update-check"
+OUT="$(env -u AI_GENT_UPDATE_ROOT CLAUDE_PLUGIN_ROOT="$PKG/plugins/git" sh -c "$HOOK_CMD")"
+if [[ "$OUT" == *"update available: 0.0.1 → 9.9.9"* && "$OUT" == *"ai-gent install"* ]]; then
+  printf '      ok    package: the hook prints the notice from VERSION\n'
+else
+  printf '      FAIL  package hook notice (got: %q)\n' "$OUT"
+  failures=$((failures + 1))
+fi
+# through a symlinked plugin dir and a `current` link, like the real install
+mkdir -p "$SANDBOX/home2/ai-gent" "$SANDBOX/home2/skills"
+mv "$PKG" "$SANDBOX/home2/ai-gent/0.0.1"
+ln -s 0.0.1 "$SANDBOX/home2/ai-gent/current"
+ln -s "$SANDBOX/home2/ai-gent/current/plugins/git" "$SANDBOX/home2/skills/git"
+OUT="$(env -u AI_GENT_UPDATE_ROOT CLAUDE_PLUGIN_ROOT="$SANDBOX/home2/skills/git" sh -c "$HOOK_CMD")"
+check "package: works through the skills symlink and current" test "$(printf '%s' "$OUT" | grep -c 'update available')" = 1
+PKG="$SANDBOX/home2/ai-gent/0.0.1"
+
+# --- ai-gent-update.sh from a package install: re-runs the installer ---
+cat >"$PKG/install.sh" <<'STUB'
+#!/bin/sh
+echo "installer VERSION=$VERSION HOME=$AI_GENT_HOME ARGS=$*"
+STUB
+OUT="$(AI_GENT_UPDATE_ROOT="$PKG" bash "$REPO_DIR/scripts/ai-gent-update.sh" 2>&1)"
+check "package update re-runs the installer with VERSION=latest in the same home" \
+  bash -c '[[ "$1" == *"installer VERSION=latest HOME=$2 ARGS=--skip-prompt"* ]]' _ "$OUT" "$SANDBOX/home2/ai-gent"
+OUT="$(AI_GENT_UPDATE_ROOT="$PKG" bash "$REPO_DIR/scripts/ai-gent-update.sh" 3.0.0 2>&1)"
+check "package update takes an explicit version" bash -c '[[ "$1" == *"installer VERSION=3.0.0"* ]]' _ "$OUT"
 
 if ((failures)); then
   printf '%d check(s) failed\n' "$failures" >&2
