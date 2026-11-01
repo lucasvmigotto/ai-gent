@@ -1,10 +1,25 @@
 {
   "name": "db",
-  "version": "1.5.0",
+  "version": "1.8.0",
   "license": "GPL-3.0-or-later",
   "description": "Safe database work through one audited runner: connect (profiles, classification), inspect (schema discovery), review (the application's database usage), investigate (bad data, hand edits, app bugs). Remote is SELECT-only; only proven local containers can be written",
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
-  }
+  },
+  "userConfig": {
+    "guardUx": {
+      "type": "boolean",
+      "title": "Explain this guard's decisions",
+      "description": "When the guard denies or asks, say why in plain words and what to do instead (the guard still decides; this changes only the words)",
+      "default": true
+    },
+    "guardLog": {
+      "type": "boolean",
+      "title": "Keep a log of this guard's decisions",
+      "description": "Remember the last 200 denies and asks (the entry and the command's verb only, never the command or the reason) for the project plugin's /guards (the guard still decides)",
+      "default": true
+    }
+  },
+  "types": "./types/index.d.ts"
 }

@@ -8,7 +8,7 @@ description: Find, read, create and update issues and work items — GitHub Issu
 Read `../../references/runner.md` first: every call goes through
 `reporun`, the CLI when it's installed and the REST API otherwise. Then
 the tracker's file in `../../references/platforms/` (`github.md`,
-`azure-devops.md`, `gitlab.md`, `bitbucket.md`, `jira.md`).
+`azure-devops.md`, `gitlab.md`, `bitbucket.md`, `forgejo.md`, `jira.md`).
 
 ## Which tracker
 
@@ -55,7 +55,11 @@ confirms with the user. Before each one:
 4. **Transitions** follow the workflow: read the allowed transitions
    (Jira `…/transitions`, the Azure work item type's states) instead of
    guessing a state name.
-5. After the write, read the item back and report the link.
+5. **No agent attribution** — a body or comment carries no
+   `Co-Authored-By`, "generated with" signature or similar
+   (`git:workflow`'s *Never*); the `repo` guard denies a `--write` that
+   does.
+6. After the write, read the item back and report the link.
 
 Rich text: Azure DevOps fields take HTML; Jira Cloud's v3 API takes
 Atlassian Document Format — use `/rest/api/2` for plain text; GitHub,

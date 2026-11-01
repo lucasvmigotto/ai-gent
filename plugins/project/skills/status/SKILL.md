@@ -38,7 +38,7 @@ against the repository rather than trusting the table:
 | Planned | `spec.md` exists with no open `[NEEDS CLARIFICATION]`, plus `plan.md` and `tasks.md` |
 | In progress | some tasks checked in the matching `## Frontend` / `## Backend` section of `tasks.md` |
 | Implemented | all of that side's tasks checked, code and tests for them present, and no unchecked `## Phase N: Convergence` phase |
-| Verified | `qa.md` journeys exist as tests under `tests/e2e/` (and `tests/load/` where the feature has load targets), and CI runs them and passed on the last run |
+| Verified | `qa.md` journeys exist as tests under `tests/e2e/` (and `tests/load/` where the feature has load targets), and CI runs them and passed on the last run. For tooling without a UI: the integration suites its `qa.md` or `tasks.md` names run in CI (a scheduled run counts) and passed on the last run |
 
 A claim without its evidence is a **contradiction**. Report it, and name
 the stage that should move the status back (pipeline rule 6). Two that
@@ -59,6 +59,15 @@ tracker (pending creates, updates or state moves) — an open item that
 `repo:sync` clears. Reading the items' remote state is optional and
 read-only; an item closed there while the specs say otherwise is drift
 to report.
+
+**Tokens.** Where tasks carry `Tokens:` tags or a feature has a `Tokens`
+block in its `tracker.md` (`../../references/token-tracking.md`), show per
+feature the projected and used billable tokens and the estimation error
+(used against projected, signed), the coordinator's share, and the budget
+left: `.ai-gent/budget.yaml`'s caps less the session's and the week's use
+(`python3 <agents plugin>/scripts/token_report.py budget --projected 0`
+prints them). Read-only; a feature with no figures says so, it isn't an
+error.
 
 Also flag features whose dependencies are less advanced than they are,
 and features with a `ui.md` or `backend.md` missing although the other
@@ -110,6 +119,7 @@ Features    table: NNN name | priority | frontend | backend | QA | notes
 CI          dev ✓ · main ✗ <workflow> — the failing job, if any
 Open items  N gaps, N clarifications, N assumptions — the ones that matter, with file:line
 Contradictions  each with its evidence and the owning stage
+Tokens      per feature: projected → used (error), coordinator share; budget left
 Next        /<stage> — why; alternatives in parallel
 ```
 

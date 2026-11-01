@@ -20,13 +20,15 @@
 #   the config edit below denies those short, colliding IDs (spec, build, ...)
 #   with `skill` permission rules, leaving only the namespaced ones.
 #
-# Codex, Cursor, Gemini CLI, GitHub Copilot, Amp (one shared directory that
-# all five read; installing per tool would list every skill twice):
+# Codex, Cursor, GitHub Copilot, Amp (one shared directory that all four
+# read; installing per tool would list every skill twice):
 #   skills/<name>/, plugins/<p>/skills/<s>/ -> ~/.agents/skills/<name>, <p>-<s>
 #                                              (generated entry files, not
 #                                              symlinks, which Cursor skips)
-# Kiro      the same entry files in ~/.kiro/skills
-# Windsurf  the same entry files in ~/.codeium/windsurf/skills
+# Kiro         the same entry files in ~/.kiro/skills
+# Windsurf     the same entry files in ~/.codeium/windsurf/skills
+# Antigravity  the same entry files in ~/.gemini/config/skills (its own
+#              native Agent Skills location, not the shared directory above)
 #   These agents don't run the guard hooks (git, db, secrets, repo): there, they are
 #   instructions only.
 #
@@ -81,6 +83,7 @@ OPENCODE_COMMANDS="${OPENCODE_COMMANDS_DIR:-$HOME/.config/opencode/commands}"
 AGENTS_SKILLS="${AGENTS_SKILLS_DIR:-$HOME/.agents/skills}"
 KIRO_SKILLS="${KIRO_SKILLS_DIR:-$HOME/.kiro/skills}"
 WINDSURF_SKILLS="${WINDSURF_SKILLS_DIR:-$HOME/.codeium/windsurf/skills}"
+ANTIGRAVITY_SKILLS="${ANTIGRAVITY_SKILLS_DIR:-$HOME/.gemini/config/skills}"
 MARKER=".ai-gent-generated"
 AI_GENT_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ai-gent"
 TARGETS_STATE="$AI_GENT_STATE/targets"
@@ -96,21 +99,21 @@ TARGET=""
 
 # The agents, in the selector's order: an id, a label, and the commands or
 # directories that show it's installed (any one is enough).
-AGENT_IDS=(claude opencode codex cursor gemini copilot amp kiro windsurf)
+AGENT_IDS=(claude opencode codex cursor antigravity copilot amp kiro windsurf)
 declare -A AGENT_LABEL=(
   [claude]="Claude Code" [opencode]="opencode" [codex]="Codex" [cursor]="Cursor"
-  [gemini]="Gemini CLI" [copilot]="GitHub Copilot" [amp]="Amp" [kiro]="Kiro"
+  [antigravity]="Antigravity" [copilot]="GitHub Copilot" [amp]="Amp" [kiro]="Kiro"
   [windsurf]="Windsurf"
 )
 declare -A AGENT_DETECT=(
   [claude]="claude .claude" [opencode]="opencode .config/opencode"
   [codex]="codex .codex" [cursor]="cursor cursor-agent .cursor"
-  [gemini]="gemini .gemini" [copilot]="copilot .copilot"
+  [antigravity]="agy .gemini/config" [copilot]="copilot .copilot"
   [amp]="amp .config/amp" [kiro]="kiro kiro-cli .kiro"
   [windsurf]="windsurf .codeium/windsurf"
 )
 # The agents that read the shared ~/.agents/skills directory.
-SHARED_AGENTS=" codex cursor gemini copilot amp "
+SHARED_AGENTS=" codex cursor copilot amp "
 
 usage() {
   cat <<EOF
@@ -122,8 +125,8 @@ Code and the previous choice preselected.
 
   --target <agents>
                comma-separated, instead of the selector: claude, opencode,
-               codex, cursor, gemini, copilot, amp, kiro, windsurf, or all
-               (every agent found on this machine)
+               codex, cursor, antigravity, copilot, amp, kiro, windsurf, or
+               all (every agent found on this machine)
   --skip-prompt
                no selector: the previous choice, or Claude Code alone the
                first time (also what happens without a terminal)
@@ -143,10 +146,11 @@ Where each agent's skills go (override with the variable in parentheses):
              skipped when opencode isn't installed. Skills Claude Code forks
              onto Haiku (devsecops:watch) become subtask commands, on
              AI_GENT_OPENCODE_MODEL_SMALL (provider/model) when it's set
-  codex, cursor, gemini, copilot, amp
+  codex, cursor, copilot, amp
              $AGENTS_SKILLS (AGENTS_SKILLS_DIR), shared
-  kiro       $KIRO_SKILLS (KIRO_SKILLS_DIR)
-  windsurf   $WINDSURF_SKILLS (WINDSURF_SKILLS_DIR)
+  kiro         $KIRO_SKILLS (KIRO_SKILLS_DIR)
+  windsurf     $WINDSURF_SKILLS (WINDSURF_SKILLS_DIR)
+  antigravity  $ANTIGRAVITY_SKILLS (ANTIGRAVITY_SKILLS_DIR)
 
 Colors, bold and italics are used on a terminal; NO_COLOR=1 turns them off.
 EOF
@@ -707,7 +711,7 @@ install_opencode() {
   opencode_permissions
 }
 
-# ------------------------------------------- Codex, Cursor, Gemini, Kiro, ...
+# --------------------------------------- Codex, Cursor, Kiro, Antigravity, ...
 
 # install_entries <title> <skills dir> — a generated entry per personal skill
 # and per plugin skill (<plugin>-<skill>), for agents that read SKILL.md
@@ -774,7 +778,8 @@ has_tty() { ((OUT_TTY)) && (exec </dev/tty) 2>/dev/null; }
 # their ids. fzf when installed, a numbered prompt otherwise.
 choose_agents() {
   local pre=" $1 " id n=0 found
-  if command -v fzf >/dev/null 2>&1; then
+  # AI_GENT_NO_FZF=1 asks with the numbered prompt even when fzf is installed.
+  if [[ -z ${AI_GENT_NO_FZF:-} ]] && command -v fzf >/dev/null 2>&1; then
     local lines="" bind="start:" width=0 label
     for id in "${AGENT_IDS[@]}"; do
       ((${#AGENT_LABEL[$id]} > width)) && width=${#AGENT_LABEL[$id]}
@@ -791,7 +796,7 @@ choose_agents() {
     done
     printf '%s' "$lines" | fzf --multi --delimiter=$'\t' --with-nth=2 --height=~16 \
       --layout=reverse --border --prompt='agents> ' --bind "${bind}first" \
-      --header=$'Tab selects, Enter installs. Claude Code is the default.\nCodex, Cursor, Gemini CLI, Copilot and Amp share ~/.agents/skills.' |
+      --header=$'Tab selects, Enter installs. Claude Code is the default.\nCodex, Cursor, Copilot and Amp share ~/.agents/skills.' |
       cut -f1
     return
   fi
@@ -876,6 +881,7 @@ for id in $AGENTS; do
     opencode) install_opencode ;;
     kiro) install_entries "Kiro" "$KIRO_SKILLS" ;;
     windsurf) install_entries "Windsurf" "$WINDSURF_SKILLS" ;;
+    antigravity) install_entries "Antigravity" "$ANTIGRAVITY_SKILLS" ;;
     *)
       # One pass for every chosen agent that reads ~/.agents/skills.
       ((SHARED_DONE)) && continue

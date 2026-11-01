@@ -1,8 +1,8 @@
 # Container rules — container-first development
 
-Shared by the `devcontainer`, `devsecops` and `project` plugins (symlinked
-into each plugin's references directory). Every stage that builds, runs or ships a
-container follows these rules.
+Shared by every plugin that builds, runs or ships a container (symlinked
+into each plugin's references directory). Every stage that does follows
+these rules.
 
 Development is treated as an experiment: the same inputs, run through the
 same pinned container, give the same result on any machine and in CI.
@@ -204,7 +204,11 @@ preference order, not a replacement for it — reach for it only under rule 1.
 - Non-root `USER` with a fixed numeric UID; `HEALTHCHECK` where the
   runtime supports one (or a compose healthcheck when the image has no
   shell); OCI labels (`org.opencontainers.image.source`, `.revision`,
-  `.version`).
+  `.version`), and the ownership label
+  `me.lucasvmigotto.ai-gent.project=<project>` (§9a), passed at build time
+  (`build --label`), never inherited: a base image's own
+  `org.opencontainers.image.title` reaches every child image, so it can't
+  say which project an image belongs to.
 - No `apt-get upgrade`, no `latest`, no unpinned `curl | sh`; package
   versions pinned where the package manager allows.
 
@@ -256,7 +260,8 @@ package manager and the build command to the module.
 
 A `justfile` (or the project's existing Makefile/task runner) with the
 same recipe names everywhere — `fmt`, `lint`, `typecheck`, `test`,
-`build`, `doctor`, `shell` — each running in the module's `tools` image:
+`build`, `doctor`, `shell`, `clean` — each running in the module's `tools`
+image:
 
 ```make
 engine := env_var_or_default("CONTAINER_ENGINE", `command -v podman >/dev/null 2>&1 && echo podman || echo docker`)
@@ -269,6 +274,39 @@ test module="api":
   `build: {target: tools}`, the repo bind-mounted read-write at the
   working directory, cache volumes named `<project>-<module>-<purpose>`,
   the §7 limits.
+- **Volumes are created, labelled, before they're mounted.** `run -v
+  <name>:<path>` creates a missing volume without labels, so the recipe
+  creates it first: `{{engine}} volume inspect <v> >/dev/null 2>&1 ||
+  {{engine}} volume create --label me.lucasvmigotto.ai-gent.project=<project>
+  --label me.lucasvmigotto.ai-gent.worktree=<project>/<slug> <v>`, and
+  starts containers with the same two labels. A worktree's volume ends in
+  its slug (`<project>-<module>-<purpose>-<slug>`, from `AI_GENT_WORKTREE`,
+  which `agents:parallel` sets); the main checkout's slug is `main`.
+- **`image`** builds with `--label me.lucasvmigotto.ai-gent.project=<project>`,
+  then removes the project's dangling images by ID, without `-f`, so one
+  still in use stays: `{{engine}} images -q --filter dangling=true --filter
+  label=me.lucasvmigotto.ai-gent.project=<project> | xargs -r {{engine}} rmi`.
+  One tools tag per module; never a second tag for a variant.
+- **`clean`** removes this worktree's labelled containers and volumes and
+  the project's dangling images, by ID; `clean dry=1` only lists them. In
+  the main checkout it leaves the cache volumes alone (`clean-cache`
+  removes those, and only when asked).
+
+```make
+project := "<project>"
+own := "--label me.lucasvmigotto.ai-gent.project=" + project
+wt  := env_var_or_default("AI_GENT_WORKTREE", "main")
+sel := "label=me.lucasvmigotto.ai-gent.worktree=" + project + "/" + wt
+
+image:
+    {{engine}} build {{own}} --target tools -t localhost/{{project}}-tools:dev -f Containerfile .
+    {{engine}} images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project={{project}} | xargs -r {{engine}} rmi
+
+clean dry="":
+    for c in `{{engine}} ps -aq --filter {{sel}}`; do echo "container $c"; [ -n "{{dry}}" ] || {{engine}} rm -f "$c"; done
+    if [ "{{wt}}" != main ]; then for v in `{{engine}} volume ls -q --filter {{sel}}`; do echo "volume $v"; [ -n "{{dry}}" ] || {{engine}} volume rm "$v"; done; fi
+    for i in `{{engine}} images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project={{project}}`; do echo "image $i"; [ -n "{{dry}}" ] || {{engine}} rmi "$i"; done
+```
 - CI calls the same recipes (`devsecops:pipeline`), so a green run
   locally means the same thing as a green run in CI.
 
@@ -325,11 +363,13 @@ This applies to every stage that starts a container — `devcontainer:*`,
   `>/dev/null 2>&1` either — a loop that discards the engine's complaint
   ("image is in use", "no such image") reports success while removing
   nothing, and the wasted space looks identical to a slow disk.
-- **Target precisely; never prune broadly.** `--filter dangling`,
-  `image prune` and `system prune -a` will happily delete images another
-  project is mid-build on, and volumes that look unused are frequently not.
-  Remove by **exact ID or your own prefix**. If a sweep is genuinely the
-  right call, list exactly what it would take and get agreement first.
+- **Target precisely; never prune broadly.** `--filter dangling` on its
+  own and any `prune` (`image`, `volume`, `system -a`, even filtered) will
+  happily delete images another project is mid-build on, and volumes that
+  look unused are frequently not. Remove by **exact ID, your own prefix, or
+  this project's label** (§9a): list the IDs with the label filter, then
+  remove them by ID. If a sweep is genuinely the right call, list exactly
+  what it would take and get agreement first.
 - **Ask before removing anything you did not create** — including something
   that looks orphaned. On a shared host, "unused" is indistinguishable from
   "someone's in-flight work". Offer the list; let the user decide.
@@ -341,3 +381,41 @@ This applies to every stage that starts a container — `devcontainer:*`,
   '{{.Store.GraphRoot}}'` before concluding the engine is broken.
 - Report what you removed and what you deliberately left, so the user can
   see the workspace is clean without re-deriving it.
+
+## 9a. Project-owned resources — label them, clean them, budget the disk
+
+§9's snapshot covers a probe inside one session. Build caches, worktree
+volumes and rebuilt images outlive the session that made them, so the
+project marks what it owns and removes it by that mark.
+
+- **The label.** Every image the project builds, every named volume its
+  recipes create and every container they start carries
+  `me.lucasvmigotto.ai-gent.project=<project>`; per-worktree ones also
+  carry `me.lucasvmigotto.ai-gent.worktree=<project>/<slug>`. Compose
+  stacks carry `com.docker.compose.project`, which scopes them the same
+  way.
+- **Removed without asking** (the project's own artifacts, not the user's
+  standing environment):
+  - after every `image` rebuild: its dangling images (§6);
+  - when a worktree lands or is abandoned: everything labelled with that
+    worktree, and its compose project's, through `wt.py remove`
+    (`agents:parallel`);
+  - at the end of a task or wave, with no image build running: the
+    project's dangling images and the buildah working containers
+    (`ps -a --external`, status `Storage`) that weren't in the wave's
+    baseline, through `wt.py finish` after `wt.py baseline`. Interrupted
+    builds carry no label; the baseline is what attributes them.
+- **Everything else is asked.** Another project's resources, unlabelled
+  ones older than the baseline, the main checkout's caches: list them with
+  sizes and let the user decide.
+- **Disk budget.** Before anything that creates a volume per worktree or
+  pulls images, check the store's free space (`df -P "$("$CONTAINER_ENGINE"
+  info --format '{{.Store.GraphRoot}}')"`; Docker: `{{.DockerRootDir}}`).
+  If what's left after the planned work's estimate (10 GB per worktree
+  volume by default) is below the floor — 20 GB or 10 % of the disk,
+  whichever is larger — don't start: report `"$CONTAINER_ENGINE" system df`
+  and the project's labelled resources. `wt.py add` does this for each
+  track.
+- **Report what's left.** Every handoff that built or ran containers ends
+  with the project's labelled resources and their sizes (`clean dry=1` or
+  `wt.py resources`), so a leftover is visible the same day.

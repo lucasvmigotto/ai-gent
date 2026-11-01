@@ -1,4 +1,5 @@
 import {
+	Fragment,
 	lazy,
 	type ReactNode,
 	Suspense,
@@ -18,6 +19,7 @@ import {
 	version,
 	versions,
 } from "./content";
+import { type Section, sectionKey } from "./content/sections";
 import { LOCALES, type Locale, useI18n } from "./i18n";
 
 // react-markdown is heavy; load it only on pages that render Markdown.
@@ -259,6 +261,103 @@ export function CodeBlock({ code, label }: { code: string; label?: string }) {
 				{copied ? t.skill.copied : ""}
 			</p>
 		</div>
+	);
+}
+
+function renderSection(s: Section): ReactNode {
+	switch (s.kind) {
+		case "heading":
+			return s.level === 2 ? (
+				<h2 className="mt-6 font-display text-xl">{s.text}</h2>
+			) : (
+				<h3 className="mt-4 font-medium">{s.text}</h3>
+			);
+		case "paragraph":
+			return <p className="mt-2 max-w-2xl text-sm text-muted">{s.text}</p>;
+		case "code":
+			return <CodeBlock label={s.label} code={s.code} />;
+		case "entries":
+			return (
+				<dl className="mt-2 max-w-2xl space-y-4">
+					{s.items.map((item) => (
+						<div key={item.term}>
+							<dt className="font-medium">{item.term}</dt>
+							<dd className="mt-1 text-muted">
+								{item.body}
+								{item.code && <CodeBlock label="shell" code={item.code} />}
+							</dd>
+						</div>
+					))}
+				</dl>
+			);
+		case "list":
+			return (
+				<dl className="mt-6 space-y-4">
+					{s.items.map((item) => (
+						<div key={item.term}>
+							<dt className="font-display text-xl">{item.term}</dt>
+							<dd className="mt-1 text-sm text-muted">
+								{item.body}
+								{item.path && (
+									<a
+										className="ml-1 text-signal underline"
+										href={sourceUrl(item.path)}
+										rel="noreferrer"
+									>
+										{item.path}
+									</a>
+								)}
+							</dd>
+						</div>
+					))}
+				</dl>
+			);
+		case "table":
+			return (
+				<table className="mt-2 w-full max-w-xl text-left text-sm">
+					<thead>
+						<tr className="border-b border-muted/30">
+							{s.headers.map((h) => (
+								<th key={h} scope="col" className="py-1">
+									{h}
+								</th>
+							))}
+						</tr>
+					</thead>
+					<tbody>
+						{s.rows.map((row) => (
+							<tr key={row.join("|")} className="border-b border-muted/15">
+								{row.map((cell, ci) => (
+									<td
+										key={`${row.join("|")}:${s.headers[ci]}`}
+										className={ci === 0 ? "py-1 font-code" : "py-1"}
+									>
+										{cell}
+									</td>
+								))}
+							</tr>
+						))}
+					</tbody>
+				</table>
+			);
+		case "custom":
+			// Data-driven blocks (e.g. flow's steps) are rendered by the page
+			// itself, keyed by id — nothing generic to do here.
+			return null;
+		default:
+			return null;
+	}
+}
+
+// Renders a page's shared Section[] description (src/content/sections.ts) —
+// the HTML side of the one description generate-llms.ts also reads.
+export function SectionBlocks({ sections }: { sections: Section[] }) {
+	return (
+		<>
+			{sections.map((s) => (
+				<Fragment key={sectionKey(s)}>{renderSection(s)}</Fragment>
+			))}
+		</>
 	);
 }
 

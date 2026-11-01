@@ -32,6 +32,11 @@ the hand-off of a pipeline stage for a feature that already has a
 3. Platform specifics, once per repository: the Azure process's work
    item types and state categories, the Jira project key and its
    issue types, the GitHub labels that already exist (`sync.md`).
+4. On GitHub, ask whether a Projects v2 board should be kept in step too
+   (never assume it); if so, `reporun cli github -- project list --owner
+   <owner>` for its number (`sync.md` → *Per platform* → GitHub Projects
+   v2). Re-ask (or reuse what the user just said) on later syncs of the
+   same feature; `tracker.md` has no field for it.
 
 ## 2. Plan
 
@@ -56,7 +61,15 @@ what the specs say is drift: report it and ask, don't overwrite.
    first, then each story with its parent link), body updates for
    `update`, state moves for `state` — using the platform's calls from
    `sync.md`. Every step that creates or changes an item carries a
-   `record` with the plan's `key`, `state` and `hash`.
+   `record` with the plan's `key`, `state` and `hash`. On GitHub, when a
+   Projects v2 board is being kept in step (step 1.4), add a
+   `"project_status"` step for every item whose state is moving,
+   right after its issue step, in the **same** batch file — one
+   confirmation covers the issue writes and the board together
+   (`sync.md` → *The batch*). The item must already be on the board
+   first time (`reporun cli github --write -- project item-add <number>
+   --owner <owner> --url <issue url>`, its own step, before the
+   `project_status` step that sets its column).
 2. `reporun batch FILE --dry-run`, and show the list.
 3. When the user confirms the batch (or the run has their up-front
    permission to carry out the project on its own — `git:workflow`),

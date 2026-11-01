@@ -4,7 +4,326 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
-## Unreleased
+## 2.23.0 — 2026-10-31
+
+### Added
+
+- **Burn rate and cap ETAs in the token status line** (`plugins/agents/hooks/token*.ts`, spec `specs/018-token-burn-rate`). `session left 3.10M (~2h10m)` and a toast when a cap's ETA crosses a threshold; `rate_window_minutes` in `budget.yaml`.
+- **A card's used against projected tokens, toasted when it lands** (spec `specs/019-card-cost-on-landing`), **`/cards-pane`** (a timeline of the ledger's cards, `specs/020-card-timeline-pane`) and **`/worktree-board`** (one row per worktree with ahead/behind, dirty, PR and CI, `specs/022-worktree-board`) in `agents`.
+- **A hand-off nudge** (`plugins/project/hooks/handoff*.ts`, spec `specs/021-handoff-nudge`): a toast when the context window or a usage cap runs low, pointing at `project:checkpoint`; `handoffNudgeContextPercent` (80) and `handoffNudgeCapPercent` (10).
+- **A next-stage toast** after a pipeline artifact is written (spec `specs/027-next-stage-prompt`).
+- **A CI watch band** in `repo` (spec `specs/023-ci-watch-band`): the pushed commit's runs on GitHub with a mark each, bounded back-off, a toast per failing run; read only.
+- **A container and disk band and `/containers`** in `devcontainer` (spec `specs/025-container-disk-band`), from `leftovers.sh --json`; **a release readiness band** in `git` on `dev` and `main` (spec `specs/028-release-readiness-band`), from `release.py --dry-run --json`.
+- **Band priority** (spec `specs/030-band-priority`): at most `bandCap` (2) bands above the prompt, by declared priority, in `project`, `git`, `repo` and `devcontainer`, with `+N more band (/bands)`; holds are never hidden.
+- **A Workspace line above the prompt** (spec `specs/031-session-chrome`) that folds the quiet bands (passing CI, the next release, container leftovers, a branch behind its remote) into one line with a Details button; holds, failed CI and low disk keep their own bands. **A context meter** on the prompt's hint line, on by default (`contextMeter`), read once per turn from `$.session.usage().context.percent` with the hand-off threshold deciding `approaching` and `critical`.
+- **A guard log** (spec `specs/024-guard-log`): each guard plugin keeps a bounded, verb-only `guardLog`; `/guards` and `/guards-pane` in `project` list recent denies and asks as counts.
+- **Warnings about credentials in tool results** (spec `specs/026-output-secret-warning`): a toast when a result holds a credential, and for `Bash` and `WebFetch` the credential is replaced in what Claude reads; fails open; `secretOutputWarning`, `secretOutputRedact`, `secretOutputTools`.
+- **`--json` output** for `token_report.py tasks --dry-run`, `leftovers.sh`, and `release.py` and `release-single.py --dry-run`.
+
+### Changed
+
+- **The pipeline pane draws a dashboard** (spec `specs/029-pipeline-pane-redesign`): summary line, artifacts table, stage strip, an implementation bar that fills the pane, a width-aware feature matrix, a collapsed-by-default Features section, open items and the next action with its command. `pipelineLayout: compact` keeps the old view.
+
+### Not built
+
+- Agent activity and the auto-mode row cannot be restyled from a hook, and the meter carries its level in words and glyphs rather than colour (engine limits, see `specs/031-session-chrome/spec.md`); the guard log's transcript script (`specs/024-guard-log`, story 3).
+
+## 2.22.0 — 2026-10-29
+
+### Added
+
+- **A Claude Code mod that masks pasted secrets** (`plugins/secrets/hooks/register.tsx`, spec `specs/016-secret-mask`). A credential pasted into a prompt, a slash command's arguments or a skill's body is replaced (`<token>`, `<redacted>`, `<private key>`) before it is recorded in the transcript or sent to the model, and a toast names the kind and the `pass insert ai-gent/<area>/<name>` to run instead. It never shows or logs the value. If masking itself fails, a prompt that looks like it holds a credential is held back and anything else goes through. A skill's written body gets only the keys, tokens and URL passwords, so documentation stays whole. Turn it off with `secretMask`, or just the `NAME=value` rule with `maskAssignments`, in `/config`. It works only in Claude Code, and `shared/secrets.md` and the `secrets` guard stay the contract.
+
+- **A Claude Code pipeline pane** (`plugins/project/hooks/pipeline*.ts`, spec `specs/013-pipeline-pane`). `/pipeline-pane` opens a pane that keeps `project:status`'s snapshot on screen: the artifacts of `shared/pipeline.md` as present, missing or stale (compared by their last commit date), each feature's frontend, backend and QA status, the open `[NEEDS CLARIFICATION]`, `[UPSTREAM GAP]` and `[ASSUMPTION]` markers with `file:line`, and a hint at the next stage by `project:status`'s rules 1 to 3, with a button that puts `/project:status` in the prompt without sending it. It reads `specs/README.md` as `specsync.py` and `wt.py` do (a test runs both scripts on the same fixture), redraws when a file changes or an Edit or Write lands under `docs/product/` or `specs/`, and spawns nothing while idle. It opens by itself when `specs/README.md` exists and the surface can dock a pane. Turn it off, or set the refresh interval, with `pipelinePane` and `pipelinePollSeconds` in `/config`. The command is `/pipeline-pane` because `/pipeline` is also the short name of `devsecops:pipeline`. `scripts/consistency.py` checks the pane's artifact paths against `shared/pipeline.md`.
+
+- **Plainer guard decisions in Claude Code** (`shared/guard-ux.ts`, copied into the `git`, `db`, `secrets`, `repo` and `devcontainer` plugins' `hooks/`; spec `specs/015-guard-ux`). When a guard denies, a toast says what the command would do and what to do instead, and the agent gets one line of context with the alternative; its reason is unchanged. When a guard asks, the question is fuller (for example "This publishes commits to the remote. Allow only if you asked for this push.") with the guard's reason verbatim beneath. `hooks/guard.sh` still decides: the mod acts only on a result that carries its own guard's marker, never allows, and never turns a deny into an ask or the reverse (tests check this for every entry). `scripts/consistency.py` fails if a guard has a reason with no entry or a copy differs from the shared file; `opencode/guard/rules.mjs` was not used, to keep a single decision path. Turn it off per plugin with `guardUx` in `/config`.
+
+- **Repo hygiene in Claude Code** (`plugins/git/hooks/hygiene*.ts`, `plugins/devcontainer/hooks/leftovers.ts`, spec `specs/017-repo-hygiene`). A band above the prompt says when local `main` or `dev` lag their remote-tracking branches, naming the release (`chore(release): 2.21.0` and its merge back into `dev`) and `git pull --ff-only`, or that a branch has diverged and `git:workflow` applies instead. It reads only what the last fetch left, says how old that is, and never fetches, pulls, commits or tags; it reads again after a command that moves refs and after a turn. The update notice that `update-check.sh` prints at session start, and the report `leftovers.sh` prints, which only the model saw, are shown once as a toast, in the scripts' own words. `/release-preview` prints `scripts/release.py --dry-run` (and "no release needed" for exit 3). Options in `/config`: `hygieneBand`, `sessionToasts`, `releasePreview`, `leftoversToast`. `scripts/consistency.py` fails if the release job's commit subjects stop matching what the band recognizes. The checkpoint band now composes with the band beneath it, so both show.
+
+- **Token status in Claude Code** (`plugins/agents/hooks/token*.ts`, spec `specs/014-token-status`). During an `agents:orchestrate` run the status line shows the cards in flight with their Tokens cell and what the session and week caps leave, with a `⚠ shrink` or `⚠ stop` mark; a toast says when the wave stops fitting the budget (a stop also notifies) or a card passes its projection, once each; `/tokens` prints the full `token_report.py budget` text. It reads `.ai-gent/orchestrate-status.md` and runs `token_report.py budget` only (never `tasks`, which writes), reads again after a turn at most every `tokenRefreshSeconds` (120 s), and reads in the background so the session starts at once. `token_report.py budget --json` prints the verdict, caps, cards and batches as one JSON object; the text output is unchanged. Options in `/config`: `tokenStatus`, `tokenRefreshSeconds`.
+
+### Changed
+
+- **`agents:orchestrate`'s ledger has fixed columns.** The card table has a `Card` column (the id in backticks) and a `State` column holding exactly one of `queued`, `running`, `review` or `landed`; anything else goes in other columns. Tools read those words: the token status counts `queued`, `running` and `review` as in flight.
+- **`project:recap` and the mod read one list of credential patterns.** `shared/secret-patterns.json` replaces `SECRET_PATTERNS` in `sessions.py`; the redaction output is unchanged, and the token pattern is split by kind. `shared/secret-cases.json` holds the cases both sides are tested with. A mod's tests can import only code files, so `scripts/consistency.py` keeps `plugins/secrets/hooks/secret-data.ts` equal to the two JSON files (`--sync-secret-data` rewrites it).
+
+## 2.21.0 — 2026-10-28
+
+### Added
+
+- **The first Claude Code mod: checkpoint holds in the session** (`plugins/project/hooks/register.tsx`, spec `specs/012-checkpoint-band`). While `.ai-gent/checkpoint.md` lists holds, a band above the prompt shows them, and says when the file is older than the last commit. A `git push`, `git merge`, `git tag <name>`, `gh pr merge` or `gh release create` first asks you, naming the holds. Stop refuses the command and tells the agent to check with you. This works only in Claude Code; the other agents still read the holds through `project:recap`. Turn either part off in `/config` (`holdsBand`, `holdsGate`). `scripts/check.sh` runs `claude plugin test` for each plugin with a hooks module, and CI's Claude Code is pinned to 2.1.312.
+
+## 2.20.0 — 2026-10-27
+
+### Added
+
+- **`project:checkpoint`** (`plugins/project/skills/checkpoint`, `scripts/checkpoint.py`) keeps a hand-off file for long or multi-repository work. It writes `.ai-gent/checkpoint.md`, kept out of git through `.git/info/exclude`. The file holds the user's open requests and standing rules verbatim, what is on hold, each repository's state and the next steps. It is rewritten whole at each milestone, so another account, tool or session resumes exactly there. `checkpoint.py init|show|stamp` creates the skeleton, shows the file with staleness warnings and refreshes its timestamp.
+
+### Changed
+
+- **`project:recap` reads the checkpoint first**, then reads the sessions of every local Claude Code account. `sessions.py` now scans `~/.claude*`, and the folders next to `CLAUDE_CONFIG_DIR`. A session cut short by a usage limit is therefore found from the account that continues it. `list` marks sessions that belong to another account, and when a session was resumed on another account the newest copy wins.
+- **ai-gent's own release merges the release back into `dev`.** `release.yml` does this, as `shared/release-platforms.md` already asks of every project. Here `dev` requires pull requests, and on a repository owned by a personal account `github-actions` can't bypass that, so the step warns with the command to run by hand. `shared/release-platforms.md` now names that limit and the alternatives: a deploy key or an owned GitHub App.
+
+## 2.19.0 — 2026-10-27
+
+### Changed
+
+- **Automatic release is the default for every project** (`devsecops`, `git`;
+  `shared/releasing.md`, new `shared/release-platforms.md` and
+  `shared/release-single.py`) — `devsecops:pipeline` now gives each new
+  project a `scripts/release.py` (a single-version template that finds
+  `pyproject.toml`, `package.json`, `Cargo.toml` or `VERSION`, or
+  ai-gent's own script for several versioned packages), a `CHANGELOG.md`
+  with `## Unreleased` and a release job on pushes to the default branch.
+  The commits since the last tag decide the bump. `release-platforms.md`
+  renders the job for GitHub Actions, Azure Pipelines, GitLab CI,
+  Bitbucket Pipelines, Forgejo/Gitea Actions and Jenkins, and for each
+  says how it pushes with the CI identity, its loop guard (never `[skip
+  ci]`, which would skip the tag's pipeline), whether the tag it pushes
+  starts the tag pipeline, and the one-time permissions a human grants. A
+  manual `scripts/release.sh` stays as the fallback when CI cannot push.
+  After tagging, the job merges the release commit back into the
+  integration branch (`dev`/`develop`); a conflict or refused push warns
+  with the manual command and does not fail the release.
+  `devsecops:migrate` carries the release job across platforms,
+  `git:workflow` says the pipeline cuts releases and nobody tags by hand,
+  and every platform file points at the new reference.
+
+## 2.18.0 — 2026-10-25
+
+### Added
+
+- **Token tracking and budget-awareness** (`agents`, Claude Code only;
+  `shared/token-tracking.md`) — `token_report.py` now counts billable tokens
+  (uncached input + cache writes + output; cache reads reported, not
+  counted) and: `tasks` attributes each subagent to its card and task ids
+  and writes `· Tokens: projected ~420k | used 391k` on the task lines, a
+  Tokens block with the coordinator's share (split by landing window) in
+  `tracker.md`, a Tokens column in the orchestration ledger and one record
+  per card in `docs/product/token-history.jsonl` (idempotent; unattributable
+  usage is reported, not guessed; resumed agents count once); `estimate`
+  projects a planned card by weighted nearest neighbours over tags
+  (`shared/token-tags.json`: kind, layer, surface, lang, stack, novelty,
+  verification, size) with back-off, a learned model/role factor and bias
+  correction, falling back to a starting table calibrated on rstory;
+  `index` builds `~/.ai-gent/token-history.jsonl` across repos; `seed`
+  backfills it from past sessions (read-only, low-confidence tags); `budget`
+  checks a wave against `.ai-gent/budget.yaml` (proceed, shrink or stop),
+  packs it into batches within `max_agents` (default 2) and `max_opus`
+  (default 1), and adds event risk for resumes, fix rounds and flake hunts,
+  which are kept out of the task cost the estimates learn from. The report
+  heading no longer names a project, and `agents:orchestrate`'s promised
+  `tasks --specs-dir specs` is real.
+- **Cards carry `Tags:` and `Tokens: projected`**; `scripts/consistency.py`
+  fails a `cards.md` card without them or with other than one value per
+  facet. `agents:orchestrate`, `agents:parallel`, `backend:build`,
+  `frontend:build`, `qa:e2e`, `qa:load`, `project:spec` and `project:status`
+  use them.
+- **Container cleanup by label** (`shared/containers.md` §9a) — images,
+  volumes and containers a project creates carry
+  `me.lucasvmigotto.ai-gent.project` (and `.worktree` per worktree); the
+  `image` recipe drops the project's own dangling images, and a scaffolded
+  `clean` recipe removes this worktree's containers and volumes by label
+  and ID. Nothing prunes.
+- **`wt.py` disk check and cleanup** (`agents:parallel`,
+  `agents:orchestrate`) — `add` refuses a track when the container store
+  would drop below the floor (20 GB or 10 % of the disk, whichever is
+  larger, at `volume_estimate_gb` 10 per track; `.ai-gent/parallel.yaml`)
+  or `max_volumes` tracks already hold one; `remove` removes the landed or
+  abandoned track's labelled and compose containers and volumes and checks
+  the count dropped; `baseline`, `resources` (report only) and `finish`
+  (the project's dangling images and the buildah working containers new
+  since the baseline, never while an image build runs).
+- **`containers` guard** (`plugins/devcontainer/hooks/guard.sh`, ported to
+  the OpenCode guard) — denies any engine `prune`, `-a`/`--all` removals
+  and removals fed by an unfiltered listing.
+- **Leftovers report at session start** (devcontainer plugin) — dangling
+  images, orphaned worktree volumes, buildah working containers and a low
+  disk, reported, never removed.
+
+### Deprecated
+
+- `token_report.py tasks` still writes `specs/<feature>/tokens.md` and the
+  roll-up's Unmapped section (`--no-legacy` turns them off), and `estimate`
+  still falls back to the roll-up's average (`--rollup`, `--label`) when
+  there is no history. The tags, `tracker.md` and `token-history.jsonl`
+  replace them; both legacy outputs go in a later major.
+
+### Changed
+
+- On Claude Code the default concurrency is 2 subagents and 1 on Opus
+  (`.ai-gent/budget.yaml`'s `max_agents` and `max_opus`).
+- Builder cards forbid extra image tags, own volumes and prunes; a
+  Containerfile is a hot spot with one owning track per wave.
+- `devcontainer:workflow` removes the project's dangling images after a
+  tools-image rebuild and allows §9a's label-scoped removals without
+  asking; `backend:build`, `frontend:build`, `qa:e2e` and `qa:load` end
+  with `clean` and report what's left.
+- `scripts/consistency.py` checks that skills creating container resources
+  say how they go, and that no prune is taught.
+- `scripts/test-dbrun-engines.py` verifies each engine's teardown and warns
+  before pulling its images onto a nearly full store.
+
+## 2.17.0 — 2026-10-22
+
+### Added
+
+- **Antigravity support**, in place of Gemini CLI — `setup.sh` installs
+  entries at `~/.gemini/config/skills` (Antigravity's own native Agent
+  Skills location, not the shared `~/.agents/skills` directory), detected
+  by the `agy` CLI or `~/.gemini/config`.
+
+### Removed
+
+- **Gemini CLI support** — dropped from `setup.sh`'s agent registry.
+
+## 2.16.1 — 2026-10-21
+
+### Added
+
+- **No agent attribution on issues, pull requests or comments** — the
+  same rule `git:workflow` already enforced for commits
+  (`Co-Authored-By`, a "generated with" signature) now applies there
+  too: the `git` guard denies a `gh issue`/`gh pr` call carrying one, and
+  the `repo` guard denies a `reporun --write` call carrying one, instead
+  of only asking to confirm it.
+
+## 2.16.0 — 2026-10-20
+
+### Added
+
+- **Budget-aware dispatch pacing for `agents:orchestrate` and
+  `agents:parallel`** — `token_report.py estimate` reads a project's
+  own `docs/product/token-usage.md` for the average cost of past cards
+  sharing a role (`agent-roles.md`'s default mapping: thinker=opus,
+  builder=sonnet, scout=haiku) or label, or says plainly there's no
+  history yet rather than fabricate a number. Before dispatching a new
+  wave or track, both skills now weigh the remaining budget — Claude
+  Code's ambient `<total_tokens>` reminder, not something fetched on
+  demand — against that estimate, and say the call out loud: proceed,
+  shrink the wave, or stop and ask.
+
+## 2.15.0 — 2026-10-20
+
+### Added
+
+- **A dot-directory convention for CI/CD config on Azure Pipelines,
+  GitLab CI/CD and Jenkins** — `.azure/azure-pipelines.yaml` (templates
+  under `.azure/templates/`), `.gitlab/gitlab-ci.yaml` and
+  `.jenkins/Jenkinsfile`, matching GitHub Actions' and Forgejo/Gitea's
+  native `.github/`/`.forgejo/` layout. Each needs the path set outside
+  the repo (the pipeline's YAML file path, the project's CI/CD
+  configuration file path, the job's Script Path) since none of the
+  three platforms infers it from the file's location alone; an existing
+  pipeline at its platform's default root path is updated in place, not
+  moved, unless asked. Bitbucket Cloud is excluded — it hardcodes
+  `bitbucket-pipelines.yml` at the root with no override.
+- **Token-awareness for `agents:orchestrate` and `agents:parallel`**
+  (`plugins/agents/scripts/token_report.py`, Claude Code only): at
+  hand-off, links each dispatched card's real API token cost (deduped
+  by message id) to the Spec Kit task ids its dispatch description
+  names, writing `specs/<feature>/tokens.md` — a record file beside
+  `tasks.md`, never written into it — plus a project-wide roll-up at
+  `docs/product/token-usage.md`. Both land inside the project being
+  measured, never in ai-gent. A card naming no task id is flagged in
+  the roll-up's Unmapped section instead of silently dropped.
+
+## 2.14.0 — 2026-10-19
+
+### Added
+
+- **A shared language policy** (`shared/language-policy.md`, pipeline
+  rule 12): code, comments, commit messages and log messages are always
+  English; the interface's own language is inferred from what's given
+  and confirmed with the user before `frontend:build` writes it into a
+  locale file; the pipeline's own documents (brief, architecture, specs,
+  the docs site, the README) default to en-US, or write entirely in the
+  interface's confirmed primary language.
+- **Personal and unrelated content is filtered out of handed-in
+  specs and references** (`shared/intake-filter.md`, wired into
+  `project:init` and `frontend:uiux`): every passage is classified as
+  product signal (kept), indirect signal (distilled to the implied
+  requirement, the personal or unrelated wrapper dropped) or noise
+  (dropped entirely, never written anywhere). A sample value that looks
+  like PII is kept only if it's a recognized placeholder; anything else
+  is treated as real and abstracted. A confirmation summary — counts and
+  category labels only, never the removed content — is shown before
+  writing.
+- **A new repository is private and all rights reserved by default.**
+  `git:workflow` adds no `LICENSE` file unless the user names one, and
+  never assumes an open-source license; the docs site's footer shows
+  "All rights reserved" instead when none exists. Open-sourcing the work
+  is still named as a genuine option when licensing comes up.
+
+### Fixed
+
+- **A GitHub promotion under 4 commits no longer gets an unnecessary
+  merge commit.** GitHub's PR merge API has no fast-forward method, so
+  the old rule forced a merge commit for every promotion regardless of
+  count; it now lands by a direct fast-forward push once checks and
+  review pass, verified to actually close the PR.
+- **A local-merge remote branch delete now prunes the stale
+  remote-tracking ref** (`git fetch --prune`), matching the PR-based
+  landing path, which already did this.
+
+## 2.13.0 — 2026-10-19
+
+### Added
+
+- **The `security` plugin**: red, blue and purple team security testing
+  across applications, infrastructure and AI/LLM systems.
+  - `security:scope` records the authorization, targets, window and
+    allowed techniques before any offensive work runs — the project's
+    own local environment by default, a remote or shared target only
+    with the user's documented authorization.
+  - `security:red` simulates an attacker (OWASP ASVS/Top 10 for
+    applications, cloud/IaC misconfigurations for infrastructure, the
+    OWASP LLM Top 10 and MITRE ATLAS for AI/LLM systems) into
+    severity-ranked findings with fixes.
+  - `security:blue` designs detection and defense for those findings, or
+    a system on its own, mapped to MITRE ATT&CK/ATLAS, with hardening
+    baselines and incident runbooks.
+  - `security:purple` pairs each red finding with its blue control and
+    retests it, closing the loop with a coverage matrix.
+
+## 2.12.0 — 2026-10-18
+
+### Added
+
+- **Forgejo, Gitea and Codeberg in the `repo` plugin.** `reporun` reaches
+  them through the REST API (`/api/v1`, `Authorization: token`), with the
+  token in `ai-gent/forgejo/pat`; the host is read from the remote when it
+  names `forgejo`, `gitea` or `codeberg.org`. Platform notes in
+  `references/platforms/forgejo.md`.
+- **`scripts/run-evals.py`**: runs the trigger or behavior eval suites,
+  prints a table and records the scores and cost in
+  `docs/product/evals.md`. Four behavior cases come with it (git merge
+  counts, secrets never read, db through dbrun).
+- **Verified for tooling.** A feature without a UI is Verified when its
+  integration suites run in CI (a scheduled run counts) and pass
+  (pipeline rule 6, `project:status`). dbrun is the first.
+- **`scripts/test-reporun-github.py`**: reporun end to end against a
+  throwaway private GitHub repository.
+- **Tests for the installer's agent picker** (a fake `fzf` and the numbered
+  prompt; `AI_GENT_NO_FZF=1` asks with the numbered prompt even when fzf is
+  installed) and for the Markdown pages keeping every section of their HTML
+  pages.
+
+### Changed
+
+- **Slimmer skill bodies.** `devcontainer:setup`, `:infra`, `:workflow` and
+  `project:docs` keep their rules and decisions; worked detail, catalogs
+  and checklists moved to `references/` with pointers.
+- Pipeline rules 7, 8 and 10 state the obligation and point to
+  `git:workflow`, `devsecops:watch` and `repo:sync` for the detail.
+
+## 2.11.1 — 2026-10-18
+
+### Fixed
+
+- **ci:** the scheduled engine suite runs on docker
+
+## 2.11.0 — 2026-10-18
 
 ### Added
 

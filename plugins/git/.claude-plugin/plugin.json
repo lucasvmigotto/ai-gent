@@ -1,10 +1,63 @@
 {
   "name": "git",
-  "version": "1.8.1",
+  "version": "1.12.0",
   "license": "GPL-3.0-or-later",
   "description": "This user's git rules: workflow (Conventional Commits, branch-per-context, merge and cleanup rules), enforced by a PreToolUse guard hook",
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
-  }
+  },
+  "userConfig": {
+    "guardUx": {
+      "type": "boolean",
+      "title": "Explain this guard's decisions",
+      "description": "When the guard denies or asks, say why in plain words and what to do instead (the guard still decides; this changes only the words)",
+      "default": true
+    },
+    "guardLog": {
+      "type": "boolean",
+      "title": "Keep a log of this guard's decisions",
+      "description": "Remember the last 200 denies and asks (the entry and the command's verb only, never the command or the reason) for the project plugin's /guards (the guard still decides)",
+      "default": true
+    },
+    "hygieneBand": {
+      "type": "boolean",
+      "title": "Unpulled-release band",
+      "description": "A band above the prompt when local main or dev lag their remote-tracking branches (for example after a release), or have diverged; it never fetches or pulls",
+      "default": true
+    },
+    "releaseBand": {
+      "type": "boolean",
+      "title": "Release readiness band",
+      "description": "A band above the prompt on dev or main with the next release from scripts/release.py --dry-run --json (version, bump, base tag, plugins that bump); it never releases, fetches or tags",
+      "default": true
+    },
+    "sessionToasts": {
+      "type": "boolean",
+      "title": "Show the update notice",
+      "description": "Show ai-gent's update notice (printed by the session-start hook, which only the model sees) as a toast",
+      "default": true
+    },
+    "releasePreview": {
+      "type": "boolean",
+      "title": "/release-preview command",
+      "description": "Declare /release-preview, which prints scripts/release.py --dry-run for this repository (it never releases)",
+      "default": true
+    },
+    "bandCap": {
+      "type": "number",
+      "title": "Most bands above the prompt",
+      "description": "At most this many bands draw above the prompt, chosen by priority (1 to 5); the rest are listed by /bands. A band that holds something is never hidden",
+      "default": 2,
+      "min": 1,
+      "max": 5
+    },
+    "bandsCommand": {
+      "type": "boolean",
+      "title": "/bands command",
+      "description": "The /bands command: every active band above the prompt, with its priority and whether it is shown",
+      "default": true
+    }
+  },
+  "types": "./types/index.d.ts"
 }

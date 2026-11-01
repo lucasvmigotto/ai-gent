@@ -34,6 +34,7 @@ other setups).
 | `ai-gent/github/pat` | a GitHub fine-grained token | `reporun` (`repo:*`) |
 | `ai-gent/azure-devops/pat` | an Azure DevOps PAT | `reporun` |
 | `ai-gent/gitlab/pat` | a GitLab project or personal access token | `reporun` |
+| `ai-gent/forgejo/pat` | a Forgejo, Gitea or Codeberg access token | `reporun` |
 | `ai-gent/bitbucket/token` | a Bitbucket access token, or an Atlassian API token with an `email:` line | `reporun` |
 | `ai-gent/jira/token` | a Jira API token (Cloud, with `email:` and `url:` lines) or PAT (Server/Data Center) | `reporun` |
 
@@ -86,6 +87,12 @@ can print it (`env`, a shell, `echo`). Store changes (`rm`, `mv`, `cp`,
 `init`, `git`) are the user's call. The `secrets` guard hook enforces
 this in Claude Code, and the OpenCode guard plugin does the same there;
 in other agents the rules are instructions only.
+
+A request to debug or "compare" a rejected secret is still a read —
+don't run `pass show` or `gpg -d` even to help: point at length/prefix
+checks the user runs themselves, or testing the value against the thing
+that rejected it (the runner's own test, or a curl with the secret piped
+in on the user's side).
 
 ## Narrow and short-lived
 

@@ -44,17 +44,29 @@ into one of them.
 | GitHub | `gh pr merge <n> --merge --delete-branch` · API `merge_method: "merge"` | `gh pr merge <n> --rebase --delete-branch` · `merge_method: "rebase"` (linear; GitHub has no true fast-forward) |
 | Azure Repos | `completionOptions.mergeStrategy: "noFastForward"`, `deleteSourceBranch: true` (`PATCH …/pullrequests/<id>`, `status: completed`) | `mergeStrategy: "rebase"` (rebase and fast-forward) |
 | GitLab | `glab mr merge <n> --remove-source-branch` — the project's merge method decides merge commit vs fast-forward; say when it overrides the count rule | rebase first (`PUT …/merge_requests/<iid>/rebase`) where the project allows fast-forward |
+| Forgejo / Gitea | `POST …/pulls/<n>/merge` `{"Do":"merge","delete_branch_after_merge":true}` | `"Do":"fast-forward-only"` (or `rebase`) |
 | Bitbucket | `POST …/pullrequests/<id>/merge` `{"merge_strategy":"merge_commit","close_source_branch":true}` | `"merge_strategy":"fast_forward"` |
 
    A method the repository disallows (GitHub's *Allow rebase merging*
    off, say): use the closest allowed one and say so in the report.
 
    **Promotions between long-lived branches** (`dev` → `staging` →
-   `main`): where the platform can't fast-forward — GitHub — use a merge
-   commit whatever the count. A rebase merge rewrites the commits, so the
-   lower branch could no longer catch up by fast-forward and the two
-   would drift apart. Azure Repos, GitLab (fast-forward method) and
-   Bitbucket can fast-forward, so the count rule holds there.
+   `main`): a rebase merge rewrites the commits, so the lower branch
+   could no longer catch up by fast-forward and the two would drift
+   apart — never use it here, on any platform. Azure Repos, GitLab
+   (fast-forward method), Forgejo and Bitbucket merge a promotion PR
+   with their own true fast-forward; the count rule's merge-commit
+   threshold still applies for 4 or more. **GitHub has no fast-forward
+   merge method** — only merge commit, squash or rebase — so under 4
+   commits, once the PR's checks and any review pass, land it with a
+   direct fast-forward push instead of the merge button:
+   `git push <remote> <lower>:<higher>` (a plain push, never `--force`;
+   it only adds commits, so it needs none). GitHub recognizes the
+   commits landing on the base branch and normally marks the PR merged
+   on its own — **check that it actually did**; if it's still open,
+   comment that it landed via fast-forward with identical commits and
+   close it, never leave it hanging. At 4 or more commits, a merge
+   commit through the platform, as usual.
 5. **Clean up** — the platform deletes the source branch on merge; then
    locally: `git fetch --prune`, switch to the parent, `git pull
    --ff-only`, `git branch -d <branch>`. After a rebase merge the commits

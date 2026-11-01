@@ -1,10 +1,49 @@
 {
   "name": "devcontainer",
-  "version": "1.4.0",
+  "version": "1.7.0",
   "license": "GPL-3.0-or-later",
   "description": "Container-first development: setup (multi-stage Containerfiles with a thin tools layer for agents and CI, human devcontainers, Podman or Docker, resource limits), infra (simulated external services), proxy (reverse-proxy simulation), workflow (day-to-day operation)",
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
-  }
+  },
+  "userConfig": {
+    "guardUx": {
+      "type": "boolean",
+      "title": "Explain this guard's decisions",
+      "description": "When the guard denies or asks, say why in plain words and what to do instead (the guard still decides; this changes only the words)",
+      "default": true
+    },
+    "guardLog": {
+      "type": "boolean",
+      "title": "Keep a log of this guard's decisions",
+      "description": "Remember the last 200 denies and asks (the entry and the command's verb only, never the command or the reason) for the project plugin's /guards (the guard still decides)",
+      "default": true
+    },
+    "leftoversToast": {
+      "type": "boolean",
+      "title": "Show the container leftovers report",
+      "description": "Show the report leftovers.sh prints at session start (this project's leftover containers, images, volumes; a low disk), which only the model sees, as a toast",
+      "default": true
+    },
+    "containersBand": {
+      "type": "boolean",
+      "title": "Show the container and disk band",
+      "description": "Keep this project's container leftovers and a low disk above the prompt, read from leftovers.sh --json after container work (report only, nothing is removed)",
+      "default": true
+    },
+    "containersRefreshSeconds": {
+      "type": "number",
+      "title": "Container band refresh (seconds)",
+      "description": "Read the container report again after a turn at most this often (it is also read at session start and after container builds, runs and removals)",
+      "default": 120
+    },
+    "containersCommand": {
+      "type": "boolean",
+      "title": "Offer the /containers command",
+      "description": "Register /containers, which prints the full leftovers report and a pointer to wt.py resources",
+      "default": true
+    }
+  },
+  "types": "./types/index.d.ts"
 }

@@ -1,14 +1,15 @@
 # ai-gent
 
-Skills and plugins for [Claude Code](https://code.claude.com/docs/en/overview) — and, opt-in, [opencode](https://opencode.ai/v2/docs), Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf — kept in one repository and linked into place, so there's one place to edit.
+Skills and plugins for [Claude Code](https://code.claude.com/docs/en/overview) — and, opt-in, [opencode](https://opencode.ai/v2/docs), Codex, Cursor, Antigravity, GitHub Copilot, Amp, Kiro and Windsurf — kept in one repository and linked into place, so there's one place to edit.
 
 They cover the whole path of a software project, from idea to docs site, plus the tooling around it:
 
 - **A product pipeline:** brief → architecture → specs → frontend, backend and QA → docs. There are also stages for existing codebases.
 - **Container-first development environments.**
 - **CI/CD and supply-chain security.**
+- **Red, blue and purple team security testing** — application, infrastructure and AI/LLM, scoped and authorized first.
 - **Safe database access**, with passwords kept in [pass](https://www.passwordstore.org/).
-- **Issues, work items and pull requests** on GitHub, Azure DevOps, GitLab, Bitbucket and Jira — and the specs mirrored there, kept in step as the work moves.
+- **Issues, work items and pull requests** on GitHub, Azure DevOps, GitLab, Bitbucket, Forgejo/Gitea and Jira — and the specs mirrored there, kept in step as the work moves.
 - **Token-lean code reading**, verified against the original.
 - **git rules**, enforced by a hook.
 
@@ -46,6 +47,8 @@ When a Claude Code session starts in a checkout with the git plugin installed, a
 
 Pinned checkouts stay silent, and `AI_GENT_NO_UPDATE_CHECK=1` disables the check. An update rewrites the agent's own instructions, so the session that notices it only proposes — applying it (`scripts/ai-gent-update.sh`, then re-running `setup.sh`) takes effect next session. (opencode has no session-start hook point yet, so the notice is Claude-only for now.)
 
+With the devcontainer plugin installed, a second SessionStart hook reports the project's container leftovers — dangling images and volumes carrying its `me.lucasvmigotto.ai-gent.project` label, volumes of worktrees that are gone, buildah working containers from interrupted builds — and a container store under its disk floor (20 GB or 10 % of the disk, whichever is larger). It only reports, never removes; it's silent when there's nothing to say, and `AI_GENT_NO_LEFTOVERS_CHECK=1` disables it. Removal stays label-scoped and in the skills (`wt.py remove`, `wt.py finish`, the project's `clean` recipe, `containers.md` §9a).
+
 > [!TIP]
 > Piping a script into `sh` runs it unseen. To read it first, download, inspect, then run:
 
@@ -70,7 +73,7 @@ Re-run it after adding, renaming or removing a skill or plugin, or after changin
 
 | Flag | Effect |
 | --: | :-- |
-| `--target <agents>` | which agents to install for, comma-separated, instead of the selector: `claude`, `opencode`, `codex`, `cursor`, `gemini`, `copilot`, `amp`, `kiro`, `windsurf`, or `all` (every agent found on this machine) |
+| `--target <agents>` | which agents to install for, comma-separated, instead of the selector: `claude`, `opencode`, `codex`, `cursor`, `antigravity`, `copilot`, `amp`, `kiro`, `windsurf`, or `all` (every agent found on this machine) |
 | `--skip-prompt` | no selector: the previous choice, or Claude Code alone the first time |
 | `--dry-run` | show what would change |
 | `--force` | back up (`<name>.bak-<timestamp>`) and replace a real directory or foreign symlink in the way |
@@ -102,13 +105,14 @@ The rules are built by `scripts/opencode-config.py`. Your own rules always stay;
 > [!NOTE]
 > A config with comments (JSONC) is never rewritten, since that would strip them: `setup.sh` prints the rules to add instead. With no terminal to ask on (a pipe, CI), it edits nothing unless you pass `--yes`, and prints what to add. `--uninstall` removes only what it added. Your own rules always stay; when one of yours has the same pattern, yours is kept and reported.
 
-**Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro, Windsurf.** These read `SKILL.md` folders but have no plugin namespaces and run no Claude Code hooks. `setup.sh` generates the same `<plugin>-<skill>` entry files as for opencode (real files, not symlinks, which Cursor skips), plus one per personal skill:
+**Codex, Cursor, GitHub Copilot, Amp, Kiro, Windsurf, Antigravity.** These read `SKILL.md` folders but have no plugin namespaces and run no Claude Code hooks. `setup.sh` generates the same `<plugin>-<skill>` entry files as for opencode (real files, not symlinks, which Cursor skips), plus one per personal skill:
 
 | Agent | Directory |
 | --: | :-- |
-| Codex, Cursor, Gemini CLI, GitHub Copilot, Amp | `~/.agents/skills/`, shared: all five read it, so choosing several installs it once and no skill is listed twice |
+| Codex, Cursor, GitHub Copilot, Amp | `~/.agents/skills/`, shared: all four read it, so choosing several installs it once and no skill is listed twice |
 | Kiro | `~/.kiro/skills/` |
 | Windsurf | `~/.codeium/windsurf/skills/` |
+| Antigravity | `~/.gemini/config/skills/` — its own native Agent Skills location |
 
 > [!WARNING]
 > On these agents the [guard hooks](#guard-hooks) are instructions only, not enforced. Some of them (Cursor, for one) also read `~/.claude/skills`, where plugin skills appear under short names (`spec`, `build`, …) next to the `<plugin>-<skill>` entries; prefer the namespaced ones.
@@ -130,7 +134,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 > claude plugin disable qa@skills-dir --scope local            # .claude/settings.local.json, not committed
 > ```
 
-**Models.** Skills run on your session's model, with one exception: `devsecops:watch` runs on the small model (Haiku in Claude Code) in a context of its own, because following CI is triage, and hands any fix back to your session. `agents:orchestrate` routes its work the same way: a strong model plans and reviews, a fast one builds, a small one searches. Both use one table, `shared/agent-roles.md`, which also says how each other agent gets the same: opencode commands as subtasks (`setup.sh` writes them, on `AI_GENT_OPENCODE_MODEL_SMALL` when you set it), and custom agents or subagents in Codex, Cursor, Gemini CLI, Copilot and Kiro.
+**Models.** Skills run on your session's model, with one exception: `devsecops:watch` runs on the small model (Haiku in Claude Code) in a context of its own, because following CI is triage, and hands any fix back to your session. `agents:orchestrate` routes its work the same way: a strong model plans and reviews, a fast one builds, a small one searches. Both use one table, `shared/agent-roles.md`, which also says how each other agent gets the same: opencode commands as subtasks (`setup.sh` writes them, on `AI_GENT_OPENCODE_MODEL_SMALL` when you set it), and custom agents or subagents in Codex, Cursor, Antigravity, Copilot and Kiro.
 
 ## Contents
 
@@ -143,7 +147,8 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
   - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run
   - `docs` — static documentation site in `docs/site/`, plus `llms.txt` and Markdown pages for LLMs
   - `survey` — first contact with a repository: stack, layout, history, how the main branches drift, red flags, and what to run next
-  - `recap` — back to a project: where the last Claude Code or OpenCode session left off, what changed since (you, the remote, others), the next step
+  - `recap` — back to a project: the hand-off checkpoint, where the last Claude Code or OpenCode session left off (from any local account), what changed since (you, the remote, others), the next step
+  - `checkpoint` — a git-excluded hand-off file (`.ai-gent/checkpoint.md`) with the user's requests and rules verbatim, holds, each repository's state and next steps, rewritten at each milestone so another account or session resumes there
   - `pitch` — the project's presentation page (short, medium or large; non-tech, basic-tech or tech team) as a Claude Artifact, a ChatGPT Canvas or a static page, every number sourced
   - `introspec` — reverse-engineer an existing codebase into the full pipeline spec, every claim Observed, Inferred or Assumed
   - `retrofit` — upgrade in place with behavior frozen: `patch` (CVEs), `minor` (adapt code), `major` (breaking upgrades)
@@ -166,31 +171,36 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 **Environment and delivery**
 
 - `plugins/devcontainer/` — container-first development (see [Containers](#containers))
-  - `setup` — per-module multi-stage Containerfiles with a thin `tools` layer that agents and CI run, task recipes and resource limits, plus devcontainers for people (API and client apart by default)
+  - `setup` — per-module multi-stage Containerfiles with a thin `tools` layer that agents and CI run, task recipes (with a label-scoped `clean`) and resource limits, plus devcontainers for people (API and client apart by default)
   - `infra` — simulate databases, queues, storage, SMTP/mail, OAuth2/OIDC/LDAP and more
   - `proxy` — simulate the production reverse proxy
   - `workflow` — run tasks through the tools recipes, or operate the devcontainer day to day
 - `plugins/devsecops/` — GitHub Actions by default; GitLab CI, Azure Pipelines, Bitbucket Pipelines, Jenkins, Forgejo/Gitea
-  - `pipeline` — design and create CI/CD pipelines, gates, environments and promotion
+  - `pipeline` — design and create CI/CD pipelines, gates, environments and promotion; every new project gets automatic releases (`scripts/release.py` reading the commits, a `CHANGELOG.md`, a release job per platform)
   - `supply-chain` — pinning, updates, SCA/SAST/secret scanning, hardened images, SBOM, signing, provenance
   - `iac` — infrastructure as code (OpenTofu/Terraform by default) for the environments the architecture chose
   - `audit` — security and reliability review of existing pipelines
-  - `migrate` — move pipelines between platforms
+  - `migrate` — move pipelines between platforms, the release job included
   - `watch` — follow CI/CD runs to the end, explain failures from their logs, and check secrets (names only), variables, environments and permissions; runs on a small model in its own context (Haiku in Claude Code) and hands any fix back
+- `plugins/security/` — red, blue and purple team security testing; local targets by default, remote or shared ones only with documented authorization
+  - `scope` — the authorization record every other skill here requires first: targets, basis, window, allowed techniques, stop condition
+  - `red` — attack simulation across application, infrastructure and AI/LLM, with a threat model and severity-ranked findings
+  - `blue` — detection and defense for red's findings or a system on its own: coverage mapped to MITRE ATT&CK/ATLAS, hardening, runbooks
+  - `purple` — pair each red finding with blue's fix or detection and retest it, closing the loop with a coverage matrix
 - `plugins/db/` — safe database access for PostgreSQL, MySQL/MariaDB, SQL Server, Oracle and SQLite (see [Databases](#databases))
   - `connect` — list, test and classify connection profiles, never showing credentials
   - `inspect` — full discovery of a database: schema, constraints, indexes, routines, links, statistics, ERD
   - `review` — how the project uses its database: mappings vs. schema, migrations, indexes, queries, pooling, rights, backups
   - `investigate` — a scenario and a symptom → hypotheses, evidence, root cause (hand edit vs. application bug), repair
-- `plugins/repo/` — issues, work items and pull requests on GitHub, Azure DevOps, GitLab, Bitbucket and Jira (see [Platforms and secrets](#platforms-and-secrets))
+- `plugins/repo/` — issues, work items and pull requests on GitHub, Azure DevOps, GitLab, Bitbucket, Forgejo/Gitea and Jira (see [Platforms and secrets](#platforms-and-secrets))
   - `issues` — find, read, create and update issues and work items (Azure Boards WIQL, Jira JQL and transitions), every change asked first
   - `pr` — pull and merge requests: read them with checks, diffs and review threads; open one with the template and linked issues; comment, approve, merge
   - `sync` — mirror Spec Kit features into the tracker (an item per feature, a child item per user story with its tasks as a checklist) and keep their states in step with `tasks.md` and `specs/README.md`, closing at Verified on the integration branch
 - `plugins/secrets/` — credentials in [pass](https://www.passwordstore.org/), never shown to the agent (see [Platforms and secrets](#platforms-and-secrets))
   - `pass` — check pass is ready, list entries by name, give the exact `pass insert` for a database password or a platform token under `ai-gent/<area>/<name>`, and move plain-text secrets into pass
 - `plugins/agents/`
-  - `orchestrate` — run a spec'd feature with role-separated agents: a strong model plans and reviews, a fast model builds, a small one searches; self-contained cards, a worktree per parallel branch, merges asked first, routed for token-efficient use. Agent-agnostic, Claude by default; roles in `shared/agent-roles.md`
-  - `parallel` — several features, or a feature's frontend, backend and QA tracks, at once: each on its own branch in a git worktree under `.worktrees/` (kept out of git locally), only where dependencies and file ownership allow, with its own compose project and ports; branches land on `dev` one at a time in dependency order, checks after each, merges asked first
+  - `orchestrate` — run a spec'd feature with role-separated agents: a strong model plans and reviews, a fast model builds, a small one searches; self-contained cards, a worktree per parallel branch, merges asked first, routed for token-efficient use. On Claude Code every card is tagged and projected in tokens, waves are checked against a budget (`.ai-gent/budget.yaml`) and the real cost is recorded per task (`shared/token-tracking.md`). Agent-agnostic, Claude by default; roles in `shared/agent-roles.md`
+  - `parallel` — several features, or a feature's frontend, backend and QA tracks, at once: each on its own branch in a git worktree under `.worktrees/` (kept out of git locally), only where dependencies and file ownership allow, with its own compose project, ports and ownership labels, after a disk check of the container store; branches land on `dev` one at a time in dependency order, checks after each, merges asked first, and each landed track's containers and volumes are removed by label
 - `plugins/compact/`
   - `code` — read source code token-lean: a verified compact view (no indentation, newlines or optional spaces; strings and comments kept) and an outline with original line numbers. Read-only. In testing, 29–39% fewer tokens than a line-numbered Read
 - `plugins/git/`
@@ -251,6 +261,7 @@ flowchart LR
         direction TB
         status["<b>project:status</b><br/>where things stand, what's next"]
         recap["<b>project:recap</b><br/>back after a pause: last session, what changed"]
+        checkpoint["<b>project:checkpoint</b><br/>hand-off for another account or session"]
         devcontainer["<b>devcontainer:*</b><br/>containers, simulated infra"]
         devsecops["<b>devsecops:*</b><br/>CI/CD, supply chain, IaC"]
         db["<b>db:*</b><br/>inspect, review, investigate"]
@@ -258,7 +269,7 @@ flowchart LR
     end
 ```
 
-In plain text: init → architecture → spec → frontend, backend and QA in parallel (each build stage is the `implement` step, converged before Implemented) → e2e and load → docs. For an existing codebase: survey → introspec → retrofit or refactor. Returning to any project: recap.
+In plain text: init → architecture → spec → frontend, backend and QA in parallel (each build stage is the `implement` step, converged before Implemented) → e2e and load → docs. For an existing codebase: survey → introspec → retrofit or refactor. Long work keeps a checkpoint; returning to any project: recap.
 
 Every feature's status, per side, in `specs/README.md`:
 
@@ -317,7 +328,7 @@ flowchart TD
     watch -- green --> verify --> close --> release --> docs
 ```
 
-Alongside every step: `secrets:pass` (tokens and passwords never shown), `db:*` (one audited runner), `devcontainer:*`, `devsecops:*`, `repo:issues` and `repo:pr`, `project:status` and `project:recap`, and the guard hooks. Thick borders ask you (unless your up-front permission covers them).
+Alongside every step: `secrets:pass` (tokens and passwords never shown), `db:*` (one audited runner), `devcontainer:*`, `devsecops:*`, `repo:issues` and `repo:pr`, `project:status`, `project:recap` and `project:checkpoint`, and the guard hooks. Thick borders ask you (unless your up-front permission covers them).
 
 ## Containers
 
@@ -365,7 +376,7 @@ Credentials live in [pass](https://www.passwordstore.org/), the standard Unix pa
 
 ## Guard hooks
 
-Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules mechanically, not just as instructions. They load in a new session after `setup.sh`.
+Five plugins install `PreToolUse` hooks in Claude Code. They enforce their rules mechanically, not just as instructions. They load in a new session after `setup.sh`.
 
 | Hook | Blocks | Asks first |
 | --: | :-- | :-- |
@@ -373,6 +384,7 @@ Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 | `db` (`plugins/db/hooks/guard.sh`) | direct database clients (`psql`, `mysql`, `sqlcmd`, `sqlplus`, `sqlite3`, `mongosh`, …) running SQL that writes; restore tools; any tool or command whose target is a credentials file (text that merely names one is fine) | any other direct client use |
 | `secrets` (`plugins/secrets/hooks/guard.sh`) | a `pass` command that shows, copies or searches a value (`show`, a bare `pass <entry>`, `-c`, `-q`, `edit`, `grep`, `generate`, `otp`), `pass insert`, `gpg` on the password store, `pass-run` with an `ai-gent/db/` entry or with a command that prints its environment | `pass rm`, `mv`, `cp`, `init`, `git` |
 | `repo` (`plugins/repo/hooks/guard.sh`) | — (`reporun` itself refuses token-printing CLI commands, other hosts and writes without `--write`) | every `reporun … --write`: a change to an issue, work item or pull request |
+| `containers` (`plugins/devcontainer/hooks/guard.sh`) | any `prune` through `podman`, `docker`, `nerdctl`, `buildah` or `$CONTAINER_ENGINE` (system, image, volume, builder, …, even filtered); `rm`/`rmi`/`volume rm` with `-a`/`--all`; a removal fed by an unfiltered `-q` listing (removal by ID, `name=` or `label=` passes) | — |
 
 > [!NOTE]
 > opencode doesn't run Claude Code hooks. `setup.sh` offers to add native V2 `permissions` rules **and** an OpenCode V2 guard plugin (`opencode/guard/`) that enforces the same git, db, secrets and repo guards — including `ask` decisions and the current-branch check, which a shell pattern cannot express. A parity test keeps the plugin's rules identical to the shell guards'. The rules are appended after your own, so they win; the last matching rule counts:
@@ -396,10 +408,28 @@ Four plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 >   { "action": "shell", "resource": "pass insert*", "effect": "deny" },
 >   { "action": "shell", "resource": "pass edit*", "effect": "deny" },
 >   { "action": "shell", "resource": "pass -c*", "effect": "deny" },
->   { "action": "shell", "resource": "*reporun*--write*", "effect": "ask" }
+>   { "action": "shell", "resource": "*reporun*--write*", "effect": "ask" },
+>   { "action": "shell", "resource": "podman *prune*", "effect": "deny" },
+>   { "action": "shell", "resource": "docker *prune*", "effect": "deny" }
 > ]
 > ```
 > Plus a `plugins` entry for the guard plugin and one `skill` deny per plugin skill's short name.
+
+## Claude Code mods
+
+Some plugins also ship a Claude Code hooks module (`hooks/register.tsx`, named under `modules` in `hooks/hooks.json`). It adds to the session what a skill can't: something kept in view, or a question at the right moment. A mod is an extra layer only. The skills, scripts and guard hooks above stay the record and the authority, and the other agents work without it. A mod loads with its plugin through the same `setup.sh` link, and Claude Code reloads it when its files change. Each one can be turned off in `/config`.
+
+| Plugin | Shows | Asks first | Options |
+| --: | :-- | :-- | :-- |
+| `project` | the holds in `.ai-gent/checkpoint.md` (`project:checkpoint`) in a band above the prompt, with a note when the file is older than the last commit; and a **pipeline pane** (`/pipeline-pane`, opened by itself when `specs/README.md` exists on a surface that can dock it): the artifacts of `shared/pipeline.md` as present, missing or stale, each feature's statuses, the open `[NEEDS CLARIFICATION]`, `[UPSTREAM GAP]` and `[ASSUMPTION]` markers, and a hint at the next stage, redrawn as the files change and drawn as a dashboard (a `LIVE` or `STALE` badge from the poll, summary metrics, an artifacts table, a feature matrix and progress bar; `pipelineLayout: compact` keeps the plain line list; `project:status` stays the full report); and a **hand-off nudge**: one toast, never repeated, that the checkpoint is N commits behind and to run `/project:checkpoint`, when the context passes `handoffNudgeContextPercent`, before a compaction, or (only when `token_report.py` sits beside the plugin and `.ai-gent/budget.yaml` exists) when a usage cap has under `handoffNudgeCapPercent` left; a **workspace line** above the prompt that folds the quiet bands of `git`, `repo` and `devcontainer` (passing or running CI, the next release, container leftovers, a branch behind its remote) into `Workspace: ✓ CI passing · Release 2.23.0` and a `⚠` warnings line, with a Details button; holds, failed CI and low disk keep their own bands (`workspaceLine`); a **context meter** (on by default) on the prompt's hint line, `Context ████░░░░ 43% used · 57% remaining` with an `approaching` or `critical` mark from the same `handoffNudgeContextPercent` (`contextMeter`, read at turn end, no polling); and a **next-stage toast**: once per turn, after a pipeline artifact is written or a `[NEEDS CLARIFICATION]` is added, the stage the pane recommends and why (a brief alone truthfully gets `/project:status`), a hint only; both toasts write nothing; and a **guard log**: `/guards [N]` lists the last N decisions (default `guardLogLimit`) of the git, db, secrets, repo and devcontainer guards, newest first, with the entries that fired most and the plugins not reporting, as counts only, and `/guards-pane` docks the same list (never opened by itself); it reads each guard plugin's `guardLog` atom (verb only, no command line) and changes no decision | `git push`, `git merge`, `git tag <name>`, `gh pr merge` or `gh release create` while the checkpoint lists a hold, naming the holds | `holdsBand`, `holdsGate`, `pipelinePane`, `pipelinePollSeconds`, `pipelineLayout`, `pipelineAscii`, `pipelineMaxRows`, `bandCap`, `bandsCommand`, `workspaceLine`, `contextMeter`, `chromeAscii`, `handoffNudge`, `handoffNudgeContextPercent`, `handoffNudgeCapPercent`, `nextStageToast`, `guardLogLimit`, `guardsPane` |
+| `git` | a **band** above the prompt when local `main` or `dev` lag their remote-tracking branches, as after a release (`main is 1 behind origin/main (release 2.21.0) — git pull --ff-only on main before the next commit`), or have diverged (it points to `git:workflow` and never suggests a pull); a toast for the update notice that only the model saw; a **release readiness band** on `dev` or `main` (`next release 2.23.0 (minor, since 2.22.0) · N plugins bump — /release-preview for the plan`) from `scripts/release.py --dry-run --json`, run once per HEAD and merged-tag list, `info` priority, with a Hide button; and `/release-preview`, which prints `scripts/release.py --dry-run` and never releases. It never fetches, pulls, commits or tags: it reads what the last fetch left, and says how old it is | — | `hygieneBand`, `releaseBand`, `sessionToasts`, `releasePreview`, `bandCap`, `bandsCommand` |
+| `project`, `git`, `repo`, `devcontainer` | **band priority**: at most `bandCap` (default 2) bands draw above the prompt (bands folded into the workspace line do not count), chosen by declared priority (`hold`, `failure`, `normal`, `info`; a hold is never hidden), with one dim `+N more band (/bands)` line, and `/bands` lists every active band | — | `bandCap`, `bandsCommand` (per plugin) |
+| `repo` | a **CI watch band** above the prompt after a successful `git push` on GitHub: that commit's runs with a mark each (`CI for 3a9f1c2 on dev: Docs CI ⏳ · check ✓`), refreshed by a bounded back-off (30 s, 60 s, 120 s, stopping after 15 minutes), `failure` priority while a run failed, and one toast per failing run pointing to `/devsecops:watch`. Read only, through `reporun cli github -- run list --commit <sha>`; silent unless `gh` is signed in, and when the token is in pass only with `ciBandUsePass` on (reading it may raise a pinentry prompt) | — | `ciBand`, `ciBandPollSeconds`, `ciBandMinutes`, `ciBandUsePass`, `bandCap` |
+| `devcontainer` | a toast for the report `leftovers.sh` prints at session start (this project's leftover containers, images, volumes; a low disk), which only the model saw; a **container and disk band** above the prompt from `leftovers.sh --json` (disk first, then dangling images, volumes of gone worktrees, buildah working containers), read at session start, after container builds, runs and removals and at most every `containersRefreshSeconds` after a turn; and `/containers`, which prints the full report. Report only: nothing is removed | — | `leftoversToast`, `containersBand`, `containersRefreshSeconds`, `containersCommand` |
+| `agents` | a **status line** during an `agents:orchestrate` run: the cards in flight with their Tokens cell (`004-us1-core ~420k/391k`) and what the session and week caps leave with how long that lasts at the current pace (`session left 3.10M (~2h10m) · week left 22.00M (~15h)`), a `⚠ shrink` or `⚠ stop` mark, a toast when the wave stops fitting, a card passes its projection (a stop also notifies) or a cap's ETA falls under 30 minutes, a toast when a card lands with what it cost against its projection (`004-us1-core landed: used 391k vs ~420k projected (-7%)`, with a pointer to what to fix for a miss of 25% or more) and one counting the wave when its last card lands, and `/tokens` for the full `token_report.py budget` text. `/cards-pane` opens a **pane** of the run's cards (state, branch, Tokens cell), the state changes the mod saw while it was open and, on Measure, each card's span on a shared axis with the peak parallelism (from `token_report.py tasks --dry-run --json`, read-only); it never opens by itself and prints as text where no pane can open. `/worktree-board` opens a **pane** of the `.worktrees/<branch>` worktrees (`+ahead/-behind`, uncommitted changes and, with `gh` signed in and a GitHub origin, the pull request and its checks, a `wt.py remove <branch>` hint on a merged one) from `wt.py list --json` and one `gh pr list`, refreshed while it is open and after a Bash call that runs `wt.py`, `git commit` or `git merge`, read-only. `token_report.py` still measures and judges; the mod writes nothing | — | `tokenStatus`, `tokenRefreshSeconds`, `tokenBurnRate`, `tokenEtaWarnMinutes`, `cardCostToast`, `cardCostHintPercent`, `cardsPane`, `cardsPollSeconds`, `worktreeBoard`, `worktreeBoardSeconds`, `worktreeBoardRemoteSeconds` |
+| `git`, `db`, `secrets`, `repo`, `devcontainer` | when their **guard** denies or asks (see [Guard hooks](#guard-hooks)): a toast with what the command would do and what to do instead, and for the agent one line of context with the alternative; an ask keeps the guard's reason, verbatim, under a plainer question. The guard still decides, and the mod never turns a deny or an ask into anything else; each guard plugin also keeps a bounded `guardLog` (verb only, no command line) that `/guards` reads | — | `guardUx`, `guardLog` (per plugin) |
+| `secrets` | a toast when it **masks** a credential pasted into a prompt, a slash command's arguments or a skill's body before it is recorded or sent: the kind, and the `pass insert` to run instead | — (a prompt that looks like it holds a credential is held back if masking itself fails) | `secretMask`, `maskAssignments` |
+| `secrets` | a toast when a tool's **result** holds a credential (a key, a token, a private key, a URL password): the tool, the kinds and counts, and to treat it as exposed, rotate it and keep the new one in pass; for `Bash` and `WebFetch` the value is also replaced by a placeholder in the row Claude reads and the transcript keeps (the screen may still show it for an instant), other tools are left as they returned | — (any failure stores the row as received, with a loud toast) | `secretOutputWarning`, `secretOutputRedact`, `secretOutputTools` |
 
 ## Layout
 
@@ -413,7 +443,7 @@ plugins/<name>/skills/<skill>/scripts/          tools one skill runs (compact:co
 plugins/<name>/scripts/                         tools a plugin's skills run (db: dbrun; project: sessions, repo_state)
 plugins/<name>/evals/                           trigger and behavior evals
 skills/<name>/SKILL.md                          personal skills (skill-docs)     → /<name>
-shared/                                         pipeline, container and code-reading rules, symlinked into plugins' references/
+shared/                                         pipeline, container, release and code-reading rules, symlinked into plugins' references/
 opencode/guard/                                 the OpenCode V2 guard plugin, its rules and parity test
 scripts/                                        check.sh, release.py, opencode-config.py, test-dbrun-engines.py and the tests
 .github/workflows/                              check (pull requests), release (pushes to main)
@@ -453,6 +483,8 @@ A release:
 
 > [!TIP]
 > Preview the next release with `python3 scripts/release.py --dry-run`.
+
+The projects the skills set up work the same way: `devsecops:pipeline` gives each a `scripts/release.py` (single-version template, or this repository's script for several versioned packages), a `CHANGELOG.md` with `## Unreleased` and a release job on pushes to the default branch, rendered for GitHub Actions, Azure Pipelines, GitLab CI, Bitbucket Pipelines, Forgejo/Gitea Actions or Jenkins (`shared/release-platforms.md`). Nobody tags by hand; `scripts/release.sh` is the fallback when CI cannot push.
 
 > [!IMPORTANT]
 > The bot pushes the release commit and tag straight to `main`, so branch protection must let `github-actions[bot]` push. After each release your local branch is one commit behind: run `git pull --ff-only` before new work.

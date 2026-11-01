@@ -1,10 +1,61 @@
 {
   "name": "repo",
-  "version": "1.5.1",
+  "version": "1.12.0",
   "license": "GPL-3.0-or-later",
   "description": "Issues, work items and pull requests on GitHub, Azure DevOps, GitLab, Bitbucket and Jira through one runner — the platform's CLI when it's installed, its REST API otherwise — with tokens from pass, never shown, and every change asked first",
   "author": {
     "name": "lucasvmigotto",
     "email": "lvmigotto1@gmail.com"
-  }
+  },
+  "userConfig": {
+    "guardUx": {
+      "type": "boolean",
+      "title": "Explain this guard's decisions",
+      "description": "When the guard denies or asks, say why in plain words and what to do instead (the guard still decides; this changes only the words)",
+      "default": true
+    },
+    "guardLog": {
+      "type": "boolean",
+      "title": "Keep a log of this guard's decisions",
+      "description": "Remember the last 200 denies and asks (the entry and the command's verb only, never the command or the reason) for the project plugin's /guards (the guard still decides)",
+      "default": true
+    },
+    "ciBand": {
+      "type": "boolean",
+      "title": "CI watch band",
+      "description": "After a git push, a band above the prompt with the state of that commit's CI runs (GitHub, through reporun, read only) and a toast when one fails",
+      "default": true
+    },
+    "ciBandPollSeconds": {
+      "type": "number",
+      "title": "CI band first poll (seconds)",
+      "description": "Seconds before the second read of the runs; it then doubles twice (30, 60, 120 by default)",
+      "default": 30,
+      "min": 5,
+      "max": 300
+    },
+    "ciBandMinutes": {
+      "type": "number",
+      "title": "CI band stops after (minutes)",
+      "description": "The band stops reading the runs after this long",
+      "default": 15,
+      "min": 1,
+      "max": 120
+    },
+    "ciBandUsePass": {
+      "type": "boolean",
+      "title": "CI band may use the token in pass",
+      "description": "When the platform token is in pass, reporun decrypts it for each read, which may raise a pinentry prompt; off, the band runs only with the CLI's own sign-in",
+      "default": false
+    },
+    "bandCap": {
+      "type": "number",
+      "title": "Most bands above the prompt",
+      "description": "At most this many bands draw above the prompt, chosen by priority (1 to 5); the rest are listed by /bands. A band that holds something is never hidden",
+      "default": 2,
+      "min": 1,
+      "max": 5
+    }
+  },
+  "types": "./types/index.d.ts"
 }

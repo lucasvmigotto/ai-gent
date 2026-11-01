@@ -2,10 +2,10 @@ import { execFileSync } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, evaluate } from "../rules.mjs"
+import { gitGuard, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
-// guards (plugins/{git,db,secrets,repo}/hooks/guard.sh) decide for
+// guards (plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh) decide for
 // the same vectors. guard.sh is the oracle; the shell test suites and this
 // one share the same expectations, so the two implementations cannot drift.
 
@@ -14,6 +14,7 @@ const GIT_GUARD = join(REPO, "plugins/git/hooks/guard.sh")
 const DB_GUARD = join(REPO, "plugins/db/hooks/guard.sh")
 const SECRETS_GUARD = join(REPO, "plugins/secrets/hooks/guard.sh")
 const REPO_GUARD = join(REPO, "plugins/repo/hooks/guard.sh")
+const CONTAINERS_GUARD = join(REPO, "plugins/devcontainer/hooks/guard.sh")
 
 const sandbox = mkdtempSync(join(tmpdir(), "ai-gent-guard-"))
 process.on("exit", () => rmSync(sandbox, { recursive: true, force: true }))
@@ -68,6 +69,11 @@ const gitVectors = [
   ["deny", feat, 'git commit -n -m "fix: x"'],
   ["deny", feat, "git -C /tmp/repo merge --no-verify feat/x"],
   ["deny", feat, "git commit -m \"$(cat <<'EOF'\nfeat: x\n\nCo-Authored-By: Someone <a@b.c>\nEOF\n)\""],
+  ["deny", feat, "gh issue create --title x --body \"$(cat <<'EOF'\nbody\n\nCo-Authored-By: Someone <a@b.c>\nEOF\n)\""],
+  ["deny", feat, "gh pr comment 1 --body \"$(cat <<'EOF'\nlooks good\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\nEOF\n)\""],
+  ["none", feat, 'gh issue create --title x --body "plain body"'],
+  ["none", feat, 'grep -rn "co-authored-by" docs/'],
+  ["none", feat, 'git commit -m "fix(git): deny Co-Authored-By trailers and generated with signatures"'],
   ["deny", feat, "git push --force origin feat/x"],
   ["deny", feat, "git push -f"],
   ["ask", feat, "git push --force-with-lease origin feat/x"],
@@ -243,6 +249,9 @@ const repoVectors = [
   ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done"],
   ["ask", "cd /x && python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json"],
   ["ask", "reporun cli gitlab --write -- mr note 4 -m ok"],
+  ["deny", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'ok\n\nCo-Authored-By: Someone <a@b.c>'"],
+  ["deny", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr comment 3 --body 'looks good\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'"],
+  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'denies Co-Authored-By trailers'"],
   ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect"],
   ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list"],
   ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate"],
@@ -258,6 +267,55 @@ for (const [want, cmd] of repoVectors) {
   check(`shell ${cmd}`, want, shellDecision(REPO_GUARD, "Bash", "/tmp", { command: cmd }))
 }
 
+// ---------------------------------------------------------- containers
+
+const containersVectors = [
+  ["deny", "podman system prune -a -f"],
+  ["deny", "docker image prune"],
+  ["deny", "podman image prune --filter label=me.lucasvmigotto.ai-gent.project=shop"],
+  ["deny", "podman volume prune -f"],
+  ["deny", "docker builder prune --all"],
+  ["deny", "nerdctl container prune"],
+  ["deny", '"$CONTAINER_ENGINE" system prune'],
+  ["deny", "$CONTAINER_ENGINE network prune"],
+  ["deny", "sudo podman --log-level=info system prune"],
+  ["deny", "buildah prune"],
+  ["deny", "cd /x && /usr/bin/podman image prune -a"],
+  ["deny", "podman rm -a -f"],
+  ["deny", "podman rmi --all"],
+  ["deny", "podman volume rm -af"],
+  ["deny", "docker container rm --all"],
+  ["deny", "buildah rm --all"],
+  ["deny", "buildah rmi --prune"],
+  ["deny", "podman rmi $(podman images -q)"],
+  ["deny", "podman images -q --filter dangling=true | xargs podman rmi"],
+  ["deny", "docker volume ls -q | xargs -r docker volume rm"],
+  ["deny", "for v in $(podman volume ls -q); do podman volume rm $v; done"],
+  ["deny", "podman rm -f `podman ps -aq`"],
+  ["none", "podman images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=shop | xargs -r podman rmi"],
+  ["none", "podman ps -aq --filter name=scratch-uv | xargs podman rm -f"],
+  ["none", "podman volume rm shop-tools-target-feat-a"],
+  ["none", "podman rmi 1a2b3c4d"],
+  ["none", "podman rm -f scratch-probe"],
+  ["none", '"$CONTAINER_ENGINE" rmi localhost/vsc-shop-1234-features'],
+  ["none", "podman ps -a --external"],
+  ["none", "podman system df"],
+  ["none", "podman images -q"],
+  ["none", "podman build --label me.lucasvmigotto.ai-gent.project=shop --target tools -t localhost/shop-tools:dev ."],
+  ["none", "podman run --rm --name scratch-x img true"],
+  ["none", "git fetch --prune"],
+  ["none", "git worktree prune"],
+  ["none", 'git commit -m "docs: never podman system prune"'],
+  ["none", 'grep -rn "image prune" shared/'],
+  ["none", "ls -la"],
+]
+
+console.log("    containers: TypeScript rules vs plugins/devcontainer/hooks/guard.sh")
+for (const [want, cmd] of containersVectors) {
+  check(cmd, want, containersGuard(cmd).decision)
+  check(`shell ${cmd}`, want, shellDecision(CONTAINERS_GUARD, "Bash", "/tmp", { command: cmd }))
+}
+
 // ------------------------------------------------------------- adapter
 
 console.log("    evaluate(): OpenCode permission event adapter")
@@ -269,6 +327,7 @@ const adapterCases = [
   [{ action: "shell", resources: ["pass show ai-gent/github/pat"] }, "deny"],
   [{ action: "shell", resources: ["pass rm ai-gent/db/old"] }, "ask"],
   [{ action: "shell", resources: ["reporun cli github --write -- pr merge 3"] }, "ask"],
+  [{ action: "shell", resources: ["podman system prune -a"] }, "deny"],
   [{ action: "read", resources: ["/home/me/.config/ai-gent/db/connections.env"] }, "deny"],
   [{ action: "read", resources: ["/home/me/project/readme.md"] }, "none"],
   [{ action: "edit", resources: ["/home/me/.config/ai-gent/db/connections.env"] }, "deny"],

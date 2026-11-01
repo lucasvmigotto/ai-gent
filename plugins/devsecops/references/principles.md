@@ -21,10 +21,10 @@ rate, time to restore).
    | File | Platform | Reference |
    |---|---|---|
    | `.github/workflows/*.yml` | GitHub Actions | `platforms/github-actions.md` |
-   | `.gitlab-ci.yml` | GitLab CI/CD | `platforms/gitlab-ci.md` |
-   | `azure-pipelines.yml` (or `*.azure-pipelines.yml`, `.azuredevops/`) | Azure Pipelines | `platforms/azure-pipelines.md` |
-   | `bitbucket-pipelines.yml` | Bitbucket Pipelines | `platforms/bitbucket-pipelines.md` |
-   | `Jenkinsfile` | Jenkins | `platforms/jenkins.md` |
+   | `.gitlab-ci.yml`, or `.gitlab/**/*.yaml` (custom CI/CD configuration path) | GitLab CI/CD | `platforms/gitlab-ci.md` |
+   | `azure-pipelines.yml` (or `*.azure-pipelines.yml`, `.azuredevops/`), or `.azure/**/*.azure-pipelines*.yaml` (the pipeline's own YAML file path) | Azure Pipelines | `platforms/azure-pipelines.md` |
+   | `bitbucket-pipelines.yml` (fixed — Bitbucket Cloud allows no other path) | Bitbucket Pipelines | `platforms/bitbucket-pipelines.md` |
+   | `Jenkinsfile`, or `.jenkins/Jenkinsfile` (the job's Script Path) | Jenkins | `platforms/jenkins.md` |
    | `.forgejo/workflows/`, `.gitea/workflows/` | Forgejo / Gitea Actions | `platforms/forgejo-gitea.md` |
 
    Also check the git remote host (`github.com`, `gitlab.*`, `dev.azure.com`,

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	changelogVersions,
 	counts,
+	foldPatches,
+	groupChangelog,
 	pluginOf,
 	searchSkills,
 	skillById,
@@ -58,5 +61,84 @@ describe("generated content", () => {
 		const list = triggers(skill.description);
 		expect(list.length).toBeGreaterThan(0);
 		expect(list.some((w) => w.includes("load test"))).toBe(true);
+	});
+
+	it("parses every changelog heading with a non-empty body", () => {
+		expect(changelogVersions.length).toBeGreaterThan(0);
+		for (const e of changelogVersions) {
+			expect(e.body.trim().length).toBeGreaterThan(0);
+			expect(e.body).not.toMatch(/^## /m);
+		}
+	});
+
+	it("gives a dated version its major, minor and patch numbers", () => {
+		const released = changelogVersions.find((e) => e.version === "1.0.0");
+		expect(released).toMatchObject({ major: 1, minor: 0, patch: 0 });
+		expect(released?.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+	});
+
+	it("leaves Unreleased's version parts null", () => {
+		const unreleased = changelogVersions.find(
+			(e) => e.version === "Unreleased",
+		);
+		if (unreleased) {
+			expect(unreleased).toMatchObject({
+				major: null,
+				minor: null,
+				patch: null,
+				date: null,
+			});
+		}
+	});
+
+	it("folds released entries by major, then minor, newest first", () => {
+		const released = changelogVersions.filter(
+			(e) => e.version !== "Unreleased",
+		);
+		const majors = groupChangelog(released);
+		expect(majors.length).toBeGreaterThan(0);
+		for (let i = 1; i < majors.length; i++) {
+			const prev = majors[i - 1];
+			const curr = majors[i];
+			if (!prev || !curr) throw new Error("index out of bounds");
+			expect(prev.major).toBeGreaterThan(curr.major);
+		}
+		const [first] = majors;
+		if (!first) throw new Error("no major group parsed");
+		for (let i = 1; i < first.minors.length; i++) {
+			const prev = first.minors[i - 1];
+			const curr = first.minors[i];
+			if (!prev || !curr) throw new Error("index out of bounds");
+			expect(prev.minor).toBeGreaterThan(curr.minor);
+		}
+		// every entry under a minor actually belongs to it
+		for (const g of majors) {
+			for (const m of g.minors) {
+				for (const e of m.entries) {
+					expect(e.major).toBe(g.major);
+					expect(e.minor).toBe(m.minor);
+				}
+			}
+		}
+	});
+});
+
+describe("foldPatches", () => {
+	const e = (patch: number) => ({
+		version: `1.2.${patch}`,
+		date: null,
+		major: 1,
+		minor: 2,
+		patch,
+		body: "",
+	});
+	it("keeps the newest entry and the minor release, folds older patches", () => {
+		const { shown, folded } = foldPatches([e(3), e(2), e(1), e(0)]);
+		expect(shown.map((x) => x.version)).toEqual(["1.2.3", "1.2.0"]);
+		expect(folded.map((x) => x.version)).toEqual(["1.2.2", "1.2.1"]);
+	});
+	it("folds nothing for a lone entry or a minor with one patch", () => {
+		expect(foldPatches([e(0)]).folded).toEqual([]);
+		expect(foldPatches([e(1), e(0)]).folded).toEqual([]);
 	});
 });

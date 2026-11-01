@@ -5,6 +5,11 @@
 - **Declarative** `Jenkinsfile` in the repo (`pipeline { agent … stages {
   … } post { … } }`); scripted pipelines only where declarative can't
   express it.
+- **New pipelines default to `.jenkins/Jenkinsfile`** — set as the job's
+  (or Multibranch source's) **Script Path**, since Jenkins only reads a
+  root `Jenkinsfile` otherwise. An existing root `Jenkinsfile` is updated
+  in place, not moved, unless the user asks — moving it means changing
+  that setting too.
 - **Multibranch pipelines** / organization folders discover branches and
   PRs from the SCM.
 - Reuse with **shared libraries** loaded as `@Library('lib@<tag-or-sha>')`
@@ -95,3 +100,9 @@ Used by `devsecops:watch`. Use the REST API with the user's API token
 
 - The commit a build used is in its `actions` (Git plugin build data);
   match it to the pushed SHA before trusting "last build".
+
+## Release job
+
+Every project's default release job (Conventional Commits decide the bump,
+the pipeline tags) for Jenkins — snippet, push identity, loop guard, tag
+pipeline and the one-time grants — is in `../release-platforms.md`.

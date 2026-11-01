@@ -28,6 +28,13 @@ expect ask "python3 $R api github POST /repos/o/r/issues --data body.json --writ
 expect ask "python3 $R cli azure-devops --write -- boards work-item update --id 12 --state Done"
 expect ask "cd /x && python3 $R api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json"
 expect ask "reporun cli gitlab --write -- mr note 4 -m ok"
+expect deny "python3 $R cli github --write -- issue comment 3 --body 'ok
+
+Co-Authored-By: Someone <a@b.c>'"
+expect deny "python3 $R cli github --write -- pr comment 3 --body 'looks good
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)'"
+expect ask "python3 $R cli github --write -- issue comment 3 --body 'denies Co-Authored-By trailers'"
 expect none "python3 $R detect"
 expect none "python3 $R cli github -- pr list"
 expect none "python3 $R api github GET /repos/o/r/issues --paginate"

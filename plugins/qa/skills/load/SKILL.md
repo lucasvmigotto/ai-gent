@@ -87,8 +87,18 @@ file a defect with the report and keep it Implemented.
 
 ## Handoff
 
+On Claude Code with the `agents` plugin, record what the phase cost:
+`python3 <agents plugin>/scripts/token_report.py tasks --project=<session
+slug> --specs-dir specs` writes `used` next to each card's projected tokens
+on its task lines, in the feature's `tracker.md` and in
+`docs/product/token-history.jsonl`. A subagent leaves it to the coordinator
+that dispatched it (its own transcript is still open), and work done in the
+main thread alone is not attributed to a card
+(`../../references/token-tracking.md`).
+
 Results vs. SLOs, bottlenecks and evidence, environment caveats,
 recommendations, CI jobs, and statuses changed. Stop generators and any
 stack started only for the run, then clean up per
 `../../references/containers.md` §9 — images included, and verify the
-counts dropped. Commits follow `git:workflow`.
+counts dropped; then the project's `clean` recipe, and report the
+labelled resources still left (§9a). Commits follow `git:workflow`.

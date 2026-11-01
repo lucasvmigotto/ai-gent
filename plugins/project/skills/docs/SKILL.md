@@ -113,26 +113,22 @@ backend, no heavy doc framework.
 
 ## Phase 3 — Components (only what pages need)
 
-`Layout`, `Header`, `Nav`, `MobileNav`, `Footer`, `SkipLink`, `Section`,
-`Card`, `FeatureCard`, `Badge`/`StatusBadge`, `Callout`, `CodeBlock` +
-`CodeCopyButton`, `Table`, `Accordion`, `Breadcrumbs`, `Search`,
-`LanguageSwitcher`, `VersionBadge`.
-
-- Semantic HTML before ARIA; full keyboard operability with visible
-  focus; focus restore on mobile-nav/search close; `prefers-reduced-motion`
-  honored; status never signaled through color alone.
-- Every page carries maturity badges so readers always know what is real.
-- **The footer carries the site's metadata; the header carries
-  navigation.** Footer, one centered row that wraps on narrow screens: the
-  versions (`references/version-footer.md`), the license as its short name
-  with a mark (`GPL v3+`, `MIT`) linked to `LICENSE` at the build's ref
-  with the full name as its title, and the theme switch, which is icon
-  buttons (sun, moon) in a `fieldset` with a hidden `legend`, each named
-  (`aria-label` + `title`) with `aria-pressed` on the current one and the
-  choice persisted. No "Source on GitHub" link or counts: the version
-  links already open the repository.
+The set (`Layout`, `Header`, `Nav`, `Footer`, `Card`, `Callout`, `CodeBlock`,
+`Search`, `LanguageSwitcher`, `VersionBadge`, …) and the rules are in
+`references/components.md`; read it when building them. The floor:
+semantic HTML before ARIA, full keyboard operability with visible focus,
+`prefers-reduced-motion` honored, status never by color alone, a maturity
+badge on every page. **The footer carries the site's metadata; the header
+carries navigation** — versions, the license linked to `LICENSE` at the
+build's ref, and an icon theme switch; no "Source on GitHub" link.
 
 ## Phase 4 — i18n (namespaced locale files)
+
+The site's **primary** locale is en-US, unless the product's own
+interface is confirmed primarily non-English — then the primary locale
+matches it instead, content written entirely in that language
+(`../../references/language-policy.md`). Other locales are still additive on
+top of whichever one is primary.
 
 Separate **UI chrome** from **documentation content** in typed locale
 files (e.g. `ui` + `docs` namespaces). A shared content interface makes
@@ -140,56 +136,24 @@ a missing translation a type error, never a silent gap. Browser-language
 detection → locale persistence → English fallback; `<html lang>` synced.
 Technical identifiers (commands, flags, env vars, code, URLs) stay
 untranslated. New locales must not require component rewrites.
-
-## Phase 4b — LLM-readable output
+## Phase 4b — LLM-readable output → `references/llm-output.md`
 
 A single-page app is close to invisible to LLMs: crawlers and agent fetch
-tools don't run JavaScript, and hash routes never reach the server. So the
-build also emits plain Markdown from the **same typed content** the pages
-render (never a second, hand-maintained copy):
+tools don't run JavaScript. The build also emits plain Markdown from the
+**same typed content** the pages render, never a second copy: `llms.txt`
+(llmstxt.org), `llms-full.txt`, and one `.md` per page and locale,
+advertised with `<link rel="alternate" type="text/markdown">`. Maturity
+labels appear in the text itself (`**Planned — not implemented yet.**`).
+The file has the structure, the code-block and table rules, and the
+`AGENTS.md` offer.
 
-- `llms.txt` at the site root, following llmstxt.org: an `# <project>`
-  title, a one-paragraph `>` summary, then `##` sections listing every
-  page as `- [Title](url.md): one-line description`, with an `## Optional`
-  section for material an agent can skip.
-- `llms-full.txt`: every page concatenated in navigation order, for
-  one-shot ingestion.
-- One `.md` per page and locale (`/docs/<locale>/<page>.md`), linked from
-  `llms.txt` and advertised on the HTML page with
-  `<link rel="alternate" type="text/markdown" href="…">`.
-- **Maturity labels in the text itself.** Every Planned, Partially
-  Implemented or Unavailable item carries the label inline
-  (`**Planned — not implemented yet.**`), since an LLM reading the
-  Markdown never sees a badge. Roadmap pages stay separate from how-to and
-  reference pages, exactly as on the site.
-- Code blocks keep their language tag; tables stay Markdown tables; no
-  HTML-only components (tabs, accordions) — render their content in
-  full.
-- Offer to create or update the repository's `AGENTS.md` (commands,
-  layout, conventions for agents working *on* the code) from the same
-  discovery — a different audience from `llms.txt`, which serves agents
-  *using* the product. Only with the user's agreement.
+## Phase 5 — Tests → `references/tests.md`
 
-## Phase 5 — Tests
-
-- **Unit + a11y (vitest):** Testing Library suites for components,
-  navigation, and i18n detection/persistence/fallback in
-  `tests/unit/`; automated axe checks (`toHaveNoViolations`) in
-  `tests/a11y/`. Scripts: `test` (`vitest run`), `test:watch`.
-- **e2e (Playwright or Selenium):** serve the production static build, smoke every
-  route including deep links, keyboard-only flows, language switching,
-  and a mobile project — through containerized browsers
-  (`selenium/standalone-*`; WebKit only via Playwright's container, per
-  the qa plugin's references/browsers.md rules, never a host driver install).
-  Chromium-first in CI, full matrix locally.
-- **Versions:** a unit test of the footer's version resolution, one case
-  per row of `references/version-footer.md`'s table (on the tag, past it,
-  no tag, no git), and a render test that the footer shows every entry
-  linked to its tree.
-- **LLM output:** every page has its `.md` in every locale, every
-  `llms.txt` link resolves in `dist/`, `llms-full.txt` contains every
-  page, and every non-Implemented item carries its maturity label in the
-  Markdown (a test fails on a Planned feature without one).
+Unit and axe a11y suites (vitest), e2e smoke through containerized
+browsers (never a host driver), a unit test per row of the footer's
+version table, and LLM-output tests (every page has its `.md` in every
+locale, every `llms.txt` link resolves, no Planned item without its
+label). The file has the details.
 
 ## Phase 6 — Validation
 

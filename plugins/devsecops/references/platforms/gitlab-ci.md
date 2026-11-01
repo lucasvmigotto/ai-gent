@@ -5,6 +5,12 @@
 - One `.gitlab-ci.yml` at the root, split with `include:` (`local:`,
   `project:` + `ref:`, `remote:`, `template:`, and **CI/CD components**
   via `include: - component: $CI_SERVER_FQDN/<group>/<project>/<name>@<version>`).
+- **New pipelines default to `.gitlab/gitlab-ci.yaml`** (includes
+  alongside it under `.gitlab/`) — set as the project's **CI/CD
+  configuration file path** (Settings → CI/CD → General pipelines),
+  since GitLab only reads a root `.gitlab-ci.yml` otherwise. An existing
+  root file is updated in place, not moved, unless the user asks —
+  moving it means changing that setting too.
 - `workflow: rules:` decides whether a pipeline runs at all (avoid
   duplicate branch + MR pipelines); job `rules:` (not the legacy
   `only/except`) decide each job; `rules: changes:` for monorepo paths.
@@ -113,3 +119,9 @@ Used by `devsecops:watch`. `glab` must be signed in (`glab auth status`).
 - Masked variables stay masked in job logs; never unmask one to debug.
 - Downstream and child pipelines are separate pipelines: follow the
   bridge job to them.
+
+## Release job
+
+Every project's default release job (Conventional Commits decide the bump,
+the pipeline tags) for GitLab CI — snippet, push identity, loop guard, tag
+pipeline and the one-time grants — is in `../release-platforms.md`.

@@ -8,8 +8,9 @@ description: Migrate CI/CD pipelines between GitHub Actions, GitLab CI, Azure Pi
 ## Before starting
 
 1. Read `../../references/principles.md`,
-   `../../references/platforms/concepts.md`, and the platform files for
-   **both** source and target.
+   `../../references/platforms/concepts.md`, the platform files for
+   **both** source and target, and `../../references/release-platforms.md`
+   (the release job per platform).
 2. Confirm source and target with the user, plus: the cutover date, the
    repository hosting (is the code moving too?), and whether the
    migration may also improve the pipelines or must be a faithful
@@ -31,12 +32,23 @@ description: Migrate CI/CD pipelines between GitHub Actions, GitLab CI, Azure Pi
 
    Name every **gap** explicitly (a feature the target lacks or gates
    behind a tier) and its workaround.
+   **The release job maps like any other**, and is the one most often
+   lost: the source's push-to-default-branch job that runs
+   `scripts/release.py`, commits `chore(release)` and tags. Carry
+   `scripts/release.py` and `CHANGELOG.md` as they are and re-render the
+   job from the target's section of `release-platforms.md`; a source with
+   no automatic release gets the default one (name it as an addition, not
+   a translation). Map explicitly: the push identity, the loop guard, the
+   tag pipeline trigger, the release object, and the permissions to grant
+   on the target.
 3. **Render the target** following its platform file — idiomatic for the
    target (its reuse mechanism, its expression syntax), not a literal
    line-by-line transliteration. Apply the principles as you go
    (permissions, pinning, OIDC), marking each change beyond translation.
 4. **Re-create what isn't in files** — a checklist for the user:
-   secrets/variables to create (names, scopes), environments and
+   secrets/variables to create (names, scopes), the release job's
+   permissions (the target's grants in `release-platforms.md`: token or
+   Build Service rights, branch/tag protection bypass), environments and
    approvers, protected branches/rulesets, runners/agents, **cloud OIDC
    trust for the new CI identity** (new issuer, audience and subject
    claims), status checks required for merging, webhooks/integrations.
@@ -62,6 +74,7 @@ description: Migrate CI/CD pipelines between GitHub Actions, GitLab CI, Azure Pi
 - [ ] every secret/variable listed by name and scope for re-creation
 - [ ] OIDC trust re-established for the target identity; source trust scheduled for removal
 - [ ] environments, approvals and protected refs reproduced
+- [ ] release job re-rendered (push identity, loop guard, tag trigger, release object) and its one-time grants listed; the source's job disabled so two systems never tag
 - [ ] parity run compared tests, artifacts and durations
 - [ ] cutover and rollback steps written
 

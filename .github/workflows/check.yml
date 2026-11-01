@@ -25,7 +25,7 @@ jobs:
 
       - name: Install tools
         env:
-          CLAUDE_CODE_VERSION: 2.1.282
+          CLAUDE_CODE_VERSION: 2.1.312
         run: |
           npm install --global --no-fund --no-audit "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
           pipx --version # check.sh runs its pinned shellcheck, and a pinned uv for compact:code's Pygments, through pipx

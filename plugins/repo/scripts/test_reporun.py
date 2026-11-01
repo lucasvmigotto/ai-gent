@@ -39,6 +39,38 @@ echo "args: $*"
 echo "token: $GH_TOKEN"
 """
 
+# A gh standing in for `project field-list` (a fixed board: Status with four options,
+# plus a non-select field) and `project item-edit` (captures its argv to
+# $REPORUN_TEST_CAPTURE instead of running anything, so a test can inspect the exact
+# call reporun built without a real Projects v2 board).
+FAKE_GH_PROJECT = """#!/bin/sh
+if [ "$1 $2" = "project field-list" ]; then
+  cat <<'JSON'
+{"fields": [
+  {"id": "PVTF_1", "name": "Status", "type": "ProjectV2SingleSelectField", "options": [
+    {"id": "OPT_TODO", "name": "To do"},
+    {"id": "OPT_DOING", "name": "In Progress"},
+    {"id": "OPT_REVIEW", "name": "In Review"},
+    {"id": "OPT_DONE", "name": "Done"}
+  ]},
+  {"id": "PVTF_2", "name": "Title", "type": "ProjectV2Field"}
+]}
+JSON
+  exit 0
+fi
+if [ "$1 $2" = "project item-edit" ]; then
+  [ -n "$REPORUN_TEST_CAPTURE" ] && printf '%s\\n' "$*" > "$REPORUN_TEST_CAPTURE"
+  echo "token: $GH_TOKEN"
+  exit 0
+fi
+if [ "$1 $2" = "issue view" ]; then
+  echo '{"url": "https://github.com/o/r/issues/5"}'
+  exit 0
+fi
+echo "args: $*"
+echo "token: $GH_TOKEN"
+"""
+
 
 class RemoteTest(unittest.TestCase):
     def test_platforms(self):
@@ -52,6 +84,8 @@ class RemoteTest(unittest.TestCase):
             "https://dev.azure.com/org/_git/app": ("azure-devops", {"org": "org", "project": "app", "repo": "app"}),
             "git@gitlab.com:grp/sub/proj.git": ("gitlab", {"namespace": "grp/sub", "repo": "proj", "project_path": "grp/sub/proj"}),
             "git@bitbucket.org:ws/app.git": ("bitbucket", {"workspace": "ws", "repo": "app"}),
+            "https://codeberg.org/o/r.git": ("forgejo", {"owner": "o", "repo": "r"}),
+            "git@gitea.example.com:o/r.git": ("forgejo", {"owner": "o", "repo": "r"}),
             "https://git.example.com/a/b": ("", {"owner": "a", "repo": "b"}),
         }
         for url, (platform, facts) in cases.items():
@@ -148,6 +182,7 @@ class Sandbox(unittest.TestCase):
         self.store.mkdir()
         bin_dir = base / "bin"
         bin_dir.mkdir()
+        self.bin_dir = bin_dir
         for name, text in (("pass", FAKE_PASS), ("gh", FAKE_GH)):
             (bin_dir / name).write_text(text)
             (bin_dir / name).chmod(0o755)
@@ -252,6 +287,22 @@ class ApiTest(Sandbox):
         self.assertEqual(req["path"], "/proj/_apis/wit/workitems/12?api-version=7.1")
         self.assertEqual(req["headers"]["Authorization"], "Basic " + base64.b64encode(f":{TOKEN}".encode()).decode())
 
+    def test_forgejo_token_header_and_repo_path(self):
+        subprocess.run(["git", "remote", "set-url", "origin", "https://codeberg.org/o/r.git"], check=True)
+        self.entry("ai-gent/forgejo/pat", f"{TOKEN}\n")
+        code, _, err = self.run_cmd("api", "forgejo", "GET", "/repos/{owner}/{repo}/issues")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(Stub.seen[-1]["path"], "/repos/o/r/issues")
+        self.assertEqual(Stub.seen[-1]["headers"]["Authorization"], f"token {TOKEN}")
+        data = Path(self.tmp.name) / "m.json"
+        data.write_text('{"Do": "merge"}')
+        code, _, _ = self.run_cmd("api", "forgejo", "POST", "/repos/o/r/pulls/3/merge", "--data", str(data))
+        self.assertEqual(code, reporun.EXIT_REFUSED)  # a write without --write
+
+    def test_forgejo_has_no_cli(self):
+        with self.assertRaises(SystemExit):  # REST only: the cli command doesn't take the platform
+            self.run_cmd("cli", "forgejo", "--", "issue", "list")
+
     def test_jira_basic_with_email(self):
         self.entry("ai-gent/jira/token", f"{TOKEN}\nemail: me@example.com\n")
         query = Path(self.tmp.name) / "q.json"
@@ -319,6 +370,143 @@ class CliTest(Sandbox):
         code, out, err = self.run_cli("github", "--write", "--", "pr", "merge", "3")
         self.assertEqual(code, 0, err)
         self.assertIn("token from the CLI's own login", err)  # no entry: gh's own login
+
+
+class ProjectStatusTest(Sandbox):
+    """project-status: field lookup, the sync-state→live-option mapping, and the
+    item-edit call shape — against a fake `gh`, never a real Projects v2 board."""
+
+    FIELDS = [
+        {"id": "PVTF_1", "name": "Status", "type": "ProjectV2SingleSelectField",
+         "options": [{"id": "OPT_TODO", "name": "To do"}, {"id": "OPT_DOING", "name": "In-Progress"},
+                     {"id": "OPT_DONE", "name": "Done ✅"}]},
+        {"id": "PVTF_2", "name": "Title", "type": "ProjectV2Field"},
+    ]
+
+    def setUp(self):
+        super().setUp()
+        (self.bin_dir / "gh").write_text(FAKE_GH_PROJECT)
+        (self.bin_dir / "gh").chmod(0o755)
+        self.capture = Path(self.tmp.name) / "item-edit.args"
+        os.environ["REPORUN_TEST_CAPTURE"] = str(self.capture)
+        self.entry("ai-gent/github/pat", f"{TOKEN}\n")
+
+    def tearDown(self):
+        os.environ.pop("REPORUN_TEST_CAPTURE", None)
+        super().tearDown()
+
+    # -- field lookup --------------------------------------------------------
+
+    def test_field_found_case_insensitively(self):
+        field = reporun.resolve_project_field(self.FIELDS, "status")
+        self.assertEqual(field["name"], "Status")
+        self.assertEqual(len(field["options"]), 3)
+
+    def test_field_missing(self):
+        with self.assertRaises(reporun.Failed):
+            reporun.resolve_project_field(self.FIELDS, "Priority")
+
+    def test_field_without_options_rejected(self):
+        with self.assertRaises(reporun.Failed):
+            reporun.resolve_project_field(self.FIELDS, "Title")
+
+    # -- state -> live option mapping ----------------------------------------
+
+    def test_alias_match(self):
+        field = reporun.resolve_project_field(self.FIELDS, "Status")
+        self.assertEqual(reporun.resolve_project_option(field, "todo")["id"], "OPT_TODO")
+        self.assertEqual(reporun.resolve_project_option(field, "done")["id"], "OPT_DONE")
+
+    def test_punctuation_insensitive_match(self):
+        # the board's "In-Progress" still matches the "in progress" alias for doing
+        field = reporun.resolve_project_field(self.FIELDS, "Status")
+        self.assertEqual(reporun.resolve_project_option(field, "doing")["id"], "OPT_DOING")
+
+    def test_no_match_lists_options(self):
+        field = {"name": "Status", "options": [{"id": "o1", "name": "Backlog"}, {"id": "o2", "name": "Shipped"}]}
+        with self.assertRaises(reporun.Failed) as ctx:
+            reporun.resolve_project_option(field, "review")
+        self.assertIn("Backlog", str(ctx.exception))
+        self.assertIn("--value", str(ctx.exception))
+
+    # -- end to end: the write call shape ------------------------------------
+
+    def test_refused_without_write(self):
+        code, out, err = self.run_cmd("project-status", "1", "--owner", "me",
+                                      "--url", "https://github.com/o/r/issues/5", "--state", "doing")
+        self.assertEqual(code, reporun.EXIT_REFUSED)
+        self.assertFalse(self.capture.exists())
+
+    def test_state_mapped_and_written(self):
+        code, out, err = self.run_cmd("project-status", "1", "--owner", "me",
+                                      "--url", "https://github.com/o/r/issues/5", "--state", "doing", "--write")
+        self.assertEqual(code, reporun.EXIT_OK, err)
+        result = json.loads(out)
+        self.assertEqual(result, {"owner": "me", "number": 1, "url": "https://github.com/o/r/issues/5",
+                                  "field": "Status", "state": "doing", "value": "In Progress"})
+        call = self.capture.read_text()
+        self.assertIn("project item-edit 1 --owner me --url https://github.com/o/r/issues/5", call)
+        self.assertIn("--field Status --value In Progress", call)
+        self.assertNotIn(TOKEN, out + err)
+
+    def test_explicit_value_bypasses_mapping(self):
+        code, out, err = self.run_cmd("project-status", "1", "--owner", "me",
+                                      "--url", "https://github.com/o/r/issues/5", "--value", "Blocked", "--write")
+        self.assertEqual(code, reporun.EXIT_OK, err)
+        self.assertEqual(json.loads(out)["value"], "Blocked")
+        self.assertIn("--value Blocked", self.capture.read_text())
+
+    def test_owner_defaults_to_remote(self):
+        # no --owner: falls back to detect_repo()'s owner (the sandbox remote is o/r)
+        code, out, err = self.run_cmd("project-status", "1",
+                                      "--url", "https://github.com/o/r/issues/5", "--state", "done", "--write")
+        self.assertEqual(code, reporun.EXIT_OK, err)
+        self.assertEqual(json.loads(out)["owner"], "o")
+        self.assertIn("--owner o ", self.capture.read_text())
+
+    def test_unknown_field_fails(self):
+        code, out, err = self.run_cmd("project-status", "1", "--owner", "me", "--url", "https://github.com/o/r/issues/5",
+                                      "--field", "Priority", "--state", "todo", "--write")
+        self.assertEqual(code, reporun.EXIT_ERROR)
+        self.assertIn("Priority", err)
+
+    def test_needs_state_or_value(self):
+        code, out, err = self.run_cmd("project-status", "1", "--owner", "me", "--url", "https://github.com/o/r/issues/5")
+        self.assertEqual(code, reporun.EXIT_USAGE)
+
+    # -- as a batch step ------------------------------------------------------
+
+    def plan(self, steps):
+        f = Path(self.tmp.name) / "batch.json"
+        f.write_text(json.dumps({"platform": "github", "steps": steps}))
+        return str(f)
+
+    def test_batch_step_needs_write(self):
+        steps = [{"name": "status", "project_status": {"number": 1, "owner": "me",
+                                                        "url": "https://github.com/o/r/issues/5", "state": "review"}}]
+        code, _, err = self.run_cmd("batch", self.plan(steps))
+        self.assertEqual(code, reporun.EXIT_REFUSED)
+        self.assertIn("1 of 1 steps", err)
+        self.assertFalse(self.capture.exists())
+
+    def test_batch_step_written_and_resolves_references(self):
+        steps = [
+            {"name": "issue", "cli": ["issue", "view", "5", "--json", "url"]},
+            {"name": "status", "project_status": {"number": 1, "owner": "me", "url": "{{issue.url}}", "state": "review"}},
+        ]
+        code, out, err = self.run_cmd("batch", self.plan(steps), "--write")
+        self.assertEqual(code, reporun.EXIT_OK, err)
+        report = json.loads(out)
+        self.assertTrue(report["ok"])
+        self.assertIn("--value In Review", self.capture.read_text())
+
+    def test_batch_rejects_project_status_on_other_platforms(self):
+        f = Path(self.tmp.name) / "b.json"
+        f.write_text(json.dumps({"platform": "gitlab", "steps": [
+            {"name": "status", "project_status": {"number": 1, "owner": "me", "url": "x", "state": "todo"}}]}))
+        code, _, err = self.run_cmd("batch", str(f))
+        self.assertEqual(code, reporun.EXIT_USAGE)
+        self.assertIn("GitHub-only", err)
 
 
 class BatchTest(Sandbox):

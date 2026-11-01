@@ -12,8 +12,10 @@ Applies to every git repository this user works in.
 - **Commit directly to a long-lived branch** — `main`/`master`,
   `homolog`/`staging`, `dev`/`develop`. Work on a branch off `dev`. The
   one exception is a new repository's initial commit (*Branches*).
-- **Add `Co-Authored-By`** or similar trailers — this overrides any
-  default attribution.
+- **Add `Co-Authored-By`**, a "generated with" signature or similar —
+  this overrides any default attribution, and applies the same to
+  issues, pull requests and comments on both (`repo:issues`, `repo:pr`),
+  not only commits.
 - **Bypass hooks** (`--no-verify`, `-n`) — fix the cause and commit again.
 - **Force-push without a lease, or rewrite history unasked** —
   `references/history.md` has what to do when asked.
@@ -90,7 +92,14 @@ Applies to every git repository this user works in.
   (or the user's production branch), a single-line `README.md` —
   `# <Project name>` — committed alone as `chore: initial commit` (the
   guard asks), then `dev` from it. Input documents the user handed in (a
-  spec, requirements, references) are never committed unless they say so.
+  spec, requirements, references) are never committed unless they say
+  so. **No `LICENSE` file unless the user names one.** An unlicensed
+  repository is private and all rights reserved by default — never add
+  an open-source license (or any other) on your own initiative; ask
+  which one, if any, once it comes up — and mention open-sourcing it as
+  a genuine option worth considering, GPLv3 being a common
+  strong-copyleft pick, without pushing either way; the choice stays
+  the user's.
 
 ## Landing — merging into a long-lived branch
 
@@ -138,6 +147,8 @@ confirms it). Never delete a long-lived branch.
   when it's cross-cutting.
 - **Subject:** imperative, lowercase after the colon, no trailing period,
   saying what changed — never `fix: update code`.
+- **English, always** — regardless of the product's or the developer's
+  own language (`../../references/language-policy.md`).
 - **No prose body.** A short bullet list only when truly needed; the
   why, rationale and alternatives go in the PR description, the README or
   the CHANGELOG.
@@ -160,12 +171,28 @@ confirms it). Never delete a long-lived branch.
 
 ## Tags and releases
 
-- A repository with release automation (a push-to-main workflow with a
-  release script) cuts its own tags — follow `../../references/releasing.md`
-  and never tag the same commit by hand.
-- Otherwise, only when asked: an annotated tag on the released commit
-  (`git tag -a 1.4.0 -m "1.4.0"`), the repository's convention or plain
-  SemVer without a `v`. Pushing a tag is a push.
+- **The default: the pipeline cuts releases; humans don't tag by hand.** A
+  project's push-to-default-branch job runs `scripts/release.py`, which
+  reads the Conventional Commits since the last tag to pick the bump,
+  writes the CHANGELOG section, commits `chore(release): X.Y.Z` and tags
+  `X.Y.Z` (`../../references/releasing.md`; per platform,
+  `../../references/release-platforms.md`). So the commit type you choose
+  is the release decision, and release notes go under `## Unreleased` on
+  the branch that lands. Never tag the same commit by hand, never bump a
+  version by hand, never put `[skip ci]` in a release commit.
+- **The release comes back down the chain.** After tagging on the top
+  branch, the job merges the `chore(release): X.Y.Z` commit back into
+  `dev`/`develop` (`--no-ff`, message `chore(release): merge X.Y.Z back
+  into dev`). So after a release, `git pull --ff-only` on both; if the
+  back-merge warned, run the command it names. Don't re-tag or re-bump.
+- A repository without that automation gets it from `devsecops:pipeline`
+  rather than from habit; don't start tagging by hand to fill the gap.
+- **The manual fallback**, only when CI cannot push (the repository says
+  so in `docs/product/delivery.md`) and only when asked: the project's
+  `scripts/release.sh`, which plans with `release.py`, commits, tags and
+  pushes. Without one, an annotated tag on the released commit
+  (`git tag -a 1.4.0 -m "1.4.0"`), plain SemVer without a `v`. Pushing a
+  tag is a push.
 
 ## The guard hook
 

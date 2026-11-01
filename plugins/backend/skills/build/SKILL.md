@@ -117,8 +117,10 @@ For each phase:
 - **Configuration** from environment, validated at startup (fail fast on
   missing/invalid); no environment-specific code paths.
 - **Observability**: structured logs with correlation id and no
-  secrets/PII, RED metrics per endpoint, traces propagated to outbound
-  calls; readiness checks real dependencies, liveness doesn't.
+  secrets/PII, in English regardless of the product's own language
+  (`../../references/language-policy.md`); RED metrics per endpoint,
+  traces propagated to outbound calls; readiness checks real
+  dependencies, liveness doesn't.
 - **Security**: input validation on every field, allow-listed binding
   (no mass assignment), rate limits where specified, dependency audit
   and secret scanning in CI.
@@ -179,9 +181,20 @@ For a feature with a `tracker.md`, run `repo:sync` for it once the
 phase's tasks are ticked and its status updated (pipeline rule 10), so
 its items move with it.
 
+On Claude Code with the `agents` plugin, record what the phase cost:
+`python3 <agents plugin>/scripts/token_report.py tasks --project=<session
+slug> --specs-dir specs` writes `used` next to each card's projected tokens
+on its task lines, in the feature's `tracker.md` and in
+`docs/product/token-history.jsonl`. A subagent leaves it to the coordinator
+that dispatched it (its own transcript is still open), and work done in the
+main thread alone is not attributed to a card
+(`../../references/token-tracking.md`).
+
 Per feature: which step of the Spec Kit flow it reached, whether
 converge converged or what's left, what's Implemented, what's still
 Planned, contract changes (and whether the frontend was told), upstream
 gaps, and next steps (next feature, or `project:docs`). Stop any servers
 and containers you started only for verification, then remove them and
-their images per `../../references/containers.md` §9.
+their images per `../../references/containers.md` §9; run the project's
+`clean` recipe (or `wt.py remove` in a worktree) and report the labelled
+resources still left (§9a).

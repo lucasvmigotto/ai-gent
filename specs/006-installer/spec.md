@@ -46,7 +46,7 @@ A user sets `AI_GENT_BRANCH=<tag>` to pin the clone; later runs keep the pin unt
 
 ### User Story 3 - Install for other agents (Priority: P1)
 
-A user picks agents with `--target` (or in the selector): opencode gets symlinks, generated entry files and `/<plugin>-<skill>` commands; Codex, Cursor, Gemini CLI, Copilot and Amp share generated entries in `~/.agents/skills`; Kiro and Windsurf get their own.
+A user picks agents with `--target` (or in the selector): opencode gets symlinks, generated entry files and `/<plugin>-<skill>` commands; Codex, Cursor, Copilot and Amp share generated entries in `~/.agents/skills`; Kiro, Windsurf and Antigravity each get their own.
 
 **Independent Test**: `test-install.sh` lines 60-126.
 
@@ -103,7 +103,7 @@ On a terminal, setup shows an fzf selector (a numbered prompt without fzf) with 
 
 - `setup.sh` requires bash with associative arrays (`declare -A`, bash ≥ 4) [OBSERVED: setup.sh:71]; `install.sh` checks only that `bash` exists [OBSERVED: install.sh:39] [INFERRED: macOS's stock bash 3.2 would fail at line 71; confirm on macOS — the README's supported platforms weren't checked].
 - `--target` as the last argument with no value: `shift` past the end under `set -e` ends the script silently [INFERRED: setup.sh:127,139 → exit without a message; confirm with `setup.sh --target`].
-- `--uninstall --target codex` prunes the whole shared `~/.agents/skills` entry set, so Cursor, Gemini CLI, Copilot and Amp lose their entries too [INFERRED: setup.sh:680-689 prunes the directory, not per agent; confirm whether that is intended].
+- `--uninstall --target codex` prunes the whole shared `~/.agents/skills` entry set, so Cursor, Copilot and Amp lose their entries too [INFERRED: setup.sh:680-689 prunes the directory, not per agent; confirm whether that is intended].
 
 ## Requirements *(mandatory)*
 

@@ -108,8 +108,15 @@ export interface Messages {
 		agentRoles: string;
 		trackerSync: string;
 		guardsBody: string;
+		mods: string;
+		modsBody: string;
 	};
-	changelog: { title: string; lede: string };
+	changelog: {
+		title: string;
+		lede: string;
+		releases: string;
+		earlierPatches: string;
+	};
 	flow: {
 		title: string;
 		lede: string;
@@ -204,7 +211,7 @@ export const enUS: Messages = {
 			"Without a terminal, or with --skip-prompt, it installs your previous choice, or Claude Code alone the first time.",
 		others: "Other agents",
 		othersBody:
-			"opencode, Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Gemini CLI, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the guards (git, db, secrets, repo); elsewhere they are instructions.",
+			"opencode, Codex, Cursor, Antigravity, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the guards (git, db, secrets, repo, containers); elsewhere they are instructions.",
 		verify: "Verify",
 		updates: "Updates",
 		updatesBody:
@@ -271,15 +278,23 @@ export const enUS: Messages = {
 		containers: "Containers",
 		databases: "Databases",
 		guards: "Guard hooks",
+		mods: "Claude Code mods",
+		modsBody:
+			"Optional hooks modules that keep something in view in Claude Code, and never replace a skill, script or guard: bands above the prompt (checkpoint holds, branches behind their remote, the next release, the pushed commit's CI runs, container leftovers and disk), a workspace line that folds the quiet ones, a context meter, a pipeline dashboard pane, card, worktree and guard-log panes, token burn-rate and card-cost toasts, a hand-off nudge, a next-stage toast, and masking of credentials in prompts and tool results. Each is read-only, can be turned off in /config, and the README lists their options and defaults.",
 		readingCode: "Reading code",
 		specKit: "Spec Kit",
 		secrets: "Secrets in pass",
 		agentRoles: "Agent roles and models",
 		trackerSync: "Specs on the tracker",
 		guardsBody:
-			"Four PreToolUse hooks enforce the git, db, secrets and repo rules in Claude Code; an OpenCode V2 plugin enforces the same rules there. The git plugin also runs a SessionStart check that prints one line when a newer ai-gent release is known.",
+			"Five PreToolUse hooks enforce the git, db, secrets, repo and containers rules in Claude Code; an OpenCode V2 plugin enforces the same rules there. The git plugin also runs a SessionStart check that prints one line when a newer ai-gent release is known, and the devcontainer plugin one that reports the project's container leftovers and a low disk, never removing anything.",
 	},
-	changelog: { title: "Changelog", lede: "Releases and what changed." },
+	changelog: {
+		title: "Changelog",
+		lede: "Releases and what changed.",
+		releases: "Releases",
+		earlierPatches: "earlier patch releases",
+	},
 	flow: {
 		title: "The autonomous flow",
 		lede: "From an idea to a released, documented product: what runs on its own, what asks you, and the skills that do each part.",
@@ -327,7 +342,7 @@ export const enUS: Messages = {
 					{
 						title: "Plan and build with the right model",
 						skills: ["agents-orchestrate", "compact-code"],
-						body: "A strong model plans and reviews, a fast one builds, a small one searches; long code is read in a compact form.",
+						body: "A strong model plans and reviews, a fast one builds, a small one searches; each card is tagged and projected in tokens, checked against your budget before a wave, and its real cost recorded afterwards. Long code is read in a compact form.",
 					},
 					{
 						title: "Implement, tests first",
@@ -371,7 +386,7 @@ export const enUS: Messages = {
 				key: "release",
 				title: "Release",
 				skills: ["git-workflow", "devsecops-pipeline"],
-				body: "dev is promoted to main through a pull request; the release workflow picks the version from the Conventional Commits, writes the changelog, tags and publishes.",
+				body: "dev is promoted to main through a pull request; the pipeline's release job picks the version from the Conventional Commits, writes the changelog and tags, with no manual tagging, on any CI platform.",
 				asks: true,
 			},
 			{
@@ -407,8 +422,8 @@ export const enUS: Messages = {
 				body: "Issues, work items and pull requests on any of the platforms.",
 			},
 			{
-				skills: ["project-status", "project-recap"],
-				body: "Where things stand and what's next; back after a pause.",
+				skills: ["project-status", "project-recap", "project-checkpoint"],
+				body: "Where things stand and what's next; back after a pause; a hand-off another account resumes from.",
 			},
 		],
 		guards:

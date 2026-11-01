@@ -2,7 +2,8 @@
 """Digest a repository's past agent sessions — Claude Code and OpenCode alike.
 
 Used by project:recap. Reads Claude Code transcripts
-(~/.claude/projects/<slug>/*.jsonl) and OpenCode sessions (`opencode session
+(~/.claude/projects/<slug>/*.jsonl, and those of every other Claude Code
+account on this machine: sibling ~/.claude* config directories) and OpenCode sessions (`opencode session
 list/export`), keeps only what a recap needs — the user's requests, the
 agent's last words, the files it changed, the commands it ran, compaction
 summaries, whether it stopped mid-task — and redacts secrets. Tool results
@@ -30,15 +31,19 @@ from pathlib import Path
 
 EDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit", "patch", "apply_patch"}
 SHELL_TOOLS = {"bash", "shell"}
-SECRET_PATTERNS = [
-    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), "<private key>"),
-    (re.compile(r"(?i)\b([A-Z0-9_]*(?:PASSWORD|PASSWD|PWD|SECRET|TOKEN|API_?KEY|ACCESS_?KEY|PAT))\b(\s*[=:]\s*)(\"[^\"]*\"|'[^']*'|\S+)"),
-     r"\1\2<redacted>"),
-    (re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{12,}"), r"\1 <redacted>"),
-    (re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,})"),
-     "<token>"),
-    (re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://[^:/@\s]+):[^@\s]+@"), r"\1:<redacted>@"),
-]
+PATTERNS_FILE = Path(__file__).resolve().parent.parent / "references" / "secret-patterns.json"
+
+
+def load_patterns(path: Path = PATTERNS_FILE) -> list[tuple[re.Pattern[str], str]]:
+    """The credential patterns, shared with the secrets plugin's Claude Code mod (shared/secret-patterns.json)."""
+    flags = {"i": re.I, "s": re.S}
+    return [
+        (re.compile(p["source"], sum(flags[f] for f in p.get("flags", ""))), p["replacement"])
+        for p in json.loads(path.read_text(encoding="utf-8"))["patterns"]
+    ]
+
+
+SECRET_PATTERNS = load_patterns()
 
 
 def redact(text: str) -> str:
@@ -81,13 +86,31 @@ def claude_home() -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
 
 
+def claude_homes() -> list[Path]:
+    """The running account's config directory first, then every other one on
+    this machine (~/.claude*, and .claude* beside a custom CLAUDE_CONFIG_DIR):
+    a session cut short by a usage limit is often continued on another account."""
+    current = claude_home()
+    homes = [current]
+    for parent in dict.fromkeys((current.parent, Path.home())):
+        if parent.is_dir():
+            homes += sorted(d for d in parent.glob(".claude*") if (d / "projects").is_dir())
+    seen, out = set(), []
+    for h in homes:
+        key = h.resolve()
+        if key not in seen:
+            seen.add(key)
+            out.append(h)
+    return out
+
+
 def claude_slug(path: Path) -> str:
     return re.sub(r"[^A-Za-z0-9]", "-", str(path))
 
 
-def claude_files(root: Path) -> list[Path]:
+def claude_files(root: Path, home: Path | None = None) -> list[Path]:
     """Transcripts started in the repository or one of its subdirectories."""
-    projects = claude_home() / "projects"
+    projects = (home or claude_home()) / "projects"
     if not projects.is_dir():
         return []
     slug = claude_slug(root)
@@ -142,14 +165,16 @@ def claude_events(path: Path) -> list[dict]:
 
 def claude_sessions(root: Path) -> list[dict]:
     current = os.environ.get("CLAUDE_CODE_SESSION_ID")
-    out = []
-    for f in claude_files(root):
-        if f.stem == current:
-            continue
-        st = f.stat()
-        out.append({"tool": "claude", "id": f.stem, "updated": iso(st.st_mtime * 1000), "_mtime": st.st_mtime,
-                    "_path": str(f), "title": claude_title(f)})
-    return out
+    homes = claude_homes()
+    newest: dict[str, tuple[float, Path, str]] = {}  # a session resumed on another account is copied there
+    for home in homes:
+        account = "" if home == homes[0] else home.name
+        for f in claude_files(root, home):
+            mtime = f.stat().st_mtime
+            if f.stem != current and (f.stem not in newest or mtime > newest[f.stem][0]):
+                newest[f.stem] = (mtime, f, account)
+    return [{"tool": "claude", "id": sid, "account": account, "updated": iso(mtime * 1000), "_mtime": mtime,
+             "_path": str(f), "title": claude_title(f)} for sid, (mtime, f, account) in newest.items()]
 
 
 def claude_title(path: Path) -> str:
@@ -250,7 +275,7 @@ def digest(session: dict, events: list[dict], root: Path) -> dict:
     compactions = [e for e in events if e["role"] == "compaction"]
     branches = [e.get("branch") for e in events if e.get("branch") and e.get("branch") != "HEAD"]
     return {
-        "tool": session["tool"], "id": session["id"], "title": session.get("title", ""),
+        "tool": session["tool"], "id": session["id"], "account": session.get("account", ""), "title": session.get("title", ""),
         "started": iso(events[0]["time"]) if events and events[0].get("time") else "",
         "ended": session["updated"], "branch": branches[-1] if branches else None, "ending": ending,
         "requests": [clip(e["text"], 400) for e in users[-6:]],
@@ -276,7 +301,8 @@ def public(s: dict) -> dict:
 
 
 def print_digest(d: dict) -> None:
-    print(f"# {d['tool']} session {d['id']} — {d['title']}")
+    where = f" (account {d['account']})" if d.get("account") else ""
+    print(f"# {d['tool']} session {d['id']}{where} — {d['title']}")
     print(f"started {d['started']} · ended {d['ended']} · branch {d['branch'] or '?'} · {d['ending']}")
     c = d["counts"]
     print(f"{c['requests']} requests · {c['tool_calls']} tool calls · {c['files_changed']} files changed · {c['compactions']} compactions")
@@ -312,7 +338,8 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps([public(s) for s in sessions], indent=2))
         else:
             for s in sessions:
-                print(f"{s['updated']}  {s['tool']:<8}  {s['id']}  {s['title']}")
+                where = f" [{s['account']}]" if s.get("account") else ""
+                print(f"{s['updated']}  {s['tool']:<8}  {s['id']}{where}  {s['title']}")
             if not sessions:
                 print(f"no earlier sessions for {root}")
         return 0

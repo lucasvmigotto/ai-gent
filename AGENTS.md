@@ -1,7 +1,7 @@
 # Working on ai-gent
 
 Skills and plugins for Claude Code (the default) and, opt-in, opencode,
-Codex, Cursor, Gemini CLI, GitHub Copilot, Amp, Kiro and Windsurf, installed
+Codex, Cursor, Antigravity, GitHub Copilot, Amp, Kiro and Windsurf, installed
 from this repo by symlink or generated entry files (`setup.sh`,
 `install.sh`). The README covers installing and the product pipeline; this
 file covers changing things.
@@ -13,6 +13,12 @@ file covers changing things.
 - Versioning follows `git:workflow` (`plugins/git/skills/workflow/SKILL.md`),
   and its guard hook is active here too.
 - Run `scripts/check.sh` before every commit; CI runs the same script.
+- Before pushing a change to `plugins/repo/scripts/reporun.py`, also run
+  `scripts/test-reporun-github.py`: it drives reporun against a throwaway
+  private GitHub repository (issues, sub-issues, rebase and merge-commit PRs,
+  a batch) and deletes it (that needs `gh auth refresh -s delete_repo`;
+  otherwise it names the repository to delete). Needs `gh` signed in; not
+  part of CI.
 - Before pushing a change to `plugins/db/scripts/dbrun.py`, also run
   `scripts/test-dbrun-engines.py` (`--engine <name>` for one engine): it
   tests dbrun end to end against real PostgreSQL, MySQL, MariaDB, SQL
@@ -46,7 +52,13 @@ file covers changing things.
   saying when to read it. Files several skills of one plugin share go in
   `plugins/<name>/references/`; files several plugins share go in
   `shared/` and are symlinked (relative links) into each plugin's
-  `references/`.
+  `references/`. The exception is code a plugin's hooks module imports:
+  the engine refuses an import through a symlink that leaves the plugin,
+  so such a file (`shared/guard-ux.ts`, `shared/hook-lines.ts`) is copied into
+  each plugin's `hooks/`, and `scripts/consistency.py` fails if a copy differs
+  (`--sync-shared-code` rewrites them). A hooks module's tests can import only
+  code files, so data they need from `shared/` (the secret patterns, the
+  fixture cases) is a generated `.ts` twin kept equal the same way.
 - Refer to other skills as `plugin:skill` and to files with backticked
   relative paths (`../../references/pipeline.md`); `scripts/check.sh`
   verifies both resolve.
@@ -60,9 +72,23 @@ file covers changing things.
   (`ai-gent/<area>/<name>`), a plain-text file last, and only a runner
   ever reads a value. A skill that needs a secret follows it, and the
   `secrets` guard keeps values out of the agent's reach.
+- Token tracking is `plugins/agents/scripts/token_report.py` (stdlib only,
+  tests in `test_token_report.py`, run by `check.sh`), explained in
+  `shared/token-tracking.md`. The tag vocabulary is `shared/token-tags.json`
+  plus its documentation `shared/token-tags.md`; to add a value, change both
+  (`scripts/consistency.py` fails if they differ, if a value is in two facets,
+  or if a `cards.md` card lacks `Tags:` or `Tokens: projected`). The tests
+  never read real transcripts or `~/.ai-gent`; they build a fake `HOME`.
 - Hook scripts are POSIX `sh`, tested by `scripts/test-guard.sh` (git),
-  `scripts/test-db-guard.sh`, `scripts/test-secrets-guard.sh` and
-  `scripts/test-repo-guard.sh`.
+  `scripts/test-db-guard.sh`, `scripts/test-secrets-guard.sh`,
+  `scripts/test-repo-guard.sh` and `scripts/test-containers-guard.sh`
+  (the devcontainer guard and its SessionStart leftovers report).
+- Container resources a skill creates carry the project's ownership label
+  and go by ID or label, never by a prune (`shared/containers.md` §9a).
+  `scripts/consistency.py` fails a skill that creates volumes, tools
+  images, compose stacks or worktrees without saying how they're removed,
+  and a line that teaches a prune. `wt.py`'s container code is tested
+  against a fake `CONTAINER_ENGINE`; never point its tests at a real one.
 
 ## Releases
 
@@ -81,6 +107,11 @@ files (or the shared files it links) changed, promotes `CHANGELOG.md`'s
 - Don't bump plugin versions or tag by hand; a version already changed by
   hand since the last tag is left alone.
 - Preview with `scripts/release.py --dry-run`.
+- The same flow is what the skills set up in other projects: the
+  single-version template is `shared/release-single.py` (tested by
+  `scripts/test-release-single.sh`) and the per-platform release jobs are
+  in `shared/release-platforms.md`. Change the bump rules in both
+  scripts together.
 - After pushing, the bot's release commit lands on `main`: run
   `git pull --ff-only` before the next local commit.
 
@@ -93,7 +124,9 @@ cases. Run one plugin's suite with
 graders count only with the plugin loaded). Behavior cases that need a
 shell (tag `behavior`, with a `scaffold.sh`) also need `--scaffold
 --allow-tools Bash`, and the eval sandbox's dependencies (`bubblewrap`,
-`socat`) installed. Eval runs cost real tokens and aren't part of CI.
+`socat`) installed. `scripts/run-evals.py [plugin…] [--behavior]` runs the suites for you,
+prints a table and records the scores in `docs/product/evals.md`.
+Eval runs cost real tokens and aren't part of CI.
 
 ## Docs site (`docs/site/`)
 

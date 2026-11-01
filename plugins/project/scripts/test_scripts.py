@@ -1,13 +1,15 @@
 """Unit tests for the project plugin's scripts: python3 -m unittest plugins/project/scripts/test_scripts.py
 
 sessions.py against a fake Claude Code home and a fake `opencode` executable;
-repo_state.py against a throwaway repository with a bare remote.
+repo_state.py against a throwaway repository with a bare remote;
+checkpoint.py against a throwaway repository.
 """
 
 import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,6 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import checkpoint  # noqa: E402
 import repo_state  # noqa: E402
 import sessions  # noqa: E402
 
@@ -121,6 +124,23 @@ class SessionsTest(unittest.TestCase):
         ids = {s["id"] for s in json.loads(run(sessions, "list", "--repo", str(self.repo), "--tool", "claude", "--json")[1])}
         self.assertEqual(ids, {"in"})
 
+    def test_other_accounts_are_read_too(self):
+        os.utime(self.claude_session(), (1790000005, 1790000005))
+        other = self.tmp / ".claude-work" / "projects" / self.proj.name
+        other.mkdir(parents=True)
+        path = other / "elsewhere.jsonl"
+        path.write_text(json.dumps({"type": "user", "cwd": str(self.repo), "message": {"content": "continue the cart"}}) + "\n")
+        os.utime(path, (1790000009, 1790000009))
+        dup = other / "old.jsonl"  # the same session under both accounts is listed once, the newest copy
+        dup.write_text(json.dumps({"type": "user", "cwd": str(self.repo), "message": {"content": "dup"}}) + "\n")
+        os.utime(dup, (1790000001, 1790000001))
+        with mock.patch.dict(os.environ, {"HOME": str(self.tmp)}):
+            listed = json.loads(run(sessions, "list", "--repo", str(self.repo), "--tool", "claude", "--json")[1])
+            d = json.loads(run(sessions, "digest", "--repo", str(self.repo), "--tool", "claude", "--json")[1])
+        self.assertEqual([(s["id"], s["account"]) for s in sorted(listed, key=lambda s: s["id"])],
+                         [("elsewhere", ".claude-work"), ("old", "")])
+        self.assertEqual((d["id"], d["account"]), ("elsewhere", ".claude-work"))
+
     def test_opencode_digest(self):
         self.fake_opencode(
             [{"id": "ses_1", "title": "Fix login", "updated": 1790000000000, "directory": str(self.repo)},
@@ -152,6 +172,74 @@ class SessionsTest(unittest.TestCase):
                              ("export API_KEY='x y z'", "x y z"), ("-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----", "MIIE")]:
             with self.subTest(text=text):
                 self.assertNotIn(hidden, sessions.redact(text))
+
+    def test_a_result_only_skip_is_applied_as_before(self):
+        # skipIn: ["result"] concerns the secrets mod's tool-output scope; sessions.py still applies the pattern.
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "p.json"
+            f.write_text(json.dumps({"patterns": [{"kind": "k", "source": "zz\\d+", "flags": "", "replacement": "<r>", "skipIn": ["result"]}]}))
+            plain = [(re.compile(r"zz\d+"), "<r>")]
+            self.assertEqual(sessions.load_patterns(f)[0][1], "<r>")
+            text = "a zz123 b"
+            out = text
+            for pat, repl in sessions.load_patterns(f):
+                out = pat.sub(repl, out)
+            self.assertEqual(out, plain[0][0].sub("<r>", text))
+            self.assertEqual(out, "a <r> b")
+
+    def test_shared_secret_cases(self):
+        # shared/secret-cases.json is also run by the secrets plugin's mod (secret-mask.test.ts): both must agree.
+        root = Path(__file__).resolve().parents[3]
+        fx = json.loads((root / "shared" / "secret-cases.json").read_text())
+        spec = json.loads((root / "shared" / "secret-patterns.json").read_text())
+
+        def expand(s):
+            return re.sub(r"\{(\w+)\}", lambda m: "".join(fx["vars"][m[1]]["parts"]) + fx["vars"][m[1]]["fill"] * fx["vars"][m[1]]["times"], s)
+
+        flags = {"i": re.I, "s": re.S}
+        for case in fx["cases"]:
+            with self.subTest(case=case["name"]):
+                text, kinds = expand(case["input"]), {}
+                for p in spec["patterns"]:
+                    if case.get("skill") and "skill" in p.get("skipIn", []):
+                        continue
+                    text, n = re.subn(p["source"], p["replacement"], text, flags=sum(flags[f] for f in p.get("flags", "")))
+                    if n:
+                        kinds[p["kind"]] = n
+                self.assertEqual(text, expand(case["expected"]))
+                self.assertEqual(kinds, case["kinds"])
+                if not case.get("skill"):
+                    self.assertEqual(sessions.redact(expand(case["input"])), expand(case["expected"]))
+
+
+class PipelinePaneParityTest(unittest.TestCase):
+    """The pipeline pane's model (hooks/pipeline-model.ts) reads specs/README.md as these two scripts do."""
+
+    def test_scripts_agree_with_the_pane_fixture(self):
+        root = Path(__file__).resolve().parents[3]
+        fixture = (root / "plugins" / "project" / "hooks" / "pipeline-fixtures.ts").read_text()
+        readme = re.search(r"export const README_TEXT = `(.*?)`", fixture, re.S)[1]
+        expected = json.loads(fixture.split("export const EXPECTED = ", 1)[1])
+        tmp = Path(tempfile.mkdtemp())
+        git(tmp, "init", "-q")
+        (tmp / "specs").mkdir()
+        (tmp / "specs" / "README.md").write_text(readme)
+        for m in re.finditer(r"^\| (\d{3}) \| ([\w-]+) \|", readme, re.M):
+            d = tmp / "specs" / f"{m[1]}-{m[2]}"
+            d.mkdir()
+            (d / "spec.md").write_text(f"# Feature Specification: {m[2]}\n")
+
+        def run_json(script, *args):
+            out = subprocess.run([sys.executable, str(root / "plugins" / script), *args], cwd=tmp, capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            return json.loads(out.stdout)
+
+        features = run_json("repo/scripts/specsync.py", "features", "--json")
+        self.assertEqual({f["feature"][:3]: f["state"] for f in features}, expected["states"])
+        plan = run_json("agents/scripts/wt.py", "plan", "--json")
+        self.assertEqual([x["number"] for x in plan["ready"]], expected["ready"])
+        self.assertEqual([x["number"] for x in plan["blocked"]], expected["blocked"])
+        self.assertEqual(plan["done"], expected["done"])
 
 
 class RepoStateTest(unittest.TestCase):
@@ -213,3 +301,56 @@ class RepoStateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CheckpointTest(unittest.TestCase):
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp()) / "shop"
+        self.repo.mkdir()
+        git(self.repo, "init", "-q")
+        commit(self.repo, "a.txt")
+        self.env = mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": "/x/.claude-work", "CLAUDE_CODE_SESSION_ID": "s1"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.path = self.repo / ".ai-gent" / "checkpoint.md"
+
+    def test_init_creates_and_excludes_once(self):
+        self.assertEqual(run(checkpoint, "init", "--repo", str(self.repo))[0], 0)
+        text = self.path.read_text()
+        for section in checkpoint.SECTIONS:
+            self.assertIn(f"## {section}\n", text)
+        self.assertIn("claude session s1 · account .claude-work", text)
+        status = subprocess.run(["git", "-C", str(self.repo), "status", "--porcelain"], capture_output=True, text=True).stdout
+        self.assertNotIn("checkpoint", status)
+        self.path.write_text(text + "kept\n")
+        run(checkpoint, "init", "--repo", str(self.repo))
+        self.assertTrue(self.path.read_text().endswith("kept\n"))  # never overwritten
+        exclude = (self.repo / ".git" / "info" / "exclude").read_text()
+        self.assertEqual(exclude.count(checkpoint.EXCLUDE_LINE), 1)
+
+    def test_already_ignored_is_left_alone(self):
+        (self.repo / ".gitignore").write_text(".ai-gent/\n")
+        out = run(checkpoint, "init", "--repo", str(self.repo))[1]
+        self.assertNotIn("exclude", out)
+
+    def test_show_missing_and_stale(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(run(checkpoint, "show", "--repo", str(self.repo))[0], 1)
+        run(checkpoint, "init", "--repo", str(self.repo))
+        os.utime(self.path, (1000, 1000))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code, out = run(checkpoint, "show", "--repo", str(self.repo))
+        self.assertEqual(code, 0)
+        self.assertIn("## Next", out)
+        self.assertIn("newer than the checkpoint", err.getvalue())
+        self.assertIn("is not mentioned", err.getvalue())
+
+    def test_stamp_rewrites_the_updated_line(self):
+        run(checkpoint, "init", "--repo", str(self.repo))
+        self.path.write_text(self.path.read_text().replace("claude session s1", "claude session old"))
+        run(checkpoint, "stamp", "--repo", str(self.repo))
+        text = self.path.read_text()
+        self.assertEqual(text.count("Updated "), 1)
+        self.assertIn("claude session s1", text)

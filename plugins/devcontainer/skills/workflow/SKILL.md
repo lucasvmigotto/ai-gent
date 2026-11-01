@@ -150,160 +150,50 @@ Why this split, specifically:
 
 ## The exec template
 
-Preferred (CLI available — handles user/env/workdir from `devcontainer.json` automatically):
+Preferred (CLI available — takes user, env and workdir from `devcontainer.json`):
 
 ```bash
 devcontainer exec --workspace-folder <host-absolute-path-to-project-root> <command>
 ```
 
-Keep reusing the same `--workspace-folder` for every command in the
-session — don't re-derive it each time.
-
-Fallback (CLI missing — fill in the three placeholders from Step 0):
+Reuse the same `--workspace-folder` for every command in the session.
+Fallback (CLI missing — fill the three placeholders from Step 0):
 
 ```bash
 $CONTAINER_ENGINE exec -u <remoteUser> --workdir <container-path-matching-cwd> <container-name> <command>
 ```
 
-Generic recipes (substitute the project's actual build tool — `mvn`,
-`npm`/`yarn`/`pnpm`, `pytest`/`tox`, `cargo`, `go test`, etc. — and use
-the `devcontainer exec` form whenever the CLI is present):
+`references/exec-recipes.md` has recipes for a fast signal after an edit,
+the full suite, what dependencies actually resolved (`mvn dependency:tree`,
+`npm ls`, `cargo tree`), inspecting a built artifact and querying the
+registry. Drop quiet flags (`-q`) on any command whose output you need to
+read; keep them only where you care about the exit code and the tail of a
+failure.
 
-```bash
-# Fast signal after an edit — whatever the lightest "does this parse/compile" step is
-devcontainer exec --workspace-folder <path> <build-tool> <compile-or-build-check>
-# fallback: $CONTAINER_ENGINE exec -u <user> --workdir <path> <container> <build-tool> <compile-or-build-check>
+## Long-lived processes → `references/processes.md`
 
-# Full test suite
-devcontainer exec --workspace-folder <path> <build-tool> test
-# fallback: $CONTAINER_ENGINE exec -u <user> --workdir <path> <container> <build-tool> test
+Read it before starting, stopping or finishing with a server or dev
+process. The rules:
 
-# Inspect exactly what versions/deps actually resolved (the equivalent of
-# `mvn dependency:tree`, `npm ls <pkg>`, `pip show`, `cargo tree`, etc.) —
-# this is how classpath/version-conflict bugs get diagnosed, and it beats
-# guessing from the manifest file alone, since transitive resolution can
-# silently override what the top-level manifest says
-devcontainer exec --workspace-folder <path> <dependency-tree-equivalent>
-
-# Look inside a built artifact for what actually got embedded
-devcontainer exec --workspace-folder <path> <artifact-inspection-command>
-
-# Query the package registry directly from inside the container when you
-# need to know what versions exist, or what a dependency's own manifest
-# requires transitively
-devcontainer exec --workspace-folder <path> curl -s <registry-metadata-url>
-```
-
-Watch out for verbosity flags that suppress the exact output you need:
-e.g. Maven's `dependency:tree` logs at INFO through the Maven logger, so a
-blanket `-q` silences it entirely. Drop quiet/silent flags for any command
-whose output you actually need to read; keep them only for high-volume,
-low-signal steps where you mainly care about the exit code and the tail of
-any failure.
-
-## Foreground vs. backgrounded execution
-
-- **Short, bounded commands** (compiling, unit tests, dependency
-  inspection, packaging) — run them as a normal blocking `Bash` call and
-  read the output directly.
-- **Long-lived or server processes** (dev servers, `run`/`serve` targets,
-  anything that starts listening and doesn't exit on its own) — these
-  need one of:
-  - `timeout <seconds> devcontainer exec --workspace-folder <path> ...`
-    (or `timeout <seconds> $CONTAINER_ENGINE exec ...` as fallback) if you only need
-    to see the startup log and then let it die naturally, or
-  - `run_in_background: true`, then read the result via `TaskOutput`, or
-  - `Monitor`, if you need to react to specific log lines (e.g. wait for
-    a "started"/"listening" line, or catch a stack trace) without
-    blocking the turn.
-  Do **not** pipe through `| tail -N` (or similar) and assume the
-  pipeline's exit code reflects the underlying process's exit code — the
-  tail/grep/etc. at the end of the pipe reports its own exit code
-  regardless of what happened upstream. Read the actual output instead of
-  trusting `$?`.
-- To stop a backgrounded long-lived process, prefer `TaskStop` over
-  reaching into the container to `kill` the process by hand.
-
-## Check for existing app processes before starting or stopping anything
-
-Long-lived processes (dev servers, `run`/`serve` targets, watch-mode
-build tools) started inside a devcontainer persist across your tool calls
-and across turns — the user may already have one running in their own
-terminal or via their editor's run/debug UI, entirely independent of
-anything you've done. Before starting one yourself, or before killing one
-to apply a fix, check what's actually running first:
-
-```bash
-devcontainer exec --workspace-folder <path> bash -lc "ps aux | grep -i <process-pattern>"
-devcontainer exec --workspace-folder <path> bash -lc "ss -ltnp | grep <port>"
-# fallback without CLI:
-# $CONTAINER_ENGINE exec <container> bash -lc "ps aux | grep -i <process-pattern>"
-# $CONTAINER_ENGINE exec <container> bash -lc "ss -ltnp | grep <port>"
-```
-
-**Distinguish the user's own process from one you started or from a
-stale leftover** using process ancestry and TTY, not just "is something
-listening":
-- A process attached to a real TTY (`pts/0`, `pts/1`, ...) in the `ps aux`
-  TTY column is almost always the user's own interactive terminal
-  session — they typed the command and are watching its output live. Do
-  **not** kill this without asking first, even if it's the thing blocking
-  your fix from taking effect. Tell them what changed and ask them to
-  restart it themselves (Ctrl+C + rerun), or explicitly confirm before
-  you stop it for them.
-- A process with TTY `?` is detached/backgrounded — either something you
-  (or a previous turn) started via `nohup ... &`, or a daemon the
-  devcontainer itself launches. These are generally safe to manage
-  directly, but confirm *which* one it is (command line, start time, any
-  log file path in its args) before assuming it's disposable — it could
-  still be a long-running service the user relies on (a database, a
-  message broker) rather than the app under test.
-
-This matters most right after a code/config change: the already-running
-process has the **old** build/classes/bundle loaded in memory, so a fix
-on disk does nothing until that process restarts. If it's the user's own
-foreground process, say so explicitly rather than declaring the fix
-"verified" — nothing is verified until the code that's actually running
-reflects your change.
-
-## Clean up every process you start for your own verification
-
-If you start a server/dev-process yourself (`nohup ... &`,
-`run_in_background`, or a bare `devcontainer exec` / `$CONTAINER_ENGINE exec`) purely to verify a fix —
-not because the user asked you to leave something running — treat it as
-scoped to the task: stop it before considering the task done, the same
-way you'd clean up a scratch file.
-
-Containers and images follow `../../references/containers.md` §9 — which is
-about artifacts, not just processes, and applies to every stage that
-starts a container.
-
-- Track what you started (PID, container, port) as you go, especially
-  across several rounds of restart-to-test-a-fix — it's easy to lose
-  count of which PID is your latest one.
-- Before ending a task that involved starting test processes, check
-  `ps`/`ss` again and stop anything you spun up that has no ongoing
-  reason to keep running.
-- Never leave a background process holding a port the user's own
-  workflow needs (e.g. `:8080`, `:3000`) — a stale agent-started process
-  squatting on a port is a confusing, hard-to-diagnose blocker for
-  whatever the user tries next, and `ss -ltnp` alone won't tell them the
-  listener is something an agent left running rather than their own
-  tooling.
-- If asked to stop/close/drop "any running process," don't just kill
-  whatever's convenient — enumerate everything actually related to the
-  app (backend, frontend dev server, any proxy/compose stack brought up)
-  and confirm each one is actually stopped (port free, process gone), not
-  just that one `kill` was sent.
-- **A probe you run to answer a question ("does this feature install?")
-  is scratch.** Removing it means the container *and* the images it built
-  (`vsc-<workspace>-<hash>-features*`), not stopping it: a stopped
-  container still pins its layers, and those images accumulate until the
-  host stalls. Snapshot `ps -a` / `images` before you start, remove only
-  the difference afterwards, and re-run both to confirm the count really
-  dropped — an exit code of 0 proves nothing, especially when rootless
-  vs. root or a `DOCKER_HOST` pointing at another store makes cleanup
-  succeed against a different engine than the one holding the container.
+- **Short, bounded commands** run as a normal blocking `Bash` call.
+  **Servers** (anything that listens and doesn't exit) run under
+  `timeout <s> devcontainer exec …`, with `run_in_background: true` and
+  `TaskOutput`, or under `Monitor` to react to a log line. Never trust
+  `$?` through a `| tail` pipe — read the output. Stop a backgrounded
+  process with `TaskStop`, not a hand-rolled `kill`.
+- **Look before starting or stopping** (`ps aux`, `ss -ltnp`). A process on
+  a real TTY (`pts/N`) is the user's own terminal: don't kill it without
+  asking — say what changed and ask them to restart it. TTY `?` is
+  detached (yours, a previous turn's, or a daemon the devcontainer
+  launches): confirm which before treating it as disposable. A fix on disk
+  does nothing until the running process restarts; nothing is verified
+  until the code that's running reflects the change.
+- **Clean up what you started for verification** — track PID, container
+  and port; stop them before calling the task done, and never leave a
+  background process holding a port the user's workflow needs. A probe
+  container is scratch too: remove it *and* its images (a stopped
+  container still pins layers), snapshot `ps -a`/`images` before and after,
+  and re-run both to confirm the count dropped (`containers.md` §9).
 
 ## Guardrails
 
@@ -314,12 +204,16 @@ starts a container.
   after the fact.
 - **Ask first:** `$CONTAINER_ENGINE stop` / `devcontainer` stop-like teardown,
   `up --remove-existing`, `$CONTAINER_ENGINE rm` / `$CONTAINER_ENGINE volume rm` /
-  `$CONTAINER_ENGINE system prune` / `$CONTAINER_ENGINE network rm` on the project's container
+  `$CONTAINER_ENGINE network rm` on the project's container
   or its volumes — the container likely holds dependency caches,
   in-progress state, or open connections, and destroying it is expensive
-  to rebuild and hard to reverse. Exception: stopping a verification
-  process you started yourself (tracked PID/port) is autonomous — clean
-  it up without asking.
+  to rebuild and hard to reverse. Exceptions, autonomous: stopping a
+  verification process you started yourself (tracked PID/port), and the
+  label-scoped removals of `containers.md` §9a — the project's dangling
+  images, a landed worktree's volumes and containers (`clean`, `wt.py
+  remove`), a wave's new buildah working containers (`wt.py finish`).
+- **Never:** any `prune` (`system`, `image`, `volume`, even filtered) —
+  remove by ID or label (`containers.md` §9).
 - Don't edit files by shelling into the container (`devcontainer exec ...
   vi`, `$CONTAINER_ENGINE exec ... vi`, `sed -i`, `tee`, heredocs) — see the file-vs-environment split above. If
   you catch yourself reaching for exec to change file content,
@@ -340,6 +234,19 @@ When tests or builds need a Docker daemon inside the devcontainer
 `docker-in-docker`, the both-configured trap, the verification checklist
 after changing the access mode, and why Testcontainers cleanup lag isn't
 an orphan leak.
+
+## Rebuilding the tools image
+
+A changed Containerfile makes the next `image` recipe build a new image
+under the same tag and leaves the previous one dangling, a few gigabytes
+each time. The recipe removes the project's own dangling images by label
+(`containers.md` §6); when it doesn't yet, remove them yourself —
+`$CONTAINER_ENGINE images -q --filter dangling=true --filter
+label=me.lucasvmigotto.ai-gent.project=<project>`, then `rmi` each ID
+without `-f` — and suggest adding it. Unlabelled dangling images aren't
+attributable: list them and ask. An interrupted build leaves buildah
+working containers (`ps -a --external`) that pin layers; they go at the
+end of the task through `wt.py finish` (`containers.md` §9a).
 
 ## Rebuilding after a `devcontainer.json` change
 

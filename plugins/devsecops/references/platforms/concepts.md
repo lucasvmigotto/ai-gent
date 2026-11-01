@@ -9,7 +9,7 @@ features change.
 
 | Concept | GitHub Actions | GitLab CI/CD | Azure Pipelines | Bitbucket Pipelines | Jenkins | Forgejo / Gitea Actions |
 |---|---|---|---|---|---|---|
-| Config file | `.github/workflows/*.yml` (many) | `.gitlab-ci.yml` (+ `include:`) | `azure-pipelines.yml` (per pipeline) | `bitbucket-pipelines.yml` | `Jenkinsfile` | `.forgejo/workflows/` / `.gitea/workflows/` |
+| Config file | `.github/workflows/*.yml` (many) | `.gitlab-ci.yml` (+ `include:`), or `.gitlab/**/*.yaml` via the CI/CD configuration path | `azure-pipelines.yml` (per pipeline), or `.azure/**/*.yaml` via the pipeline's YAML file path | `bitbucket-pipelines.yml` (fixed path) | `Jenkinsfile`, or `.jenkins/Jenkinsfile` via the job's Script Path | `.forgejo/workflows/` / `.gitea/workflows/` |
 | Unit of work | job → steps | job → `script` | stage → job → steps | step → `script` | stage → steps | job → steps |
 | Ordering | `needs:` | `stages:` + `needs:` (DAG) | `dependsOn:` | step order, `parallel:`, `stages:` | `stages`, `parallel` | `needs:` |
 | Conditions | `if:` | `rules:` | `condition:` | branch/PR sections, `condition: changesets` | `when { }` | `if:` |
@@ -22,6 +22,7 @@ features change.
 | Deploy concurrency | `concurrency:` | `resource_group:` | exclusive lock check on environment | deployment concurrency per environment | `lock` (Lockable Resources) | `concurrency:` (verify support) |
 | Cache | `actions/cache`, setup-* `cache:` | `cache:` | `Cache@2` | `caches:` | agent workspace / plugins | `actions/cache` (runner-dependent) |
 | Artifacts | `actions/upload-artifact` / `download-artifact` | `artifacts:` + `dependencies`/`needs` | `PublishPipelineArtifact` / `DownloadPipelineArtifact` | `artifacts:` | `archiveArtifacts` / `stash` | upload/download artifact actions |
+| Release / tag publishing (the job itself: `../release-platforms.md`) | `gh release create` (tag + notes + assets) | `release:` keyword, or `glab release create` (tag + notes + assets) | no native Release object — "Releases" there means pipeline-based deployment tracking, not a tagged artifact; closest equivalent is an annotated tag, with a wiki page or an Azure Artifacts package for notes/assets | no native Release object — tags only; attach files via the repo's Downloads API if needed | no native concept; a `git tag` + push, or the SCM platform's own release API called from the pipeline | Releases REST API (`POST …/repos/{owner}/{repo}/releases`; no CLI assumed) — tag + notes + assets |
 | Runners | GitHub-hosted, self-hosted, larger runners | shared/group/project runners (`tags:`) | Microsoft-hosted, self-hosted, scale-set agents | Atlassian cloud, self-hosted runners | controller + agents (docker/k8s) | `forgejo-runner` / `act_runner` |
 | Workflow lint | `actionlint`, `zizmor` | CI Lint (UI / API / `glab ci lint`) | pipeline validation on run, `az pipelines` | online validator | `Jenkinsfile` linter (`/pipeline-model-converter/validate`) | `actionlint` (mostly compatible) |
 | Security scanner for pipelines | `zizmor`, `poutine`, OpenSSF Scorecard | `poutine` | `poutine` | — (manual checklist) | — (manual checklist) | `zizmor` (partial) |

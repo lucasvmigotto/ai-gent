@@ -29,7 +29,7 @@ With no previous tag, the release is --initial (default 0.1.0) if there is
 at least one releasable commit.
 
 Usage (run from anywhere inside the repository):
-  release.py [--dry-run] [--date YYYY-MM-DD] [--initial X.Y.Z]
+  release.py [--dry-run [--json]] [--date YYYY-MM-DD] [--initial X.Y.Z]
   release.py --notes [X.Y.Z]
 
 Output and exit codes:
@@ -37,6 +37,9 @@ Output and exit codes:
              the plan on stderr; exit 0
   --dry-run  prints the plan (version, plugin bumps, changelog section) on
              stdout, writes nothing; exit 0
+  --dry-run --json
+             prints the plan as one JSON object (version, bump, since,
+             targets, changelog) on stdout; exit 3 and errors print nothing
   --notes    prints one release's CHANGELOG section body (default: the
              newest version heading) for the GitHub Release; exit 0
   exit 3     no release needed (nothing releasable since the last tag)
@@ -53,6 +56,8 @@ import subprocess
 import sys
 
 NO_RELEASE = 3
+JSON_KEYS = ("version", "bump", "since", "targets", "changelog")
+TARGET_KEYS = ("kind", "label", "from", "to", "bump")
 RANK = {"none": 0, "patch": 1, "minor": 2, "major": 3}
 TYPE_BUMP = {"feat": "minor", "fix": "patch", "perf": "patch", "refactor": "patch"}
 HEADER_RE = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]*)\))?(?P<bang>!)?: (?P<desc>.+)$")
@@ -203,7 +208,7 @@ def plan_manifests(root, tag, config):
         paths = entry.get("paths") or [os.path.dirname(rel) or "."]
         bump = max_bump(commits(tag, paths))
         if bump != "none":
-            plans.append({"label": f"manifest {rel}", "manifest": full, "text": text,
+            plans.append({"kind": "manifest", "name": rel, "label": f"manifest {rel}", "manifest": full, "text": text,
                           "from": current, "to": bump_version(current, bump), "bump": bump})
     return plans
 
@@ -235,7 +240,7 @@ def plan_plugins(root, tag):
             continue  # already bumped by hand since the tag
         bump = max_bump(commits(tag, plugin_paths(root, plugin_dir)))
         if bump != "none":
-            plans.append({"label": f"plugin {name}", "manifest": manifest, "text": text,
+            plans.append({"kind": "plugin", "name": name, "label": f"plugin {name}", "manifest": manifest, "text": text,
                           "from": current, "to": bump_version(current, bump), "bump": bump})
     return plans
 
@@ -289,6 +294,7 @@ def section_of(text, version=None):
 def main(argv):
     parser = argparse.ArgumentParser(description="Plan and prepare a release from Conventional Commits.")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
+    parser.add_argument("--json", action="store_true", help="with --dry-run, print the plan as one JSON object")
     parser.add_argument("--notes", nargs="?", const="", metavar="X.Y.Z",
                         help="print a release's CHANGELOG section (default: the newest)")
     parser.add_argument("--date", help="release date, YYYY-MM-DD (default: today, UTC)")
@@ -298,6 +304,8 @@ def main(argv):
         parser.error("--initial must be X.Y.Z")
     if args.date and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.date):
         parser.error("--date must be YYYY-MM-DD")
+    if args.json and not args.dry_run:
+        parser.error("--json needs --dry-run")
 
     root = repo_root()
     changelog = os.path.join(root, "CHANGELOG.md")
@@ -325,6 +333,10 @@ def main(argv):
     plan = [f"release {version} ({bump}, since {tag or 'the start'})",
             *(f"{p['label']}: {p['from']} -> {p['to']} ({p['bump']})" for p in plans),
             f"CHANGELOG.md: {how}"]
+    if args.dry_run and args.json:
+        targets = [dict(zip(TARGET_KEYS, (p["kind"], p["name"], p["from"], p["to"], p["bump"]))) for p in plans]
+        print(json.dumps(dict(zip(JSON_KEYS, (version, bump, tag, targets, how))), ensure_ascii=False))
+        return 0
     if args.dry_run:
         print("\n".join(plan))
         print()

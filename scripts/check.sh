@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Repository checks: skill and plugin metadata, cross-references, symlinks,
-# shell scripts, the git, db, secrets and repo guard hooks, dbrun, reporun,
+# shell scripts, the git, db, secrets, repo and containers guard hooks, dbrun, reporun,
 # the project scripts, compact:code, the prose consistency checks, the release
-# script, and installer tests
+# script and its single-version template, and installer tests
 # in a throwaway HOME.
 # Run before every commit; CI runs the same script.
 #
@@ -120,8 +120,19 @@ if command -v claude >/dev/null 2>&1; then
     out="$(claude plugin validate "$dir" 2>&1)" || { fail "claude plugin validate $dir"; printf '%s\n' "$out"; }
   done
   ((failures == before)) && pass "claude plugin validate"
+
+  # A plugin whose hooks.json names a hooks module (a Claude Code mod) runs
+  # its *.test.ts(x) files against the engine.
+  before=$failures
+  modded=0
+  for dir in plugins/*/; do
+    grep -q '"modules"' "$dir/hooks/hooks.json" 2>/dev/null || continue
+    modded=$((modded + 1))
+    out="$(claude plugin test "$dir" 2>&1)" || { fail "claude plugin test $dir"; printf '%s\n' "$out"; }
+  done
+  ((modded > 0 && failures == before)) && pass "claude plugin test ($modded hooks modules)"
 else
-  warn "claude not on PATH; skipped 'claude plugin validate'"
+  warn "claude not on PATH; skipped 'claude plugin validate' and 'claude plugin test'"
 fi
 
 # -------------------------------------------------------- cross-references
@@ -219,6 +230,14 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-repoguard.out"
 
+if scripts/test-containers-guard.sh >"${TMPDIR:-/tmp}/ai-gent-ctrguard.out" 2>&1; then
+  pass "containers guard and leftovers hooks ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-ctrguard.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-ctrguard.out"
+  fail "containers guard and leftovers hooks"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-ctrguard.out"
+
 if python3 -m unittest plugins/repo/scripts/test_reporun.py plugins/repo/scripts/test_specsync.py \
   </dev/null >"${TMPDIR:-/tmp}/ai-gent-reporun.out" 2>&1; then
   pass "reporun, specsync ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-reporun.out"))"
@@ -243,6 +262,14 @@ else
   fail "agents wt.py unit tests"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-wt.out"
+
+if python3 -m unittest plugins/agents/scripts/test_token_report.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-token-report.out" 2>&1; then
+  pass "agents token_report.py ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-token-report.out"))"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-token-report.out"
+  fail "agents token_report.py unit tests"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-token-report.out"
 
 if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
   pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
@@ -298,6 +325,14 @@ else
   fail "release script"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-release.out"
+
+if scripts/test-release-single.sh >"${TMPDIR:-/tmp}/ai-gent-release-single.out" 2>&1; then
+  pass "single-version release template ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-release-single.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-release-single.out"
+  fail "single-version release template"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-release-single.out"
 
 # ------------------------------------------------------- opencode guard
 

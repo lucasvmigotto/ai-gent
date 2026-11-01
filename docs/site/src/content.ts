@@ -40,6 +40,64 @@ export const skills: SkillInfo[] = generated.skills as SkillInfo[];
 export const counts = generated.counts;
 export const changelog: string = generated.changelog;
 
+// One per "## Unreleased" / "## X.Y.Z — date" heading in CHANGELOG.md,
+// newest first (the file's own order); a release's major/minor/patch are
+// null for the Unreleased entry.
+export interface ChangelogEntry {
+	version: string;
+	date: string | null;
+	major: number | null;
+	minor: number | null;
+	patch: number | null;
+	body: string;
+}
+export const changelogVersions: ChangelogEntry[] =
+	generated.changelogVersions as ChangelogEntry[];
+
+export interface ChangelogMinorGroup {
+	minor: number;
+	entries: ChangelogEntry[];
+}
+export interface ChangelogMajorGroup {
+	major: number;
+	minors: ChangelogMinorGroup[];
+}
+
+// Folds the released entries (Unreleased excluded — show it on its own) by
+// major, then minor, each newest first; patches stay a flat list under
+// their minor rather than folding one level deeper.
+export function groupChangelog(
+	entries: ChangelogEntry[],
+): ChangelogMajorGroup[] {
+	const majors = new Map<number, Map<number, ChangelogEntry[]>>();
+	for (const e of entries) {
+		if (e.major === null || e.minor === null) continue;
+		const minors = majors.get(e.major) ?? new Map();
+		majors.set(e.major, minors);
+		const list = minors.get(e.minor) ?? [];
+		minors.set(e.minor, list);
+		list.push(e);
+	}
+	return [...majors.entries()]
+		.sort((a, b) => b[0] - a[0])
+		.map(([major, minors]) => ({
+			major,
+			minors: [...minors.entries()]
+				.sort((a, b) => b[0] - a[0])
+				.map(([minor, list]) => ({ minor, entries: list })),
+		}));
+}
+
+// Within one minor's entries (newest first): the newest entry and the minor
+// release itself (X.Y.0) stay in view; the older patch releases fold.
+export function foldPatches(entries: ChangelogEntry[]): {
+	shown: ChangelogEntry[];
+	folded: ChangelogEntry[];
+} {
+	const folded = entries.filter((e, i) => i > 0 && (e.patch ?? 0) > 0);
+	return { shown: entries.filter((e) => !folded.includes(e)), folded };
+}
+
 // How a skill is shown: Claude Code's `/plugin:skill`, the default agent.
 // The `plugin-skill` id stays the URL slug and the other agents' name.
 export function command(skill: Pick<SkillInfo, "plugin" | "skill">): string {

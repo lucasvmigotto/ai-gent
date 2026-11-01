@@ -139,3 +139,9 @@ Used by `devsecops:watch`. `gh` must be signed in (`gh auth status`).
   no workflows; `workflow_run` and `workflow_dispatch` still do.
 - A run's logs and artifacts expire with the repository's retention
   setting; download what a diagnosis needs before it does.
+
+## Release job
+
+Every project's default release job (Conventional Commits decide the bump,
+the pipeline tags) for GitHub Actions — snippet, push identity, loop guard, tag
+pipeline and the one-time grants — is in `../release-platforms.md`.
