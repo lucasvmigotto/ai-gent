@@ -1,0 +1,43 @@
+{
+ "name": "list-from-inside-a-worktree",
+ "derived_from": "test_from_inside_a_worktree",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/002-orgs"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/002-orgs\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-002-orgs\",\n  \"compose_project\": \"shop-feat-002-orgs\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-002-orgs\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-002-orgs AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-002-orgs; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "wt": [
+    "list",
+    "--json"
+   ],
+   "cwd": ".worktrees/feat-002-orgs",
+   "expect": {
+    "code": 0,
+    "stdout": "[\n  {\n    \"branch\": \"feat/002-orgs\",\n    \"path\": \".worktrees/feat-002-orgs\",\n    \"dirty\": false,\n    \"ahead\": 0,\n    \"behind\": 0\n  }\n]\n",
+    "stderr": ""
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "feat/other"
+   ],
+   "cwd": ".worktrees/feat-002-orgs",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/other\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-other\",\n  \"compose_project\": \"shop-feat-other\",\n  \"port_offset\": 200,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-other\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-other AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-other; publish ports +200 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

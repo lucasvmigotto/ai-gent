@@ -1,0 +1,68 @@
+{
+ "name": "add-refusals",
+ "derived_from": "test_refusals",
+ "steps": [
+  {
+   "git": [
+    "branch",
+    "develop"
+   ],
+   "cwd": "."
+  },
+  {
+   "wt": [
+    "add",
+    "feat/x"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: the chain's dev branch is ambiguous (dev and develop both exist); pass --base, or ask the user which one the flow uses\n"
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "feat/x",
+    "--base",
+    "dev"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/x\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-x\",\n  \"compose_project\": \"shop-feat-x\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-x\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-x AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-x; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "feat/x",
+    "--base",
+    "dev"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: .worktrees/feat-x exists\n"
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "Feat/X.",
+    "--base",
+    "dev"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: .worktrees/feat-x exists\n"
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

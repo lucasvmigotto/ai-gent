@@ -1,0 +1,36 @@
+{
+ "name": "plan-reads-the-worktree-it-runs-in",
+ "derived_from": "test_plan_reads_the_worktree_it_runs_in",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/specs"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/specs\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-specs\",\n  \"compose_project\": \"shop-feat-specs\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-specs\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-specs AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-specs; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "write": {
+    ".worktrees/feat-specs/specs/README.md": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Implemented |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+   }
+  },
+  {
+   "wt": [
+    "plan",
+    "--json"
+   ],
+   "cwd": ".worktrees/feat-specs",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"ready\": [\n    {\n      \"number\": \"002\",\n      \"name\": \"orgs\",\n      \"depends\": [\n        \"001\"\n      ],\n      \"sides\": {\n        \"frontend\": \"Planned\",\n        \"backend\": \"In progress\"\n      },\n      \"todo\": {\n        \"frontend\": \"Planned\",\n        \"backend\": \"In progress\"\n      },\n      \"waiting\": []\n    }\n  ],\n  \"blocked\": [\n    {\n      \"number\": \"003\",\n      \"name\": \"billing\",\n      \"depends\": [\n        \"002\"\n      ],\n      \"sides\": {\n        \"frontend\": \"Planned\",\n        \"backend\": \"Planned\"\n      },\n      \"todo\": {\n        \"frontend\": \"Planned\",\n        \"backend\": \"Planned\"\n      },\n      \"waiting\": [\n        \"002\"\n      ]\n    }\n  ],\n  \"done\": [\n    \"001\",\n    \"004\",\n    \"005\"\n  ]\n}\n",
+    "stderr": ""
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

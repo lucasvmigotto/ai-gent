@@ -1,0 +1,21 @@
+{
+ "name": "plan-no-readme",
+ "derived_from": "Failed: no specs/README.md",
+ "steps": [
+  {
+   "rm": "specs/README.md"
+  },
+  {
+   "wt": [
+    "plan"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: no specs/README.md: name the tracks yourself (wt.py add per branch)\n"
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

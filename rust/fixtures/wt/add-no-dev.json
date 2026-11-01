@@ -1,0 +1,38 @@
+{
+ "name": "add-no-dev",
+ "derived_from": "chain_dev missing",
+ "steps": [
+  {
+   "git": [
+    "branch",
+    "-D",
+    "dev"
+   ],
+   "cwd": "."
+  },
+  {
+   "wt": [
+    "add",
+    "feat/x"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: the chain's dev branch is missing; pass --base, or ask the user which one the flow uses\n"
+   }
+  },
+  {
+   "wt": [
+    "list"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "no worktrees under .worktrees/\n",
+    "stderr": ""
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

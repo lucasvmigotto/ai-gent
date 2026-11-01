@@ -1,0 +1,30 @@
+{
+ "name": "plan-json",
+ "derived_from": "test_plan",
+ "steps": [
+  {
+   "wt": [
+    "plan",
+    "--json"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"ready\": [\n    {\n      \"number\": \"002\",\n      \"name\": \"orgs\",\n      \"depends\": [\n        \"001\"\n      ],\n      \"sides\": {\n        \"frontend\": \"Planned\",\n        \"backend\": \"In progress\"\n      },\n      \"todo\": {\n        \"frontend\": \"Planned\",\n        \"backend\": \"In progress\"\n      },\n      \"waiting\": []\n    },\n    {\n      \"number\": \"004\",\n      \"name\": \"search\",\n      \"depends\": [\n        \"001\"\n      ],\n      \"sides\": {\n        \"frontend\": \"N/A\",\n        \"backend\": \"Planned\"\n      },\n      \"todo\": {\n        \"backend\": \"Planned\"\n      },\n      \"waiting\": []\n    }\n  ],\n  \"blocked\": [\n    {\n      \"number\": \"003\",\n      \"name\": \"billing\",\n      \"depends\": [\n        \"002\"\n      ],\n      \"sides\": {\n        \"frontend\": \"Planned\",\n        \"backend\": \"Planned\"\n      },\n      \"todo\": {\n        \"frontend\": \"Planned\",\n        \"backend\": \"Planned\"\n      },\n      \"waiting\": [\n        \"002\"\n      ]\n    }\n  ],\n  \"done\": [\n    \"001\",\n    \"005\"\n  ]\n}\n",
+    "stderr": ""
+   }
+  },
+  {
+   "wt": [
+    "plan"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "ready to start in parallel (dependencies Implemented):\n  002 orgs                         frontend Planned, backend In progress\n  004 search                       backend Planned\nwaiting  003 billing                      on 002\n\n2 feature(s) already Implemented or Verified. Split a ready feature into frontend, backend and QA tracks only once its contract is settled; share nothing else without an owner.\n",
+    "stderr": ""
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}
