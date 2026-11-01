@@ -12,6 +12,7 @@ export function drawWorkspace($: EngineInterface, e: ResolveInput, view: Workspa
   const toggle = <Button key="workspace-details" label={`${toggleGlyph(options.isOpen, options.ascii)} Details`} onPress={options.onToggle} />
   return (
     <Box flexDirection="column">
+      {view.line === null && view.warnings === null ? <Box>{toggle}</Box> : null}
       {view.line === null ? null : (
         <Box>
           <Text wrap="truncate-end">{view.line}</Text>

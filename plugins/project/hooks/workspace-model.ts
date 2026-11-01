@@ -58,9 +58,16 @@ function fit(prefix: string, items: readonly string[], sep: string, max: number,
   return cut(prefix + (items[0] ?? ''), max, ellipsis)
 }
 
-export function workspaceView(bands: readonly Band[], options: { columns: number; ascii: boolean }): WorkspaceView | null {
+// `extras` are the context and week rows (usage-model.ts extrasOf): Details rows after the bands', and the
+// critical ones as warnings, so a critical limit never hides behind the collapsed Details. With rows only,
+// the line is just the Details button.
+export function workspaceView(
+  bands: readonly Band[],
+  options: { columns: number; ascii: boolean; extras?: { rows: readonly string[]; warnings: readonly string[] } },
+): WorkspaceView | null {
   const { folded } = split(bands, true)
-  if (folded.length === 0) return null
+  const extras = options.extras ?? { rows: [], warnings: [] }
+  if (folded.length === 0 && extras.rows.length === 0 && extras.warnings.length === 0) return null
   const g = glyphs(options.ascii)
   const mode = modeOf(options.columns)
   // Room for the Details button beside the line.
@@ -70,12 +77,15 @@ export function workspaceView(bands: readonly Band[], options: { columns: number
       .filter(band => tone.includes(band.summary?.tone ?? 'info'))
       .map(band => (band.summary?.tone === 'ok' ? `${g.ok} ${band.summary.text}` : (band.summary?.text ?? '')))
   const calm = items(['ok', 'info'])
-  const warns = items(['warn'])
+  const warns = [...items(['warn']), ...extras.warnings]
   return {
     mode,
     line: calm.length === 0 ? null : fit(mode === 'wide' ? 'Workspace: ' : '', calm, g.sep, max, g.ellipsis),
     warnings: warns.length === 0 ? null : fit(`${g.warn} `, warns, g.sep, max, g.ellipsis),
-    details: ordered(folded).map(band => cut(`${band.plugin}: ${band.summary?.text ?? band.id}`, Math.max(12, options.columns - 2), g.ellipsis)),
+    details: [
+      ...ordered(folded).map(band => cut(`${band.plugin}: ${band.summary?.text ?? band.id}`, Math.max(12, options.columns - 2), g.ellipsis)),
+      ...extras.rows,
+    ],
     count: folded.length,
   }
 }

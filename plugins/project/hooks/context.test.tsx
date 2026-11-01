@@ -155,7 +155,7 @@ test('chromeAscii draws the meter with ASCII only', { options: { contextMeter: t
   await ui.unmount()
 })
 
-test('contextMeter off: no hint change and no usage read beyond the nudge\'s own', { options: { contextMeter: false } }, async ($, on) => {
+test('contextMeter off: no hint change and no usage read beyond the nudge\'s own', { options: { contextMeter: false, usageMeter: false } }, async ($, on) => {
   const w = world(on)
   await $.session.start(START)
   expect(w.usageCalls).toBe(0)

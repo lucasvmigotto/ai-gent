@@ -28,10 +28,10 @@ export function levelOf(percent: number, threshold: number): Level {
 
 export type Meter = { text: string; level: Level; percent: number }
 
-const MIN_BAR = 6
-const MAX_BAR = 20
+export const MIN_BAR = 6
+export const MAX_BAR = 20
 
-const glyphs = (ascii: boolean) => ({
+export const glyphs = (ascii: boolean) => ({
   icon: ascii ? '@' : '◐',
   full: ascii ? '#' : '█',
   empty: ascii ? '-' : '░',
