@@ -55,7 +55,9 @@ fn expand(text: &str, now: i64) -> String {
 }
 
 fn normalise(text: &str, root: &str) -> String {
-    let t = text.replace(root, "<ROOT>");
+    let t = text
+        .replace(root, "<ROOT>")
+        .replace(&root.replace('/', "\\"), "<ROOT>");
     let mut out = String::new();
     let mut rest = t.as_str();
     while let Some(i) = rest.find("Generated ") {
@@ -105,7 +107,13 @@ fn run_case(path: &Path) -> Vec<String> {
     let name = case["name"].as_str().unwrap().to_string();
     let tmp = tempfile::tempdir().unwrap();
     let root = std::fs::canonicalize(tmp.path()).unwrap();
-    let rs = root.to_string_lossy().into_owned();
+    // Windows canonicalises to `\\?\C:\...`, which refuses `/`; use the plain drive path, forward slashes.
+    let plain = root
+        .to_string_lossy()
+        .trim_start_matches(r"\\?\")
+        .to_string();
+    let rs = plain.replace('\\', "/");
+    let root = PathBuf::from(&plain);
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
