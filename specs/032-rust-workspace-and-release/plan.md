@@ -4,7 +4,7 @@
 
 ## Summary
 
-A `rust/` Cargo workspace (`ai-gent-core` library, `ai-gent` binary) with a pinned toolchain and strict gates, built natively for six targets by a reusable workflow, packaged one archive per target by `scripts/package.py`, fetched by `install.sh` per platform, attested, and published to crates.io only through Trusted Publishing from the owner-controlled `crate-release` environment. A throwaway `version` + `doctor` binary de-risks macOS and Windows first.
+A `rust/` Cargo workspace (`ai-gent-core` library, `ai-gent` binary; `ai-gent-dbrun`, D28, joins with spec 038's production phase) with a pinned toolchain and strict gates, built natively for six targets by a reusable workflow, packaged one archive per target by `scripts/package.py`, fetched by `install.sh` per platform, attested, and published to crates.io only through Trusted Publishing from the owner-controlled `crate-release` environment. A throwaway `version` + `doctor` binary de-risks macOS and Windows first.
 
 ## Technical context
 
@@ -14,7 +14,7 @@ A `rust/` Cargo workspace (`ai-gent-core` library, `ai-gent` binary) with a pinn
 
 | Constraint (source) | Check | How satisfied |
 |---|---|---|
-| D4 workspace under `rust/`, two crates | pass | FR-001 |
+| D4 workspace under `rust/`, two crates here (a third, `ai-gent-dbrun`, D28, arrives with 038) | pass | FR-001 |
 | D5 names, placeholders 0.1.0 (already published 2026-11-01), owner sets up Trusted Publishing, assistant never handles a token | pass | FR-013, `quickstart.md` owner steps; no task asks for a token |
 | D6 GPL-3.0-or-later | pass | `license` field, `deny.toml` allow-list |
 | D3 six targets | pass | FR-006 |
@@ -134,7 +134,7 @@ Differences from rstory worth recording: rstory is tag-triggered with a `verify`
 | `windows-11-arm` or `macos-15-intel` label retired or flaky | a required leg blocks releases | probes record availability; the leg is required at the 3.0.0 gate (039) and optional (`continue-on-error`) before it, with the failure surfaced in the run summary |
 | Unsigned macOS/Windows binaries are blocked for browser downloads | support burden | D14 decision; `install.sh` path avoids quarantine; README documents the workaround |
 | Package size grows (7 archives) | slower releases, bigger assets | binary profile `opt-level="z"`/`strip`/`lto` measured in T015; size budget in `data-model.md` |
-| Crates.io Trusted Publishing for two crates: per-crate configuration and workflow-file match | publish fails | `quickstart.md` owner steps; dry run; publish job idempotent |
+| Crates.io Trusted Publishing for each crate (two now, `ai-gent-dbrun` later): per-crate configuration and workflow-file match | publish fails | `quickstart.md` owner steps; dry run; publish job idempotent |
 | A public crate named `ai-gent` before the binary is useful | confusion | placeholders' README says so; real publishing off until the owner flips the variable |
 
 ## Phased approach

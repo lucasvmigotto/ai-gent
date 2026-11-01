@@ -11,7 +11,7 @@ Each gate is a row with a **measure** that is a command, a file or a CI run, and
 | G27-3 | Six-target dry run green | `gh workflow run rust.yml --ref dev`; six `bin-<triple>` artifacts | |
 | G27-4 | De-risk sheet complete with a decision | `specs/032-rust-workspace-and-release/de-risk.md` has no empty row | |
 | G27-5 | Per-triple install tests pass | `scripts/test-package.sh`, `scripts/test-install.sh`, macOS job | |
-| G27-6 | Trusted Publishing configured for both crates; dry-run publish passes; publish variable unset | crates.io settings screenshot or text; `rust.yml` dry-run job | |
+| G27-6 | Trusted Publishing configured for `ai-gent-core` and `ai-gent` (and `ai-gent-dbrun` if it is in the workspace, D28); dry-run publish passes; publish variable unset | crates.io settings screenshot or text; `rust.yml` dry-run job | |
 | G27-7 | Shadow wired, decisions unchanged | `scripts/test-*guard.sh` unchanged counts (192 shell cases); `scripts/guard-fixtures.py run --impl sh` green | |
 | G27-8 | Fixtures extracted with no loss | `shared/guard-fixtures/manifest.json` counts equal the old suites | |
 | G27-9 | Guard parity for sh | `cargo test -p ai-gent-core --test guard_parity` 100 percent | |
