@@ -1,7 +1,7 @@
-# Rust and v3: decisions log
+# Rust and 3.0.0: decisions log
 
 Status: **decided by the owner** unless marked *assistant's call* or *open*.
-This file is the single source for the Rust and v3 specs (`specs/032`–`specs/040`):
+This file is the single source for the Rust and 3.0.0 specs (`specs/032`–`specs/040`):
 a builder or a fresh session starts here. Date: 2026-11-01. Release at the time: 2.26.0.
 
 ## Why
@@ -17,11 +17,11 @@ assistant tools for code agents.
 
 | # | Decision | Owner call |
 |---|---|---|
-| D1 | The release package becomes the **only** install path in v3. 2.26 shipped it as the default with the git clone as a flagged dev mode. | owner |
-| D2 | v3 supports tiers **Claude > Codex > others**. Tier 3 (opencode, Cursor, Antigravity, Copilot, Amp, Kiro, Windsurf) is **best-effort and frozen**, out of the required CI; nothing is removed in v3. | owner delegated ("your call") |
+| D1 | The release package becomes the **only** install path in 3.0.0. 2.26 shipped it as the default with the git clone as a flagged dev mode. | owner |
+| D2 | 3.x supports tiers **Claude > Codex > others**. Tier 3 (opencode, Cursor, Antigravity, Copilot, Amp, Kiro, Windsurf) is **best-effort and frozen**, out of the required CI; nothing is removed in 3.0.0. | owner delegated ("your call") |
 | D3 | Native **Windows is a goal** (also macOS). Targets: x86_64 and aarch64 for Linux, macOS and Windows. | owner |
 | D4 | The Rust workspace lives **in this repo under `rust/`**: crates `ai-gent-core` (library) and `ai-gent` (binary). One release flow, one tag. | owner |
-| D5 | Crate names `ai-gent` and `ai-gent-core` (both free on crates.io on 2026-11-01; `aigent` is taken). Publish placeholder **0.1.0** of both at the start of 2.27; the owner runs `cargo publish` and sets up Trusted Publishing afterwards. The assistant never asks for or handles a token. | owner |
+| D5 | Crate names `ai-gent` and `ai-gent-core` (both free on crates.io on 2026-11-01; `aigent` is taken). Placeholder **0.1.0** of both is **published** (done 2026-11-01, through `pass` with the owner's `ai-gent/crates.io/pat` entry handed to the command by a runner, so no value reached any transcript). The owner has configured Trusted Publishing on crates.io for both crates (workflow `release.yml`, GitHub environment `crate-release`); every later publish goes through Trusted Publishing from `release.yml`, with no stored token. The assistant never asks for or handles a token. | owner |
 | D6 | License **GPL-3.0-or-later** (the repo's). | repo |
 | D7 | **Migration per subcommand, cut over in one release**: a subcommand ships with parity tests against its Python tool; when it lands, skills switch to `ai-gent <sub>` and the Python file is deleted in the same release. No dual paths. | owner |
 | D8 | A missing binary **fails with the install command**; there is no Python fallback. | owner |
@@ -34,9 +34,11 @@ assistant tools for code agents.
 | D15 | **Update is notify-only.** `ai-gent update --check` prints a notice only when a newer release is cached, never blocks, refreshes detached on an interval (default 7 days), honours `AI_GENT_NO_UPDATE_CHECK`, and stays silent for a pinned version. `ai-gent update` installs through the same verified path as `install.sh`; `--rollback` goes back. No silent self-replacement (the binary runs the guards). Pattern: `~/codes/dottod/scripts/.update.sh`. | assistant's call, owner delegated |
 | D16 | `install.sh` and `setup.sh` stay a short POSIX bootstrap (they run before any binary exists). Dev-only tools stay Python/shell and are not shipped: `release.py`, `consistency.py`, `run-evals.py`, `package.py`, `sbom-from-bunlock.py`, `check.sh`, all `test-*.sh` and `test_*.py`. | owner |
 | D17 | Planning material is **Spec Kit specs under `specs/`**, full depth (spec, plan, tasks, fixtures) for every piece, so a session that runs out of tokens leaves resumable work. | owner |
-| D18 | A **docs-site v2 spec** (v3 Install page, tier compatibility matrix, search; no full redesign) is part of the planning set, built after the Rust pieces. | owner |
+| D18 | A **docs-site v2 spec** (3.0.0 Install page, tier compatibility matrix, search; no full redesign) is part of the planning set, built after the Rust pieces. | owner |
 | D19 | `dbrun` is last or never: its drivers come from `uv run --with` or a container, so a Rust port needs native drivers or a container shell-out. A spike decides. | assistant's call |
 | D20 | A **major bump** is earned by the breaking contract: package-only install, tiers in force, the binary replacing the shell guards and the first Python tools. Not by packaging alone. | analysis, owner agreed to discuss |
+| D21 | Version naming: 3.0.0 / 3.x, never "v3"; tags carry no `v` prefix. | owner |
+| D22 | Crate homepage is the docs site: `homepage = "https://docs.lucasvmigotto.me/ai-gent/"` and `repository = "https://github.com/lucasvmigotto/ai-gent"` on both crates; `documentation` unset on `ai-gent-core` (docs.rs API docs). crates.io reads these per published version, so they land with the first real release (the 0.1.0 placeholders keep the repository as homepage and cannot be edited). | owner |
 
 ## Constraints every spec must respect
 
