@@ -12,4 +12,11 @@ The spike produces documents, not data. For reference, the shapes the runner use
 
 Environment: `AI_GENT_DB_CONFIG`, `AI_GENT_DB_STATE`, `AI_GENT_DB_CLIENT_IMAGE`, `AI_GENT_ORACLE_CLIENT_LIB`, `CONTAINER_ENGINE`, `AI_GENT_PASS_PREFIX`.
 
-Spike artifacts: `engine-matrix.md`, `results.md`, `decision.md` in this directory.
+Spike artifacts: `engine-matrix.md`, `results.md`, `decision.md` and the measurement log `measurements.md` in this directory.
+
+After a non-S verdict (D28), two more shapes matter:
+
+| Entity | Shape | Source |
+|---|---|---|
+| Connector | a trait in `ai-gent-dbrun`: takes the driver request above (engine, connection facts, mode, statements, timeout, row cap) and returns the one-line JSON result; implemented by the process connector (drives `dbrun.py _exec`) and by one module per engine behind the features `sqlite`, `postgres`, `mysql`, `mssql`, `oracle` | the Python `_exec` contract |
+| Crate set | `ai-gent-core` (lean, no driver), `ai-gent-dbrun` (independent SemVer, published after core), `ai-gent` (lockstep with the tag, published last) | D23, D28 |
