@@ -26,6 +26,12 @@ no image tags or named volumes of your own, `run --rm` for anything else, no
 prune and no rm of anything you didn't start. Report every image, volume or
 container you created.
 
+Reading and checking: read files with Read offset/limit or `sed -n 'a,bp' file | head -80`,
+never `cat` a file over ~150 lines; `grep -c` or `| head` before dumping matches.
+Batch shell steps into one call. Inside your loop run a scoped test (or
+`check.sh --quick --quiet`); run the full check once, before the commit. Keep
+to about 40 tool calls; if the card needs more, stop and report what is left.
+
 Acceptance: <commands that must pass, e.g. the test suite and the linters>.
 
 Final report (concise): what changed per item, files, test results, anything
@@ -60,6 +66,11 @@ table, then for each card its route and the prompt above.
   (task ids repeat across features). `token_report.py tasks` attributes a card's cost
   from that description (a card id, or task ids plus the feature number);
   without them the cost is reported as unattributed, never guessed.
+- The dispatch call's `description` is the card's `Dispatch description:`
+  and starts with the card id (`004-foundation: T001, T002 …`): the token
+  report attributes by it and never by branch name or a free title.
+- Prefer one scoped, self-contained card on a general-purpose agent over a
+  fork: a fork starts at about 78k of context, a fresh subagent at about 40k.
 - Name the tests to write first when the work is code ("tests first; show
   them failing").
 - For shared checkouts, say "do not commit; stage nothing" and commit
