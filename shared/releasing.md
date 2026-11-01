@@ -187,26 +187,68 @@ prepare any change: on a working branch off `dev`, with the notes under
 ### The release package
 
 The installer's default is a package, not a clone. After the release job
-creates the draft Release, the `package` job (the only job with
-`id-token: write` and `attestations: write`) checks out the new tag and:
+creates the draft Release (and tags it), three jobs follow:
 
-1. builds `dist/ai-gent-X.Y.Z.tar.gz` with `scripts/package.py --version X.Y.Z`
-   (an allowlist: `plugins/` minus evals and tests, the `shared/` files the
-   plugins link to, `opencode/guard`, `setup.sh`, `install.sh`, the update
-   scripts, `LICENSE`, `README.md`, `VERSION` and a `MANIFEST` of sha256s;
-   relative symlinks are kept, and a dangling or escaping one fails the
-   build; sorted entries, fixed mtime and ids, so two builds are
-   byte-identical), plus `dist/SHA256SUMS`;
-2. attests the tarball and `install.sh` with
-   `actions/attest-build-provenance` (pinned by commit SHA);
-3. uploads tarball, `SHA256SUMS` and `install.sh` and only then publishes the
-   Release (`--draft=false --latest`), so `releases/latest`, which the
-   installer and `update-check.sh` read, never points at a release without
-   its package. If the job fails the release stays a draft and
-   `report-failure` opens an issue; the next release supersedes it.
+- `rust-build` (reusable `rust-build.yml`) builds the `ai-gent` binary natively
+  for the six targets from the tag, smoke-tests each on its own OS and
+  architecture, and uploads `bin-<triple>`. `release.py` has already written
+  the crate versions and `rust/Cargo.lock` into the release commit
+  (`rust/crates/*/Cargo.toml` and `rust/Cargo.lock` are in the release job's
+  `git add`); `cargo metadata --locked` in every leg proves they agree.
+- `package` (the only job with `attestations: write`, and with `id-token:
+  write` for the signing) checks out the tag and runs
+  `scripts/package-release.sh`, which calls `scripts/package.py` once for the
+  content-only package and once per target, then writes `dist/SHA256SUMS`
+  and the release notes with a `## Checksums` block (D25):
+  1. `dist/ai-gent-X.Y.Z.tar.gz`, the content-only package (an allowlist:
+     `plugins/` minus evals and tests, the `shared/` files the plugins link
+     to, `opencode/guard`, `setup.sh`, `install.sh`, the update scripts,
+     `LICENSE`, `README.md`, `VERSION` and a `MANIFEST` of sha256s; relative
+     symlinks are kept, and a dangling or escaping one fails the build;
+     sorted entries, fixed mtime and ids, so two builds are byte-identical).
+     It stays for every 2.x release so an older installer keeps working; it is
+     not published from 3.0.0;
+  2. `dist/ai-gent-X.Y.Z-<triple>.tar.gz` (`.zip` with copies instead of
+     symlinks for `*-windows-msvc`): the same content plus `bin/ai-gent[.exe]`
+     at mode 0755, listed in `MANIFEST`. `package.py` refuses any Rust source,
+     `Cargo.*`, `target/` or fixture corpus, so only the binary ships. The
+     `aarch64-pc-windows-msvc` leg may fail before the 3.0.0 gate: its
+     archive is then skipped with a warning;
+  3. attests every archive and `install.sh` with
+     `actions/attest-build-provenance` (pinned by commit SHA; `SHA256SUMS`
+     proves integrity only and is not attested);
+  4. uploads the archives, `SHA256SUMS` and `install.sh`, replaces the draft's
+     notes with the changelog section plus the `## Checksums` block, and only
+     then publishes the Release (`--draft=false --latest`), so
+     `releases/latest`, which the installer and `update-check.sh` read, never
+     points at a release without its packages. If a job fails the release
+     stays a draft and `report-failure` opens an issue; fix and re-run the
+     failed jobs of the same run (the tag and draft are reused), or the next
+     release supersedes it.
+- `publish-crates` runs only when the repository variable
+  `AI_GENT_CRATES_PUBLISH` is `true` (unset means never): crates.io
+  Trusted Publishing from the `crate-release` environment, no stored token,
+  via `scripts/rust-publish.sh publish`. It checks the packaged metadata of
+  every crate, publishes the libraries (`ai-gent-core`, later
+  `ai-gent-dbrun`) and then the binary, each after waiting for the index, and
+  skips a version crates.io already has.
+
+`install.sh` maps `uname` to a triple (`AI_GENT_TARGET` overrides it),
+verifies and installs that archive, and for a 2.x release that has no
+archive for the triple installs the content-only package with a notice.
+`setup.sh` links `~/.local/bin/ai-gent` to `current/bin/ai-gent`.
+
+`rust.yml` rehearses all of this on pull requests that touch Rust or the
+packaging (and on demand): it runs the same `package-release.sh`, installs
+the result into a scratch home and dry-runs the crates publish, but never
+tags, releases, attests or publishes. `scripts/test-rust-workflows.sh` pins
+the shape of the workflows (SHA pins, permissions, the publish gate, the order
+of the notes edit and the publish) and `scripts/test-rust-publish.sh` the
+publisher, both in `check.sh`.
 
 `scripts/package.py --check` builds twice into a temp dir, compares, and
-verifies the contents (MANIFEST, symlinks, no dev-only files); `check.sh`
+verifies the contents (MANIFEST, symlinks, no dev-only files, a stub
+binary per triple); `check.sh`
 runs it on every PR, and `scripts/test-package.sh` covers the installer
 against a package served over `file://` (`AI_GENT_RELEASE_BASE`). Installer
 behavior (versions under `$AI_GENT_HOME`, `current`/`previous`, checksum

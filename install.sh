@@ -8,6 +8,11 @@
 #   sh install.sh --list | --rollback | --prune   (manage installed versions)
 #   sh install.sh --verify-attestation            (also run `gh attestation verify`)
 #
+# The package for this platform carries bin/ai-gent; setup.sh links it into
+# ~/.local/bin. A 2.x release without that archive (2.26 and older) installs its
+# content-only package, ai-gent-<ver>.tar.gz, with a notice; from 3.0.0 a missing
+# archive is an error.
+#
 # Layout: $AI_GENT_HOME/<version>/ for each release, `current` -> the active
 # one, `previous` -> the one before (for --rollback). No sudo, nothing outside
 # $AI_GENT_HOME is written except what setup.sh links into the agents' dirs.
@@ -17,8 +22,14 @@
 #   VERSION               latest (default) or x.y.z (x.y.z pins: no update notices)
 #   AI_GENT_HOME          install root (default: ${XDG_DATA_HOME:-$HOME/.local/share}/ai-gent)
 #   AI_GENT_RELEASE_BASE  where releases live (default: the GitHub releases URL of
-#                         lucasvmigotto/ai-gent). <base>/<ver>/ai-gent-<ver>.tar.gz and
-#                         SHA256SUMS; "latest" reads <base>/LATEST. file:// works.
+#                         lucasvmigotto/ai-gent). <base>/<ver>/ai-gent-<ver>-<triple>.tar.gz
+#                         (.zip on Windows) and SHA256SUMS; "latest" reads <base>/LATEST.
+#                         file:// works.
+#   AI_GENT_TARGET        the platform triple to install, instead of the one detected from
+#                         uname (tests, odd shells): x86_64-unknown-linux-musl,
+#                         aarch64-unknown-linux-musl, aarch64-apple-darwin,
+#                         x86_64-apple-darwin, x86_64-pc-windows-msvc (Git Bash),
+#                         aarch64-pc-windows-msvc (Git Bash)
 #   AI_GENT_MODE=git      DEV MODE, going away in v3: git clone instead of a package
 #                         (also AI_GENT_DIR, AI_GENT_REPO, AI_GENT_BRANCH; setting
 #                         AI_GENT_BRANCH implies it).
@@ -35,6 +46,33 @@ die() { printf 'ai-gent: error: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "'$1' is required but not installed"; }
 
 is_version() { case "$1" in '' | *[!0-9.]* | .* | *. | *..*) return 1 ;; esac; [ "$(printf '%s' "$1" | tr -cd . | wc -c)" -eq 2 ]; }
+
+SUPPORTED_TARGETS="x86_64-unknown-linux-musl aarch64-unknown-linux-musl aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc aarch64-pc-windows-msvc"
+
+# detect_target — print this platform's triple, or stop before downloading anything
+detect_target() {
+  if [ -n "${AI_GENT_TARGET:-}" ]; then
+    case " $SUPPORTED_TARGETS " in
+      *" $AI_GENT_TARGET "*) printf '%s' "$AI_GENT_TARGET"; return ;;
+    esac
+    die "unsupported AI_GENT_TARGET '$AI_GENT_TARGET'; supported: $SUPPORTED_TARGETS"
+  fi
+  os="$(uname -s)"; arch="$(uname -m)"
+  case "$os/$arch" in
+    Linux/x86_64) printf 'x86_64-unknown-linux-musl' ;;
+    Linux/aarch64 | Linux/arm64) printf 'aarch64-unknown-linux-musl' ;;
+    Darwin/arm64) printf 'aarch64-apple-darwin' ;;
+    Darwin/x86_64)
+      # a shell run under Rosetta reports x86_64 on an Apple silicon Mac
+      if [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]; then printf 'aarch64-apple-darwin'; else printf 'x86_64-apple-darwin'; fi ;;
+    MINGW*/x86_64 | MSYS*/x86_64 | CYGWIN*/x86_64) printf 'x86_64-pc-windows-msvc' ;;
+    MINGW*/aarch64 | MSYS*/aarch64 | CYGWIN*/aarch64 | MINGW*/arm64 | MSYS*/arm64 | CYGWIN*/arm64) printf 'aarch64-pc-windows-msvc' ;;
+    *) die "unsupported platform $os/$arch; supported: $SUPPORTED_TARGETS" ;;
+  esac
+}
+
+# sums_entry <SHA256SUMS> <file name> — the checksum listed for it, if any
+sums_entry() { awk -v f="$2" '$2 == f || $2 == "*" f { print $1; exit }' "$1"; }
 
 # fetch <url> <file> — curl handles https and file://
 fetch() { curl -fsSL --proto '=https,file' --max-time 300 -o "$2" "$1" || die "could not download $1"; }
@@ -119,19 +157,31 @@ do_install() {
   trap 'rm -rf "$work"; [ -z "${stage:-}" ] || rm -rf "$stage"; rm -f "${tmp_link:-}"' EXIT INT TERM
 
   ver="${VERSION:-latest}"
+  target="$(detect_target)" # before any download: an unsupported platform stops here
   if [ "$ver" = latest ]; then ver="$(resolve_latest)"; fi
   is_version "$ver" || die "not a release version: '$ver' (want x.y.z or latest)"
-  name="ai-gent-$ver.tar.gz"
-  say "installing ai-gent $ver"
-  say "  from  $base/$ver/$name"
+  say "installing ai-gent $ver ($target)"
   say "  into  $home/$ver  (current -> $ver)"
 
   if [ -d "$home/$ver" ] && [ ! -L "$home/$ver" ]; then
     say "$ver is already unpacked"
   else
-    fetch "$base/$ver/$name" "$work/$name"
     fetch "$base/$ver/SHA256SUMS" "$work/SHA256SUMS"
-    want="$(awk -v f="$name" '$2 == f || $2 == "*" f { print $1; exit }' "$work/SHA256SUMS")"
+    case "$target" in *-windows-msvc) ext=zip; exe=ai-gent.exe ;; *) ext=tar.gz; exe=ai-gent ;; esac
+    name="ai-gent-$ver-$target.$ext"
+    with_bin=1
+    if [ -z "$(sums_entry "$work/SHA256SUMS" "$name")" ]; then
+      # 2.x keeps publishing the content-only package; from 3.0.0 a missing archive is an error
+      if [ "${ver%%.*}" -lt 3 ] && [ -n "$(sums_entry "$work/SHA256SUMS" "ai-gent-$ver.tar.gz")" ]; then
+        say "no archive for $target in release $ver; installing its content-only package (skills and plugins, no ai-gent binary)"
+        name="ai-gent-$ver.tar.gz"; ext=tar.gz; with_bin=0
+      else
+        die "no archive for $target in release $ver (SHA256SUMS has no entry for $name); nothing was installed"
+      fi
+    fi
+    say "  from  $base/$ver/$name"
+    fetch "$base/$ver/$name" "$work/$name"
+    want="$(sums_entry "$work/SHA256SUMS" "$name")"
     [ -n "$want" ] || die "SHA256SUMS has no entry for $name"
     got="$(sha256 "$work/$name")"
     [ "$want" = "$got" ] || die "checksum mismatch for $name (expected $want, got $got); nothing was installed"
@@ -146,14 +196,30 @@ do_install() {
     fi
 
     # Look inside before writing anything under $home.
-    tar -tzf "$work/$name" >"$work/list" 2>/dev/null || die "$name is not a readable gzip tarball; nothing was installed"
+    if [ "$ext" = zip ]; then
+      need unzip
+      unzip -Z1 "$work/$name" >"$work/list" 2>/dev/null || die "$name is not a readable zip; nothing was installed"
+    else
+      tar -tzf "$work/$name" >"$work/list" 2>/dev/null || die "$name is not a readable gzip tarball; nothing was installed"
+    fi
     if grep -Eq '(^/|(^|/)\.\.(/|$))' "$work/list"; then die "$name has unsafe paths; nothing was installed"; fi
 
     mkdir -p "$home"
     stage="$(mktemp -d "$home/.stage.XXXXXX")"
-    tar -xzf "$work/$name" -C "$stage" --strip-components=1 || die "extraction failed; nothing was installed"
+    if [ "$ext" = zip ]; then
+      mkdir "$work/unzip"
+      unzip -q "$work/$name" -d "$work/unzip" || die "extraction failed; nothing was installed"
+      mv "$work"/unzip/*/* "$work"/unzip/*/.[!.]* "$stage"/ 2>/dev/null || true # the archive's top directory
+    else
+      tar -xzf "$work/$name" -C "$stage" --strip-components=1 || die "extraction failed; nothing was installed"
+    fi
     [ "$(cat "$stage/VERSION" 2>/dev/null)" = "$ver" ] || die "the package says it is not $ver; nothing was installed"
     [ -f "$stage/setup.sh" ] || die "the package has no setup.sh; nothing was installed"
+    if [ "$with_bin" = 1 ]; then
+      [ -f "$stage/bin/$exe" ] || die "the package has no bin/$exe; nothing was installed"
+      chmod +x "$stage/bin/$exe" # a zip may not keep the mode
+      [ -x "$stage/bin/$exe" ] || die "bin/$exe is not executable; nothing was installed"
+    fi
     if find "$stage" -type l | while read -r l; do t="$(readlink "$l")"; case "$t" in /*) echo bad ;; esac; done | grep -q bad; then
       die "the package has an absolute symlink; nothing was installed"
     fi

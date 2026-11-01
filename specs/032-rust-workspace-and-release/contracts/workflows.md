@@ -19,7 +19,9 @@ Triggers `pull_request` (paths filter) and `workflow_dispatch`; calls `rust-buil
 - `publish-crates` `needs: [release, rust-build]`, `if: vars.AI_GENT_CRATES_PUBLISH == 'true' && needs.release.outputs.version != ''`, `environment: crate-release`, `permissions: { contents: read, id-token: write }`, uses `rust-lang/crates-io-auth-action@<sha>`, publishes `ai-gent-core` then waits for the index then `ai-gent-dbrun` (once it exists, D28) then waits again then `ai-gent`, skips a crate whose version already exists.
 - `id-token: write` appears exactly twice in the file: `package` (attestation, existing) and `publish-crates`.
 - `grep CARGO_REGISTRY_TOKEN` finds only `env:` wiring from the auth step output, never `secrets.`.
-- `git add` in the release step lists `rust/Cargo.toml rust/Cargo.lock`.
+- `git add` in the release step lists `rust/crates/*/Cargo.toml rust/Cargo.lock` (the versions live in the crates' manifests, not in the workspace `rust/Cargo.toml`), guarded by `[ -f rust/Cargo.lock ]`.
+- `package` runs `scripts/package-release.sh` (one `package.py` call per triple plus content-only, `sha256sum -c`, the `## Checksums` notes); `rust.yml` runs the same script. The `aarch64-pc-windows-msvc` archive is skipped with a warning when its experimental leg produced no binary.
+- `scripts/rust-publish.sh` (`metadata`, `dry-run`, `publish`) holds the idempotent publish and the T033a metadata gate; `scripts/test-rust-publish.sh` tests it with a fake cargo and index.
 - `publish-crates` is never reachable from `rust.yml` (it is a job of `release.yml` only); `release.yml`'s `release` job keeps its `github.ref == 'refs/heads/main'` condition, so a dispatch from another ref builds nothing.
 
 ## D24, D25 additions

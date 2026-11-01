@@ -21,6 +21,14 @@ It then bumps, in place:
     since the tag, by the bump of the commits touching those paths; a plugin
     new since the tag, or whose version was already changed by hand since
     the tag, is left alone;
+  - the rust/ workspace, when rust/crates exists (spec 032, D23): the binary
+    crate (ai-gent) takes the release version; every other crate there is a
+    library with its own SemVer, bumped by the commits touching its directory
+    (below 1.0.0 a breaking commit is a minor bump, anything else releasable a
+    patch; a crate whose version was changed by hand since the tag is left
+    alone); the binary's version requirement on each library is kept equal to
+    that library's version, and a difference stops the release (exit 1) before
+    anything is written; rust/Cargo.lock follows. Their targets have kind "rust";
   - CHANGELOG.md: a "## Unreleased" section is renamed to
     "## X.Y.Z — YYYY-MM-DD" (hand-written notes win, nothing is added);
     otherwise a section is generated from the commits.
@@ -245,6 +253,141 @@ def plan_plugins(root, tag):
     return plans
 
 
+# ---------------------------------------------------------------- rust crates
+#
+# The rust/ workspace (spec 032, D23, D28). Versions live in each crate's Cargo.toml
+# and in rust/Cargo.lock; neither is edited by hand:
+#   - the binary crate (BINARY_CRATE) is in lockstep with the release tag;
+#   - every other crate under rust/crates/ is a library with an independent SemVer,
+#     bumped from the conventional commits that touch rust/crates/<dir> (below 1.0.0
+#     a breaking commit is a minor bump, anything else releasable a patch);
+#   - the binary's `version = "x.y.z"` requirement on each library equals that
+#     library's version, and a difference stops the release before anything is written.
+
+RUST_DIR = "rust"
+RUST_CRATES = "rust/crates"
+BINARY_CRATE = "ai-gent"
+PACKAGE_NAME_RE = re.compile(r'(?m)^\[package\]\s*\n(?:(?!\[).*\n)*?name\s*=\s*"([^"]+)"')
+PACKAGE_VERSION_RE = re.compile(r'(?m)(^\[package\]\s*\n(?:(?!\[).*\n)*?version\s*=\s*")([^"]+)(")')
+
+
+def lib_bump(version, bump):
+    """Bump a library crate: below 1.0.0 breaking is a minor bump, the rest a patch."""
+    if parse_version(version)[0] == 0 and bump != "none":
+        bump = "minor" if bump == "major" else "patch"
+    return bump_version(version, bump), bump
+
+
+def read_crates(root):
+    """Crates under rust/crates/: [{dir, name, file, text, version}], sorted by name."""
+    crates = []
+    base = os.path.join(root, RUST_CRATES)
+    if not os.path.isdir(base):
+        return crates
+    for d in sorted(os.listdir(base)):
+        file = os.path.join(base, d, "Cargo.toml")
+        if not os.path.isfile(file):
+            continue
+        rel = os.path.relpath(file, root)
+        text = open(file).read()
+        name, version = PACKAGE_NAME_RE.search(text), PACKAGE_VERSION_RE.search(text)
+        if not name or not version:
+            raise ReleaseError(f"{rel}: no [package] name and version")
+        crates.append({"dir": d, "name": name.group(1), "file": file, "rel": rel, "text": text,
+                       "version": version.group(2)})
+    return sorted(crates, key=lambda c: c["name"])
+
+
+def requirement_re(name):
+    return re.compile(r'(?m)^(%s\s*=\s*\{[^}\n]*\bversion\s*=\s*")([^"]+)(")' % re.escape(name))
+
+
+def plan_rust(root, tag, version, bump):
+    """Version writes for the rust crates and rust/Cargo.lock; nothing without rust/crates."""
+    crates = read_crates(root)
+    if not crates:
+        return []
+    by_name = {c["name"]: c for c in crates}
+    binary = by_name.get(BINARY_CRATE)
+    if binary is None:
+        raise ReleaseError(f"{RUST_CRATES}: no crate named {BINARY_CRATE}")
+    libs = [c for c in crates if c is not binary]
+
+    # The binary's requirement on each library equals the library's current version, or we stop.
+    for lib in libs:
+        match = requirement_re(lib["name"]).search(binary["text"])
+        if match and match.group(2) != lib["version"]:
+            raise ReleaseError(
+                f"{binary['rel']}: requires {lib['name']} {match.group(2)} but {lib['rel']} is {lib['version']}; "
+                "make them equal (nothing was written)")
+    if parse_version(binary["version"]) > parse_version(version):
+        raise ReleaseError(f"{binary['rel']}: version {binary['version']} is ahead of the release {version}")
+
+    plans = []
+    for lib in libs:
+        if tag is None:
+            continue
+        try:
+            tagged = PACKAGE_VERSION_RE.search(git("show", f"{tag}:{lib['rel']}")).group(2)
+        except (ReleaseError, AttributeError):
+            tagged = None  # new since the tag: bumped like any other (a placeholder 0.1.0 may be published)
+        if tagged is not None and tagged != lib["version"]:
+            continue  # already bumped by hand since the tag
+        change = max_bump(commits(tag, [os.path.relpath(os.path.dirname(lib["file"]), root)]))
+        if change == "none":
+            continue
+        new, applied = lib_bump(lib["version"], change)
+        plans.append({"kind": "rust", "name": lib["name"], "label": f"crate {lib['name']}", "crate": lib,
+                      "from": lib["version"], "to": new, "bump": applied})
+    if binary["version"] != version:
+        plans.append({"kind": "rust", "name": binary["name"], "label": f"crate {binary['name']}", "crate": binary,
+                      "from": binary["version"], "to": version, "bump": bump})
+    lock = os.path.join(root, RUST_DIR, "Cargo.lock")
+    if plans:
+        if not os.path.isfile(lock):
+            raise ReleaseError(f"{RUST_DIR}/Cargo.lock: missing (commit it; a binary workspace locks)")
+        text = open(lock).read()
+        for p in plans:
+            if not re.search(r'\[\[package\]\]\nname = "%s"\nversion = "%s"\n' % (re.escape(p["name"]), re.escape(p["from"])), text):
+                raise ReleaseError(f"{RUST_DIR}/Cargo.lock: no entry for {p['name']} {p['from']} "
+                                   "(out of date with its Cargo.toml; nothing was written)")
+    return plans
+
+
+def write_rust(root, plans):
+    """Write the crate versions, the binary's requirements and the Cargo.lock entries."""
+    if not plans:
+        return
+    new = {p["name"]: p["to"] for p in plans}
+    old = {p["name"]: p["from"] for p in plans}
+    crates = read_crates(root)
+    binary = next(c for c in crates if c["name"] == BINARY_CRATE)
+    for c in crates:
+        text = c["text"]
+        if c["name"] in new:
+            text, n = PACKAGE_VERSION_RE.subn(lambda m: m[1] + new[c["name"]] + m[3], text, count=1)
+            if n != 1:
+                raise ReleaseError(f"{c['rel']}: no version to bump")
+        if c is binary:
+            for name, to in new.items():
+                if name != BINARY_CRATE:
+                    text = requirement_re(name).sub(lambda m: m[1] + to + m[3], text)
+        if text != c["text"]:
+            with open(c["file"], "w") as f:
+                f.write(text)
+    lock = os.path.join(root, RUST_DIR, "Cargo.lock")
+    if not os.path.isfile(lock):
+        raise ReleaseError(f"{RUST_DIR}/Cargo.lock: missing (commit it; a binary workspace locks)")
+    text = open(lock).read()
+    for name, to in new.items():
+        pattern = re.compile(r'(\[\[package\]\]\nname = "%s"\nversion = ")%s(")' % (re.escape(name), re.escape(old[name])))
+        text, n = pattern.subn(lambda m: m[1] + to + m[2], text)
+        if n != 1:
+            raise ReleaseError(f"{RUST_DIR}/Cargo.lock: no entry for {name} {old[name]} (out of date with its Cargo.toml)")
+    with open(lock, "w") as f:
+        f.write(text)
+
+
 def generated_section(version, date, items):
     groups = [("Breaking", [c for c in items if c["breaking"]]),
               ("Added", [c for c in items if not c["breaking"] and c["type"] == "feat"]),
@@ -326,6 +469,7 @@ def main(argv):
     date = args.date or datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     config = load_manifest_config(root)
     plans = plan_plugins(root, tag) + (plan_manifests(root, tag, config) if config is not None else [])
+    plans += plan_rust(root, tag, version, bump)
 
     text = open(changelog).read() if os.path.exists(changelog) else ""
     new_changelog, how = updated_changelog(text, version, date, items)
@@ -346,11 +490,14 @@ def main(argv):
         return 0
 
     for p in plans:
+        if p["kind"] == "rust":
+            continue
         new_text, count = VERSION_RE.subn(lambda m: m[1] + p["to"] + m[3], p["text"], count=1)
         if count != 1:
             raise ReleaseError(f"{p['manifest']}: no version field to bump")
         with open(p["manifest"], "w") as f:
             f.write(new_text)
+    write_rust(root, [p for p in plans if p["kind"] == "rust"])
     with open(changelog, "w") as f:
         f.write(new_changelog)
     print("\n".join(plan), file=sys.stderr)

@@ -6,7 +6,11 @@ name: release
 # release. A release bumps the changed plugins' versions, promotes
 # CHANGELOG.md's "## Unreleased" (or generates a section), commits
 # "chore(release): X.Y.Z", tags X.Y.Z, publishes a GitHub Release and merges
-# the release back into dev.
+# the release back into dev. The Rust binaries are built for six targets after the
+# tag exists (rust-build), packaged one archive per target beside the content-only
+# package, attested and attached before the release is published (package), and
+# the crates are published to crates.io only when the repository variable
+# AI_GENT_CRATES_PUBLISH is "true" (publish-crates; unset means never).
 #
 # The bot pushes that commit and tag straight to main with GITHUB_TOKEN:
 # branch protection or a ruleset that requires pull requests (or doesn't let
@@ -71,6 +75,8 @@ jobs:
           version="$(python3 scripts/release.py)"
           python3 scripts/release.py --notes "$version" >"$RUNNER_TEMP/notes.md"
           git add CHANGELOG.md plugins/*/.claude-plugin/plugin.json docs/site/package.json
+          # release.py wrote the crate versions and the lock (no cargo needed here); rust-build proves them consistent
+          if [ -f rust/Cargo.lock ]; then git add rust/crates/*/Cargo.toml rust/Cargo.lock; fi
           git commit -m "chore(release): $version"
           git tag -a "$version" -m "$version"
           # Rejected (and nothing published) if main moved since this run started;
@@ -95,15 +101,30 @@ jobs:
             fi
           fi
 
-  # Builds the release package for the new tag, attests its provenance,
-  # attaches it to the (draft) release and publishes the release. Only this
-  # job holds id-token and attestations write. scripts/package.py --check runs
-  # the same build without publishing (scripts/check.sh, on every PR).
-  package:
+  # The binary for each target, built natively from the tagged commit. release.py wrote the
+  # versions and Cargo.lock in the release commit (cargo is not needed there); the lock is
+  # proved consistent by `cargo metadata --locked` in every leg.
+  rust-build:
     needs: release
     if: ${{ needs.release.outputs.version != '' }}
+    uses: ./.github/workflows/rust-build.yml
+    permissions:
+      contents: read
+    with:
+      ref: refs/tags/${{ needs.release.outputs.version }}
+      release: ${{ needs.release.outputs.version }}
+      dry_run: false
+
+  # Builds the release packages for the new tag (the content-only one and one per target),
+  # attests their provenance, attaches them to the (draft) release and publishes the release.
+  # Only this job holds attestations write (and publish-crates holds id-token for crates.io).
+  # scripts/package.py --check runs the same build without publishing (scripts/check.sh,
+  # on every PR), and rust.yml rehearses this job's script on every Rust change.
+  package:
+    needs: [release, rust-build]
+    if: ${{ needs.release.outputs.version != '' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write # attach assets to the release and publish it
       id-token: write # the OIDC token the attestation is signed with
@@ -117,26 +138,78 @@ jobs:
           ref: refs/tags/${{ needs.release.outputs.version }}
           persist-credentials: false
 
-      - name: Build the package
+      - name: The tag is this commit, and the binary crate carries its version
         run: |
-          python3 scripts/package.py --version "$VERSION" --out dist
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$VERSION^{commit}")"
+          grep -qx "version = \"$VERSION\"" rust/crates/ai-gent/Cargo.toml
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bin-*
+          path: bins
+
+      - name: Build the packages, SHA256SUMS and the release notes
+        run: |
+          set -euo pipefail
+          python3 scripts/release.py --notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          scripts/package-release.sh --version "$VERSION" --bins bins --out dist --notes "$RUNNER_TEMP/notes.md"
           ls -l dist
-          (cd dist && sha256sum -c SHA256SUMS) # the tarball and install.sh
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/ai-gent-${{ needs.release.outputs.version }}.tar.gz
+            dist/ai-gent-${{ needs.release.outputs.version }}-*.tar.gz
+            dist/ai-gent-${{ needs.release.outputs.version }}-*.zip
             dist/install.sh
 
-      - name: Attach to the release and publish it
+      - name: Attach to the release, then publish it
         run: |
-          gh release upload "$VERSION" "dist/ai-gent-$VERSION.tar.gz" dist/SHA256SUMS dist/install.sh --clobber
+          set -euo pipefail
+          gh release upload "$VERSION" dist/ai-gent-"$VERSION".tar.gz dist/ai-gent-"$VERSION"-*.tar.gz dist/ai-gent-"$VERSION"-*.zip dist/SHA256SUMS dist/install.sh --clobber
+          # The notes gain the ## Checksums block (D25) before the release stops being a draft.
+          gh release edit "$VERSION" --notes-file dist/release-notes.md
           gh release edit "$VERSION" --draft=false --latest
 
+  # crates.io through Trusted Publishing (OIDC, no stored token), only when the owner has set
+  # AI_GENT_CRATES_PUBLISH=true. Idempotent: scripts/rust-publish.sh skips a version crates.io
+  # already has. The environment is the one the crates were configured with on crates.io.
+  publish-crates:
+    needs: [release, rust-build]
+    if: ${{ vars.AI_GENT_CRATES_PUBLISH == 'true' && needs.release.outputs.version != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: crate-release
+    permissions:
+      contents: read
+      id-token: write # exchanged for a short-lived crates.io token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release.outputs.version }}
+          persist-credentials: false
+
+      - name: Rust toolchain (pinned by rust/rust-toolchain.toml)
+        working-directory: rust
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          cargo --version
+
+      - name: Metadata gate (packaged Cargo.toml of every crate)
+        run: scripts/rust-publish.sh metadata
+
+      - uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+        id: auth
+
+      - name: Publish in dependency order, skipping versions already on crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: scripts/rust-publish.sh publish
+
   report-failure:
-    needs: [check, release, package]
+    needs: [check, release, rust-build, package, publish-crates]
     if: failure()
     permissions:
       issues: write
