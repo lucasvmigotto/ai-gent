@@ -39,11 +39,12 @@ fn real_main() -> Exit {
     }
     match cli.command {
         Some(Command::Version) => cmd::version::run(cli.json),
-        Some(Command::Doctor) => cmd::doctor::run(cli.json),
+        Some(Command::Doctor(a)) => cmd::doctor::run(&a, cli.json),
+        Some(Command::Update(a)) => cmd::update::run(&a, cli.json),
         Some(Command::Guard(a)) => cmd::guard::run(&a, cli.json),
         Some(Command::Tokens(a)) => cmd::tokens::run(&a, cli.json),
         None => {
-            eprintln!("usage: ai-gent [--json] <version|doctor|guard|tokens>");
+            eprintln!("usage: ai-gent [--json] <version|doctor|update|guard|tokens>");
             if cli.json {
                 println!(
                     "{}",
