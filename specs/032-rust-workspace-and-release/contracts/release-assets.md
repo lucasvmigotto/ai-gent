@@ -12,13 +12,18 @@
 | `ai-gent-X.Y.Z-x86_64-pc-windows-msvc.zip` | content + `bin/ai-gent.exe` | yes |
 | `ai-gent-X.Y.Z-aarch64-pc-windows-msvc.zip` | same | yes |
 | `install.sh` | the installer of that release | yes |
+| `install.ps1` | the Windows installer of that release (D24) | yes |
 | `SHA256SUMS` | one line per asset above except itself | no (checksums prove integrity only) |
+
+The release notes repeat the SHA256 of `install.sh`, `install.ps1` and every archive in a `## Checksums` block (D25), so they can be checked without trusting the download host.
 
 From 3.0.0 the content-only asset is not published.
 
 ## Archive layout
 
 `ai-gent-X.Y.Z-<triple>/` then: `bin/ai-gent[.exe]` (0755), `setup.sh`, `install.sh`, `plugins/`, `opencode/` (until D13 removes the guard rules), `shared/` files reached by symlinks, `LICENSE`, `README.md`, `VERSION`, `MANIFEST` (`sha256sum -c` format, includes the binary). Never present: `rust/`, `Cargo.*`, `target/`, `*.rs`, `deny.toml`, `rust-toolchain.toml`, `shared/guard-fixtures/`.
+
+Windows archives hold copies, not symlinks (FR-021).
 
 Determinism: sorted entries, fixed mtime/uid/gid/modes, gzip without a timestamp (zip: fixed timestamps, stored order sorted). The binary's bytes depend on the build; reproducibility of the binary is a non-goal in 2.27 (the archive built from a given binary is deterministic).
 

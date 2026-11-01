@@ -31,6 +31,18 @@ Order matters inside a phase unless marked **[P]** (parallel-safe: touches diffe
 - [ ] T024 [US4] `setup.sh`: link `~/.local/bin/ai-gent` or print the PATH line; `--uninstall` removes it; `--dry-run` shows it. Verify: `scripts/test-install.sh` new checks; shellcheck through `scripts/check.sh`.
 - [ ] T025 [US4] macOS job in `check.yml` runs the per-triple install test under the system bash 3.2. Verify: the `macos` job green.
 
+## Phase 2b - Windows installer (US7, D24; lands before 3.0.0, may follow 2.27)
+
+- [ ] T050 [US7] `scripts/package.py`: dereference symlinks for `*-windows-msvc` (FR-021) and keep the dangling/escaping refusal; test in `scripts/test-package.sh` (the zip has no symlink entries, the 77 reference files are regular). Verify: `scripts/test-package.sh`.
+- [ ] T051 [US7] `install.ps1` per `contracts/install-ps1.md` (function wrapper, steps 1-7, junction flip, `-List/-Rollback/-Prune/-Version/-VerifyAttestation`). Verify: `scripts/test-install-ps1.ps1` on a Windows machine, then in CI (T054).
+- [ ] T052 [US7] Inventory what `setup.sh` links for Claude Code and Codex (names, directories, the stub files for Codex) in `specs/032-rust-workspace-and-release/de-risk.md` appendix or a new `windows-setup.md`; mark unverified items. Verify: reviewed by the owner.
+- [ ] T053 [US7] `setup.ps1` for tiers 1-2 and the user `PATH` entry; `-Uninstall`; `-DryRun`. Verify: cases in `scripts/test-install-ps1.ps1`.
+- [ ] T054 [US7] `.github/workflows/check.yml`: required `windows` job (windows-2025, plus windows-11-arm) running `scripts/test-install-ps1.ps1`. Verify: both legs green on a PR.
+- [ ] T055 [US7] `release.yml`: upload and attest `install.ps1`; `SHA256SUMS` includes it; shape-test checks. Verify: `scripts/test-rust-workflows.sh`.
+- [ ] T056 [US7] `ai-gent update` on Windows fetches and runs the target release's `install.ps1` (coordinate with 034 T020). Verify: 034 test on a Windows leg.
+- [ ] T057 [US7] Document WSL/Git Bash as the alternative route; README and install page tasks live in 039. Verify: 039 T041/T043.
+- [ ] T058 [US7] Owner check on a real Windows 11 machine and a Windows 11 arm64 machine without Git Bash: the one-liner works end to end (US7 scenario 6). Owner-run. Verify: transcript in the PR.
+
 ## Phase 3 - release integration (US3, US5)
 
 - [ ] T030 [US3] `.github/workflows/release.yml`: `rust-build` job, `package` per target + content-only, `SHA256SUMS`, attest all subjects, publish after upload; `git add` gains `rust/Cargo.toml rust/Cargo.lock`. Verify: `scripts/test-rust-workflows.sh` (T032) and a `rust.yml` rehearsal.
@@ -38,6 +50,7 @@ Order matters inside a phase unless marked **[P]** (parallel-safe: touches diffe
 - [ ] T032 [P] [US3] `scripts/test-rust-workflows.sh` per `contracts/workflows.md`; wire in `scripts/check.sh` after the other shape tests. Verify: `scripts/test-rust-workflows.sh` prints `N/N` and exits 0; mutating a SHA pin to a tag makes it fail.
 - [ ] T033 [US5] `publish-crates` job (gated by `vars.AI_GENT_CRATES_PUBLISH`), idempotent against crates.io, core first, then the binary after an index wait (D23). Verify: shape test; `cargo publish --dry-run -p ai-gent-core` in a `rust.yml` dry-run job (the bin crate's dry run waits until core exists at that version: use `cargo package --workspace` if the pinned cargo supports it [ASSUMPTION]).
 - [ ] T034 [US3] `docs/` and `shared/releasing.md` "If the release ships files" paragraph: per-target assets and attestation; `shared/release-platforms.md` unchanged. Verify: `scripts/check.sh` (links, consistency).
+- [ ] T035a [US3] Release notes: append the `## Checksums` block (D25, FR-023) in the `package` job; shape test checks. Verify: a rehearsal run shows the block in the draft release (rehearsal may create no release: assert on the generated file in `dist/`).
 - [ ] T035 [US3] Rehearsal run on `dev` per `quickstart.md`; paste the run URL and asset list in the PR. Verify: SC-005.
 
 ## Phase 4 - owner steps and 2.27 (US5, US6)

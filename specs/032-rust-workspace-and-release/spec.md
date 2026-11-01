@@ -88,6 +88,21 @@ Verified in the repo on 2026-11-01 (commit 7c09c56 on `dev`):
 1. **Given** the work is merged into `dev`, **When** the rehearsal dispatch runs on `dev`, **Then** it passes before anything reaches `main`.
 2. **Given** the 2.27.0 run fails in the matrix after the tag exists, **When** the owner re-runs the failed jobs, **Then** the draft release is completed or deleted by the documented steps and no user sees a half release.
 
+### User Story 7 - Windows installs natively with `install.ps1` (Priority: P1)
+
+**Why this priority**: D24; native Windows is a 3.0.0 goal and `install.sh` needs a POSIX shell.
+
+**Independent Test**: `scripts/test-install-ps1.ps1` runs on a `windows-2025` job (and `windows-11-arm`) of `check.yml` against a `file://`-style local release base, the way `scripts/test-package.sh` does for `install.sh`.
+
+**Acceptance Scenarios**:
+
+1. **Given** a local release base with the Windows zip and `SHA256SUMS`, **When** `install.ps1` runs, **Then** it verifies the checksum before extracting, unpacks into `%LOCALAPPDATA%\ai-gent\<ver>`, makes `current` point at it (a directory junction, no administrator rights), keeps `previous`, and runs `setup.ps1`.
+2. **Given** a checksum mismatch or a zip with an unsafe entry name (`..`, absolute path), **Then** nothing is written under the install root.
+3. **Given** `-Version 2.27.0`, **Then** a `pinned` file is written; `-Version latest` clears it (same semantics as `VERSION=` in `install.sh`).
+4. **Given** `-Rollback`, **Then** `current` and `previous` swap and `setup.ps1` relinks the agents; `-List` and `-Prune` behave like `install.sh`.
+5. **Given** `-VerifyAttestation` and `gh` on `PATH`, **Then** the zip and the script are verified with `gh attestation verify`; without `gh` it says the attestation was not verified.
+6. **Given** a fresh Windows user without Git Bash, **When** they run `irm https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.ps1 | iex`, **Then** Claude Code and Codex skills are linked and `ai-gent version` runs from a new terminal.
+
 ## Requirements *(mandatory)*
 
 ### Functional requirements
@@ -105,6 +120,11 @@ Verified in the repo on 2026-11-01 (commit 7c09c56 on `dev`):
 - **FR-011**: `install.sh` maps `uname -s` and `uname -m` to a triple, fetches that archive, verifies it with the existing rules, and installs `bin/ai-gent` under `$AI_GENT_HOME/<ver>/bin/`; `setup.sh` links `~/.local/bin/ai-gent` to `$AI_GENT_HOME/current/bin/ai-gent` when that directory is on `PATH` or tells the person to add it.
 - **FR-012**: The release workflow's Rust jobs are a reusable workflow `rust-build.yml` (inputs: ref, release version, dry run), called by `release.yml` and by the rehearsal workflow `rust.yml`; `rust.yml` runs (pull request or `workflow_dispatch`) never tag, release, attest or publish.
 - **FR-018**: Before every publish, the metadata (homepage, repository, license, readme, keywords, categories) is verified in the output of `cargo publish --dry-run` (`cargo package --list` and the packaged `Cargo.toml`); crates.io reads it from each published version.
+- **FR-019**: `install.ps1` (D24) is published beside `install.sh` (asset, `SHA256SUMS` line, attested). It runs on Windows PowerShell 5.1 and PowerShell 7 [ASSUMPTION: 5.1 compatibility to be proven by the windows test job], is wrapped in a function called on its last line (a partial download never executes), and mirrors `install.sh` verbatim in behavior: checksum before anything is written, versioned directory, `current` and `previous`, `pinned`, `-List`, `-Rollback`, `-Prune`, `-VerifyAttestation`, environment `AI_GENT_HOME` (default `%LOCALAPPDATA%\ai-gent`) and `AI_GENT_RELEASE_BASE` (an https URL, `file://` URL or a plain directory).
+- **FR-020**: On Windows `current`, `previous` and the agent skill links are directory junctions (`New-Item -ItemType Junction`), created per user without administrator rights or Developer Mode [KNOWN]; flipping `current` creates `current.new`, removes the old junction without touching its target, and renames `current.new` (a short window without `current` is recovered from `previous` by `-Rollback`; documented).
+- **FR-021**: The Windows archive cannot carry symlinks: `scripts/package.py --target *-windows-msvc` replaces every symlink of the package (the 77 `references/` links) with a copy of its target and still refuses a dangling or escaping one.
+- **FR-022**: `setup.ps1` (the Windows `setup` equivalent) links the skills of tiers 1 and 2 (Claude Code and Codex) and creates the `ai-gent` PATH entry (user `PATH`, no admin); tier-3 agents on Windows use Git Bash or WSL with `setup.sh`. The set of links mirrors what `setup.sh` does for those two agents (inventory task T052).
+- **FR-023** (D25): the release notes carry the SHA256 of `install.sh`, `install.ps1` and every package archive, appended by the package job after upload; the docs install page tells readers to prefer the GitHub Releases URL (task in 039).
 - **FR-017**: `shared/secrets.md` documents the entry `ai-gent/crates.io/pat` (area `crates.io`): read only by a runner such as `pass-run` for a manual publish; the repository has no `pass-run` of its own (the owner's is dottod's `scripts/pass-run.sh`), so a contributor without it publishes nothing by hand: every publish after the placeholders goes through Trusted Publishing from `release.yml`, and a one-off manual publish is the owner's.
 - **FR-013**: Publishing uses crates.io Trusted Publishing from `release.yml` in the `crate-release` environment through `rust-lang/crates-io-auth-action` pinned by SHA; `id-token: write` is held by that job only; no token is a repository secret; the assistant never receives or handles a token (D5). The publish job is gated by a repository variable `AI_GENT_CRATES_PUBLISH == 'true'`, default unset.
 - **FR-014**: Crate versions (D23). The `ai-gent` binary crate is in lockstep with the repo tag: `scripts/release.py` writes the release version into `rust/crates/ai-gent/Cargo.toml` and the matching `Cargo.lock` entry in the release commit, so `ai-gent --version` equals the package `VERSION` file and the tag (the first lockstep version is 2.27.0, jumping up from 0.1.0). `ai-gent-core` has independent SemVer, bumped by `release.py` from conventional commits that touch `rust/crates/ai-gent-core` (while below 1.0.0: a breaking commit bumps the minor, anything else that releases bumps the patch); 1.0.0 comes no earlier than 3.0.0 and only when the API is deliberately stable. `release.py --dry-run [--json]` previews both; a check fails the release when the binary crate's `ai-gent-core` version requirement does not match the core version being published. `AI_GENT_RELEASE` is still embedded by the workflow for the version output of builds outside a release.
@@ -120,7 +140,7 @@ See `data-model.md`: Target, Archive, Release asset set, Install root, Crate, Re
 - A user on macOS 11 or Windows 8: the minimum OS versions are an open question; until answered the binary refuses to start on an older OS only by the OS's own loader error, and `install.sh` prints the supported minimums.
 - Alpine and other musl distros: the Linux binary is statically linked against musl so it runs on both glibc and musl [KNOWN].
 - Rosetta: an Intel Mac binary runs on Apple Silicon under Rosetta; `install.sh` picks by `uname -m`, which reports `x86_64` for a shell started under Rosetta; it prefers `arm64` via `sysctl -n hw.optional.arm64` when available.
-- Windows without bash: `install.sh` is POSIX; native Windows install is out of scope here (see Open questions).
+- Windows without bash: `install.ps1` (D24, user story 7) is the main route; Git Bash or WSL with `install.sh` is a documented alternative.
 - A matrix leg is flaky: the leg is re-run; the release does not skip it.
 - `Cargo.lock` out of step with a bumped version: `--locked` fails in CI; the release job must update the lock.
 
@@ -128,7 +148,7 @@ See `data-model.md`: Target, Archive, Release asset set, Install root, Crate, Re
 
 - Any subcommand beyond `version` and `doctor` (033-038).
 - Code signing and notarization themselves: D14 decides; this spec only produces the evidence and wires a signing step if the decision is to sign.
-- A Windows PowerShell installer and a Rust `setup` (open question 4).
+- A Rust `setup` subcommand (the Windows `setup.ps1` covers tiers 1-2; see open question 4).
 - Homebrew, winget, apt, nix and container image distribution.
 - Telemetry (none planned).
 
@@ -151,6 +171,6 @@ See `data-model.md`: Target, Archive, Release asset set, Install root, Crate, Re
 1. **Minimum OS versions** (decisions file, open). Recommended: macOS 12 (`MACOSX_DEPLOYMENT_TARGET=12.0`), Windows 10 version 1809 or later, Linux any kernel 3.2+ (static musl). [ASSUMPTION: verify the macOS floor against what `macos-15` runners and Rust's tier-1 policy accept.]
 2. **When do real crate versions start publishing?** Recommended: keep `AI_GENT_CRATES_PUBLISH` unset through 2.28 (placeholders only) and turn it on with 3.0.0, when the binary is the product.
 3. **Signing budget.** Decided after the probes in US1; the recommendation is written into `de-risk.md` then. Not asked before the evidence exists.
-4. **Native Windows installation.** `install.sh` and `setup.sh` are POSIX (D16). Recommended: 3.0.0 documents Git Bash or WSL for the installer and ships the Windows binary and guards; a PowerShell installer is a 3.x spec.
+4. **`setup.ps1` scope.** D24 puts `install.ps1` in 3.0.0. Recommended: `setup.ps1` covers Claude Code and Codex only (tiers 1-2); tier 3 on Windows goes through Git Bash or WSL; a Rust `ai-gent setup` that replaces both `setup.sh` and `setup.ps1` is a 3.x spec.
 5. **Is the repository public** (needed for free arm64 and Intel macOS runners)? [ASSUMPTION: public; verify before the matrix runs.]
 6. **Who can run the interactive Gatekeeper and SmartScreen probes?** CI cannot. Recommended: the owner on one Mac and one Windows VM or machine, using the probe sheet.

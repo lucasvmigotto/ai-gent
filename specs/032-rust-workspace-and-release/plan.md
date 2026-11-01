@@ -19,6 +19,8 @@ A `rust/` Cargo workspace (`ai-gent-core` library, `ai-gent` binary) with a pinn
 | D6 GPL-3.0-or-later | pass | `license` field, `deny.toml` allow-list |
 | D3 six targets | pass | FR-006 |
 | D14 de-risk first | pass | Phase 0 is first; Phase 3 depends on its decision |
+| D24 `install.ps1` in 3.0.0 | pass | FR-019 to FR-022, `contracts/install-ps1.md`, tasks T050-T058 |
+| D25 checksums in release notes | pass | FR-023 |
 | D16 install.sh/setup.sh stay POSIX bootstrap; dev-only tools stay Python/shell | pass | `install.sh` gets a platform map, no Rust dependency; `package.py`, `release.py`, tests stay dev-only |
 | D7/D8 no dual paths, no fallback | n/a here | enforced in 033-038 |
 | Package allowlist ships the binary, excludes Rust sources and `target/` | pass | `package.py --binary` adds only `bin/`; `rust/` is not in `TREES`; a test asserts no `*.rs`, `Cargo.*`, `target/` in the archive |
@@ -96,6 +98,13 @@ Differences from rstory worth recording: rstory is tag-triggered with a `verify`
 - `check.yml` gets a `changes` step: on pull requests it diffs against the base and sets `rust=true` when any of `rust/**`, `shared/guard-fixtures/**`, `plugins/*/hooks/guard.sh`, `opencode/guard/**`, `.github/workflows/rust*.yml`, `scripts/test-rust-workflows.sh` changed; on `main` and schedule it is always true. The Rust steps run in the existing ubuntu job (no extra runner) with `Swatinem/rust-cache`-style caching keyed on `rust/Cargo.lock` and the toolchain file [ASSUMPTION: pin by SHA when chosen].
 - `scripts/check.sh` runs the same four gates locally when `cargo` is on `PATH`; measured timing is a task (T023), the target is a cached incremental run under 60 seconds on the owner's machine [ASSUMPTION].
 
+### Windows installer design (D24)
+
+- **Junction vs symlink for `current`.** A symlink to a directory needs the "create symbolic links" privilege (administrator or Developer Mode) on Windows [KNOWN]; a directory junction does not, works per user, and is enough because everything linked (version directories, skill directories) is a local directory. The cost is a non-atomic flip (FR-020); acceptable because `previous` survives and `-Rollback` repairs. The alternative, a text file the binary reads, would break the agents' skill links that must resolve through `current\`, so it was rejected.
+- **Zip without symlinks.** Windows archives hold copies (FR-021); the package stays small because the links point at small Markdown files.
+- **Same verification, second implementation.** `install.ps1` duplicates `install.sh`'s steps in PowerShell. That is a deliberate exception to "one verified path" (034): the two are kept equal by a shared case list in the tests (`contracts/install-ps1.md`), and `ai-gent update` on Windows fetches the target release's `install.ps1` the way it fetches `install.sh` elsewhere.
+- **`setup.ps1`.** Tiers 1-2 only (FR-022); T052 inventories what `setup.sh` links for Claude Code and Codex before writing it. Hook commands on Windows are the open point recorded in 033 (question 6).
+
 ## Files
 
 | Path | What |
@@ -112,6 +121,7 @@ Differences from rstory worth recording: rstory is tag-triggered with a `verify`
 | `scripts/release.py`, `scripts/test-release.sh` | D23: binary crate lockstep with the tag, core independent from commits, Cargo.lock sync, dependency-requirement check, dry-run preview |
 | `scripts/consistency.py` | ignores `rust/`; checks crate metadata equals `plugin.json` license/author |
 | `install.sh`, `setup.sh` | platform map, binary install, PATH link |
+| `install.ps1`, `setup.ps1`, `scripts/test-install-ps1.ps1` | D24 |
 | `specs/032-.../de-risk.md` | probe sheet and decision |
 
 ## Risks

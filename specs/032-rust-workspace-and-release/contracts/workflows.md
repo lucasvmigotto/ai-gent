@@ -21,3 +21,8 @@ Triggers `pull_request` (paths filter) and `workflow_dispatch`; calls `rust-buil
 - `grep CARGO_REGISTRY_TOKEN` finds only `env:` wiring from the auth step output, never `secrets.`.
 - `git add` in the release step lists `rust/Cargo.toml rust/Cargo.lock`.
 - `publish-crates` is never reachable from `rust.yml` (it is a job of `release.yml` only); `release.yml`'s `release` job keeps its `github.ref == 'refs/heads/main'` condition, so a dispatch from another ref builds nothing.
+
+## D24, D25 additions
+
+- `check.yml` gains a required `windows` job (windows-2025; the arm64 leg is `windows-11-arm`) that runs `scripts/test-install-ps1.ps1` and the Windows guard fixtures.
+- `package` uploads `install.ps1` and attests it; a final step appends a `## Checksums` block (sha256 of `install.sh`, `install.ps1`, every archive) to the release notes with `gh release edit --notes-file` before `--draft=false`. Shape checks: the step exists and runs before the publish call.
