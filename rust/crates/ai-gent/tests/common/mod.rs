@@ -135,3 +135,20 @@ pub fn put_binary(dest: &Path) {
         std::fs::copy(template_binary(), dest).unwrap();
     }
 }
+
+/// A bash 4 or newer, which `setup.sh` (run by `install.sh`) needs: macOS ships 3.2. Looks where
+/// `setup.sh` itself looks, then at `bash` on `PATH`. `None` means tests that run the installer
+/// should skip.
+pub fn modern_bash() -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    candidates.extend(std::env::var_os("AI_GENT_BASH").map(PathBuf::from));
+    candidates.push("/opt/homebrew/bin/bash".into());
+    candidates.push("/usr/local/bin/bash".into());
+    candidates.push("bash".into());
+    candidates.into_iter().find(|b| {
+        std::process::Command::new(b)
+            .args(["-c", "((BASH_VERSINFO[0] >= 4))"])
+            .status()
+            .is_ok_and(|s| s.success())
+    })
+}
