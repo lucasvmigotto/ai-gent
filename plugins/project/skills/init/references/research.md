@@ -30,5 +30,5 @@ read it too. This file holds what is specific to the brief.
 1. After the intake filter: the domain scan, then the (at most 4)
    questions.
 2. Before writing: the research pass over the open facts.
-3. The brief's Sources section sits just before Open questions; the
+3. The brief's Sources section sits just before Challenges and decisions and Open questions; the
    *Needs verification* list goes in Open questions.

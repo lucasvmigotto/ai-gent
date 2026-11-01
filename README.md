@@ -141,7 +141,7 @@ Ask for what you want and the matching skill loads: "set up CI for this repo", "
 **Product pipeline**
 
 - `plugins/project/`
-  - `init` — idea or references → product brief with the shared glossary, web-researched and cited
+  - `init` — idea or references → product brief with the shared glossary, web-researched, cited and challenged
   - `architecture` — drivers and usage volumes → capacity model, topology, hosting, API style, data stores, stack, ADRs
   - `spec` — brief + architecture → Spec Kit constitution, features, plans, tasks and the contract skeleton
   - `status` — where the pipeline stands (artifacts, feature statuses, gaps, contradictions) and the next stage to run

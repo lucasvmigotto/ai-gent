@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: behavior-init-critique-recorded
+description: Behavior — project:init on a small consistent spec writes the brief with Sources and Challenges and decisions sections whose rows each have an objection, evidence and a resolution
+tags: [behavior]
+runs: 1
+execution:
+  prompt: |
+    Write the product brief now from docs/product/references/spec.md, no questions, the spec is
+    complete. When done, reply with the Challenges and decisions section.
+  max_turns: 25
+  timeout_seconds: 480
+  allowed_tools: [Skill, Read, Glob, Grep, Bash, Write]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: brief-written
+    type: file_exists
+    path: docs/product/brief.md
+    arm: both
+  - name: has-sources-section
+    type: content
+    path: docs/product/brief.md
+    match: "Sources"
+    arm: both
+  - name: has-challenges-section
+    type: content
+    path: docs/product/brief.md
+    match: "Challenges and decisions"
+    arm: both
+  - name: rows-complete-and-concrete
+    type: llm
+    focus: last_message
+    criteria: |
+      The Challenges and decisions section is a table where each row has an objection, evidence
+      (a source number or stated reasoning) and a resolution (Changed, Confirmed, Deferred or
+      Rejected). It fails if any row lacks one of the three, or if any row or the section says
+      "no issues" or "no issues found" as its outcome.
+    arm: both

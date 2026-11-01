@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: behavior-init-skips-critique
+description: Behavior — project:init on a tiny, consistent update to an accepted brief states in one line that a critique round was skipped and why
+tags: [behavior]
+runs: 1
+execution:
+  prompt: |
+    Update the Pantry brief: the year-one target changes from 2,000 to 2,500 households and
+    nothing else. No questions. Then say, in your reply, what you did about critique rounds.
+  max_turns: 20
+  timeout_seconds: 420
+  allowed_tools: [Skill, Read, Glob, Grep, Bash, Write]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: states-skip-with-reason
+    type: llm
+    focus: last_message
+    criteria: |
+      The response says in about one line that a critique round was skipped, and gives a reason
+      such as the update changes one detail and the brief is consistent. It fails if it runs a
+      full round for this one-number change, or skips without saying why.
+    arm: both
