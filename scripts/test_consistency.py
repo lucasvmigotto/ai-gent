@@ -107,6 +107,24 @@ class SecretData(unittest.TestCase):
         self.assertEqual(consistency.check_secret_data(consistency.ROOT), [])
 
 
+class TokenTagsCopy(unittest.TestCase):
+    def test_nothing_to_check_without_the_rust_workspace(self):
+        self.assertEqual(consistency.check_token_tags_copy(tree({"shared/token-tags.json": "{}"})), [])
+
+    def test_missing_or_edited_copy_fails_and_equal_passes(self):
+        root = tree({"shared/token-tags.json": "{}", "rust/Cargo.toml": ""})
+        self.assertEqual(len(consistency.check_token_tags_copy(root)), 1)
+        copy = root / consistency.TOKEN_TAGS_COPY
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        copy.write_text("{}")
+        self.assertEqual(consistency.check_token_tags_copy(root), [])
+        copy.write_text('{"x": 1}')
+        self.assertEqual(len(consistency.check_token_tags_copy(root)), 1)
+
+    def test_the_repository_copy_is_in_sync(self):
+        self.assertEqual(consistency.check_token_tags_copy(consistency.ROOT), [])
+
+
 class PipelinePaths(unittest.TestCase):
     TABLE = "| Path | Owner |\n|---|---|\n| `docs/product/brief.md` | `project:init` |\n| `specs/README.md` | `project:spec` |\n"
 

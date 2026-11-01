@@ -714,7 +714,25 @@ def check_rust_workspace(root: Path) -> list[str]:
     return problems
 
 
+TOKEN_TAGS = "shared/token-tags.json"
+TOKEN_TAGS_COPY = "rust/crates/ai-gent-core/src/tokens/token-tags.json"
+
+
+def check_token_tags_copy(root: Path) -> list[str]:
+    """The Rust `tokens` module embeds a copy of the tag vocabulary (spec 035, T012); it equals `shared/token-tags.json`."""
+    source, copy = root / TOKEN_TAGS, root / TOKEN_TAGS_COPY
+    if not source.is_file() or not (root / "rust").is_dir():
+        return []
+    if not copy.is_file() or copy.read_bytes() != source.read_bytes():
+        return [f"{TOKEN_TAGS_COPY} differs from {TOKEN_TAGS} (run python3 scripts/consistency.py --sync-token-tags)"]
+    return []
+
+
 def main(root: Path = ROOT) -> int:
+    if "--sync-token-tags" in sys.argv[1:]:
+        (root / TOKEN_TAGS_COPY).write_bytes((root / TOKEN_TAGS).read_bytes())
+        print(f"wrote {TOKEN_TAGS_COPY}")
+        return 0
     if "--sync-shared-code" in sys.argv[1:] or "--sync-guard-ux" in sys.argv[1:]:
         for shared, plugins in SHARED_CODE.items():
             for plugin in plugins:
@@ -725,7 +743,7 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
