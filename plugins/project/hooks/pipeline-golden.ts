@@ -82,7 +82,7 @@ export const TEXT = [
 // The dashboard's plain text for snapshotOf() (spec 029 SC-005), the check time masked as HH:MM:SS.
 
 export const DASHBOARD_80 = [
-  'PIPELINE  LIVE  Checked HH:MM:SS · every 5 s',
+  'PIPELINE  LIVE  Checked HH:MM:SS · ⏱ 5 s',
   '',
   '2 ready · 9 features · 1 clarification · 1 assumption · 2 gaps',
   '',
@@ -131,7 +131,7 @@ export const DASHBOARD_80 = [
 ]
 
 export const DASHBOARD_120 = [
-  'PIPELINE  LIVE  Checked HH:MM:SS · every 5 s',
+  'PIPELINE  LIVE  Checked HH:MM:SS · ⏱ 5 s',
   '',
   '2 Artifacts ready    9 Features    1 Clarification',
   '1 Assumption · 2 Gaps',

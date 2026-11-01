@@ -337,7 +337,7 @@ test('the header says LIVE while the poll checks, and the caption advances with 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: / LIVE / })).toBeDefined()
   const first = (await ui.find({ type: 'Text', text: /^Checked / }))?.text
-  expect(first).toMatch(/^Checked \d\d:\d\d:\d\d · every 5 s$/)
+  expect(first).toMatch(/^Checked \d\d:\d\d:\d\d · ⏱ 5 s$/)
   await w.clock.advance(65_000)
   const later = (await ui.find({ type: 'Text', text: /^Checked / }))?.text
   expect(later).not.toBe(first)

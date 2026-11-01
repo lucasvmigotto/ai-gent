@@ -169,7 +169,7 @@ test('progress counts the buckets, the strip never feeds Next', () => {
 test('the badge is LIVE only when a check ran within three intervals', () => {
   const live = build(snapshotOf(), ctx({ checkedAt: 7_000, now: 7_000 + 15_000, pollMs: 5000 }))
   expect(live.header.badge).toBe('LIVE')
-  expect(live.header.caption).toMatch(/^Checked \d\d:\d\d:\d\d · every 5 s$/)
+  expect(live.header.caption).toMatch(/^Checked \d\d:\d\d:\d\d · ⏱ 5 s$/)
   const stale = build(snapshotOf(), ctx({ checkedAt: 7_000, now: 7_000 + 15_001, pollMs: 5000 }))
   expect(stale.header.badge).toBe('STALE')
   expect(stale.header.caption).toMatch(/^Last checked \d\d:\d\d:\d\d$/)
