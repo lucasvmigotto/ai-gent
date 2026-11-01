@@ -15,7 +15,7 @@ Baselines: `reporun.py` docstring (lines 1-26) and `build_parser` (lines 832-884
 | Command | Flags | Output |
 |---|---|---|
 | `repo detect` | `--json` | platform, CLI state, token state per platform (entry present or not); never decrypts |
-| `repo cli PLATFORM -- ARGS...` | `--write` | the platform CLI's output, redacted; exit code of the child mapped to 1 if non-zero [TO CAPTURE: confirm in `cmd_cli`] |
+| `repo cli PLATFORM -- ARGS...` | `--write` | the platform CLI's output, redacted; the child's own exit status, passed through (as `cmd_cli` does); the output of stdout and stderr is merged and redacted |
 | `repo api PLATFORM METHOD PATH` | `--data FILE\|-`, `--query k=v` (repeat), `--write`, `--paginate`, `--max-pages N` | response body (JSON pretty or raw), redacted |
 | `repo project-status NUMBER` | `--url URL` (required), `--state todo\|doing\|review\|done` or `--value NAME`, `--owner LOGIN`, `--field NAME`, `--write` | the field read, or the item set |
 | `repo batch FILE` | `--write`, `--dry-run`, `--out FILE` | per-step results; `--out` writes `records` for `spec record` |
@@ -24,6 +24,8 @@ Baselines: `reporun.py` docstring (lines 1-26) and `build_parser` (lines 832-884
 Platforms: `github`, `azure-devops`, `gitlab`, `bitbucket`, `forgejo`, `jira`. `cli` is unavailable for `bitbucket` and `forgejo`.
 
 Batch plan file (JSON): a list of steps `{name, platform, method, path, data?, kind?}`; later steps reference earlier results as `{results.<name>.<field>}`; format fixed by `specs/009-repo-runner/contracts/` and `plugins/repo/references/sync.md` (the Rust port reads those, it does not redefine them).
+
+HTTP: the system `curl` (config and `Authorization` header on its stdin; no redirects; https only, plain http to loopback only for the test stub). Exit 3 is reported by the binary as `Exit::NothingToDo`'s status code, which the repo contract names refused.
 
 Environment: `PASSWORD_STORE_DIR`, `AI_GENT_PASS_PREFIX` (default `ai-gent`), `CONTAINER_ENGINE` is not used. Secrets: entries `ai-gent/<platform>/<name>` as `shared/secrets.md`; notes `email:`, `url:`, `org:` read with the secret.
 
