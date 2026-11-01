@@ -177,7 +177,7 @@ jobs:
   # AI_GENT_CRATES_PUBLISH=true. Idempotent: scripts/rust-publish.sh skips a version crates.io
   # already has. The environment is the one the crates were configured with on crates.io.
   publish-crates:
-    needs: [release, rust-build]
+    needs: [release, rust-build, package]
     if: ${{ vars.AI_GENT_CRATES_PUBLISH == 'true' && needs.release.outputs.version != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
