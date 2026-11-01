@@ -55,6 +55,9 @@ def expand(g, c, shell):
     """The case as run in `shell`: (command or None, skip reason or None)."""
     if "command" not in c:
         return None, None
+    own = c.get("shell", "sh")
+    if own != "sh":  # written for one shell: runs only there
+        return (c["command"], None) if shell == own else (None, "written for " + own)
     if shell == "sh":
         return c["command"], None
     if shell in c.get("skip_in", []):
@@ -192,13 +195,14 @@ def cmd_run(a):
         for shell in shells:
             command, why = expand(g, c, shell)
             if "command" in c and command is None:
-                skipped += 1
+                if why and not why.startswith("written for"):
+                    skipped += 1
                 continue
             if "tool_input" in c and shell != "sh":
                 continue
-            if a.impl == "sh" and shell != "sh":
+            if a.impl == "sh" and (shell != "sh" or "new" in c.get("tags", [])):
                 continue
-            if a.impl == "mjs" and ("mjs" in c.get("skip_in", []) or shell != "sh"):
+            if a.impl == "mjs" and ("mjs" in c.get("skip_in", []) or "new" in c.get("tags", []) or shell != "sh"):
                 continue
             items.append((g, c, event(c, command, sb), shell))
     results = []

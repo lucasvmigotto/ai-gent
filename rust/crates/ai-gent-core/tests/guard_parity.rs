@@ -117,7 +117,31 @@ fn oracle(guard: &str, ev: &Event) -> (String, String) {
     )
 }
 
-fn run_guard(guard: &str, shell: Shell, only_sh_variant_free: bool) -> (usize, usize) {
+/// The command a case runs as in `shell`: its own, a variant, or `None` when it does not apply.
+#[allow(clippy::option_option)] // None: not run in this shell; Some(None): a tool case without a command
+fn command_in(case: &Value, shell: Shell) -> Option<Option<String>> {
+    let own = Shell::parse(case["shell"].as_str().unwrap_or("sh")).unwrap();
+    let command = case.get("command").and_then(Value::as_str);
+    match command {
+        None => (shell == Shell::Sh).then_some(None),
+        Some(c) if own != Shell::Sh => (shell == own).then(|| Some(c.to_string())),
+        Some(c) if shell == Shell::Sh => Some(Some(c.to_string())),
+        Some(_) => {
+            let skipped = case["skip_in"]
+                .as_array()
+                .is_some_and(|a| a.iter().any(|x| x == shell.name()));
+            if skipped {
+                return None;
+            }
+            case["variants"][shell.name()]
+                .as_str()
+                .map(|v| Some(v.to_string()))
+        }
+    }
+}
+
+/// (fixtures run in `shell`, fixtures also compared with the shell guard).
+fn run_guard(guard: &str, shell: Shell) -> (usize, usize) {
     let sb = sandbox();
     let branch = |d: &str| git_branch(d);
     let ctx = Ctx { branch_of: &branch };
@@ -127,17 +151,10 @@ fn run_guard(guard: &str, shell: Shell, only_sh_variant_free: bool) -> (usize, u
     for case in data["cases"].as_array().unwrap() {
         let want = case["want"].as_str().unwrap();
         let reason = case["reason"].as_str().unwrap_or("");
-        let command = case.get("command").and_then(Value::as_str);
-        let command = match (shell, command) {
-            (Shell::Sh, c) => c,
-            (s, Some(_)) => match case["variants"][s.name()].as_str() {
-                Some(v) => Some(v),
-                None => continue,
-            },
-            (_, None) => continue,
+        let Some(command) = command_in(case, shell) else {
+            continue;
         };
-        let _ = only_sh_variant_free;
-        let ev = event_for(case, &sb, command);
+        let ev = event_for(case, &sb, command.as_deref());
         let d = evaluate(id, &ev, shell, &ctx);
         assert_eq!(
             d.level.name(),
@@ -150,7 +167,11 @@ fn run_guard(guard: &str, shell: Shell, only_sh_variant_free: bool) -> (usize, u
         assert_eq!(d.reason, reason, "{} reason", case["id"]);
         run += 1;
         #[cfg(unix)]
-        if shell == Shell::Sh {
+        if shell == Shell::Sh
+            && case["tags"]
+                .as_array()
+                .is_some_and(|t| t.iter().any(|x| x == "parity"))
+        {
             let (od, or) = oracle(guard, &ev);
             assert_eq!(
                 d.level.name(),
@@ -177,12 +198,15 @@ macro_rules! guard_test {
                 eprintln!("skipped: shared/guard-fixtures is absent (published crate)");
                 return;
             }
-            let (run, oracle_run) = run_guard($guard, Shell::Sh, false);
-            println!(
-                "{}: {run} fixtures, {oracle_run} compared with the shell guard",
-                $guard
-            );
-            assert!(run > 0);
+            for shell in [Shell::Sh, Shell::PowerShell, Shell::Cmd] {
+                let (run, oracle_run) = run_guard($guard, shell);
+                println!(
+                    "{} {}: {run} fixtures, {oracle_run} compared with the shell guard",
+                    $guard,
+                    shell.name()
+                );
+                assert!(run > 0);
+            }
         }
     };
 }

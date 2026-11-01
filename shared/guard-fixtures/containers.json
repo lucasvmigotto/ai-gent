@@ -17,7 +17,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman system prune -a -f",
+        "cmd": "podman system prune -a -f"
+      }
     },
     {
       "id": "containers-002",
@@ -33,7 +37,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "docker image prune",
+        "cmd": "docker image prune"
+      }
     },
     {
       "id": "containers-003",
@@ -49,7 +57,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman image prune --filter label=me.lucasvmigotto.ai-gent.project=shop",
+        "cmd": "podman image prune --filter label=me.lucasvmigotto.ai-gent.project=shop"
+      }
     },
     {
       "id": "containers-004",
@@ -65,7 +77,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman volume prune -f",
+        "cmd": "podman volume prune -f"
+      }
     },
     {
       "id": "containers-005",
@@ -81,7 +97,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "docker builder prune --all",
+        "cmd": "docker builder prune --all"
+      }
     },
     {
       "id": "containers-006",
@@ -97,7 +117,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "nerdctl container prune",
+        "cmd": "nerdctl container prune"
+      }
     },
     {
       "id": "containers-007",
@@ -113,7 +137,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
     },
     {
       "id": "containers-008",
@@ -129,7 +158,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
     },
     {
       "id": "containers-009",
@@ -145,7 +179,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "sudo podman --log-level=info system prune",
+        "cmd": "sudo podman --log-level=info system prune"
+      }
     },
     {
       "id": "containers-010",
@@ -161,7 +199,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "buildah prune",
+        "cmd": "buildah prune"
+      }
     },
     {
       "id": "containers-011",
@@ -177,7 +219,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "cd /x && /usr/bin/podman image prune -a",
+        "cmd": "cd /x && /usr/bin/podman image prune -a"
+      }
     },
     {
       "id": "containers-012",
@@ -193,7 +239,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman rm -a -f",
+        "cmd": "podman rm -a -f"
+      }
     },
     {
       "id": "containers-013",
@@ -209,7 +259,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman rmi --all",
+        "cmd": "podman rmi --all"
+      }
     },
     {
       "id": "containers-014",
@@ -225,7 +279,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman volume rm -af",
+        "cmd": "podman volume rm -af"
+      }
     },
     {
       "id": "containers-015",
@@ -241,7 +299,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "docker container rm --all",
+        "cmd": "docker container rm --all"
+      }
     },
     {
       "id": "containers-016",
@@ -257,7 +319,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "buildah rm --all",
+        "cmd": "buildah rm --all"
+      }
     },
     {
       "id": "containers-017",
@@ -273,7 +339,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "buildah rmi --prune",
+        "cmd": "buildah rmi --prune"
+      }
     },
     {
       "id": "containers-018",
@@ -289,7 +359,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$(' '$')"
     },
     {
       "id": "containers-019",
@@ -305,7 +380,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman images -q --filter dangling=true | xargs podman rmi",
+        "cmd": "podman images -q --filter dangling=true | xargs podman rmi"
+      }
     },
     {
       "id": "containers-020",
@@ -321,7 +400,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "docker volume ls -q | xargs -r docker volume rm",
+        "cmd": "docker volume ls -q | xargs -r docker volume rm"
+      }
     },
     {
       "id": "containers-021",
@@ -337,7 +420,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$(' '$')"
     },
     {
       "id": "containers-022",
@@ -353,7 +441,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('`')"
     },
     {
       "id": "containers-023",
@@ -368,7 +461,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=shop | xargs -r podman rmi",
+        "cmd": "podman images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=shop | xargs -r podman rmi"
+      }
     },
     {
       "id": "containers-024",
@@ -383,7 +480,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman ps -aq --filter name=scratch-uv | xargs podman rm -f",
+        "cmd": "podman ps -aq --filter name=scratch-uv | xargs podman rm -f"
+      }
     },
     {
       "id": "containers-025",
@@ -398,7 +499,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman volume rm shop-tools-target-feat-a",
+        "cmd": "podman volume rm shop-tools-target-feat-a"
+      }
     },
     {
       "id": "containers-026",
@@ -413,7 +518,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman rmi 1a2b3c4d",
+        "cmd": "podman rmi 1a2b3c4d"
+      }
     },
     {
       "id": "containers-027",
@@ -428,7 +537,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman rm -f scratch-probe",
+        "cmd": "podman rm -f scratch-probe"
+      }
     },
     {
       "id": "containers-028",
@@ -443,7 +556,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
     },
     {
       "id": "containers-029",
@@ -458,7 +576,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman ps -a --external",
+        "cmd": "podman ps -a --external"
+      }
     },
     {
       "id": "containers-030",
@@ -473,7 +595,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman system df",
+        "cmd": "podman system df"
+      }
     },
     {
       "id": "containers-031",
@@ -488,7 +614,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman images -q",
+        "cmd": "podman images -q"
+      }
     },
     {
       "id": "containers-032",
@@ -503,7 +633,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman build --label me.lucasvmigotto.ai-gent.project=shop --target tools -t localhost/shop-tools:dev .",
+        "cmd": "podman build --label me.lucasvmigotto.ai-gent.project=shop --target tools -t localhost/shop-tools:dev ."
+      }
     },
     {
       "id": "containers-033",
@@ -518,7 +652,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "podman run --rm --name scratch-x img true",
+        "cmd": "podman run --rm --name scratch-x img true"
+      }
     },
     {
       "id": "containers-034",
@@ -533,7 +671,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git fetch --prune",
+        "cmd": "git fetch --prune"
+      }
     },
     {
       "id": "containers-035",
@@ -548,7 +690,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git worktree prune",
+        "cmd": "git worktree prune"
+      }
     },
     {
       "id": "containers-036",
@@ -563,7 +709,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"docs: never podman system prune\"",
+        "cmd": "git commit -m \"docs: never podman system prune\""
+      }
     },
     {
       "id": "containers-037",
@@ -578,7 +728,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "grep -rn \"image prune\" shared/",
+        "cmd": "grep -rn \"image prune\" shared/"
+      }
     },
     {
       "id": "containers-038",
@@ -593,6 +747,73 @@
       ],
       "tags": [
         "parity"
+      ],
+      "variants": {
+        "powershell": "ls -la",
+        "cmd": "ls -la"
+      }
+    },
+    {
+      "id": "containers-039",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "podman system prune -a -f",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "containers-040",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "docker image prune & echo done",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "containers-041",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "podman.exe rm -a",
+      "want": "deny",
+      "reason": "containers guard: removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "containers-042",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "podman rmi 1a2b3c4d",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
       ]
     }
   ]

@@ -17,7 +17,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash"
+      }
     },
     {
       "id": "repo-002",
@@ -33,7 +37,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write"
+      }
     },
     {
       "id": "repo-003",
@@ -49,7 +57,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done"
+      }
     },
     {
       "id": "repo-004",
@@ -65,7 +77,14 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "cmd": "cd /x && python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json"
+      },
+      "skip_in": [
+        "powershell"
+      ],
+      "skip_reason": "no equivalent in powershell (redirect, home shortcut or quoting)"
     },
     {
       "id": "repo-005",
@@ -81,7 +100,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "reporun cli gitlab --write -- mr note 4 -m ok",
+        "cmd": "reporun cli gitlab --write -- mr note 4 -m ok"
+      }
     },
     {
       "id": "repo-006",
@@ -97,7 +120,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('\\n')"
     },
     {
       "id": "repo-007",
@@ -113,7 +141,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('\\n')"
     },
     {
       "id": "repo-008",
@@ -129,7 +162,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'denies Co-Authored-By trailers'",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body \"denies Co-Authored-By trailers\""
+      }
     },
     {
       "id": "repo-009",
@@ -144,7 +181,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect"
+      }
     },
     {
       "id": "repo-010",
@@ -159,7 +200,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list"
+      }
     },
     {
       "id": "repo-011",
@@ -174,7 +219,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate"
+      }
     },
     {
       "id": "repo-012",
@@ -189,7 +238,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query 'q=--write'",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query \"q=--write\""
+      }
     },
     {
       "id": "repo-013",
@@ -204,7 +257,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"docs: reporun --write asks first\"",
+        "cmd": "git commit -m \"docs: reporun --write asks first\""
+      }
     },
     {
       "id": "repo-014",
@@ -219,7 +276,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "echo reporun --write",
+        "cmd": "echo reporun --write"
+      }
     },
     {
       "id": "repo-015",
@@ -234,6 +295,57 @@
       ],
       "tags": [
         "parity"
+      ],
+      "variants": {
+        "powershell": "ls -la",
+        "cmd": "ls -la"
+      }
+    },
+    {
+      "id": "repo-016",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "python reporun.py cli github --write -- pr merge 3",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "repo-017",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "python C:\\ai-gent\\plugins\\repo\\scripts\\reporun.py cli github --write -- pr merge 3",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "repo-018",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "echo reporun --write",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
       ]
     }
   ]

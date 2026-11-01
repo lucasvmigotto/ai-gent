@@ -1,5 +1,6 @@
 //! Per-shell segmentation: how a command line becomes simple commands.
 pub mod sh;
+pub mod win;
 
 /// The shell syntax a command is written in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +39,8 @@ impl Shell {
 /// A command prepared for the rules.
 #[derive(Debug, Clone)]
 pub struct View {
+    /// The syntax the command was read in.
+    pub shell: Shell,
     /// The text command-wide patterns scan (JSON-escaped for `sh`, as the shell guards see it).
     pub raw: String,
     /// One simple command per element, quoted text blanked.
@@ -53,18 +56,19 @@ pub fn view(shell: Shell, cmd: &str, containers: bool) -> View {
         Shell::Sh => {
             let raw = sh::escape(cmd);
             View {
+                shell,
                 segments: sh::segments(&raw, containers),
                 words: sh::blank_prose(&raw),
                 raw,
             }
         }
         Shell::PowerShell | Shell::Cmd => {
-            // Filled in with the Windows segmenters (spec 033 phase 2).
-            let raw = cmd.to_string();
+            let scanned = win::scan(shell, cmd, containers);
             View {
-                segments: sh::segments(&sh::escape(cmd), containers),
-                words: raw.clone(),
-                raw,
+                shell,
+                raw: cmd.to_string(),
+                segments: scanned.segments,
+                words: scanned.words,
             }
         }
     }

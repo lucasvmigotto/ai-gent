@@ -25,7 +25,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit --no-verify -m \"fix: x\"",
+        "cmd": "git commit --no-verify -m \"fix: x\""
+      }
     },
     {
       "id": "git-002",
@@ -41,7 +45,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -n -m \"fix: x\"",
+        "cmd": "git commit -n -m \"fix: x\""
+      }
     },
     {
       "id": "git-003",
@@ -57,7 +65,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git -C /tmp/repo merge --no-verify feat/x",
+        "cmd": "git -C /tmp/repo merge --no-verify feat/x"
+      }
     },
     {
       "id": "git-004",
@@ -73,7 +85,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$(' '<<' '\\n' '$')"
     },
     {
       "id": "git-005",
@@ -89,7 +106,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$(' '<<' '\\n' '$')"
     },
     {
       "id": "git-006",
@@ -105,7 +127,12 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$(' '<<' '\\n' '$')"
     },
     {
       "id": "git-007",
@@ -120,7 +147,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "gh issue create --title x --body \"plain body\"",
+        "cmd": "gh issue create --title x --body \"plain body\""
+      }
     },
     {
       "id": "git-008",
@@ -135,7 +166,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "grep -rn \"co-authored-by\" docs/",
+        "cmd": "grep -rn \"co-authored-by\" docs/"
+      }
     },
     {
       "id": "git-009",
@@ -150,7 +185,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"fix(git): deny Co-Authored-By trailers and generated with signatures\"",
+        "cmd": "git commit -m \"fix(git): deny Co-Authored-By trailers and generated with signatures\""
+      }
     },
     {
       "id": "git-010",
@@ -166,7 +205,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git push --force origin feat/x",
+        "cmd": "git push --force origin feat/x"
+      }
     },
     {
       "id": "git-011",
@@ -182,7 +225,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git push -f",
+        "cmd": "git push -f"
+      }
     },
     {
       "id": "git-012",
@@ -198,7 +245,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git push --force-with-lease origin feat/x",
+        "cmd": "git push --force-with-lease origin feat/x"
+      }
     },
     {
       "id": "git-013",
@@ -214,7 +265,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git push origin feat/x",
+        "cmd": "git push origin feat/x"
+      }
     },
     {
       "id": "git-014",
@@ -230,7 +285,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "cd /tmp && git push",
+        "cmd": "cd /tmp && git push"
+      }
     },
     {
       "id": "git-015",
@@ -246,7 +305,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git fetch && git push origin --delete feat/old",
+        "cmd": "git fetch && git push origin --delete feat/old"
+      }
     },
     {
       "id": "git-016",
@@ -262,7 +325,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "gh pr create --fill",
+        "cmd": "gh pr create --fill"
+      }
     },
     {
       "id": "git-017",
@@ -278,7 +345,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git branch -D feat/old",
+        "cmd": "git branch -D feat/old"
+      }
     },
     {
       "id": "git-018",
@@ -294,7 +365,14 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git reset --hard HEAD~1"
+      },
+      "skip_in": [
+        "cmd"
+      ],
+      "skip_reason": "no equivalent in cmd (redirect, home shortcut or quoting)"
     },
     {
       "id": "git-019",
@@ -310,7 +388,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git clean -fd",
+        "cmd": "git clean -fd"
+      }
     },
     {
       "id": "git-020",
@@ -326,7 +408,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit --amend --no-edit",
+        "cmd": "git commit --amend --no-edit"
+      }
     },
     {
       "id": "git-021",
@@ -342,7 +428,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git filter-repo --mailmap m",
+        "cmd": "git filter-repo --mailmap m"
+      }
     },
     {
       "id": "git-022",
@@ -358,7 +448,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"fix: x\"",
+        "cmd": "git commit -m \"fix: x\""
+      }
     },
     {
       "id": "git-023",
@@ -374,7 +468,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git merge --ff-only feat/x",
+        "cmd": "git merge --ff-only feat/x"
+      }
     },
     {
       "id": "git-024",
@@ -390,7 +488,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git -C {main} commit -m \"fix: x\"",
+        "cmd": "git -C {main} commit -m \"fix: x\""
+      }
     },
     {
       "id": "git-025",
@@ -406,7 +508,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git merge --no-ff dev",
+        "cmd": "git merge --no-ff dev"
+      }
     },
     {
       "id": "git-026",
@@ -422,7 +528,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"fix: x\"",
+        "cmd": "git commit -m \"fix: x\""
+      }
     },
     {
       "id": "git-027",
@@ -438,7 +548,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"fix: x\"",
+        "cmd": "git commit -m \"fix: x\""
+      }
     },
     {
       "id": "git-028",
@@ -454,7 +568,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git merge --no-ff feat/x && git commit -m \"fix: x\"",
+        "cmd": "git merge --no-ff feat/x && git commit -m \"fix: x\""
+      }
     },
     {
       "id": "git-029",
@@ -470,7 +588,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git -C {dev} commit -m \"fix: x\"",
+        "cmd": "git -C {dev} commit -m \"fix: x\""
+      }
     },
     {
       "id": "git-030",
@@ -485,7 +607,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git merge --no-ff feat/x",
+        "cmd": "git merge --no-ff feat/x"
+      }
     },
     {
       "id": "git-031",
@@ -500,7 +626,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git merge --ff-only feat/x",
+        "cmd": "git merge --ff-only feat/x"
+      }
     },
     {
       "id": "git-032",
@@ -515,7 +645,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git merge --continue",
+        "cmd": "git merge --continue"
+      }
     },
     {
       "id": "git-033",
@@ -530,7 +664,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"fix: x\"",
+        "cmd": "git commit -m \"fix: x\""
+      }
     },
     {
       "id": "git-034",
@@ -545,7 +683,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"feat(git): block --no-verify and -n in the guard\"",
+        "cmd": "git commit -m \"feat(git): block --no-verify and -n in the guard\""
+      }
     },
     {
       "id": "git-035",
@@ -560,7 +702,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git commit -m \"docs: explain git push --force\"",
+        "cmd": "git commit -m \"docs: explain git push --force\""
+      }
     },
     {
       "id": "git-036",
@@ -575,7 +721,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git merge --no-ff feat/x-db",
+        "cmd": "git merge --no-ff feat/x-db"
+      }
     },
     {
       "id": "git-037",
@@ -590,7 +740,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git branch -d feat/x-db",
+        "cmd": "git branch -d feat/x-db"
+      }
     },
     {
       "id": "git-038",
@@ -605,7 +759,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git status && git log --oneline -5",
+        "cmd": "git status && git log --oneline -5"
+      }
     },
     {
       "id": "git-039",
@@ -620,7 +778,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "echo \"git push\" > notes.txt",
+        "cmd": "echo \"git push\" > notes.txt"
+      }
     },
     {
       "id": "git-040",
@@ -635,7 +797,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "grep -rn -- --no-verify docs/",
+        "cmd": "grep -rn -- --no-verify docs/"
+      }
     },
     {
       "id": "git-041",
@@ -650,7 +816,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git push-notes-helper",
+        "cmd": "git push-notes-helper"
+      }
     },
     {
       "id": "git-042",
@@ -665,7 +835,11 @@
       ],
       "tags": [
         "parity"
-      ]
+      ],
+      "variants": {
+        "powershell": "git switch -c feat/new",
+        "cmd": "git switch -c feat/new"
+      }
     },
     {
       "id": "git-043",
@@ -680,6 +854,199 @@
       ],
       "tags": [
         "parity"
+      ],
+      "variants": {
+        "powershell": "ls -la",
+        "cmd": "ls -la"
+      }
+    },
+    {
+      "id": "git-044",
+      "tool": "PowerShell",
+      "cwd": "@feat",
+      "shell": "powershell",
+      "command": "git -C C:\\repo commit --no-verify -m 'x'",
+      "want": "deny",
+      "reason": "git:workflow guard: hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-045",
+      "tool": "PowerShell",
+      "cwd": "@feat",
+      "shell": "powershell",
+      "command": "git push; Write-Output hi",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-046",
+      "tool": "PowerShell",
+      "cwd": "@feat",
+      "shell": "powershell",
+      "command": "git commit -m 'it''s fine' --no-verify",
+      "want": "deny",
+      "reason": "git:workflow guard: hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-047",
+      "tool": "PowerShell",
+      "cwd": "@feat",
+      "shell": "powershell",
+      "command": "git commit -m \"docs: explain --no-verify\"",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-048",
+      "tool": "PowerShell",
+      "cwd": "@feat",
+      "shell": "powershell",
+      "command": "git.exe push origin feat/x",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-049",
+      "tool": "PowerShell",
+      "cwd": "@feat",
+      "shell": "powershell",
+      "command": "git commit -m 'fix: x' `\n  --no-verify",
+      "want": "deny",
+      "reason": "git:workflow guard: hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-050",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "cmd",
+      "command": "git push & echo hi",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-051",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "cmd",
+      "command": "git push ^& echo hi",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-052",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "cmd",
+      "command": "git commit -m \"x\" --no-verify",
+      "want": "deny",
+      "reason": "git:workflow guard: hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-053",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "cmd",
+      "command": "git commit -m \"mentions --no-verify & more\"",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-054",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "cmd",
+      "command": "git -C {main} commit -m \"fix: x\"",
+      "want": "ask",
+      "reason": "git:workflow guard: this commits or merges on main; the workflow works on a branch (allow only if the user asked for it)",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "git-055",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "cmd",
+      "command": "git status && git log --oneline -5",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
       ]
     }
   ]
