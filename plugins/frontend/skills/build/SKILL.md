@@ -146,7 +146,7 @@ devcontainer) and check, for the screens this phase touched:
    browser (`selenium/standalone-chrome` by default, per the qa plugin's
    references/browsers.md rules), never a host browser install. Look at them.
 3. **Self-critique** against `ux-vision.md` principles and
-   `visual-direction.md`'s AI-default list: does it read as generic? Is
+   `visual-direction.md`'s generic-defaults list and differentiation review: does it read as generic? Is
    the hierarchy right? Is one thing memorable and everything else quiet?
    Fix, re-screenshot. Remove one accessory.
 4. **Keyboard-only** pass through the phase's flows; visible focus
