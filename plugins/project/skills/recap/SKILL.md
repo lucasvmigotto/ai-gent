@@ -1,6 +1,6 @@
 ---
 name: recap
-description: Recap a project you're returning to — where the last Claude Code or OpenCode session left off (requests, unfinished work, pending questions, a stall mid-task), then what changed since in the working tree, the main branches and the remotes, by you or others — ending in one next step. Read-only. Use for "recap", "where did we stop", "catch me up", "my session died, pick up where you left off".
+description: Recap a project you're returning to — where the last Claude Code or OpenCode session left off (requests, unfinished work, pending questions, a stall mid-task), then what changed since in the working tree, branches and remotes — ending in one next step. Read-only. Use for "recap", "where did we stop", "catch me up", "my session died, pick up where you left off".
 ---
 
 # Recap — back to a project

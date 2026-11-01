@@ -63,11 +63,17 @@ for large or many files in a brace language.
      statement, re-checked each retrofit.
    - **End of life:** runtime, framework, database, base image and OS,
      with end-of-support dates (endoflife.date) and the supported target.
+  - **Research** (`references/sources.md`, method in
+    `../../references/research.md`): look up EOL dates, advisories (NVD,
+    OSV, GHSA, vendor), CISA KEV and EPSS, and abandoned-library status on
+    the web rather than from memory. Query package names and versions only.
+    Label claims `[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`.
    - **Outdated:** each dependency's current version, the newest the level
      allows, and what it takes to get there.
 4. **Plan — `docs/product/retrofit.md`.** Level and scope; baseline;
    CVE table (id, package, severity, reachable?, KEV/EPSS, fix version,
-   step); EOL table; the ordered steps. One concern per step (the
+   step); EOL table with an *as of <date>* column; a Sources section; the
+   ordered steps. One concern per step (the
    runtime, the framework, one library family), each with its expected
    code impact, risk, how it's verified and how it's rolled back. Order:
    build tooling first, then runtime, framework, and libraries that
@@ -81,6 +87,9 @@ for large or many files in a brace language.
    (then it's recorded as a finding, and arguably belongs in
    `project:refactor`). Merge each step back per `git:workflow` before
    the next.
+   - Before each **major** hop, research the target's release notes and
+     migration guide (extended search allowed) and cite them in the plan.
+     A source or PoC that says "exploited" is cited, never executed.
    - **Major level:** one major version at a time, following each
      framework's official upgrade path (Spring Boot 2.7 → 3.0 → 3.x;
      Angular one major per step), with the tests green between majors.

@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Run a spec'd feature or task list with role-separated agents — a strong model plans and reviews, a fast model builds, a small one searches — routed by task to save tokens, with self-contained cards, a worktree per parallel branch and merges asked first. Agent-agnostic, Claude by default. Use for "orchestrate feature 012", "opus plans and sonnet implements", "split this work between agents".
+description: Run a spec'd feature or task list with role-separated agents — a strong model plans and reviews, a fast one builds, a small one searches — routed by task to save tokens, with a worktree per parallel branch. Use for "orchestrate feature 012", "opus plans and sonnet implements", "split this work between agents".
 ---
 
 # Orchestrate — the right agent for each task
@@ -68,7 +68,8 @@ already know. Template and examples: `references/cards.md`. Every card has:
   that share a checkout never commit, and stage only explicit paths.
 - **Routing.** `builder` cards go to the builder model, `scout` lookups to
   the small model; reviews go to the reviewer in a fresh context. Never
-  hand bulk reading or mechanical edits to the thinker model.
+  hand bulk reading or mechanical edits to the thinker model. A web
+  lookup goes to a `scout` **research card** (`references/cards.md`).
 - **Running.** In Claude Code, subagents (Agent tool, `model` per role, in
   the background) with the card as the prompt. In Codex, OpenCode and
   others, their subagent or task feature; with none, run the cards one
@@ -146,6 +147,14 @@ The point of this skill. Details and measured examples:
   restart it from zero.
 - Record `used` after each landing and summarize the projection error for
   the user (`../../references/token-tracking.md`).
+- Keep your own context small and warm: never idle over ~4 minutes with
+  more than ~100k of context (the cache expires; wait in the background or
+  checkpoint), compact or restart at ~150k, and prefer a mid-size model for
+  the coordinator, the strongest only at planning and review gates. Cards:
+  scoped and self-contained rather than forks, about 40 tool calls each,
+  the full `scripts/check.sh` once per card and `--quick --quiet` inside the
+  loop, batched shell steps, no polling loops. Why and how:
+  `references/context-discipline.md`.
 
 ## Guardrails
 

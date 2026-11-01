@@ -17,7 +17,7 @@ balancing user, business and technical requirements.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` — ownership rules matter here:
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) — ownership rules matter here:
    this skill **adds a UI layer** to features `project:spec` owns — and
    `../../references/spec-kit.md` for the `tasks` step it extends.
 2. Read `../../references/visual-direction.md` for token/component
@@ -69,6 +69,11 @@ templates (`spec.md`, `plan.md`, `tasks.md`) plus:
   applies), content rules (label length, truncation), and do/don't.
 - **Motion** — durations/easings as tokens, which interactions animate,
   reduced-motion behavior.
+- **Research** (`../../references/research.md`, about 5 searches and 5
+  fetches): component library versions, browser support baselines and
+  the WAI-ARIA APG patterns chosen, with dated URLs, in
+  `000-design-system/research.md`. Label `[RESEARCHED: S<n>]`, `[KNOWN]`
+  or `[ASSUMPTION]`; offline, "verify before relying".
 - **Accessibility rules** — the WCAG 2.2 AA targets from the vision as
   testable rules (focus ring spec, minimum target size, contrast, live
   region usage).

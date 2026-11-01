@@ -15,7 +15,7 @@ another senior engineer would approve without a rewrite.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md`, `../../references/spec-kit.md`
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case), `../../references/spec-kit.md`
    and `../../references/backend-quality.md`.
 2. Required inputs: `contracts/openapi.yaml` marked canonical and at
    least one feature with `backend.md` and a `## Backend` section in
@@ -123,7 +123,12 @@ For each phase:
   dependencies, liveness doesn't.
 - **Security**: input validation on every field, allow-listed binding
   (no mass assignment), rate limits where specified, dependency audit
-  and secret scanning in CI.
+  and secret scanning in CI. **Research** the chosen libraries
+  (`../../references/research.md`, about 5 searches and 5 fetches; package
+  names and versions only, never project code): current versions, known
+  advisories (OSV, GHSA, NVD) and maintenance status, cited with dated
+  URLs in the feature's `research.md`. Label `[RESEARCHED: S<n>]`,
+  `[KNOWN]` or `[ASSUMPTION]`; offline, "verify before relying".
 
 ### Checkpoint — verification per phase
 
@@ -173,22 +178,13 @@ to go green.
 
 ## Handoff
 
-After any push of this work, follow its CI with `devsecops:watch`
-(pipeline rule 8 in `../../references/pipeline.md`): a red run caused by
-the change is fixed here before the feature counts as done.
+After any push, follow CI with `devsecops:watch` (pipeline rule 8, `../../references/pipeline.md`); fix a red run this change caused before calling the feature done.
 
 For a feature with a `tracker.md`, run `repo:sync` for it once the
 phase's tasks are ticked and its status updated (pipeline rule 10), so
 its items move with it.
 
-On Claude Code with the `agents` plugin, record what the phase cost:
-`python3 <agents plugin>/scripts/token_report.py tasks --project=<session
-slug> --specs-dir specs` writes `used` next to each card's projected tokens
-on its task lines, in the feature's `tracker.md` and in
-`docs/product/token-history.jsonl`. A subagent leaves it to the coordinator
-that dispatched it (its own transcript is still open), and work done in the
-main thread alone is not attributed to a card
-(`../../references/token-tracking.md`).
+On Claude Code with the `agents` plugin, record what the phase cost (`../../references/token-tracking.md`, *Recording a phase's cost*).
 
 Per feature: which step of the Spec Kit flow it reached, whether
 converge converged or what's left, what's Implemented, what's still

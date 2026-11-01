@@ -1,6 +1,6 @@
 ---
 name: iac
-description: Write infrastructure as code for the environments the architecture chose — OpenTofu or Terraform by default, or the project's Pulumi, Bicep or CDK — with modules, per-environment state, OIDC deploy identities, least-privilege IAM, private networking, policy checks and plan-on-PR, apply-on-approval wiring. Use for "write the Terraform", "provision the cloud resources", "infrastructure as code".
+description: Write infrastructure as code for the environments the architecture chose — OpenTofu or Terraform by default, or Pulumi, Bicep or CDK — with modules, per-environment state, OIDC deploy identities, least-privilege IAM and plan-on-PR, apply-on-approval wiring. Use for "write the Terraform", "provision the cloud resources", "infrastructure as code".
 ---
 
 # Infrastructure as code
@@ -12,7 +12,7 @@ anything to make local dev work.
 
 ## Before starting
 
-1. Read `../../references/principles.md` and `../../references/pipeline.md`.
+1. Read `../../references/principles.md` and `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case).
 2. Read the inputs that exist:
    - `docs/product/architecture.md` and `docs/product/adr/` — hosting,
      regions, topology, data stores, messaging, identity, DR targets
@@ -34,6 +34,16 @@ config files and whatever IaC its provider supports, and say that a full
 IaC stack would be overkill.
 
 ## Tool
+
+Research the versions and limits the code depends on
+(`../../references/research.md`, about 5 searches and 5 fetches): provider
+and module versions and their breaking changes, OIDC and IAM specifics
+for the cloud, service limits and quotas, regions and deprecations.
+Query provider and service names only, never account, subscription or
+resource ids. Cite them in a Sources section of the plan doc and a
+comment header in each module (source, date), labelled
+`[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`; with no web tools, say
+so once and mark them `[ASSUMPTION]`, "verify before relying".
 
 Detect before choosing:
 

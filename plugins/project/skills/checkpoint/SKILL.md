@@ -1,6 +1,6 @@
 ---
 name: checkpoint
-description: Keep a hand-off file for long or multi-repo work — .ai-gent/checkpoint.md, git-excluded, with the user's requests and standing rules verbatim, what is on hold, each repository's state and the next steps — rewritten at each milestone so another account, tool or session resumes exactly there. Use for "checkpoint your work", "I may switch accounts", "save where we are", "write a handoff".
+description: Keep a hand-off file for long or multi-repo work — .ai-gent/checkpoint.md, git-excluded, with the user's requests and standing rules verbatim, what is on hold, each repository's state and next steps — so another account, tool or session resumes exactly there. Use for "checkpoint your work", "I may switch accounts", "save where we are", "write a handoff".
 ---
 
 # Checkpoint — a hand-off another agent can trust

@@ -1,6 +1,6 @@
 ---
 name: survey
-description: Survey a project on first contact — its stack and versions, layout and entry points, how it builds, tests and runs, CI and containers, history and conventions, main branches and how far they drift apart, stale or unmerged branches, and red flags — ending in which stage to run next. Read-only. Use for "get to know this project", "survey this repo", "cold start", or before project:introspec.
+description: Survey a project on first contact — stack and versions, layout, how it builds, tests and runs, CI and containers, history, how far the main branches drift apart, stale branches, red flags — ending in which stage to run next. Read-only. Use for "get to know this project", "survey this repo", "cold start", or before project:introspec.
 ---
 
 # Survey — first contact with a project
@@ -83,6 +83,10 @@ Only what the survey came across, each with its evidence:
 - runtimes or frameworks at or past end of life, lockfiles missing,
   dependencies years behind — flagged here, triaged by `project:retrofit`;
 - no tests, or tests CI doesn't run; CI missing or failing;
+- optionally, and only when the user opts in (the survey is read-only on
+  first contact, so no lookups by default), a quick end-of-life lookup for
+  the stack found (`../../references/research.md`, runtime and framework
+  names with versions only), labelled `[RESEARCHED: S<n>]` with a date;
 - docs that contradict the code; drift between main branches with no
   release in sight.
 

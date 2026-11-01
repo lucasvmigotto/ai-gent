@@ -1,6 +1,6 @@
 ---
 name: parallel
-description: Develop independent work at the same time — several features, or a feature's frontend, backend and QA tracks — each on its own branch in a git worktree under .worktrees/, only where dependencies and file ownership make it safe, then land the branches on dev one at a time in dependency order, checking after each. Use for "build these features in parallel", "use worktrees", "run the tracks at once".
+description: Develop independent work at the same time — several features, or a feature's frontend, backend and QA tracks — each on its own branch in a git worktree under .worktrees/, landed on dev one at a time in dependency order. Use for "build these features in parallel", "use worktrees", "run the tracks at once".
 ---
 
 # Parallel development in worktrees
@@ -96,6 +96,9 @@ Each track runs in its own context, inside its worktree only:
 - The track runs its stage skill (`frontend:build`, `backend:build`,
   `qa:e2e`), or `agents:orchestrate` for a feature with many cards, and
   commits on its branch as tasks finish (`git:workflow`).
+- Keep the coordinator's context warm and small: wait for tracks with a
+  background watcher, not idle gaps over ~4 minutes, and checkpoint or restart
+  at ~150k (`../orchestrate/references/context-discipline.md`).
 - A track that finds it needs another's output stops and reports it as an
   `[UPSTREAM GAP: …]`; it never edits across tracks.
 - Keep a ledger in `.ai-gent/parallel-status.md`: track, branch,

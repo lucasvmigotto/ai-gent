@@ -29,24 +29,24 @@ test('the percent is clamped and rounded; anything that is not a number is none'
   for (const bad of [undefined, null, Number.NaN, Number.POSITIVE_INFINITY, '50', {}]) expect(parsePercent(bad)).toBeNull()
 })
 
-test('a normal figure reads label, bar, used and remaining', () => {
+test('a normal figure reads an icon, a bar and the percent used, no words', () => {
   const meter = meterOf(43, wide)
   expect(meter?.level).toBe('ok')
-  expect(meter?.text).toBe(`Context ${bar(43, 20, false)} 43% used · 57% remaining`)
+  expect(meter?.text).toBe(`◐ ${bar(43, 20, false)} 43%`)
 })
 
-test('approaching and critical add a mark and a word, never colour alone', () => {
-  expect(meterOf(70, wide)?.text).toContain('⚠ approaching')
-  expect(meterOf(85, wide)?.text).toContain('✖ critical')
-  expect(meterOf(85, { ...wide, ascii: true })?.text).toMatch(/!! critical$/)
+test('approaching and critical add a glyph, never colour alone', () => {
+  expect(meterOf(70, wide)?.text).toMatch(/ 70% ⚠$/)
+  expect(meterOf(85, wide)?.text).toMatch(/ 85% ✖$/)
+  expect(meterOf(85, { ...wide, ascii: true })?.text).toMatch(/ 85% !!$/)
   expect(meterOf(85, { ...wide, ascii: true })?.text).not.toMatch(/[^\x20-\x7e]/)
 })
 
 test('0 and 100 are safe', () => {
-  expect(meterOf(0, wide)?.text).toContain('0% used · 100% remaining')
+  expect(meterOf(0, wide)?.text).toMatch(/ 0%$/)
   expect(meterOf(0, wide)?.text).toContain('░'.repeat(20))
   expect(meterOf(100, wide)?.text).toContain('█'.repeat(20))
-  expect(meterOf(100, wide)?.text).toContain('0% remaining')
+  expect(meterOf(100, wide)?.text).toMatch(/ 100% ✖$/)
   expect(meterOf(140, wide)?.percent).toBe(100)
 })
 
@@ -61,11 +61,12 @@ test('the line never passes its width, from wide down to nothing', () => {
       if (meter !== null) expect([...meter.text].length).toBeLessThanOrEqual(columns)
     }
   }
-  expect(meterOf(50, { ...wide, columns: 12 })?.text).toBe('ctx 50%')
-  expect(meterOf(50, { ...wide, columns: 3 })).toBeNull()
+  expect(meterOf(50, { ...wide, columns: 9 })?.text).toBe('◐ 50%')
+  expect(meterOf(50, { ...wide, columns: 3 })?.text).toBe('50%')
+  expect(meterOf(50, { ...wide, columns: 2 })).toBeNull()
 })
 
 test('the bar follows the width, and drops out when narrow', () => {
   expect(meterOf(50, { ...wide, columns: 45 })?.text).toMatch(/█{6,}/)
-  expect(meterOf(50, { ...wide, columns: 20 })?.text).not.toMatch(/█/)
+  expect(meterOf(50, { ...wide, columns: 9 })?.text).not.toMatch(/█/)
 })

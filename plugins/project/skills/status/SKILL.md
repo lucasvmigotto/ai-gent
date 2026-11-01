@@ -1,6 +1,6 @@
 ---
 name: status
-description: Report where a project stands in the product pipeline — which artifacts exist, each feature's frontend, backend and QA status, open gaps, assumptions and clarifications, status claims the repo contradicts — and recommend the next stage to run. Read-only. Use for "where are we", "what's next", "project status", "which stage should I run", or at the start of a session on a pipeline project.
+description: Report where a project stands in the product pipeline — which artifacts exist, each feature's frontend, backend and QA status, open gaps, status claims the repo contradicts — and recommend the next stage. Read-only. Use for "where are we", "what's next", "project status", "which stage should I run", or at a session start on a pipeline project.
 ---
 
 # Pipeline status
@@ -10,7 +10,7 @@ in a recommendation of what to run next. It never writes or fixes
 anything: every problem it finds goes into the report, with the stage that
 owns the fix.
 
-Read `../../references/pipeline.md` first — the artifact table and the
+Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) first — the artifact table and the
 status rules there are what this skill checks against — and
 `../../references/spec-kit.md` for the steps a feature moves through.
 
@@ -26,6 +26,11 @@ present, missing, or stale:
   (`git diff <downstream commit>.. -- <upstream path>`, summarized).
 - Missing artifacts are only a problem when a later stage already ran
   (for example `specs/` without `architecture.md`).
+- **Not applicable** artifacts are the rows of `specs/README.md`'s
+  `## Applicability` table (`| Artifact | Status | Reason |`, status `N/A`,
+  reason required). List them apart as "not applicable (reason)", never as
+  missing or as gaps, and never recommend their stage. Report a row that
+  names an unknown artifact or has no reason.
 
 ## 2. Features
 

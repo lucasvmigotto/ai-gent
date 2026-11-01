@@ -28,13 +28,13 @@ export function levelOf(percent: number, threshold: number): Level {
 
 export type Meter = { text: string; level: Level; percent: number }
 
-const MIN_BAR = 6
-const MAX_BAR = 20
+export const MIN_BAR = 6
+export const MAX_BAR = 20
 
-const glyphs = (ascii: boolean) => ({
+export const glyphs = (ascii: boolean) => ({
+  icon: ascii ? '@' : '◐',
   full: ascii ? '#' : '█',
   empty: ascii ? '-' : '░',
-  sep: ascii ? '|' : '·',
   approaching: ascii ? '!' : '⚠',
   critical: ascii ? '!!' : '✖',
 })
@@ -45,28 +45,19 @@ export function bar(percent: number, width: number, ascii: boolean): string {
   return g.full.repeat(filled) + g.empty.repeat(width - filled)
 }
 
-// One line of at most `columns` cells, richest form first: label, bar following the free width,
-// used and remaining, the level's word; poorer forms drop the parts until it fits. Nothing
-// (null) for a missing, NaN or infinite figure, and where not even `ctx NN%` fits.
+// One line of at most `columns` cells: a context icon, a bar following the free width and the
+// percent used (`◐ ████░░░░ 24%`), plus a glyph (no words) once approaching or critical; narrower, the icon and the
+// percent, then the percent alone. Nothing (null) for a missing, NaN or infinite figure, and where not even `NN%` fits.
 export function meterOf(value: unknown, options: { columns: number; threshold: number; ascii: boolean }): Meter | null {
   const percent = parsePercent(value)
   if (percent === null) return null
   const g = glyphs(options.ascii)
   const level = levelOf(percent, options.threshold)
-  const mark = level === 'ok' ? '' : ` ${g[level]} ${level === 'critical' ? 'critical' : 'approaching'}`
-  const used = `${percent}% used`
-  const remaining = `${100 - percent}% remaining`
-  const room = (rest: number): number => Math.min(MAX_BAR, rest)
-  const forms: string[] = []
-  const withBar = (head: string, tail: string): string | null => {
-    const free = room(options.columns - head.length - tail.length - 2)
-    return free < MIN_BAR ? null : `${head} ${bar(percent, free, options.ascii)} ${tail}`
-  }
-  for (const tail of [`${used} ${g.sep} ${remaining}${mark}`, `${used}${mark}`, used]) {
-    const form = withBar('Context', tail)
-    if (form !== null) forms.push(form)
-  }
-  forms.push(`Context ${used}${mark}`, `Context ${used}`, `ctx ${percent}%${level === 'ok' ? '' : ` ${g[level]}`}`, `ctx ${percent}%`)
-  const text = forms.find(form => form.length <= options.columns)
+  const mark = level === 'ok' ? '' : ` ${g[level]}`
+  const tail = `${percent}%${mark}`
+  const head = `${g.icon} `
+  const free = Math.min(MAX_BAR, options.columns - head.length - tail.length - 1)
+  const forms = [free < MIN_BAR ? null : `${head}${bar(percent, free, options.ascii)} ${tail}`, `${head}${tail}`, tail, `${percent}%`]
+  const text = forms.find((form): form is string => form !== null && form.length <= options.columns)
   return text === undefined ? null : { text, level, percent }
 }

@@ -14,7 +14,7 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 002 | docs-site-skill-reference | landing finder, search, index, skill pages, not-found | P1 | 001 | Implemented | N/A | — | e2e smoke covers US1 and US4 only |
 | 003 | docs-site-guides | install, flow, contribute, reference, changelog pages | P2 | 001 | Implemented | N/A | — | flow page tested; install/contribute/reference/changelog untested; troubleshooting Planned |
 | 004 | docs-site-llm-output | llms.txt, llms-full.txt, per-page Markdown | P1 | 001, 002, 003 | Implemented | N/A | — | no tests; Markdown twins drift from the HTML pages |
-| 005 | docs-site-delivery | Docs CI checks, e2e smoke, R2 deploy, OG image | P1 | 001 | N/A | Implemented | — | CI green 2026-10-17; actions pinned by tag only |
+| 005 | docs-site-delivery | Docs CI checks, e2e smoke, R2 deploy, OG image | P1 | 001 | N/A | Implemented | — | CI green 2026-10-17; actions pinned by commit SHA (checked 2026-11-01) |
 | 006 | installer | install.sh clone/update/pin, setup.sh per-agent install, opencode config | P1 | — | N/A | Implemented | — | test-install.sh (70 checks) runs in CI and passed; interactive selector untested |
 | 007 | pass-store | shared passstore module: check, has, read, write | P1 | — | N/A | Implemented | — | tested only through dbrun and reporun |
 | 008 | db-runner | dbrun: profiles, classification, read-only queries, plans/apply/restore, scripts, log, secrets | P1 | 007 | N/A | Verified | — | 51 unit tests run in CI; the real-engine suite runs weekly in CI (scheduled.yml, green 2026-10-18) |
@@ -48,9 +48,15 @@ Verified needs suites covering every story, running and passing in CI; for tooli
 
 018–031 are the second set of forward mod specs (written 2026-10-31, now Implemented on `dev`; 024 story 3 and the remaining 029 runs are not built): each is read-only and optional like 013–017, and each lists its open questions as `[NEEDS CLARIFICATION]`. Decisions of 2026-10-31 settled every open question (see each spec's Decisions section). Prerequisite changes land first, each on its own branch: `token_report.py tasks --dry-run --json` (020, 014 story 5), `leftovers.sh --json` (025), `release.py` and `shared/release-single.py` `--json` (028), and the `skipIn: result` pattern flag with regenerated `secret-data.ts` (026). Also decided 2026-10-31: bands above the prompt obey a priority cap of two (specified in 030); releases are batched from `dev` in themed promotions; the work is built with `agents:orchestrate` in parallel worktrees after the specs are reviewed and accepted. Suggested build order, by what they unblock: 014 story 5 (`/tokens --live`, with `tasks --dry-run --json`) → 018 → 019 → 020; 026 (the only P1) with its shared-pattern change; 021 and 023; 024 and 027; then 022, 025 and 028. One branch per spec, landed on `dev` one at a time.
 
+## Applicability
+
+| Artifact | Status | Reason |
+|---|---|---|
+| contract | N/A | no HTTP API: the site is static and the runners are local CLIs (their contracts are specs/NNN-*/contracts/routes.md and cli.md) |
+
 ## Contract
 
-`contracts/openapi.yaml`: **N/A** — there is no HTTP API. The site is static and the runners are local CLIs; their contracts are `specs/NNN-*/contracts/routes.md` and `cli.md`.
+`contracts/openapi.yaml`: **N/A** (see Applicability above) — there is no HTTP API. The site is static and the runners are local CLIs; their contracts are `specs/NNN-*/contracts/routes.md` and `cli.md`.
 
 ## Not reconstructed
 

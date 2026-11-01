@@ -1,6 +1,6 @@
 ---
 name: build
-description: Implement the frontend — the Spec Kit implement step for a feature's Frontend tasks — design system first, then each feature's ui.md phase by phase, against a mock of contracts/openapi.yaml, with i18n, WCAG 2.2 AA, responsive layouts, tests, screenshot self-critique and /speckit-converge before marking Implemented. Use for "build the frontend", "implement the UI". Runs after frontend-spec.
+description: Implement the frontend — the Spec Kit implement step for a feature's Frontend tasks — design system first, then each ui.md, against a mock of contracts/openapi.yaml, with i18n, WCAG 2.2 AA, tests and /speckit-converge before marking Implemented. Use for "build the frontend", "implement the UI".
 ---
 
 # Frontend implementation — the Spec Kit `implement` step
@@ -20,7 +20,7 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
 
 ## Before starting
 
-1. Read `../../references/pipeline.md`, `../../references/spec-kit.md`
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case), `../../references/spec-kit.md`
    and `../../references/visual-direction.md`.
 2. Required inputs: `specs/000-design-system/` and at least one feature
    with `ui.md` and a `## Frontend` section in `tasks.md`. If missing,
@@ -38,6 +38,12 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
    TypeScript · Vite · Tailwind CSS · Biome, Vitest + Testing Library +
    axe for unit/a11y, Playwright for e2e — record the decision back as an
    `[UPSTREAM GAP]` for `plan.md`.
+
+Before using a framework API, check the current docs and migration notes
+so no stale API goes in (`../../references/research.md`, about 5 searches
+and 5 fetches; package names and versions only, never project code).
+Record them in the feature's `research.md` as `[RESEARCHED: S<n>]` with
+dated URLs; offline, `[ASSUMPTION]`, "verify before relying".
 
 Read code the cheap way: `../../references/reading-code.md` — `compact:code`
 for large or many files in a brace language.
@@ -183,22 +189,13 @@ values in components.
 
 ## Handoff
 
-After any push of this work, follow its CI with `devsecops:watch`
-(pipeline rule 8 in `../../references/pipeline.md`): a red run caused by
-the change is fixed here before the feature counts as done.
+After any push, follow CI with `devsecops:watch` (pipeline rule 8, `../../references/pipeline.md`); fix a red run this change caused before calling the feature done.
 
 For a feature with a `tracker.md`, run `repo:sync` for it once the
 phase's tasks are ticked and its status updated (pipeline rule 10), so
 its items move with it.
 
-On Claude Code with the `agents` plugin, record what the phase cost:
-`python3 <agents plugin>/scripts/token_report.py tasks --project=<session
-slug> --specs-dir specs` writes `used` next to each card's projected tokens
-on its task lines, in the feature's `tracker.md` and in
-`docs/product/token-history.jsonl`. A subagent leaves it to the coordinator
-that dispatched it (its own transcript is still open), and work done in the
-main thread alone is not attributed to a card
-(`../../references/token-tracking.md`).
+On Claude Code with the `agents` plugin, record what the phase cost (`../../references/token-tracking.md`, *Recording a phase's cost*).
 
 Per feature: which step of the Spec Kit flow it reached, whether
 converge converged or what's left, what's Implemented, what's still

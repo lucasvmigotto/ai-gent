@@ -20,6 +20,9 @@
      them exactly (`--sync-secret-data` rewrites it).
   8. Every artifact path the project plugin's pipeline pane lists
      (hooks/pipeline-model.ts) is in shared/pipeline.md's artifact table.
+     Also shared/pipeline-digest.md (the short form skills read first) lists
+     every artifact and owner of that table and nothing it lacks, names every
+     feature status, and each `§"heading" #rule` pointer resolves.
   9. Shared code a plugin's hooks module imports (shared/guard-ux.ts,
      shared/hook-lines.ts) is COPIED into the plugins that use it, because the
      engine refuses an import through a symlink that leaves the plugin. The
@@ -30,6 +33,11 @@
      (`chore(release): X.Y.Z`, `chore(release): merge X.Y.Z back into dev`).
  11. The JSON keys and finding kinds `leftovers.sh --json` prints are the ones
      specs/025-container-disk-band/data-model.md documents (the band reads them).
+
+ 12. Research (shared/research.md): a plugin whose skills point at the shared
+     method has the symlink; the offline deny-list skills don't point at it;
+     the labels in prose are only [RESEARCHED: S<n>], [KNOWN], [ASSUMPTION];
+     the method file keeps its required sections.
 
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
@@ -304,6 +312,93 @@ def check_pipeline_paths(root: Path) -> list[str]:
     return problems
 
 
+def check_applicability(root: Path) -> list[str]:
+    """Every row of specs/README.md's `## Applicability` table names an artifact the pane lists, says N/A and gives a reason."""
+    model, readme = root / PIPELINE_MODEL, root / "specs/README.md"
+    if not model.is_file() or not readme.is_file():
+        return []
+    known = set(re.findall(r"label: '([^']+)'", model.read_text(encoding="utf-8")))
+    section = re.search(r"^## Applicability[ \t]*\n(.*?)(?=^#{1,6} |\Z)", readme.read_text(encoding="utf-8"), re.M | re.S)
+    problems = []
+    for line in (section.group(1) if section else "").splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        name = cells[0].replace("`", "").strip().lower()
+        if name in ("", "artifact") or not name.strip("-: "):
+            continue
+        if name not in known:
+            problems.append(f"specs/README.md: Applicability row '{name}' is not an artifact the pane lists ({', '.join(sorted(known))})")
+        elif len(cells) < 2 or cells[1].replace("`", "").strip().lower() != "n/a":
+            problems.append(f"specs/README.md: Applicability row '{name}' must have the status N/A")
+        elif not " | ".join(cells[2:]).strip():
+            problems.append(f"specs/README.md: Applicability row '{name}' needs a reason")
+    return problems
+
+
+PIPELINE_DIGEST = "shared/pipeline-digest.md"
+
+
+def _artifact_rows(text: str) -> dict[str, set[str]]:
+    """First backticked path of each table row -> (all col-1 tokens, owner skills); rows keyed by that path."""
+    rows: dict[str, set[str]] = {}
+    for line in text.splitlines():
+        cells = line.split("|")
+        if not line.startswith("|") or len(cells) < 3:
+            continue
+        paths = re.findall(r"`([^`]+)`", cells[1])
+        if not paths:
+            continue
+        rows[paths[0]] = set(paths) | {f"owner:{o}" for o in re.findall(r"`([a-z]+:[a-z-]+)`", cells[2])}
+    return rows
+
+
+def check_pipeline_digest(root: Path) -> list[str]:
+    """shared/pipeline-digest.md is derivable from shared/pipeline.md: same artifacts and owners,
+    every feature status named, every `§"heading" #rule` pointer resolves."""
+    full_p, dig_p = root / "shared/pipeline.md", root / PIPELINE_DIGEST
+    if not full_p.is_file() or not dig_p.is_file():
+        return []
+    full, dig = full_p.read_text(encoding="utf-8"), dig_p.read_text(encoding="utf-8")
+    problems = []
+    contract, short = _artifact_rows(full), _artifact_rows(dig)
+    for key, toks in contract.items():
+        mine = short.get(key)
+        if mine is None:
+            problems.append(f"{PIPELINE_DIGEST}: artifact '{key}' of shared/pipeline.md is missing from the digest table")
+            continue
+        for tok in sorted(toks - mine):
+            problems.append(f"{PIPELINE_DIGEST}: '{key}' lacks {'owner ' + tok[6:] if tok.startswith('owner:') else 'path ' + tok}")
+    for key, toks in short.items():
+        for tok in sorted(toks):
+            name = tok[6:] if tok.startswith("owner:") else tok
+            if name not in full:
+                problems.append(f"{PIPELINE_DIGEST}: '{name}' (row '{key}') is not in shared/pipeline.md")
+    statuses = re.findall(r"^\s+- \*([A-Za-z ]+)\* —", full, re.M)
+    section = re.search(r"^## Statuses\n(.*?)(?=^## |\Z)", dig, re.M | re.S)
+    body = section.group(1) if section else ""
+    for status in statuses:
+        if status not in body:
+            problems.append(f"{PIPELINE_DIGEST}: status '{status}' of shared/pipeline.md is missing from its Statuses section")
+    if not statuses:
+        problems.append("shared/pipeline.md: no feature statuses found (the check reads `- *Status* —` lines)")
+    headings = set(re.findall(r"^## (.+)$", full, re.M))
+    rules = re.search(r"^## Rules every stage follows\n(.*?)(?=^## |\Z)", full, re.M | re.S)
+    count = len(re.findall(r"^\d+\. ", rules.group(1), re.M)) if rules else 0
+    for heading, num in re.findall(r'§"([^"]+)"(?: #(\d+))?', dig):
+        if heading not in headings:
+            problems.append(f"{PIPELINE_DIGEST}: pointer §\"{heading}\" is not a heading of shared/pipeline.md")
+        elif num and not 1 <= int(num) <= count:
+            problems.append(f"{PIPELINE_DIGEST}: pointer §\"{heading}\" #{num} is not a rule (pipeline.md has {count})")
+    if "## Applicability" in full:
+        app = re.search(r"^## Applicability\n(.*?)(?=^## |\Z)", dig, re.M | re.S)
+        if not app or "| Artifact | Status | Reason |" not in app.group(1) or "N/A" not in app.group(1):
+            problems.append(f"{PIPELINE_DIGEST}: needs an Applicability section with the `| Artifact | Status | Reason |` table and N/A, as shared/pipeline.md has")
+    if "`pipeline.md`" not in dig:
+        problems.append(f"{PIPELINE_DIGEST}: must tell the reader to read `pipeline.md` on a conflict")
+    return problems
+
+
 def check_stage_names(root: Path) -> list[str]:
     """Every artifact `stage` in the pane's model has a display name in STAGE_NAME (spec 029)."""
     model = root / PIPELINE_MODEL
@@ -467,6 +562,93 @@ def check_leftovers_json(root: Path) -> list[str]:
     return problems
 
 
+# 12. Research. The plugin-level pointer is `../../references/research.md` (or
+# three levels up from a skill's references/); a skill's own
+# `references/research.md` is a different file and doesn't count.
+RESEARCH_POINTER = re.compile(r"(?:\.\./){2,3}references/research\.md")
+RESEARCH_SHARED = "shared/research.md"
+# Skills that must not point at the research method, with the reason.
+RESEARCH_DENY = {
+    "security:scope": "records authorization; no research before a scope record exists",
+    "security:purple": "retests recorded findings against detections; no new facts",
+    "db:connect": "handles connection profiles and credentials; queries would leak names",
+    "db:inspect": "reads a live schema; nothing public to look up",
+    "db:investigate": "evidence is the data itself; queries would leak it",
+    "db:review": "reviews the project's own code and schema; internal facts",
+    "secrets:pass": "handles credentials; never sends anything outward",
+    "git:workflow": "the user's own rules, not facts that go stale",
+    "repo:issues": "tracker operations on private data",
+    "repo:pr": "tracker operations on private data",
+    "repo:sync": "tracker operations on private data",
+    "project:checkpoint": "a hand-off file of the user's own words",
+    "project:recap": "read-only report of the local session",
+    "project:status": "read-only report of repository artifacts",
+    "compact:code": "reads local source; the web adds nothing",
+    "devcontainer:workflow": "runs the project's own containers",
+    "devsecops:watch": "reads CI logs, which may hold private details",
+    "agents:parallel": "git and worktree mechanics",
+}
+RESEARCH_LABEL = re.compile(r"\[(RESEARCHED|KNOWN|ASSUMPTION|ASSUMED|VERIFIED|UNVERIFIED|SOURCED|CITED|ESTIMATED)\b([^\]\n]*)\]")
+RESEARCH_SECTIONS = (
+    ("decision table", r"^#+\s+research, ask or know"),
+    ("search recipes", r"^#+\s+search recipes"),
+    ("source ladder", r"^#+\s+source quality"),
+    ("labels", r"^#+\s+citing and labels"),
+    ("safety", r"^#+\s+safety"),
+    ("offline fallback", r"^#+\s+offline"),
+    ("budgets", r"budgets? (are|is) soft"),
+)
+
+
+def skill_texts(skill_dir: Path):
+    for f in [skill_dir / "SKILL.md", *sorted((skill_dir / "references").rglob("*.md"))]:
+        if f.is_file() and not f.is_symlink():
+            yield f, f.read_text(encoding="utf-8")
+
+
+def check_research_links(root: Path) -> list[str]:
+    problems = []
+    for plugin in sorted((root / "plugins").glob("*")):
+        users = [f for skill in sorted((plugin / "skills").glob("*")) for f, t in skill_texts(skill) if RESEARCH_POINTER.search(t)]
+        if not users:
+            continue
+        link = plugin / "references" / "research.md"
+        want = (root / RESEARCH_SHARED).resolve()
+        if not link.is_symlink() or link.resolve() != want:
+            problems.append(f"{link.relative_to(root)}: must be a symlink to {RESEARCH_SHARED} (pointed at by {users[0].relative_to(root)})")
+    return problems
+
+
+def check_research_denied(root: Path) -> list[str]:
+    problems = []
+    for ref, reason in RESEARCH_DENY.items():
+        plugin, skill = ref.split(":")
+        for f, text in skill_texts(root / "plugins" / plugin / "skills" / skill):
+            if RESEARCH_POINTER.search(text):
+                problems.append(f"{f.relative_to(root)}: {ref} must not point at the research method ({reason})")
+    return problems
+
+
+def check_research_labels(root: Path) -> list[str]:
+    problems = []
+    for f in prose_files(root):
+        for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            for m in RESEARCH_LABEL.finditer(line):
+                word, rest = m.group(1), m.group(2)
+                ok = (word == "RESEARCHED" and re.fullmatch(r": S(\d+|<n>)", rest)) or (word == "KNOWN" and rest == "") or (word == "ASSUMPTION" and (rest == "" or rest.startswith(": ")))
+                if not ok:
+                    problems.append(f"{f.relative_to(root)}:{n}: label {m.group(0)} is not [RESEARCHED: S<n>], [KNOWN] or [ASSUMPTION]")
+    return problems
+
+
+def check_research_method(root: Path) -> list[str]:
+    path = root / RESEARCH_SHARED
+    if not path.is_file():
+        return []
+    text = path.read_text(encoding="utf-8")
+    return [f"{RESEARCH_SHARED}: lost its {name} section" for name, pat in RESEARCH_SECTIONS if not re.search(pat, text, re.I | re.M)]
+
+
 def main(root: Path = ROOT) -> int:
     if "--sync-shared-code" in sys.argv[1:] or "--sync-guard-ux" in sys.argv[1:]:
         for shared, plugins in SHARED_CODE.items():
@@ -478,13 +660,13 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths, guard reasons, release subjects, release --json keys, leftovers JSON, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

@@ -24,6 +24,11 @@ trap — see §4.4 of `../infra/references/identity.md`.
   defeats that purpose. A sibling project using a different, flatter
   convention doesn't mean this one should — match *this* project's own
   prod, not a sibling's.
+- Check the current config semantics of the proxy in use (Traefik, nginx,
+  the gateway) in its docs rather than from memory
+  (`../../references/research.md`, about 5 searches and 5 fetches; product
+  and directive names only, never the project's routes); label
+  `[RESEARCHED: S<n>]`, else `[ASSUMPTION]`, "verify before relying".
 - Use the **same proxy software as prod** when it's free (nginx, Traefik,
   Caddy, HAProxy — tier 1 in `devcontainer:infra` terms). For a managed
   gateway/ingress with no local image, use nginx and document which

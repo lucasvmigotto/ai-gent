@@ -7,7 +7,7 @@ description: Design and run performance tests — smoke, load, stress, spike, so
 
 ## Before starting
 
-1. Read `../../references/qa-quality.md` and `../../references/pipeline.md`.
+1. Read `../../references/qa-quality.md` and `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case).
 2. Read: `docs/product/architecture.md` (capacity model, SLOs, evolution
    triggers), the brief's NFRs, `specs/*/qa.md` load profiles,
    `contracts/openapi.yaml`, `backend.md` performance budgets, and
@@ -18,6 +18,15 @@ description: Design and run performance tests — smoke, load, stress, spike, so
    `devcontainer:infra`) so the test measures this system, not a vendor.
 
 ## Workload model
+
+Research the stack's benchmarks, k6's current version and executor
+semantics, and the vendor's published rate limits
+(`../../references/research.md`, about 5 searches and 5 fetches). Never
+exceed a published limit and never research how to bypass a limiter;
+authorization stays in the step above. Query tool and vendor names only.
+Cite source and date in the report and the README, labelled
+`[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`; with no web tools, a
+limit claim is `[ASSUMPTION]`, "verify before relying".
 
 Before any script, write the model in `qa.md` / a `tests/load/README.md`
 (conventions in `../../references/readme.md`; never run against
@@ -87,14 +96,7 @@ file a defect with the report and keep it Implemented.
 
 ## Handoff
 
-On Claude Code with the `agents` plugin, record what the phase cost:
-`python3 <agents plugin>/scripts/token_report.py tasks --project=<session
-slug> --specs-dir specs` writes `used` next to each card's projected tokens
-on its task lines, in the feature's `tracker.md` and in
-`docs/product/token-history.jsonl`. A subagent leaves it to the coordinator
-that dispatched it (its own transcript is still open), and work done in the
-main thread alone is not attributed to a card
-(`../../references/token-tracking.md`).
+On Claude Code with the `agents` plugin, record what the phase cost (`../../references/token-tracking.md`, *Recording a phase's cost*).
 
 Results vs. SLOs, bottlenecks and evidence, environment caveats,
 recommendations, CI jobs, and statuses changed. Stop generators and any

@@ -1,6 +1,6 @@
 ---
 name: inspect
-description: Discover a database in depth through the audited runner — settings, tables with estimated sizes, columns, keys and constraints, indexes (unused, duplicate, invalid), views, routines, triggers, grants, links, legacy tables — into an inspection report, a schema-only export and an ERD, or diff two databases. Read-only, masked. Use for "inspect the database", "map this schema", "compare schemas".
+description: Discover a database in depth through the audited runner — tables with sizes, columns, keys, indexes (unused, duplicate), views, routines, triggers, grants, legacy tables — into an inspection report, schema-only export and ERD, or diff two databases. Read-only, masked. Use for "inspect the database", "map this schema", "compare schemas".
 ---
 
 # Database inspection

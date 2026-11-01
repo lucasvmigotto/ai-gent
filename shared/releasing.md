@@ -164,3 +164,22 @@ reads commits on `main` since the last tag, so work on an unmerged
 prefix is a naming slot, not a trigger. Prepare the release the way you
 prepare any change: on a working branch off `dev`, with the notes under
 `## Unreleased`, merged up like everything else.
+
+## How ai-gent itself releases
+
+- `.github/workflows/release.yml` runs on every push to `main`: the checks,
+  then `scripts/release.py`. A release bumps the `version` of each plugin
+  whose files (or the shared files it links) changed, promotes
+  `CHANGELOG.md`'s `## Unreleased` section (or generates one from the
+  commits), commits `chore(release): X.Y.Z`, tags `X.Y.Z` and publishes a
+  GitHub Release.
+- Don't bump plugin versions or tag by hand; a version already changed by
+  hand since the last tag is left alone.
+- Preview with `scripts/release.py --dry-run`.
+- The same flow is what the skills set up in other projects: the
+  single-version template is `shared/release-single.py` (tested by
+  `scripts/test-release-single.sh`) and the per-platform release jobs are
+  in `release-platforms.md`. Change the bump rules in both scripts
+  together.
+- After pushing, the bot's release commit lands on `main`: run
+  `git pull --ff-only` before the next local commit.

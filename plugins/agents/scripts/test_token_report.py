@@ -113,6 +113,31 @@ class TokenReportTest(unittest.TestCase):
         self.assertIn("coordinator sess1", text)
         self.assertIn("T001, T002", text)
 
+    def test_report_summary_is_a_few_lines_and_top_trims_the_file(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--summary", "--top=1"]))
+        out = buf.getvalue()
+        self.assertLessEqual(len(out.splitlines()), 12)
+        self.assertIn("billable", out)
+        self.assertIn("T001, T002", out)
+        self.assertFalse(Path("rollup.md").exists())  # --summary needs no --out
+        with contextlib.redirect_stdout(io.StringIO()):
+            tr.cmd_report(tr.p.parse_args(["report", f"--project={self.slug}", "--out=top.md", "--top=1"]))
+        text = Path("top.md").read_text()
+        self.assertIn("more not shown", text)
+        self.assertEqual(sum(1 for ln in text.splitlines() if ln.startswith("| 2026-")), 1)
+
+    def test_report_without_out_or_summary_is_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            tr.p.parse_args(["report", f"--project={self.slug}"])
+
+    def test_idle_rebuilds_counts_cache_writes_after_gaps_over_five_minutes(self):
+        big = {**USAGE, "cache_creation_input_tokens": 60_000}
+        msgs = [("2026-10-20T10:00:00Z", "m", USAGE), ("2026-10-20T10:02:00Z", "m", big),
+                ("2026-10-20T10:20:00Z", "m", big), ("2026-10-20T10:21:00Z", "m", big)]
+        self.assertEqual(tr.idle_rebuilds(msgs), (1, 60_000))
+
     def test_snapshot_and_backfill_merge_without_duplicates(self):
         snaps_path = str(self.work / "snaps.json")
         tr.cmd_snapshot(tr.p.parse_args(["snapshot", "--label=manual one", "--at=2026-10-20T00:00:00Z",
@@ -338,8 +363,14 @@ def rec(i, used, conf="exact", model="sonnet", effort="medium", layer="backend",
 class EstimateTest(unittest.TestCase):
     def test_few_records_fall_back_to_the_starting_table(self):
         est = tr.estimate_card([rec(i, 999) for i in range(4)], "sonnet", "medium", "backend", 4)
-        self.assertEqual((est["basis"], est["median"], est["p75"], est["n"]), ("starting table", 350_000, 550_000, 4))
+        self.assertEqual((est["basis"], est["median"], est["p75"], est["n"]), ("starting table", 128_000, 179_000, 4))
         self.assertEqual(tr.estimate_card([], "opus", "high", tasks=9)["median"], round(700_000 * 1.6))
+
+    def test_previous_sonnet_defaults_are_kept_and_the_measured_ones_documented(self):
+        self.assertEqual(tr.STARTING_PREVIOUS["sonnet"]["medium"], (350_000, 550_000))
+        doc = (Path(__file__).resolve().parents[3] / "shared" / "token-tracking.md").read_text()
+        for key in ("128k (179k)", "350k (550k)"):
+            self.assertIn(key, doc)
 
     def test_history_takes_over_with_median_p75_and_widens_the_match(self):
         recs = [rec(i, v) for i, v in enumerate([100, 200, 300, 400, 500])]
@@ -485,6 +516,19 @@ class TasksJsonTest(TasksFixture):
         self.assertEqual((c["feature"], c["model"], c["used"], c["agents"], c["calls"]), ("001-widget", "sonnet", 791_000, 2, 3))
         self.assertEqual((c["start"], c["end"]), ("2026-10-20T10:00:00Z", "2026-10-20T11:00:00Z"))
         self.assertIsInstance(c["projected"], int)
+
+    def test_tasks_summary_and_top_shorten_the_text(self):
+        full = self.run_tasks("--dry-run")
+        short_ = self.run_tasks("--dry-run", "--summary", "--top=1")
+        self.assertLess(len(short_.splitlines()), len(full.splitlines()) + 1)
+        self.assertIn("unattributed", short_)
+        self.assertNotIn("Survey the repo", self.run_tasks("--dry-run", "--summary", "--top=0"))
+
+    def test_history_record_carries_the_full_model_id(self):
+        self.run_tasks()
+        recs = [json.loads(x) for x in Path("docs/product/token-history.jsonl").read_text().splitlines() if x.strip()]
+        self.assertTrue(all(r.get("model_id") for r in recs))
+        self.assertEqual({r["model_id"] for r in recs}, {"claude-sonnet-5-5"})
 
     def test_json_writes_nothing(self):
         before = self.snapshot()

@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Turn docs/product/brief.md into a phased GitHub Spec Kit specification — bootstraps Spec Kit, writes the constitution, splits the product into specs/NNN-* features taken through specify, clarify, plan and tasks (implement is frontend-build/backend-build), and adds specs/README.md and the contracts/openapi.yaml skeleton. Use for "create the speckit specs", "break the project into features".
+description: Turn docs/product/brief.md into a phased GitHub Spec Kit specification — bootstraps Spec Kit, writes the constitution, splits the product into specs/NNN-* features taken through specify, clarify, plan and tasks, and adds specs/README.md and the contracts/openapi.yaml skeleton. Use for "create the speckit specs", "break the project into features".
 ---
 
 # Phased specification (Spec Kit)
@@ -16,7 +16,7 @@ stage builds on — so make them explicit, justified and consistent.
 ## Before starting
 
 1. Read `../../references/spec-kit.md` — the five steps, their gates and
-   who owns each — and `../../references/pipeline.md` for ownership,
+   who owns each — and `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) for ownership,
    artifacts and statuses.
 2. Required input: `docs/product/brief.md`. If missing, propose
    `project:init`; if the user wants to skip it, run its clarifying
@@ -72,6 +72,11 @@ and the ADRs, and the bar a finished constitution has to clear. In short:
 - number them, so `plan.md` and `/speckit-converge` can cite
   "Constitution III".
 
+**Research** (`../../references/research.md`, about 5 searches and 5 fetches):
+cite the standards a principle gates on (WCAG, OWASP ASVS, RFCs) with dated
+URLs, generic queries only. Label `[RESEARCHED: S<n>]`, `[KNOWN]` or
+`[ASSUMPTION]`; with no web tools, `[ASSUMPTION]`, "verify before relying".
+
 Cut any principle the project genuinely doesn't need, and list the cuts
 in the handoff with the reason — a constitution carrying a principle the
 project ignores teaches every later stage that it is advisory.
@@ -92,66 +97,25 @@ depends on, frontend status, backend status (all `Planned`).
 
 ### 4. Each feature: specify → clarify → plan → tasks
 
-Per `../../references/spec-kit.md`'s flow, in this order — each step's
-gate is in brackets. Use the Spec Kit skills (or their skill files), with
-`SPECIFY_FEATURE=NNN-<feature>` exported once the feature exists (see
-*Spec Kit* in that file), so stages running in parallel never work on
-each other's feature.
-
-1. `/speckit-specify` — prioritized user stories (P1…) with independent
-   tests and Given/When/Then scenarios, edge cases, `FR-###`
-   requirements, key entities, `SC-###` measurable success criteria,
-   assumptions. Use glossary terms only. State in the spec that tests
-   are required (the constitution demands them), so `/speckit-tasks`
-   generates test tasks — the Spec Kit template calls them optional, and
-   here they are not. Fill `Feature Branch` with the `git:workflow`
-   branch name.
-2. `/speckit-clarify` — [gate: `spec.md` written] resolve every
-   `[NEEDS CLARIFICATION]` marker with the user — at most four per prompt,
-   as options with a recommendation, in as many rounds as it takes
-   (pipeline rule 2; re-run `/speckit-clarify`, which asks five per
-   session) — and write the answers back into `spec.md`. A question the
-   user declines ("you decide", "skip") is yours to decide: decide it and
-   record `[DECIDED: … — delegated by the user]` with the reason. The step
-   is done when no marker is open.
-3. `/speckit-plan` — [gate: **no open `[NEEDS CLARIFICATION]`**] technical
-   context, constitution check, project structure, `research.md`,
-   `data-model.md`, `contracts/`, `quickstart.md`. Decisions:
-   - **Stack**: from `architecture.md`'s Stack decision. Only where it
-     leaves a choice open — then record it as an `[UPSTREAM GAP]` for
-     `project:architecture` — ask the user, suggesting their usual web
-     client stack (Bun · React · TypeScript · Vite · Tailwind CSS ·
-     Biome).
-   - **Structure**: Spec Kit's "web application" option (`backend/` +
-     `frontend/`) whenever there's a separate client — matching
-     `devcontainer:setup`'s split.
-   - **Dev environment**: note that `devcontainer:setup` (and
-     `devcontainer:infra` for each external resource) provides it.
-   - **Delivery**: CI/CD comes from `devsecops:pipeline`; the test layers
-     from `qa:strategy`.
-4. `/speckit-tasks` — [gate: `plan.md` written and its Constitution Check
-   passes] Spec Kit's phases as the installed template writes them (Setup →
-   Foundational → one phase per user story → Polish), with checkpoints.
-   Keep each story's phase at story level: its acceptance-test tasks and
-   the layer-neutral work, plus one task per affected layer that points
-   to the layer's section (`- [ ] T014 [US1] Backend implementation —
-   see ## Backend`). `frontend:spec` and `backend:spec` append those
-   `## Frontend` / `## Backend` sections with the detailed tasks, so
-   nothing is planned twice. Tag each task with the role that runs it and
-   the one that reviews it (`Executor: builder · Reviewer: thinker`, plus
-   `Effort: low` for mechanical work), roles from
-   `../../references/agent-roles.md`, so `agents:orchestrate` can route it.
-   Two optional tags may follow, which `agents:orchestrate` and
-   `token_report.py` fill or keep: `· Tags: extend, backend, protocol, rust,
-   known-pattern, integration, M` (the controlled list in
-   `../../references/token-tags.md`, one value per facet) and
-   `· Tokens: projected ~420k | used 391k` (never hand-edit `used`).
+Per `../../references/spec-kit.md`'s flow, with `SPECIFY_FEATURE=NNN-<feature>`
+exported once the feature exists. In order, each gated on the previous step:
+`/speckit-specify` (state that tests are required), `/speckit-clarify` (no
+`[NEEDS CLARIFICATION]` left; at most four questions per prompt, a declined
+one is decided and recorded as `[DECIDED: …]`), `/speckit-plan` (stack from
+`architecture.md`), `/speckit-tasks` (tag each task's role and reviewer).
+Read `references/feature-loop.md` before running a feature: each step's
+content, gates and tags in full. At `/speckit-plan`, research the chosen
+frameworks' current versions and best practices (method in
+`../../references/research.md`; re-research facts older than about 30
+days) and record them, with dated URLs, in the plan and in Spec Kit's
+`research.md`.
 
 The **implement** step is not yours: `frontend:build` and `backend:build`
-execute it, each against its own section of `tasks.md`, then close it with
-`/speckit-converge`. Name it in the handoff so nobody looks for it here.
+execute it, then close it with `/speckit-converge`. Name it in the handoff.
 
 ### 5. Contract skeleton — `contracts/openapi.yaml`
+
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
 
 OpenAPI 3.1, assembled from every feature's `contracts/`: one tag per
 feature, resources named with glossary terms, every operation with an

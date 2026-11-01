@@ -125,6 +125,85 @@ class PipelinePaths(unittest.TestCase):
         self.assertEqual(consistency.check_pipeline_paths(consistency.ROOT), [])
 
 
+class PipelineDigest(unittest.TestCase):
+    FULL = ("# P\n\n## Artifacts and owners\n\n| Path | Owner | R | N |\n|---|---|---|---|\n"
+            "| `docs/product/brief.md` | `project:init` | all | x |\n| `specs/README.md` | `project:spec` | all | x |\n\n"
+            "## Rules every stage follows\n\n1. **A.** x\n2. **B.** y\n   - *Planned* — a;\n"
+            "   - *Verified* — b;\n")
+    DIGEST = ("# D\n\nread `pipeline.md`.\n\n| Path | Owner | R |\n|---|---|---|\n"
+              "| `docs/product/brief.md` | `project:init` | all |\n| `specs/README.md` | `project:spec` | all |\n\n"
+              "## Statuses\n\nPlanned, Verified.\n\nSee §\"Rules every stage follows\" #2.\n")
+
+    def run_check(self, full=None, digest=None):
+        root = tree({"shared/pipeline.md": full or self.FULL, "shared/pipeline-digest.md": digest or self.DIGEST})
+        return consistency.check_pipeline_digest(root)
+
+    def test_a_faithful_digest_passes(self):
+        self.assertEqual(self.run_check(), [])
+
+    def test_a_path_the_contract_has_and_the_digest_lacks_fails(self):
+        self.assertEqual(len(self.run_check(digest=self.DIGEST.replace("| `specs/README.md` | `project:spec` | all |\n", ""))), 1)
+
+    def test_a_digest_path_the_contract_lacks_fails(self):
+        d = self.DIGEST.replace("`specs/README.md`", "`specs/OTHER.md`")
+        self.assertTrue(any("OTHER" in p for p in self.run_check(digest=d)))
+
+    def test_a_different_owner_fails(self):
+        d = self.DIGEST.replace("`project:spec`", "`project:init`")
+        self.assertTrue(any("owner" in p for p in self.run_check(digest=d)))
+
+    def test_a_missing_status_fails(self):
+        d = self.DIGEST.replace("Planned, Verified.", "Planned.")
+        self.assertTrue(any("Verified" in p for p in self.run_check(digest=d)))
+
+    def test_a_pointer_to_no_heading_fails(self):
+        d = self.DIGEST.replace("Rules every stage follows", "Nowhere")
+        self.assertTrue(any("Nowhere" in p for p in self.run_check(digest=d)))
+
+    def test_a_pointer_to_no_rule_fails(self):
+        self.assertTrue(any("#9" in p for p in self.run_check(digest=self.DIGEST.replace("#2", "#9"))))
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_pipeline_digest(consistency.ROOT), [])
+
+
+    def test_the_contract_applicability_section_must_be_in_the_digest(self):
+        full = self.FULL + "\n## Applicability: x\n\nrows\n"
+        full = full.replace("## Applicability: x", "## Applicability")
+        self.assertTrue(any("Applicability" in p for p in self.run_check(full=full)))
+        d = self.DIGEST.replace("## Statuses", "## Applicability\n\n| Artifact | Status | Reason |\nN/A\n\n## Statuses")
+        self.assertEqual(self.run_check(full=full, digest=d), [])
+
+
+class ApplicabilityRows(unittest.TestCase):
+    MODEL = "export const A = [\n  { path: X, label: 'contract', stage: 's' },\n  { path: Y, label: 'delivery', stage: 't' },\n]\n"
+
+    def run_check(self, rows):
+        text = "# Specs\n\n## Applicability\n\n| Artifact | Status | Reason |\n|---|---|---|\n" + rows + "\n## Next\n\n| bogus | row |\n"
+        root = tree({consistency.PIPELINE_MODEL: self.MODEL, "specs/README.md": text})
+        return consistency.check_applicability(root)
+
+    def test_a_valid_row_passes(self):
+        self.assertEqual(self.run_check("| `Contract` | N/A | no HTTP API |\n"), [])
+
+    def test_no_section_passes(self):
+        root = tree({consistency.PIPELINE_MODEL: self.MODEL, "specs/README.md": "# Specs\n"})
+        self.assertEqual(consistency.check_applicability(root), [])
+
+    def test_an_unknown_artifact_fails(self):
+        self.assertTrue(any("nonsense" in p for p in self.run_check("| nonsense | N/A | x |\n")))
+
+    def test_another_status_fails(self):
+        self.assertTrue(any("N/A" in p for p in self.run_check("| contract | Pending | x |\n")))
+
+    def test_an_empty_reason_fails(self):
+        self.assertTrue(any("reason" in p for p in self.run_check("| contract | N/A |  |\n")))
+        self.assertTrue(any("reason" in p for p in self.run_check("| contract | N/A |\n")))
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_applicability(consistency.ROOT), [])
+
+
 class StageNames(unittest.TestCase):
     MODEL = ("  {{ path: BRIEF, label: 'brief', stage: '/project:init', after: [] }},\n"
              "  {{ path: 'a.md', label: 'a', stage: '/project:architecture', after: [] }},\n"
@@ -354,6 +433,63 @@ class ReleaseJson(unittest.TestCase):
 
     def test_the_repository_agrees(self):
         self.assertEqual(consistency.check_release_json(consistency.ROOT), [])
+
+
+class Research(unittest.TestCase):
+    PTR = "Method: `../../references/research.md`.\n"
+
+    def linked(self, files, link=True, target="shared/research.md"):
+        root = tree({**files, "shared/research.md": "# x\n"})
+        if link:
+            ref = root / "plugins/p/references"
+            ref.mkdir(parents=True, exist_ok=True)
+            os.symlink("../../../" + target, ref / "research.md")
+        return root
+
+    def test_pointer_with_symlink_passes(self):
+        root = self.linked({"plugins/p/skills/s/SKILL.md": self.PTR})
+        self.assertEqual(consistency.check_research_links(root), [])
+
+    def test_pointer_without_symlink_fails(self):
+        root = self.linked({"plugins/p/skills/s/SKILL.md": self.PTR}, link=False)
+        self.assertEqual(len(consistency.check_research_links(root)), 1)
+
+    def test_symlink_to_the_wrong_file_fails(self):
+        root = self.linked({"plugins/p/skills/s/SKILL.md": self.PTR, "shared/other.md": "x\n"}, target="shared/other.md")
+        self.assertEqual(len(consistency.check_research_links(root)), 1)
+
+    def test_a_skill_own_research_reference_is_not_a_pointer(self):
+        root = self.linked({"plugins/p/skills/s/SKILL.md": "See `references/research.md`.\n"}, link=False)
+        self.assertEqual(consistency.check_research_links(root), [])
+
+    def test_deny_listed_skill_with_pointer_fails(self):
+        root = tree({"plugins/security/skills/scope/SKILL.md": self.PTR})
+        self.assertEqual(len(consistency.check_research_denied(root)), 1)
+
+    def test_deny_listed_skill_without_pointer_passes(self):
+        root = tree({"plugins/security/skills/scope/SKILL.md": "Record the scope.\n"})
+        self.assertEqual(consistency.check_research_denied(root), [])
+
+    def test_every_deny_entry_has_a_reason(self):
+        self.assertTrue(all(consistency.RESEARCH_DENY.values()))
+
+    def test_labels(self):
+        ok = tree({"shared/a.md": "x [RESEARCHED: S3] y [KNOWN] z [ASSUMPTION] [ASSUMPTION: why] [RESEARCHED: S<n>]\n"})
+        self.assertEqual(consistency.check_research_labels(ok), [])
+        for bad in ("[ASSUMED]", "[VERIFIED]", "[RESEARCHED]", "[RESEARCHED: 3]", "[KNOWN: S1]"):
+            with self.subTest(bad=bad):
+                self.assertEqual(len(consistency.check_research_labels(tree({"shared/a.md": bad + "\n"}))), 1)
+
+    def test_method_sections(self):
+        full = "\n".join(f"## {h}" for h in ("Research, ask or know", "Search recipes", "Source quality", "Citing and labels", "Safety", "Offline and thin results")) + "\nBudgets are soft.\n"
+        self.assertEqual(consistency.check_research_method(tree({"shared/research.md": full})), [])
+        problems = consistency.check_research_method(tree({"shared/research.md": full.replace("## Safety", "## Other")}))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("safety", problems[0])
+
+    def test_the_repository_agrees(self):
+        for check in (consistency.check_research_links, consistency.check_research_denied, consistency.check_research_labels, consistency.check_research_method):
+            self.assertEqual(check(consistency.ROOT), [], check.__name__)
 
 
 class Budget(unittest.TestCase):

@@ -1,6 +1,6 @@
 ---
 name: review
-description: Review how an application uses its database — ORM mappings vs. the real schema, migrations and drift, domain invariants vs. constraints, N+1 and unbounded queries, indexes, pooling, timeouts, isolation, account rights, credentials in config, backups — with ranked, evidenced findings and fixes as migrations or code on agreement. Use for "review our database usage", "check our queries".
+description: Review how an application uses its database — ORM mappings vs. the real schema, migrations, constraints, N+1 and unbounded queries, indexes, pooling, isolation, credentials in config, backups — with ranked, evidenced findings and fixes on agreement. Use for "review our database usage", "check our queries".
 ---
 
 # Database usage review

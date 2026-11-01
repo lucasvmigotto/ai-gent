@@ -42,11 +42,11 @@ const hint = ($: Parameters<Parameters<typeof test>[1]>[0], columns = 100, surfa
 const drawn = async (ui: Awaited<ReturnType<typeof hint>>) => ((await ui.find({ type: 'Text' } as never)) as { text?: string } | undefined)?.text ?? ''
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`a normal figure adds label, bar, used and remaining to the hint (${surface})`, OPTIONS, async ($, on) => {
+  test(`a normal figure adds a bar and the percent to the hint (${surface})`, OPTIONS, async ($, on) => {
     world(on)
     await $.session.start({ ...START, surface })
     const ui = await hint($, 100, surface)
-    expect(await drawn(ui)).toMatch(/^\? for shortcuts {2}Context █{8}░{12} 42% used · 58% remaining$/)
+    expect(await drawn(ui)).toMatch(/^\? for shortcuts {2}◐ █{8}░{12} 42%$/)
     await ui.unmount()
   })
 }
@@ -56,16 +56,16 @@ test('the meter follows the figure at each turn end, with one usage read per tur
   await $.session.start(START)
   expect(w.usageCalls).toBe(1)
   const ui = await hint($)
-  expect(await drawn(ui)).toContain('30% used')
+  expect(await drawn(ui)).toContain(' 30%')
   w.percent = 70
   await turn($)
   expect(w.usageCalls).toBe(2)
-  expect(await drawn(ui)).toContain('70% used')
-  expect(await drawn(ui)).toContain('⚠ approaching')
+  expect(await drawn(ui)).toContain(' 70%')
+  expect(await drawn(ui)).toContain('⚠')
   w.percent = 91
   await turn($)
   expect(w.usageCalls).toBe(3)
-  expect(await drawn(ui)).toContain('✖ critical')
+  expect(await drawn(ui)).toContain('✖')
   // drawing again reads nothing
   await ui.unmount()
   const again = await hint($)
@@ -82,7 +82,7 @@ test('the nudge and the meter share one read, and the nudge threshold sets the c
   expect(w.usageCalls - before).toBe(1)
   expect(w.toasts.some(t => t.startsWith('Context 55% full'))).toBe(true)
   const ui = await hint($)
-  expect(await drawn(ui)).toContain('✖ critical')
+  expect(await drawn(ui)).toContain('✖')
   await ui.unmount()
 })
 
@@ -90,13 +90,13 @@ test('0 and 100 draw; a figure over 100 is clamped', OPTIONS, async ($, on) => {
   const w = world(on, { percent: 0 })
   await $.session.start(START)
   const ui = await hint($)
-  expect(await drawn(ui)).toContain('0% used · 100% remaining')
+  expect(await drawn(ui)).toMatch(/ 0%$/)
   w.percent = 100
   await turn($)
-  expect(await drawn(ui)).toContain('100% used · 0% remaining')
+  expect(await drawn(ui)).toMatch(/ 100% ✖$/)
   w.percent = 130
   await turn($)
-  expect(await drawn(ui)).toContain('100% used')
+  expect(await drawn(ui)).toContain('100%')
   await ui.unmount()
 })
 
@@ -104,14 +104,14 @@ test('a missing, NaN, invalid or failed figure shows nothing, and clears an earl
   const w = world(on, { percent: 50 })
   await $.session.start(START)
   const ui = await hint($)
-  expect(await drawn(ui)).toContain('50% used')
+  expect(await drawn(ui)).toContain(' 50%')
   for (const bad of [undefined, Number.NaN, 'x', null]) {
     w.percent = bad
     await turn($)
     expect(await drawn(ui)).toBe('? for shortcuts')
     w.percent = 50
     await turn($)
-    expect(await drawn(ui)).toContain('50% used')
+    expect(await drawn(ui)).toContain(' 50%')
   }
   w.usageFails = true
   await turn($)
@@ -120,10 +120,10 @@ test('a missing, NaN, invalid or failed figure shows nothing, and clears an earl
 })
 
 for (const [columns, pattern] of [
-  [100, /Context █+░+ 42% used · 58% remaining/],
-  [60, /Context █+░+ 42% used/],
-  [30, /Context 42% used|ctx 42%/],
-  [26, /ctx 42%/],
+  [100, /◐ █+░+ 42%/],
+  [60, /◐ █+░+ 42%/],
+  [30, /◐ █+░+ 42%|◐ 42%/],
+  [26, /42%/],
 ] as const) {
   test(`${columns} columns: the tail fits the row beside the hint`, OPTIONS, async ($, on) => {
     world(on)
@@ -150,12 +150,12 @@ test('chromeAscii draws the meter with ASCII only', { options: { contextMeter: t
   const ui = await hint($)
   const row = await drawn(ui)
   expect(row).toContain('#')
-  expect(row).toContain('!! critical')
+  expect(row).toContain('!!')
   expect(row).not.toMatch(/[^\x20-\x7e]/)
   await ui.unmount()
 })
 
-test('contextMeter off: no hint change and no usage read beyond the nudge\'s own', { options: { contextMeter: false } }, async ($, on) => {
+test('contextMeter off: no hint change and no usage read beyond the nudge\'s own', { options: { contextMeter: false, usageMeter: false } }, async ($, on) => {
   const w = world(on)
   await $.session.start(START)
   expect(w.usageCalls).toBe(0)
@@ -170,7 +170,7 @@ test('on by default: the hint line carries the meter', async ($, on) => {
   await turn($)
   expect(w.usageCalls).toBeGreaterThan(0)
   const ui = await hint($)
-  expect(await drawn(ui)).toContain('used')
+  expect(await drawn(ui)).toContain('%')
   await ui.unmount()
 })
 

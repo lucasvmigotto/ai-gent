@@ -129,11 +129,12 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
         {head(artifacts, true)}
         {artifacts.rows.map(r => row(artifacts, r, true))}
         {!m.hasGit ? <Text dimColor>Staleness needs git.</Text> : null}
-        <Box key="stages" gap={2} flexWrap="wrap">
+        <Box key="stages" gap={m.stageArrow ? 1 : 2} flexWrap="wrap">
           <Text dimColor>Stages (an aid)</Text>
-          {m.stages.map(s => (
-            <Text key={`stage:${s.key}`} {...look(s.tone)} bold={s.state === 'current'}>{`${s.glyph} ${s.label}`}</Text>
-          ))}
+          {m.stages.flatMap((s, i) => [
+            ...(m.stageArrow && i > 0 ? [<Text key={`arrow:${s.key}`} dimColor>{m.stageArrow}</Text>] : []),
+            <Text key={`stage:${s.key}`} {...look(s.tone)} bold={s.state === 'current'}>{`${s.glyph} ${s.label}`}</Text>,
+          ])}
         </Box>
       </Box>
 

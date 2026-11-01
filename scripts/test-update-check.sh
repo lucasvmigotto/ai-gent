@@ -111,14 +111,18 @@ else
   failures=$((failures + 1))
 fi
 
-# A stale cache forks a detached refresh; drain it by removing the cache
-# and waiting for the fork to rewrite it — proving no refresh is still in
-# flight, so later cases see a deterministic cache.
+# A stale cache forks a detached refresh. Drain it: wait until the cache
+# shows the refresh landed (its timestamp is no longer the stale $OLD one),
+# then remove it. Removing first would race a refresh that already finished
+# and wait for a rewrite that never comes; waiting for the landing proves no
+# refresh is still in flight, so later cases see a deterministic cache.
 drain_refresh() {
-  rm -f "$XDG_STATE_HOME/ai-gent/update-check"
-  for _ in $(seq 1 50); do
-    [[ -f "$XDG_STATE_HOME/ai-gent/update-check" ]] || { sleep 0.1; continue; }
-    [[ "$(cut -d' ' -f2 <"$XDG_STATE_HOME/ai-gent/update-check")" == 9.9.9 ]] && return 0
+  local f="$XDG_STATE_HOME/ai-gent/update-check"
+  for _ in $(seq 1 100); do
+    if [[ -f "$f" && "$(cut -d' ' -f1 <"$f")" != "$OLD" && "$(cut -d' ' -f2 <"$f")" == 9.9.9 ]]; then
+      rm -f "$f"
+      return 0
+    fi
     sleep 0.1
   done
   return 1

@@ -24,7 +24,7 @@ the brief's goal is explicitly conversion on that surface.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` (relative to this skill's base
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) (relative to this skill's base
    directory) — the artifact paths, ownership and rules used below.
 2. Read `../../references/visual-direction.md` — the visual-design method
    and the list of AI-default looks to avoid. This skill applies it.
@@ -35,6 +35,8 @@ the brief's goal is explicitly conversion on that surface.
 4. If the project already has UI (a redesign), inventory it first:
    routes/screens, components, current tokens, current copy. The vision
    either keeps, evolves or replaces each — say which.
+
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
 
 ## Inputs: text or references
 
@@ -85,7 +87,9 @@ audiences that must not be alienated).
    its list of AI defaults and against a similar product — revise
    anything generic and state what changed. Record the result as **draft
    tokens** (`color.bg`, `color.text.muted`, `space.3`, `radius.control`,
-   `motion.duration.short`, …) for `frontend:spec` to finalize.
+   `motion.duration.short`, …) for `frontend:spec` to finalize. Design
+   references may be researched (`../../references/research.md`); never
+   upload brand material, and query with generic terms only.
 6. **Interaction and states.** Patterns used everywhere: forms and
    validation timing, feedback (toast vs. inline vs. page), confirmation
    for destructive actions, loading (skeleton vs. spinner, when),
@@ -96,7 +100,12 @@ audiences that must not be alienated).
 8. **Accessibility targets.** WCAG 2.2 AA minimum: contrast pairs checked
    for the drafted palette, focus visibility, keyboard paths for each key
    flow, reduced motion, target size, language of page, screen-reader
-   announcements for async results.
+   announcements for async results. **Research** (method in
+   `../../references/research.md`, about 5 searches and 5 fetches): the
+   current WCAG 2.2 and 3.0 status, the platform HIG, and the legal
+   standards that apply (EAA, ADA, Section 508), each cited with a dated
+   URL as `[RESEARCHED: S<n>]`, else `[ASSUMPTION]` with "verify before
+   relying" (not legal advice; confirm with counsel).
 9. **Language.**
    - **Which language, first.** Infer the interface's primary language
      from what's given and confirm it with the user before writing any
@@ -138,7 +147,7 @@ tokens · Interaction patterns & states · Responsive behavior ·
 Accessibility targets · Voice & tone · Terminology · Microcopy patterns ·
 Key-screen copy · Localization · Terminal interface (only when requested)
 · Open questions · Decision log (choices made, alternatives rejected,
-why).
+why) · Sources (`S<n>`, claim, URL, retrieved date).
 
 Mark the file `Status: Draft` (`Accepted` once the user agrees). Use real product content everywhere.
 

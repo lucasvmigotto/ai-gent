@@ -9,7 +9,7 @@ description: Define a risk-based test strategy for the project and each feature 
 
 1. Read `../../references/qa-quality.md` (role, division of labor,
    anti-patterns), `../../references/browsers.md` (containerized browser
-   execution), `../../references/pipeline.md` and
+   execution), `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) and
    `../../references/spec-kit.md`.
 2. Read: the brief (NFRs, compliance, audiences), `architecture.md`
    (topology, capacity model, SLOs), the constitution, every feature's
@@ -21,6 +21,8 @@ description: Define a risk-based test strategy for the project and each feature 
    supported browsers/devices, environments available for testing (is
    there a staging?), who does UAT, release cadence, tolerance for
    pipeline duration.
+
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
 
 ## Process
 
@@ -51,7 +53,11 @@ description: Define a risk-based test strategy for the project and each feature 
    `selenium/standalone-*` containers per `../../references/browsers.md`), CI (ephemeral
    services, the same browser images), preview/staging; what runs where; the limits of each
    (e.g. load numbers from a laptop are relative only).
-5. **Gates per pipeline stage** — PR, main, pre-production, scheduled:
+5. **Gates per pipeline stage** (research the tool versions, browser
+   support and accessibility tooling first, `../../references/research.md`,
+   about 5 searches and 5 fetches; cite source and date in
+   `test-strategy.md`, labelled `[RESEARCHED: S<n>]`, `[KNOWN]` or
+   `[ASSUMPTION]`, "verify before relying" with no web tools) — PR, main, pre-production, scheduled:
    which suites must pass, thresholds (e.g. zero axe violations, p95 from
    SLOs), max allowed flake rate. `devsecops:pipeline` implements them.
 6. **Exit criteria for Verified** — per feature: its e2e journeys pass

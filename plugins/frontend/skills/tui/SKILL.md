@@ -1,6 +1,6 @@
 ---
 name: tui
-description: Build a terminal interface the user asked for — a TUI and the CLI it sits on (subcommands, --json, exit codes), or a CLI alone — with Go/Bubble Tea, Rust/Ratatui, Python/Textual, Java/Lanterna, TypeScript/Ink or .NET/Spectre.Console, against the API contract, with snapshot and keystroke tests and packaging. Use for "build a TUI", "terminal dashboard", "design the CLI". Never creates a TUI unasked.
+description: Build a terminal interface the user asked for — a TUI and the CLI it sits on (subcommands, --json, exit codes), or a CLI alone — in the stack that fits (Go, Rust, Python, TypeScript, .NET, Java), with snapshot and keystroke tests. Use for "build a TUI", "terminal dashboard", "design the CLI". Never creates a TUI unasked.
 ---
 
 # Terminal interfaces — TUI and CLI
@@ -24,7 +24,7 @@ tool to manage orders"), ask which interface they want.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md`,
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case),
    `../../references/terminal-design.md` and
    `../../references/terminal-stacks.md`.
 2. Read what exists: `docs/product/ux-vision.md` (its terminal section),
@@ -35,7 +35,11 @@ tool to manage orders"), ask which interface they want.
 3. **Stack.** Use the architecture's choice; if it's open, choose with
    `terminal-stacks.md` (client of the API → free choice; embeds the
    project's code → its language) and record an ADR. Default when free:
-   Go with Bubble Tea.
+   Go with Bubble Tea. Check the candidate libraries' current versions
+   and maintenance status and the terminal compatibility they rely on
+   (`../../references/research.md`, about 5 searches and 5 fetches;
+   library names only), cited in the ADR as `[RESEARCHED: S<n>]`; offline,
+   `[ASSUMPTION]`, "verify before relying".
 4. **Environment.** Build and test in the project's tools container
    (`devcontainer:workflow`); interactive runs need a TTY (`run -it`).
 
@@ -89,9 +93,7 @@ only after the last checkpoint passes.
 
 ## Handoff
 
-After any push of this work, follow its CI with `devsecops:watch`
-(pipeline rule 8 in `../../references/pipeline.md`): a red run caused by
-the change is fixed here before the feature counts as done.
+After any push, follow CI with `devsecops:watch` (pipeline rule 8, `../../references/pipeline.md`); fix a red run this change caused before calling the feature done.
 
 The commands and screens built, the stack and its ADR, test and tape
 results, the release artifacts, and what's open. `qa:e2e` covers

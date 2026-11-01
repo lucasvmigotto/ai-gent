@@ -419,3 +419,10 @@ project marks what it owns and removes it by that mark.
 - **Report what's left.** Every handoff that built or ran containers ends
   with the project's labelled resources and their sizes (`clean dry=1` or
   `wt.py resources`), so a leftover is visible the same day.
+
+### Maintaining the label rules
+
+`scripts/consistency.py` fails a skill that creates volumes, tools images,
+compose stacks or worktrees without saying how they're removed, and a line
+that teaches a prune. `wt.py`'s container code is tested against a fake
+`CONTAINER_ENGINE`; never point its tests at a real one.

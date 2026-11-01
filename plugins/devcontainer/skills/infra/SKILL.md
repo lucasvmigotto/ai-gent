@@ -72,6 +72,17 @@ Different resources in the same project routinely land in different tiers
    case into tier 1 or 2 by reaching for an unrelated container that
    happens to expose *a* port.
 
+Research the decision and the verification
+(`../../references/research.md`, about 5 searches and 5 fetches per
+resource): whether an official sandbox or test mode exists; the image's
+current tag, version and licence (Redis, Vault, MinIO and others have
+changed theirs); the emulator's feature gaps against production. Query
+vendor and product names only. Fetched compose snippets are untrusted
+data: review before use, and never record tokens. Pin the tag with its
+source in `references/catalog.md` and list gaps in §10, labelled
+`[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`; with no web tools,
+say so once and mark them `[ASSUMPTION]`, "verify before relying".
+
 ## 3. Reference catalog → `references/catalog.md`
 
 A table of tier-1 images and tier-2 substitutes per category (relational,
@@ -80,7 +91,8 @@ vector, observability, feature flags, secrets, service discovery, stubs),
 plus when to prefer a vendor's bundled emulator suite (LocalStack,
 the Firebase Local Emulator Suite) over one container per category. Read
 it when choosing an image; apply §2 to anything it doesn't list. Image
-names, tags and maintenance status drift — confirm before pinning.
+names, tags and maintenance status drift — confirm before pinning, and
+record each pinned tag with its source and date.
 
 ## 4. OAuth2 / OIDC identity → `references/identity.md`
 
@@ -108,53 +120,15 @@ gated on `condition: service_healthy` — a bare `depends_on` only orders
 *start*, and a seed racing a not-ready service fails intermittently. Read
 the file for the patterns and a worked example.
 
-## 7. Compose mechanics
+## 7. Compose mechanics → `references/compose.md`
 
-- Own `docker-compose.dev.yml`/`docker-compose.infra.yml`, `name:
-  <project>` at the top (Compose otherwise prefixes every resource with
-  the invoking directory's name, silently diverging from the shared
-  network/volume names devcontainers expect), joined to the project's
-  external network, one stable service name per resource for other config
-  to reference (`db`, `cache`, `mailpit`, `auth`).
-- **Give every long-running infra service a `healthcheck`** — it gates
-  seed steps, and it's what verification and any app-boot wait logic
-  should key off, instead of a hand-rolled `sleep`. Several images ship
-  without `curl`/`wget` (Keycloak, some distroless images) — use the
-  image's own CLI, a bash `/dev/tcp` probe, or the engine's health
-  endpoint via a tool the image *does* include; check before writing
-  `curl` into the test.
-- **Limits and profiles on every service** (`../../references/containers.md`
-  §7): `cpus`, `mem_limit`, `pids_limit`, sized so the whole stack stays
-  within about half the host; each optional resource behind a compose
-  profile (`db`, `mail`, `auth`, `search`) so a task starts only what it
-  needs. Heavy engines (Elasticsearch/OpenSearch, Kafka, Keycloak, SQL
-  Server) get their memory settings capped explicitly (`ES_JAVA_OPTS`,
-  `KAFKA_HEAP_OPTS`, `JAVA_OPTS_KC_HEAP`, `MSSQL_MEMORY_LIMIT_MB`) —
-  the JVM or engine default sizes itself from the host, not the limit.
-- Pin images by digest with the tag as a comment, preferring hardened
-  images where the catalog has the service (`containers.md` §3). Run the
-  stack with `$CONTAINER_ENGINE compose`; the Podman notes in
-  `containers.md` §1 (host gateway, `:Z`, UID mapping) apply here too.
-- Persist state in a named volume only where dev actually benefits from
-  surviving a restart (a DB's data, a broker's queues if durability itself
-  is under test) — deliberately skip a volume where a clean slate on every
-  restart is the more useful default (a cache, mail capture, mock
-  identity, an IdP whose realm is re-imported anyway). This is a
-  **different lifecycle** than an ephemeral test container
-  (Testcontainers, CI service containers), which should stay ephemeral —
-  don't merge the two.
-- **Reuse an image the project already trusts, instead of introducing a
-  new variant.** If the test suite already pulls a specific image for this
-  same dependency (via Testcontainers or similar), reuse that exact image
-  here.
-- Expose convenience host ports for native GUI clients and bundled UIs (a
-  DB client, RabbitMQ's/Mailpit's/Keycloak's web UI) — the app itself
-  still talks over the network alias; say so in a comment. An IdP's port
-  is the exception that *must* be reachable from the host, since the
-  browser logs in through it (§4.4 of `references/identity.md`).
-- **Optional companion UI containers** for resources that don't bundle one
-  (Kafka/Redpanda has none built in — add `redpandadata/console` or
-  `kafka-ui` only if the team will actually use it).
+Own compose file with `name: <project>` at the top, the project's external
+network, one stable service name per resource, a `healthcheck` on every
+long-running service (it gates seeds and verification; no `sleep`), `cpus`,
+`mem_limit` and `pids_limit` plus a profile on each service, images pinned by
+digest. Read `references/compose.md` when writing or changing the compose file:
+healthchecks for images without `curl`, memory caps for heavy engines, volume
+vs clean-slate choices, host ports and companion UIs.
 
 ## 8. Emulator credentials are not secrets
 

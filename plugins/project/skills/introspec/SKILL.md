@@ -1,6 +1,6 @@
 ---
 name: introspec
-description: Reverse-engineer an existing codebase into the pipeline's full specification — brief, as-is architecture, domain model, Spec Kit features with evidence-based statuses, and an OpenAPI contract from the real routes — labelling each claim Observed (file:line), Inferred or Assumed. May read a dev database, never production. Use for "reverse-engineer the spec", "document what this legacy app does".
+description: Reverse-engineer an existing codebase into the pipeline's full specification — brief, as-is architecture, domain model, Spec Kit features with evidence-based statuses, OpenAPI contract from the real routes — each claim labelled Observed, Inferred or Assumed. Never reads production. Use for "reverse-engineer the spec", "document what this legacy app does".
 ---
 
 # Introspective specification
@@ -54,6 +54,14 @@ Every claim in every artifact carries one:
   `RABBITMQ_URL` variable → RabbitMQ.
 - `[ASSUMPTION: …]` — the pipeline's marker, for what only the user can
   confirm (why a rule exists, who the audiences are, business goals).
+
+**Research never upgrades a claim.** The web may resolve an Inferred
+claim about a third-party library or API from its public docs
+(`../../references/research.md`, about 5 searches and 5 fetches; library
+names and versions only, never the repository's code). The claim stays
+Inferred and gains `[RESEARCHED: S<n>]` with a dated URL; Observed stays
+code-only and is never set or changed by a source. Offline, nothing
+changes.
 
 Prefer the cheapest strong evidence; a test that asserts a rule beats the
 code implementing it, which beats a comment or a README.

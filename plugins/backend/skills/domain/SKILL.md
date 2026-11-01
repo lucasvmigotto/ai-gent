@@ -16,7 +16,7 @@ rules and the non-functional requirements.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md`,
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case),
    `../../references/spec-kit.md` (the `plan` step's `data-model.md` is
    an input here) and `../../references/backend-quality.md` (the modeling
    tells apply here).
@@ -33,6 +33,8 @@ Clarify (pipeline rule 2) with questions targeted at rules that change
 the model: what must never happen, who may do what, what happens
 on conflict (two people booking the last slot), what must be audited,
 how long data is kept, which numbers are money/time/quantities.
+
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
 
 ## Process
 
@@ -76,6 +78,10 @@ how long data is kept, which numbers are money/time/quantities.
 10. **Data ownership & lifecycle.** Per entity: owning context,
     personal-data classification (none / personal / sensitive under
     LGPD/GDPR), retention and deletion/anonymization rules, audit needs.
+    Research the categories and the industry vocabulary against primary
+    sources (`../../references/research.md`, about 5 searches and 5
+    fetches; generic terms only, never paste real data); not legal
+    advice, confirm with counsel.
 11. **Integrations.** Per external system: direction, sync vs. async,
     the anti-corruption translation, idempotency, failure behavior.
 12. **Volumes.** Expected counts and rates per aggregate and hot path,
@@ -91,7 +97,8 @@ Sections: Summary · Inputs used (and missing) · Event storming list ·
 Context map · Per context: aggregates, value objects, lifecycles,
 policies · Authorization model · Read models & access patterns ·
 Consistency & concurrency · Data ownership, privacy & retention ·
-Integrations · Volumes · Open questions · Decision log.
+Integrations · Volumes · Open questions · Decision log · a Sources line
+(`S<n>`, claim, URL, retrieved date; `[ASSUMPTION]` when offline).
 
 Use glossary names exactly; any new term goes into the brief's glossary
 first (pipeline rule). Mark the file `Status: Draft` (`Accepted` once the user agrees).
