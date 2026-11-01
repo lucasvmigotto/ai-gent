@@ -96,6 +96,18 @@ obvious default at this size gets a one-line reason in
 
 1. Deployment shape (default: a modular monolith whose modules are the bounded contexts; justify anything more distributed with a driver) 2. Hosting 3. API style 4. Data 5. Integration & messaging 6. Identity & access 7. Multi-tenancy (if applicable) 8. Resilience & DR 9. Observability 10. Delivery (details to `devsecops:pipeline`) 11. Cost 12. Stack (per module; `project:spec`'s plans take it from here).
 
+**Research the volatile facts** (`../../references/research.md`, about 5
+searches and 5 fetches per decision, extended search only for hosting,
+data and compliance): vendor limits, pricing and SLAs, region
+availability, regulations (GDPR, LGPD, PCI, HIPAA, DORA, data residency)
+and reference architectures, for hosting, data, identity, DR, cost and
+the capacity model. Queries carry generic drivers only ("multi-tenant
+SaaS, 5k RPS, EU data"), never the client's name or business details.
+Pricing is dated and flagged volatile (re-research past about 30 days).
+Label claims `[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`; with no
+web tools, say so once and mark them `[ASSUMPTION]` with "verify before
+relying".
+
 Read `references/decisions.md` for each dimension you decide: its options, defaults and what must justify a departure. Read it per topic, not whole, when only some dimensions apply.
 
 ## Evolution path
@@ -116,10 +128,11 @@ requirement.
   diagrams (mermaid), deployment view, data view · Decisions summary table
   (dimension → choice → ADR) · Cost estimate · Risks · Architecture
   fitness functions (automatable checks: module dependency rules, latency
-  budgets, cost alarms) · Evolution path · Open questions.
+  budgets, cost alarms) · Evolution path · Open questions · Sources (`S<n>`, claim, URL, retrieved date).
 - `docs/product/adr/NNNN-<decision>.md` — MADR format: context and
   drivers, considered options, decision outcome, consequences (good and
-  bad), confirmation (how we'll know it was right).
+  bad), confirmation (how we'll know it was right), and an **Evidence**
+  line (`S<n>` rows, or `[ASSUMPTION]`).
 - In review mode, a prioritized **improvement list**: issue → evidence
   (metric, file, config) → recommendation → effort → expected gain.
 

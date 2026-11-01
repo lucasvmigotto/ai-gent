@@ -17,6 +17,16 @@ agreed to.
 
 ## 1. Threat model
 
+**Research gate.** Only after a `security:scope` record exists, research
+the stack in scope (`../../references/research.md`, about 5 searches and
+5 fetches): current advisories and CVEs for its products and versions,
+new techniques, MITRE ATT&CK and ATLAS and OWASP (including the LLM Top
+10) updates. Queries carry product, version and technique only, never
+target hostnames, IPs, secrets or finding details. A published PoC is
+never run against anything the scope record doesn't name. Label claims
+`[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`; with no web tools, say
+so once and mark them `[ASSUMPTION]`, "verify before relying".
+
 From the architecture (`docs/product/architecture.md` if it exists, else
 read the code) and the scope record: the assets worth attacking, trust
 boundaries, entry points, and the attacker profiles that actually apply
@@ -34,6 +44,9 @@ A system usually spans more than one — run each relevant checklist:
   → `../../references/ai-security.md`
 
 ## 3. Attack plan before action
+
+Fold the researched advisories and techniques (same gate and query rules
+as step 1) into the plan, each with its source.
 
 Write the planned attack paths (what, why, the evidence expected) before
 running anything that changes state — this is what the user confirmed
@@ -63,7 +76,8 @@ what to check.
 
 `docs/product/security/red-<date>.md`: scope reference, threat model,
 what was tested, the findings table, and what's out of scope and why (so
-the next round of testing knows where the gap is).
+the next round of testing knows where the gap is). A References section
+carries the `S<n>` rows (claim, URL, retrieved date).
 
 ## Handoff
 

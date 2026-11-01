@@ -65,6 +65,15 @@ OpenAPI 3.1:
   `devcontainer:infra` §4 for the dev simulation), scopes/roles per
   operation.
 - **Examples** for every request and response, with real domain values.
+- **Research the external facts** (`../../references/research.md`, about 5
+  searches and 5 fetches; send vendor and product names and the standard
+  asked about, never the internal contract): vendor API limits, auth,
+  webhooks and error models; standards (RFC 9457, OAuth/OIDC BCPs, ISO
+  4217 and 3166, PSD2 and the like); the current OpenAPI and AsyncAPI
+  versions. Label `[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`;
+  record them in `specs/NNN-*/research.md` (sources, dated URLs) and the
+  Integrations table below. No web tools: `[ASSUMPTION]`, "verify before
+  relying".
 - Lint it (Spectral or Redocly with a ruleset committed to the repo) and
   keep each feature's `specs/NNN/contracts/` a matching subset.
 - `contracts/asyncapi.yaml` for events consumed outside the service.
@@ -89,7 +98,8 @@ In `specs/NNN-<feature>/backend.md`:
 - **Async work** — background jobs (trigger, schedule, retries,
   idempotency), domain events via transactional outbox, consumers and
   their dedup strategy.
-- **Integrations** — per outbound call: timeout, retry/backoff, circuit
+- **Integrations** — a table per vendor: limit or price, source (`S<n>`),
+  date; per outbound call: timeout, retry/backoff, circuit
   breaker, fallback, the anti-corruption mapping; and the dev simulation
   for each (hand the list to `devcontainer:infra`).
 - **Observability** — log events (fields, no PII), metrics (RED per

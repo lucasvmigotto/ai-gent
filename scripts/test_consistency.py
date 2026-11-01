@@ -398,6 +398,63 @@ class ReleaseJson(unittest.TestCase):
         self.assertEqual(consistency.check_release_json(consistency.ROOT), [])
 
 
+class Research(unittest.TestCase):
+    PTR = "Method: `../../references/research.md`.\n"
+
+    def linked(self, files, link=True, target="shared/research.md"):
+        root = tree({**files, "shared/research.md": "# x\n"})
+        if link:
+            ref = root / "plugins/p/references"
+            ref.mkdir(parents=True, exist_ok=True)
+            os.symlink("../../../" + target, ref / "research.md")
+        return root
+
+    def test_pointer_with_symlink_passes(self):
+        root = self.linked({"plugins/p/skills/s/SKILL.md": self.PTR})
+        self.assertEqual(consistency.check_research_links(root), [])
+
+    def test_pointer_without_symlink_fails(self):
+        root = self.linked({"plugins/p/skills/s/SKILL.md": self.PTR}, link=False)
+        self.assertEqual(len(consistency.check_research_links(root)), 1)
+
+    def test_symlink_to_the_wrong_file_fails(self):
+        root = self.linked({"plugins/p/skills/s/SKILL.md": self.PTR, "shared/other.md": "x\n"}, target="shared/other.md")
+        self.assertEqual(len(consistency.check_research_links(root)), 1)
+
+    def test_a_skill_own_research_reference_is_not_a_pointer(self):
+        root = self.linked({"plugins/p/skills/s/SKILL.md": "See `references/research.md`.\n"}, link=False)
+        self.assertEqual(consistency.check_research_links(root), [])
+
+    def test_deny_listed_skill_with_pointer_fails(self):
+        root = tree({"plugins/security/skills/scope/SKILL.md": self.PTR})
+        self.assertEqual(len(consistency.check_research_denied(root)), 1)
+
+    def test_deny_listed_skill_without_pointer_passes(self):
+        root = tree({"plugins/security/skills/scope/SKILL.md": "Record the scope.\n"})
+        self.assertEqual(consistency.check_research_denied(root), [])
+
+    def test_every_deny_entry_has_a_reason(self):
+        self.assertTrue(all(consistency.RESEARCH_DENY.values()))
+
+    def test_labels(self):
+        ok = tree({"shared/a.md": "x [RESEARCHED: S3] y [KNOWN] z [ASSUMPTION] [ASSUMPTION: why] [RESEARCHED: S<n>]\n"})
+        self.assertEqual(consistency.check_research_labels(ok), [])
+        for bad in ("[ASSUMED]", "[VERIFIED]", "[RESEARCHED]", "[RESEARCHED: 3]", "[KNOWN: S1]"):
+            with self.subTest(bad=bad):
+                self.assertEqual(len(consistency.check_research_labels(tree({"shared/a.md": bad + "\n"}))), 1)
+
+    def test_method_sections(self):
+        full = "\n".join(f"## {h}" for h in ("Research, ask or know", "Search recipes", "Source quality", "Citing and labels", "Safety", "Offline and thin results")) + "\nBudgets are soft.\n"
+        self.assertEqual(consistency.check_research_method(tree({"shared/research.md": full})), [])
+        problems = consistency.check_research_method(tree({"shared/research.md": full.replace("## Safety", "## Other")}))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("safety", problems[0])
+
+    def test_the_repository_agrees(self):
+        for check in (consistency.check_research_links, consistency.check_research_denied, consistency.check_research_labels, consistency.check_research_method):
+            self.assertEqual(check(consistency.ROOT), [], check.__name__)
+
+
 class Budget(unittest.TestCase):
     def test_ceiling(self):
         root = tree({"skills/a/SKILL.md": "---\nname: a\ndescription: " + "x" * 100 + "\n---\n"})
