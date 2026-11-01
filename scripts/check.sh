@@ -437,6 +437,14 @@ else
   fail "update-check tests"
 fi
 
+if ((QUICK)); then
+  warn "--quick: skipped ai-gent update end-to-end test"
+elif scripts/test-update.sh; then
+  pass "ai-gent update end-to-end (scripts/test-update.sh)"
+else
+  fail "ai-gent update end-to-end (scripts/test-update.sh)"
+fi
+
 # -------------------------------------------------------------------- rust
 
 # The workspace under rust/ (spec 032): fmt, clippy, tests, deny. Skipped with a warning when
