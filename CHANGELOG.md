@@ -4,6 +4,13 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## 2.26.0 — 2026-11-01
+
+### Added
+
+- **install:** pin on an explicit VERSION and list install.sh in SHA256SUMS
+- **install:** ship a release package and make it the default install
+
 ## 2.25.0 — 2026-11-01
 
 ### Added
