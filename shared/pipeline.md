@@ -139,6 +139,36 @@ is the remote-tracking refs, through `git fetch`.
   Never tick a task another stage owns, and never run a whole-file
   implementation pass over a layered `tasks.md`.
 
+## Applicability: an artifact can be not applicable
+
+Some artifacts do not apply to a project (no HTTP API, so no contract; no
+user interface, so no UX vision). That is a decision, not a gap. It lives in
+`specs/README.md`, in a machine-readable section the pipeline pane and
+`project:status` read:
+
+```markdown
+## Applicability
+
+| Artifact | Status | Reason |
+|---|---|---|
+| contract | N/A | no HTTP API: the site is static |
+```
+
+- **Artifact** is the short name the pane lists: `brief`, `architecture`,
+  `ux-vision`, `specs index`, `domain-model`, `contract`, `test-strategy`,
+  `delivery`. Case and backticks do not matter; an unknown name is reported
+  by the consistency check.
+- **Status** is `N/A`, the only value for now.
+- **Reason** is required free text. A row without one, or with another
+  status, does not count.
+- A stage that owns an N/A artifact skips it and says so. If the project has
+  no use for an artifact, the stage proposes the row with a reason and asks
+  the user; it never decides alone. The row is the owner's (`project:spec`
+  writes `specs/README.md`); other stages propose it in their hand-off.
+- Readers treat N/A as "present in the pipeline, not applicable here": never
+  Pending, never a gap, never a reason to recommend its stage. An artifact
+  that exists is shown as it is whatever the table says.
+
 ## The glossary is shared vocabulary
 
 `brief.md` has a `## Glossary` section: one entry per domain term, with a

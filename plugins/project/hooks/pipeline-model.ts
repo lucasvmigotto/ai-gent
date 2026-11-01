@@ -75,6 +75,45 @@ export function parseReadme(text: string): Row[] {
   return rows
 }
 
+// ------------------------------------------------------------ applicability
+
+// shared/pipeline.md's Applicability rule: `## Applicability` in specs/README.md
+// holds `| Artifact | Status | Reason |`. A row counts when its artifact is one
+// of ARTIFACTS (by label, any case, ticks allowed), its status is N/A and its
+// reason is not empty; anything else is ignored. Names no artifact has are
+// listed in `unknown` (scripts/consistency.py reports them for this repo).
+const APPLICABLE = ['n/a']
+
+export function parseApplicability(text: string): { na: Record<string, string>; unknown: string[] } {
+  const out: { na: Record<string, string>; unknown: string[] } = { na: {}, unknown: [] }
+  const labels = ARTIFACTS.map(a => a.label)
+  let inside = false
+  for (const line of text.split(/\r?\n/)) {
+    if (/^#{1,6}\s/.test(line)) inside = /^##\s+Applicability\s*$/i.test(line)
+    if (!inside || !line.startsWith('|')) continue
+    const cells = line.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim())
+    const name = (cells[0] ?? '').replace(/`/g, '').trim().toLowerCase()
+    if (name === '' || name === 'artifact' || /^[-: ]*$/.test(cells.join(''))) continue
+    if (!labels.includes(name)) {
+      out.unknown.push(name)
+      continue
+    }
+    const status = (cells[1] ?? '').replace(/[`*_]/g, '').trim().toLowerCase()
+    const reason = cells.slice(2).join(' | ').trim()
+    if (APPLICABLE.includes(status) && reason !== '') out.na[name] = reason
+  }
+  return out
+}
+
+// An absent artifact the table marks N/A is not Pending and not a problem. One
+// that exists stays as it is: the file is the evidence.
+export function applyApplicability(artifacts: readonly ArtifactState[], na: Readonly<Record<string, string>>): ArtifactState[] {
+  return artifacts.map(a => {
+    const reason = na[a.label]
+    return !a.isPresent && reason !== undefined ? { ...a, isProblem: false, notApplicable: reason } : a
+  })
+}
+
 const LEVELS: Record<string, number> = { planned: 0, 'in progress': 1, partial: 1, implemented: 2, verified: 3 }
 const STATE_OF: Record<string, FeatureState> = { planned: 'todo', 'in progress': 'doing', partial: 'doing', implemented: 'review', verified: 'done' }
 const RETIRED = ['retired', 'superseded', 'removed', 'dropped', 'cancelled', 'canceled']
@@ -172,7 +211,8 @@ function priorityOf(feature: Pick<Feature, 'priority'>): number {
 
 // project:status §4, rules 1-3. Rule 1's contradictions and rule 4's later
 // stages need evidence the pane does not read: /project:status has them.
-export function recommend(artifacts: readonly ArtifactState[], features: readonly Feature[], markers: readonly Marker[]): Next {
+export function recommend(all: readonly ArtifactState[], features: readonly Feature[], markers: readonly Marker[]): Next {
+  const artifacts = all.filter(a => a.notApplicable === undefined)
   const blocker = markers.find(m => m.kind === 'clarification')
   if (blocker) {
     return { rule: 1, stage: 'ask the user', reason: `an open [NEEDS CLARIFICATION] blocks plan: ${blocker.text}`, ref: `${blocker.file}:${blocker.line}` }
@@ -237,22 +277,25 @@ export function progress(features: readonly Feature[]): { implemented: number; p
   return out
 }
 
-export type StageStep = { key: string; label: string; state: 'done' | 'current' | 'pending' }
+export type StageStep = { key: string; label: string; state: 'done' | 'current' | 'pending' | 'skipped' }
 
 // The six steps of the stage strip: an aid to read at a glance, from artifacts
 // and buckets already in the snapshot. `recommend` never reads it.
 export function stageStrip(artifacts: readonly ArtifactState[], features: readonly Feature[]): StageStep[] {
   const has = (path: string): boolean => artifacts.some(a => a.path === path && a.isPresent)
+  const na = (path: string): boolean => artifacts.some(a => a.path === path && a.notApplicable !== undefined)
   const live = features.filter(f => f.state !== 'retired')
   const withQa = live.filter(f => 'qa' in f.sides && word(f.sides.qa ?? '') !== '')
-  const done: [string, string, boolean][] = [
-    ['init', 'Init', has(BRIEF)],
-    ['architecture', 'Architecture', has('docs/product/architecture.md')],
-    ['spec', 'Spec', has(README)],
-    ['build', 'Build', live.length > 0 && live.every(f => f.bucket === 'done')],
-    ['qa', 'QA', has('docs/product/test-strategy.md') && withQa.every(f => word(f.sides.qa ?? '') === 'verified')],
-    ['delivery', 'Delivery', has('docs/product/delivery.md')],
+  const qaVerified = withQa.every(f => word(f.sides.qa ?? '') === 'verified')
+  // A step whose only artifact is N/A is skipped; QA also waits on the features' own QA column.
+  const steps: [string, string, boolean, boolean][] = [
+    ['init', 'Init', has(BRIEF), na(BRIEF)],
+    ['architecture', 'Architecture', has('docs/product/architecture.md'), na('docs/product/architecture.md')],
+    ['spec', 'Spec', has(README), na(README)],
+    ['build', 'Build', live.length > 0 && live.every(f => f.bucket === 'done'), false],
+    ['qa', 'QA', (has('docs/product/test-strategy.md') || na('docs/product/test-strategy.md')) && qaVerified, false],
+    ['delivery', 'Delivery', has('docs/product/delivery.md'), na('docs/product/delivery.md')],
   ]
-  const current = done.findIndex(([, , isDone]) => !isDone)
-  return done.map(([key, label, isDone], i) => ({ key, label, state: isDone ? 'done' : i === current ? 'current' : 'pending' }))
+  const current = steps.findIndex(([, , isDone, isSkipped]) => !isDone && !isSkipped)
+  return steps.map(([key, label, isDone, isSkipped], i) => ({ key, label, state: isDone ? 'done' : isSkipped ? 'skipped' : i === current ? 'current' : 'pending' }))
 }

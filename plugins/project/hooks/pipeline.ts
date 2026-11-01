@@ -7,7 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Timer } from 'claude-code'
 
 import type { ArtifactState, Feature, Marker, Snapshot } from '../types'
-import { ARTIFACTS, MARKER_DIRS, README, featureState, parseReadme, recommend, scanMarkers, split } from './pipeline-model'
+import { ARTIFACTS, MARKER_DIRS, README, applyApplicability, featureState, parseApplicability, parseReadme, recommend, scanMarkers, split } from './pipeline-model'
 import type { Row } from './pipeline-model'
 import { repoRoot } from './repo'
 
@@ -34,7 +34,7 @@ const MAX_ITEMS = 200
 // or spawns only what changed. A reload empties these; the next refresh refills.
 const markersByFile = new Map<string, { mtimeMs: number; markers: Marker[] }>()
 const dateByPath = new Map<string, { mtimeMs: number; date: string | null }>()
-let readme: { mtimeMs: number; rows: Row[] } | null = null
+let readme: { mtimeMs: number; rows: Row[]; na: Record<string, string> } | null = null
 let hasGit = true
 let ticker: Timer | null = null
 let intervalMs = 0
@@ -129,7 +129,7 @@ export async function compute($: EngineInterface): Promise<Snapshot> {
   const dates = new Map<string, string | null>()
   for (const [path, mtimeMs] of stats) dates.set(path, await commitDate($, root, path, mtimeMs))
 
-  const artifacts: ArtifactState[] = ARTIFACTS.map(spec => {
+  const found: ArtifactState[] = ARTIFACTS.map(spec => {
     const isPresent = stats.has(spec.path)
     const own = dates.get(spec.path) ?? null
     const newer = spec.after
@@ -148,15 +148,19 @@ export async function compute($: EngineInterface): Promise<Snapshot> {
   })
 
   let rows: Row[] = []
+  let na: Record<string, string> = {}
   const readmeTime = stats.get(README)
   if (readmeTime !== undefined) {
     if (readme?.mtimeMs !== readmeTime) {
-      readme = { mtimeMs: readmeTime, rows: parseReadme(String(await $.fs.read(`${root}/${README}`).catch(() => ''))) }
+      const text = String(await $.fs.read(`${root}/${README}`).catch(() => ''))
+      readme = { mtimeMs: readmeTime, rows: parseReadme(text), na: parseApplicability(text).na }
     }
     rows = readme.rows
+    na = readme.na
   } else {
     readme = null
   }
+  const artifacts = applyApplicability(found, na)
   const features = await readFeatures($, root, rows)
   const markers = await readMarkers($, root)
 

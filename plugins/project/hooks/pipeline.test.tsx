@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { EXPECTED, README_TEXT } from './pipeline-fixtures'
-import { featureState, letter, parseReadme, recommend, scanMarkers, split } from './pipeline-model'
+import { ARTIFACTS, applyApplicability, featureState, letter, parseApplicability, parseReadme, recommend, scanMarkers, split, stageStrip } from './pipeline-model'
 import { text as snapshotText, view } from './pipeline-view'
 import type { ArtifactState, Feature, Snapshot } from '../types'
 import { TEXT, VIEW_100, VIEW_39 } from './pipeline-golden'
@@ -516,4 +516,79 @@ test('the Features toggle survives a poll and keeps the selected feature and fil
   expect(await ui.find({ type: 'Text', text: /Depends on/ })).toBeDefined()
   expect(await ui.find({ key: 'feature:001' })).toBeUndefined()
   await ui.unmount()
+})
+
+// ------------------------------------------------------------- applicability
+
+const NA_README = [
+  '# Features',
+  '',
+  '| # | Feature | Priority | Depends on | Frontend |',
+  '|---|---|---|---|---|',
+  '| 001 | shell | P1 | — | Planned |',
+  '',
+  '## Applicability',
+  '',
+  'Free text before the table.',
+  '',
+  '| Artifact | Status | Reason |',
+  '|---|---|---|',
+  '| contract | N/A | no HTTP API |',
+  '|  `Test-Strategy` |  n/a  |  none needed here  |',
+  '| delivery | N/A | |',
+  '| ux-vision | Pending | not a status |',
+  '| nonsense | N/A | unknown artifact |',
+  '| Domain-Model | N/A | no domain |',
+  '',
+  '## Contract',
+  '',
+  '| contract | N/A | outside the section |',
+].join('\n')
+
+test('the Applicability table maps artifact names to reasons, tolerating case, ticks and spaces', () => {
+  const got = parseApplicability(NA_README)
+  expect(got.na).toEqual({ contract: 'no HTTP API', 'test-strategy': 'none needed here', 'domain-model': 'no domain' })
+})
+
+test('bad rows are ignored: no reason, a status other than N/A, an unknown artifact; unknown names are reported', () => {
+  const got = parseApplicability(NA_README)
+  expect('delivery' in got.na).toBe(false)
+  expect('ux-vision' in got.na).toBe(false)
+  expect('nonsense' in got.na).toBe(false)
+  expect(got.unknown).toEqual(['nonsense'])
+})
+
+test('a README without the section, or with an empty one, marks nothing N/A', () => {
+  expect(parseApplicability(README_TEXT)).toEqual({ na: {}, unknown: [] })
+  expect(parseApplicability('## Applicability\n\nnothing\n')).toEqual({ na: {}, unknown: [] })
+  expect(parseApplicability('')).toEqual({ na: {}, unknown: [] })
+})
+
+test('the Applicability table never becomes a feature row', () => {
+  expect(parseReadme(NA_README).map(r => r.number)).toEqual(['001'])
+})
+
+test('applyApplicability marks an absent artifact N/A and leaves a present one alone', () => {
+  const arts = [artifact('a', { label: 'contract', isPresent: false, isProblem: true }), artifact('b', { label: 'brief' }), artifact('c', { label: 'delivery', isPresent: false })]
+  const out = applyApplicability(arts, { contract: 'no HTTP API', brief: 'x' })
+  expect(out[0]).toMatchObject({ notApplicable: 'no HTTP API', isProblem: false })
+  expect('notApplicable' in (out[1] as object)).toBe(false)
+  expect('notApplicable' in (out[2] as object)).toBe(false)
+  expect(applyApplicability(arts, {})).toEqual(arts)
+})
+
+test('Next skips an N/A artifact: not missing, not the first-run test', () => {
+  const na = artifact(ARCH, { isPresent: false, isProblem: true, notApplicable: 'x' })
+  expect(recommend([artifact(BRIEF), na], [feature('002')], [])).toMatchObject({ rule: 3 })
+  expect(recommend([artifact(BRIEF, { isPresent: false }), na], [], [])).toMatchObject({ rule: 2, stage: '/project:init' })
+  expect(recommend([na], [], [])).toMatchObject({ rule: 2, stage: '/project:init' })
+})
+
+test('the stage strip counts an N/A artifact as skipped, never current or pending', () => {
+  const arts = (patch: Record<string, Partial<ArtifactState>>): ArtifactState[] =>
+    ARTIFACTS.map(spec => artifact(spec.path, { label: spec.label, isPresent: [BRIEF, ARCH, README].includes(spec.path), ...(patch[spec.label] ?? {}) }))
+  const states = (a: ArtifactState[]): string[] => stageStrip(a, []).map(s => `${s.label}:${s.state}`)
+  expect(states(arts({}))).toEqual(['Init:done', 'Architecture:done', 'Spec:done', 'Build:current', 'QA:pending', 'Delivery:pending'])
+  expect(states(arts({ delivery: { isPresent: false, notApplicable: 'x' } }))).toEqual(['Init:done', 'Architecture:done', 'Spec:done', 'Build:current', 'QA:pending', 'Delivery:skipped'])
+  expect(states(arts({ 'test-strategy': { isPresent: false, notApplicable: 'x' }, delivery: { isPresent: false, notApplicable: 'x' } }))[4]).toBe('QA:done')
 })

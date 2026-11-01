@@ -60,6 +60,13 @@ Full table with notes: `pipeline.md` §"Artifacts and owners".
 - `contracts/openapi.yaml` is the frontend/backend seam; change it through
   `backend:spec`, never from a build stage (§"The contract is the frontend/backend seam").
 
+## Applicability
+
+`specs/README.md` may hold `## Applicability` with `| Artifact | Status | Reason |`
+rows (Artifact: the pane's short name; Status: `N/A`; Reason: required text).
+An N/A artifact is skipped and said so, never a gap; propose a row and ask the
+user, never decide alone (§"Applicability: an artifact can be not applicable").
+
 ## Statuses
 
 - Feature (per side, in `specs/README.md`): Planned, In progress,

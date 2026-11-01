@@ -34,6 +34,8 @@ the model: what must never happen, who may do what, what happens
 on conflict (two people booking the last slot), what must be audited,
 how long data is kept, which numbers are money/time/quantities.
 
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
+
 ## Process
 
 1. **Event storming, on paper.** Walk the brief's key journeys and list,

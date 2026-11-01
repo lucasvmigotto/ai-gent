@@ -41,6 +41,7 @@ export function view(snapshot: Snapshot, columns: number, expanded: Readonly<Rec
     for (const a of snapshot.artifacts) {
       if (a.isPresent && a.staleSince) add(`~ ${a.label}: older than ${a.staleSince.path} (${a.staleSince.date})`, 'warn')
       else if (a.isPresent) add(`✓ ${a.label}${narrow ? '' : `  ${a.path}`}`, 'good')
+      else if (a.notApplicable !== undefined) add(`${glyph('na', false)} ${a.label}: N/A${narrow ? '' : ` (${a.notApplicable})`}`, 'dim')
       else if (a.isProblem) add(`✗ ${a.label}: missing, a later stage already ran`, 'bad')
       else add(`· ${a.label}`, 'dim')
     }
@@ -140,6 +141,8 @@ export type PipelineView = {
     pills: { key: string; text: string; tone: Tone }[]
   }
   stages: (StageStep & { glyph: string; tone: Tone })[]
+  // The arrow chaining the steps, or '' when the chained strip does not fit the width.
+  stageArrow: string
   filter: { active: Filter; counts: Record<Filter, number> }
   next: {
     badge: 'Needs attention' | 'Suggested' | 'Up to date'
@@ -191,6 +194,8 @@ export const GLYPH = {
   stale: ['↻', '~'],
   ready: ['✓', '+'],
   pending: ['·', '.'],
+  na: ['–', '-'],
+  arrow: ['→', '->'],
   current: ['◆', '>'],
   sep: ['·', '|'],
   ellipsis: ['…', '...'],
@@ -361,6 +366,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     const [name, key, tone]: [string, GlyphKey, Tone] =
       a.isPresent && a.staleSince ? ['Stale', 'stale', 'warn']
       : a.isPresent ? ['Ready', 'ready', 'good']
+      : a.notApplicable !== undefined ? ['N/A', 'na', 'dim']
       : a.isProblem ? ['Missing', 'missing', 'bad']
       : ['Pending', 'pending', 'dim']
     const status: Cell = { text: name, glyph: glyph(key, ascii), tone }
@@ -380,6 +386,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
       pair('Command', a.stage),
       ...(a.commitDate ? [pair('Committed', a.commitDate)] : []),
       ...(a.staleSince ? [pair('Upstream', `${a.staleSince.path} (${a.staleSince.date})`)] : []),
+      ...(a.notApplicable !== undefined ? [pair('Reason', a.notApplicable)] : []),
     ]
     return {
       key: rowKey,
@@ -512,9 +519,12 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   // ---- the rest
   const stages = stageStrip(snapshot.artifacts, snapshot.features).map(step => ({
     ...step,
-    glyph: glyph(step.state === 'done' ? 'ready' : step.state === 'current' ? 'current' : 'pending', ascii),
+    glyph: glyph(step.state === 'done' ? 'ready' : step.state === 'current' ? 'current' : step.state === 'skipped' ? 'na' : 'pending', ascii),
     tone: (step.state === 'done' ? 'good' : step.state === 'current' ? 'info' : 'dim') as Tone,
   }))
+  const arrow = glyph('arrow', ascii)
+  const chained = 'Stages (an aid)'.length + 2 + stages.reduce((n, st) => n + [...`${st.glyph} ${st.label}`].length, 0) + (stages.length - 1) * (arrow.length + 2)
+  const stageArrow = chained <= ctx.columns ? arrow : ''
   const next: Snapshot['next'] | undefined = snapshot.next
   const isLive = ctx.pollMs > 0 && ctx.checkedAt > 0 && ctx.now - ctx.checkedAt <= 3 * ctx.pollMs
   const caption = ctx.checkedAt <= 0
@@ -532,7 +542,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     header: { title: 'PIPELINE', badge: isLive ? 'LIVE' : 'STALE', caption },
     summary: {
       artifacts: ready,
-      ofArtifacts: snapshot.artifacts.length,
+      ofArtifacts: snapshot.artifacts.filter(a => a.notApplicable === undefined).length,
       features: snapshot.features.length,
       clarifications: counts.clarification,
       assumptions: counts.assumption,
@@ -554,6 +564,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     ],
     progress: { ...counted, total, percent, line: pills.map(p => p.text).join(sep), width: barWidth, bar, pills },
     stages,
+    stageArrow,
     filter: { active, counts: filterCounts },
     next: {
       badge: next?.rule === 1 ? 'Needs attention' : next && next.rule !== null ? 'Suggested' : 'Up to date',
@@ -614,7 +625,7 @@ export function dashboardText(snapshot: Snapshot, input: Context): string[] {
 
   lines.push('', 'Artifacts', ...tableLines(by('artifacts'), m.mode, m.ascii, true))
   if (!m.hasGit) lines.push('Staleness needs git.')
-  lines.push(`Stages (an aid)  ${m.stages.map(s => `${s.glyph} ${s.label}`).join('  ')}`)
+  lines.push(`Stages (an aid)  ${m.stages.map(s => `${s.glyph} ${s.label}`).join(m.stageArrow ? ` ${m.stageArrow} ` : '  ')}`)
 
   lines.push('', m.progress.total === 0 ? 'Implementation' : `Implementation   ${m.progress.percent}%`)
   if (m.progress.total === 0) {

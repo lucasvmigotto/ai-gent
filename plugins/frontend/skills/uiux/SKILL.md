@@ -36,6 +36,8 @@ the brief's goal is explicitly conversion on that surface.
    routes/screens, components, current tokens, current copy. The vision
    either keeps, evolves or replaces each — say which.
 
+If `specs/README.md`'s Applicability table marks this artifact N/A, skip it and say so; if the project has no use for it, propose adding an N/A row with a reason and ask the user (never decide alone).
+
 ## Inputs: text or references
 
 Read `../../references/intake-filter.md` first: the input was written
