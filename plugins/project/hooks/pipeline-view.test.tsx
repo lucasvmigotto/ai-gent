@@ -4,9 +4,9 @@ import { expect, test } from 'claude-code/testing'
 
 import type { Snapshot } from '../types'
 import { bigReadme, snapshotOf } from './pipeline-view-fixtures'
-import { ARTIFACTS, STAGE_NAME, progress, stageStrip } from './pipeline-model'
+import { ARTIFACTS, STAGE_NAME, applyApplicability, progress, recommend, stageStrip } from './pipeline-model'
 import { DASHBOARD_120, DASHBOARD_120_ASCII, DASHBOARD_80, DASHBOARD_80_ASCII, VIEW_39 } from './pipeline-golden'
-import { build, dashboardText, matrixPlan, statusCell } from './pipeline-view'
+import { build, dashboardText, matrixPlan, statusCell, view } from './pipeline-view'
 import type { Context, Section } from './pipeline-view'
 
 const CTX: Context = { columns: 120, expanded: {}, filter: 'all', checkedAt: 1000, now: 1000, pollMs: 5000, ascii: false, maxRows: 60 }
@@ -421,4 +421,77 @@ test('the progress bar fills the width of the pane, and the plain text caps it a
   expect(total(build(snapshotOf(), ctx({ columns: 120, barMax: 60 })))).toBe(60)
   const bar = dashboardText(snapshotOf(), ctx({ columns: 120 })).find(line => /^[█▒░]+$/.test(line)) ?? ''
   expect(bar.length).toBe(60)
+})
+
+// ------------------------------------------------------------- applicability
+
+const withNa = (): Snapshot => {
+  const base = snapshotOf()
+  const artifacts = applyApplicability(base.artifacts, { contract: 'no HTTP API', delivery: 'manual releases' })
+  return snapshotOf(undefined, { artifacts, next: recommend(artifacts, base.features, base.markers.items) })
+}
+
+test('an N/A artifact is a dim "N/A" row, not Pending, and its reason shows when the row opens', () => {
+  const key = 'artifact:contracts/openapi.yaml'
+  const row = (patch: Partial<Context> = {}) => section(withNa(), 'artifacts', patch).rows.find(r => r.key === key)
+  expect(row()?.cells.map(c => c.text)).toEqual(['contract', 'API specification', 'N/A'])
+  expect(row()?.cells[2]).toMatchObject({ glyph: '–', tone: 'dim' })
+  expect(row({ ascii: true })?.cells[2]).toMatchObject({ glyph: '-', text: 'N/A' })
+  expect(row()).toMatchObject({ edge: 'dim', isOpen: false })
+  expect(row()?.detail).toBeUndefined()
+  expect(row({ expanded: { [key]: true } })?.detail?.map(d => d.map(c => c.text))).toContainEqual(['Reason', 'no HTTP API'])
+})
+
+test('summary counts leave N/A artifacts out of the total, and ready is unchanged', () => {
+  expect(build(withNa(), ctx()).summary).toMatchObject({ artifacts: 2, ofArtifacts: 6 })
+})
+
+test('the stage strip draws a skipped step with a dim dash', () => {
+  const stages = build(withNa(), ctx()).stages
+  expect(stages.find(s => s.key === 'delivery')).toMatchObject({ state: 'skipped', glyph: '–', tone: 'dim' })
+  expect(build(withNa(), ctx({ ascii: true })).stages.find(s => s.key === 'delivery')?.glyph).toBe('-')
+  expect(stages.find(s => s.key === 'architecture')?.state).toBe('current')
+})
+
+test('the plain text shows the N/A rows and the reason only when open', () => {
+  const closed = dashboardText(withNa(), ctx())
+  expect(closed.some(l => /contract\s+API specification\s+– N\/A$/.test(l))).toBe(true)
+  expect(closed.join('\n')).not.toContain('no HTTP API')
+  const open = dashboardText(withNa(), ctx({ expanded: { 'artifact:contracts/openapi.yaml': true } })).join('\n')
+  expect(open).toContain('Reason no HTTP API')
+  expect(dashboardText(withNa(), ctx({ ascii: true })).some(l => /contract\s+API specification\s+- N\/A$/.test(l))).toBe(true)
+})
+
+test('the compact view lists an N/A artifact as "– name N/A" with its reason when wide enough', () => {
+  const lines = view(withNa(), 60, {}).map(l => l.text)
+  expect(lines).toContain('– contract: N/A (no HTTP API)')
+  expect(view(withNa(), 39, {}).map(l => l.text)).toContain('– contract: N/A')
+  expect(lines.some(l => l.includes('· contract'))).toBe(false)
+})
+
+test('a snapshot without any Applicability keeps today\'s text byte for byte', () => {
+  const plain = snapshotOf()
+  expect(plain.artifacts.some(a => a.notApplicable !== undefined)).toBe(false)
+  expect(dashboardText(plain, ctx())).toEqual(dashboardText(snapshotOf(undefined, { artifacts: applyApplicability(plain.artifacts, {}) }), ctx()))
+})
+
+// ------------------------------------------------------------- stage chain
+
+const stageLine = (snapshot: Snapshot, patch: Partial<Context> = {}): string =>
+  dashboardText(snapshot, ctx(patch)).find(l => l.startsWith('Stages (an aid)')) ?? ''
+
+test('the stage strip is chained with arrows when it fits, and falls back to plain spacing when it does not', () => {
+  expect(stageLine(snapshotOf())).toBe('Stages (an aid)  ✓ Init → ◆ Architecture → ✓ Spec → · Build → · QA → · Delivery')
+  expect(stageLine(snapshotOf(), { ascii: true })).toBe('Stages (an aid)  + Init -> > Architecture -> + Spec -> . Build -> . QA -> . Delivery')
+  expect(build(snapshotOf(), ctx()).stageArrow).toBe('→')
+  // 79 cells chained: fits 80, not 78; ASCII is 82 cells, so it falls back at 80.
+  expect(stageLine(snapshotOf(), { columns: 80 })).toContain(' → ')
+  expect(build(snapshotOf(), ctx({ columns: 78 })).stageArrow).toBe('')
+  expect(stageLine(snapshotOf(), { columns: 80, ascii: true })).toBe('Stages (an aid)  + Init  > Architecture  + Spec  . Build  . QA  . Delivery')
+})
+
+test('a skipped stage keeps its dash glyph inside the chain, and the compact view has no strip', () => {
+  expect(stageLine(withNa())).toBe('Stages (an aid)  ✓ Init → ◆ Architecture → ✓ Spec → · Build → · QA → – Delivery')
+  expect(stageLine(withNa(), { ascii: true })).toContain('-> - Delivery')
+  expect(dashboardText(snapshotOf(), ctx({ columns: 39 })).some(l => l.includes('→'))).toBe(false)
 })

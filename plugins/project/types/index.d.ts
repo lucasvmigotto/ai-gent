@@ -42,6 +42,9 @@ export type ArtifactState = {
   staleSince: { path: string; date: string } | null
   // Absent although a later stage already ran.
   isProblem: boolean
+  // The reason specs/README.md's Applicability table gives for the artifact
+  // being N/A here; absent when it applies (or exists).
+  notApplicable?: string
 }
 
 export type FeatureState = 'todo' | 'doing' | 'review' | 'done' | 'retired'
