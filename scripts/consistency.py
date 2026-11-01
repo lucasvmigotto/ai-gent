@@ -473,6 +473,34 @@ def check_guard_ux(root: Path) -> list[str]:
         for reason in reasons:
             if not any(m in reason for m in matches.get(marker, [])):
                 problems.append(f"plugins/{plugin}/hooks/guard.sh: '{reason[:70]}…' has no entry in {GUARD_UX}")
+    problems += check_guard_reasons(root, matches)
+    return problems
+
+
+REASONS_JSON = "rust/crates/ai-gent-core/src/guard/reasons.json"
+
+
+def check_guard_reasons(root: Path, matches: dict[str, list[str]]) -> list[str]:
+    """The Rust evaluator's reasons (spec 033, FR-013) have a guard-ux entry and equal what the guard.sh scripts print (while they hold the logic)."""
+    path = root / REASONS_JSON
+    if not path.is_file():
+        return []
+    entries = json.loads(path.read_text(encoding="utf-8"))
+    problems = []
+    for e in entries:
+        if not any(m in e["text"] for m in matches.get(e["marker"], [])):
+            problems.append(f"{REASONS_JSON}: '{e['id']}' has no entry in {GUARD_UX}")
+    for plugin, marker in GUARD_PLUGINS.items():
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        if not guard.is_file():
+            continue
+        # `$branch`, `$tool` and `$sub` are the placeholders of the scripts; \` is a literal backtick.
+        shell = {re.sub(r"\$\{?(\w+)\}?", r"{\1}", r).replace("\\`", "`") for r in guard_reasons(guard.read_text(encoding="utf-8"))}
+        rust = {e["text"] for e in entries if e["marker"] == marker}
+        for t in sorted(shell - rust):
+            problems.append(f"plugins/{plugin}/hooks/guard.sh: '{t[:70]}…' is missing from {REASONS_JSON}")
+        for t in sorted(rust - shell):
+            problems.append(f"{REASONS_JSON}: '{t[:70]}…' is not printed by plugins/{plugin}/hooks/guard.sh")
     return problems
 
 
