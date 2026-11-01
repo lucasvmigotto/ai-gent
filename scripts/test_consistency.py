@@ -167,6 +167,43 @@ class PipelineDigest(unittest.TestCase):
         self.assertEqual(consistency.check_pipeline_digest(consistency.ROOT), [])
 
 
+    def test_the_contract_applicability_section_must_be_in_the_digest(self):
+        full = self.FULL + "\n## Applicability: x\n\nrows\n"
+        full = full.replace("## Applicability: x", "## Applicability")
+        self.assertTrue(any("Applicability" in p for p in self.run_check(full=full)))
+        d = self.DIGEST.replace("## Statuses", "## Applicability\n\n| Artifact | Status | Reason |\nN/A\n\n## Statuses")
+        self.assertEqual(self.run_check(full=full, digest=d), [])
+
+
+class ApplicabilityRows(unittest.TestCase):
+    MODEL = "export const A = [\n  { path: X, label: 'contract', stage: 's' },\n  { path: Y, label: 'delivery', stage: 't' },\n]\n"
+
+    def run_check(self, rows):
+        text = "# Specs\n\n## Applicability\n\n| Artifact | Status | Reason |\n|---|---|---|\n" + rows + "\n## Next\n\n| bogus | row |\n"
+        root = tree({consistency.PIPELINE_MODEL: self.MODEL, "specs/README.md": text})
+        return consistency.check_applicability(root)
+
+    def test_a_valid_row_passes(self):
+        self.assertEqual(self.run_check("| `Contract` | N/A | no HTTP API |\n"), [])
+
+    def test_no_section_passes(self):
+        root = tree({consistency.PIPELINE_MODEL: self.MODEL, "specs/README.md": "# Specs\n"})
+        self.assertEqual(consistency.check_applicability(root), [])
+
+    def test_an_unknown_artifact_fails(self):
+        self.assertTrue(any("nonsense" in p for p in self.run_check("| nonsense | N/A | x |\n")))
+
+    def test_another_status_fails(self):
+        self.assertTrue(any("N/A" in p for p in self.run_check("| contract | Pending | x |\n")))
+
+    def test_an_empty_reason_fails(self):
+        self.assertTrue(any("reason" in p for p in self.run_check("| contract | N/A |  |\n")))
+        self.assertTrue(any("reason" in p for p in self.run_check("| contract | N/A |\n")))
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_applicability(consistency.ROOT), [])
+
+
 class StageNames(unittest.TestCase):
     MODEL = ("  {{ path: BRIEF, label: 'brief', stage: '/project:init', after: [] }},\n"
              "  {{ path: 'a.md', label: 'a', stage: '/project:architecture', after: [] }},\n"

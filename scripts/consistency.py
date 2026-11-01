@@ -312,6 +312,30 @@ def check_pipeline_paths(root: Path) -> list[str]:
     return problems
 
 
+def check_applicability(root: Path) -> list[str]:
+    """Every row of specs/README.md's `## Applicability` table names an artifact the pane lists, says N/A and gives a reason."""
+    model, readme = root / PIPELINE_MODEL, root / "specs/README.md"
+    if not model.is_file() or not readme.is_file():
+        return []
+    known = set(re.findall(r"label: '([^']+)'", model.read_text(encoding="utf-8")))
+    section = re.search(r"^## Applicability[ \t]*\n(.*?)(?=^#{1,6} |\Z)", readme.read_text(encoding="utf-8"), re.M | re.S)
+    problems = []
+    for line in (section.group(1) if section else "").splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        name = cells[0].replace("`", "").strip().lower()
+        if name in ("", "artifact") or not name.strip("-: "):
+            continue
+        if name not in known:
+            problems.append(f"specs/README.md: Applicability row '{name}' is not an artifact the pane lists ({', '.join(sorted(known))})")
+        elif len(cells) < 2 or cells[1].replace("`", "").strip().lower() != "n/a":
+            problems.append(f"specs/README.md: Applicability row '{name}' must have the status N/A")
+        elif not " | ".join(cells[2:]).strip():
+            problems.append(f"specs/README.md: Applicability row '{name}' needs a reason")
+    return problems
+
+
 PIPELINE_DIGEST = "shared/pipeline-digest.md"
 
 
@@ -366,6 +390,10 @@ def check_pipeline_digest(root: Path) -> list[str]:
             problems.append(f"{PIPELINE_DIGEST}: pointer §\"{heading}\" is not a heading of shared/pipeline.md")
         elif num and not 1 <= int(num) <= count:
             problems.append(f"{PIPELINE_DIGEST}: pointer §\"{heading}\" #{num} is not a rule (pipeline.md has {count})")
+    if "## Applicability" in full:
+        app = re.search(r"^## Applicability\n(.*?)(?=^## |\Z)", dig, re.M | re.S)
+        if not app or "| Artifact | Status | Reason |" not in app.group(1) or "N/A" not in app.group(1):
+            problems.append(f"{PIPELINE_DIGEST}: needs an Applicability section with the `| Artifact | Status | Reason |` table and N/A, as shared/pipeline.md has")
     if "`pipeline.md`" not in dig:
         problems.append(f"{PIPELINE_DIGEST}: must tell the reader to read `pipeline.md` on a conflict")
     return problems
@@ -632,7 +660,7 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
