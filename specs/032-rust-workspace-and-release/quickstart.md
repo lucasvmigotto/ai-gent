@@ -21,7 +21,7 @@ A contributor without `pass-run` (this repository has none; dottod's is the owne
 
 
 1. Already done (2026-11-01, D5): placeholders `ai-gent-core 0.1.0` and `ai-gent 0.1.0` are published, through `pass` with the entry `ai-gent/crates.io/pat` handed to `cargo publish` by a runner; no value reached a transcript.
-2. Already done by the owner: crates.io Trusted Publishing for both crates (repository `lucasvmigotto/ai-gent`, workflow file `release.yml`, environment `crate-release`). Verify with a dry run, then the first real publish.
+2. Already done by the owner: crates.io Trusted Publishing for both crates (repository `lucasvmigotto/ai-gent`, workflow file `release.yml`, environment `crate-release`). Verify with a dry run, then the first real publish. `ai-gent-dbrun` (D28) was also published as 0.1.0 on 2026-11-01; its Trusted Publishing, same repository, workflow and environment, is still the owner's to configure (spec 038 T024).
 3. On GitHub: Settings, Environments, confirm `crate-release` exists (owner action; a required reviewer is optional).
 4. Leave the repository variable `AI_GENT_CRATES_PUBLISH` unset. Set it to `true` only when open question 2 is answered.
 5. Optional, later: on crates.io turn on "Trusted Publishing only" for each crate [RESEARCHED: S1].
