@@ -657,7 +657,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../../plugins/agents/hooks/pct-fixtures.ts"
         ))
-        .unwrap();
+        .unwrap()
+        .replace("\r\n", "\n"); // a Windows checkout may have CRLF
         let body = text
             .split(&format!("export const {name}"))
             .nth(1)
