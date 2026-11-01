@@ -13,7 +13,7 @@ Status of each row is a promise for the 3.0.0 release notes. "Ships in" says the
 | A5 | Native Windows: the binary, the guards and the `install.ps1` installer (D24); WSL or Git Bash with `install.sh` stays an alternative | 3.0.0 | 032, 033 |
 | A6 | Tier policy and compatibility matrix | 3.0.0 | this spec, 040 |
 | A8 | Release notes carry the SHA256 of `install.sh`, `install.ps1` and the packages (D25) | 2.27 | 032 |
-| A7 | Published crates `ai-gent` and `ai-gent-core` (real versions, Trusted Publishing) when the owner flips the switch | 3.0.0 or later | 032 |
+| A7 | Published crates `ai-gent` and `ai-gent-core` (and `ai-gent-dbrun` once it exists, D28) (real versions, Trusted Publishing) when the owner flips the switch | 3.0.0 or later | 032 |
 
 ## Removed or changed (breaking)
 
