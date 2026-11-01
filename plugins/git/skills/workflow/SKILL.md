@@ -68,74 +68,34 @@ Applies to every git repository this user works in.
 
 - **The chain**, highest first: **`main`/`master` > `homolog`/`staging`
   (when there is one) > `dev`/`develop` > work branches.** Work enters at
-  `dev` and moves up one level at a time.
-- **Branch off `dev`**, after `git fetch`. Getting `dev` ready (missing,
-  only on the remote, behind or diverged from it) and the exception for a
-  `dev` far behind the levels above are in `references/chain.md`. Both
-  `dev` and `develop` exist: ask which one.
-- **Names:** `<prefix>/[<id>-]short-description`, kebab-case —
-  `feat/`, `fix/`, `hotfix/`, `release/`, `refactor/`, `perf/`, `docs/`,
-  `test/`, `build/`, `ci/`, `chore/` (or `feature/`, `bugfix/` where the
-  repository uses them). An id goes right after the prefix
-  (`feat/123-user-auth`) only when it's confirmed — given by the user or
-  recorded in a `tracker.md`. A repository's own convention wins.
-- **A `hotfix/`** branches off the production branch and lands back in it
-  **and** in every level below, so the fix isn't lost (each landing asked).
-- **One context, one sub-branch**, off the parent's current tip, with a
-  flat suffix (`feat/user-auth-db-schema` — `feat/user-auth/db-schema`
-  can't coexist with `feat/user-auth`). Land it the moment it's done;
-  the next one starts from the updated parent. Never chain sub-branches
-  or save the landings for the end.
-- **A protected trunk:** when the user works on an integration branch
-  because the chain's branches are protected, that branch is the parent.
-- **A new repository** starts the same way every time: `git init -b main`
-  (or the user's production branch), a single-line `README.md` —
-  `# <Project name>` — committed alone as `chore: initial commit` (the
-  guard asks), then `dev` from it. Input documents the user handed in (a
-  spec, requirements, references) are never committed unless they say
-  so. **No `LICENSE` file unless the user names one.** An unlicensed
-  repository is private and all rights reserved by default — never add
-  an open-source license (or any other) on your own initiative; ask
-  which one, if any, once it comes up — and mention open-sourcing it as
-  a genuine option worth considering, GPLv3 being a common
-  strong-copyleft pick, without pushing either way; the choice stays
-  the user's.
+  `dev` and moves up one level at a time. Branch off `dev` after
+  `git fetch`; both `dev` and `develop` exist: ask which one.
+- **Names:** `<prefix>/[<id>-]short-description`, kebab-case; an id only
+  when confirmed. One context, one sub-branch, landed the moment it's done.
+- **A new repository** starts with `git init -b main`, a one-line
+  `README.md` committed alone as `chore: initial commit`, then `dev`; no
+  `LICENSE` unless the user names one.
+- Read `references/branches.md` when creating a branch, naming one, branching a
+  hotfix or sub-branch, or starting a new repository. Getting `dev` ready
+  (missing, behind, diverged) is in `references/chain.md`.
 
 ## Landing — merging into a long-lived branch
 
-Count the branch's commits (`git log <parent>..<branch> --oneline | wc -l`),
-then take one of two paths:
-
-- **Through the platform — remote mode.** When `reporun detect`
-  (`repo:pr`) finds the platform's CLI signed in or its token in pass,
-  and the user hasn't said merges are local: push, open a PR into the
-  parent, wait for its required checks (`devsecops:watch`) and reviews,
-  then merge it on the platform — `repo:pr` has the procedure and each
-  platform's merge options. Never self-approve, never bypass branch
-  protection, never merge red.
-- **Locally**, when the platform isn't reachable (say why):
-  `references/local-merge.md`.
+Count the branch's commits (`git log <parent>..<branch> --oneline | wc -l`).
+Through the platform (PR, required checks, merge there; `repo:pr`) when it is
+reachable and the user hasn't said merges are local; otherwise locally
+(`references/local-merge.md`). Never self-approve, bypass branch protection or
+merge red.
 
 **Merge style**, both paths: **4 or more commits → a merge commit**
-(`--no-ff`); **fewer → fast-forward** (`--ff-only`; GitHub's closest is a
-rebase merge). **Promotions** between long-lived branches follow the same
-rule locally; on a platform that can't fast-forward (GitHub) they always
-use a merge commit, so the lower branch can still fast-forward to the
-upper one. Never skip a level, never land a work branch on a higher one,
-and settle conflicts on `dev`, never higher.
+(`--no-ff`); **fewer → fast-forward** (`--ff-only`). Promotions between
+long-lived branches follow the same rule locally; on GitHub they always use a
+merge commit. Never skip a level, never land a work branch on a higher one,
+settle conflicts on `dev`, never higher, and never pick a side blindly.
 
-**Conflicts** stop the landing: show the files and hunks and resolve them
-with the user — never `-X ours`/`-X theirs` or a side picked blindly. In
-remote mode, merge the parent into the branch, resolve, re-run the
-checks, and push; the PR updates.
-
-**After landing:** bring the parent up to date with `git pull --ff-only`
-— routine right after your own merge; a parent that diverged is reported
-and asked. Delete the landed branch: the platform removes the remote
-one (on a local merge, deleting it on the remote is asked); locally
-`git branch -d`. If a rebase merge rewrote the commits and `-d` refuses,
-confirm the PR shows as merged, then `git branch -D` (the guard
-confirms it). Never delete a long-lived branch.
+Read `references/landing.md` when merging or opening a PR: remote mode in
+full, conflicts, and what to do after landing (pull the parent, delete the
+branch, never delete a long-lived one).
 
 ## Commit messages — Conventional Commits, strictly
 
@@ -171,28 +131,11 @@ confirms it). Never delete a long-lived branch.
 
 ## Tags and releases
 
-- **The default: the pipeline cuts releases; humans don't tag by hand.** A
-  project's push-to-default-branch job runs `scripts/release.py`, which
-  reads the Conventional Commits since the last tag to pick the bump,
-  writes the CHANGELOG section, commits `chore(release): X.Y.Z` and tags
-  `X.Y.Z` (`../../references/releasing.md`; per platform,
-  `../../references/release-platforms.md`). So the commit type you choose
-  is the release decision, and release notes go under `## Unreleased` on
-  the branch that lands. Never tag the same commit by hand, never bump a
-  version by hand, never put `[skip ci]` in a release commit.
-- **The release comes back down the chain.** After tagging on the top
-  branch, the job merges the `chore(release): X.Y.Z` commit back into
-  `dev`/`develop` (`--no-ff`, message `chore(release): merge X.Y.Z back
-  into dev`). So after a release, `git pull --ff-only` on both; if the
-  back-merge warned, run the command it names. Don't re-tag or re-bump.
-- A repository without that automation gets it from `devsecops:pipeline`
-  rather than from habit; don't start tagging by hand to fill the gap.
-- **The manual fallback**, only when CI cannot push (the repository says
-  so in `docs/product/delivery.md`) and only when asked: the project's
-  `scripts/release.sh`, which plans with `release.py`, commits, tags and
-  pushes. Without one, an annotated tag on the released commit
-  (`git tag -a 1.4.0 -m "1.4.0"`), plain SemVer without a `v`. Pushing a
-  tag is a push.
+**The pipeline cuts releases; humans don't tag by hand.** Never tag, bump a
+version by hand or put `[skip ci]` in a release commit; the commit type you
+choose is the release decision, and notes go under `## Unreleased`. Read
+`references/tags.md` when releasing, tagging, or after a release lands (the
+back-merge, the manual fallback).
 
 ## The guard hook
 
