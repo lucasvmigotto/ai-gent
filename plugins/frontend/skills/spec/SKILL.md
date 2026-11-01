@@ -17,7 +17,7 @@ balancing user, business and technical requirements.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` — ownership rules matter here:
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) — ownership rules matter here:
    this skill **adds a UI layer** to features `project:spec` owns — and
    `../../references/spec-kit.md` for the `tasks` step it extends.
 2. Read `../../references/visual-direction.md` for token/component

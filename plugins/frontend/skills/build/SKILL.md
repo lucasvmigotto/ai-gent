@@ -20,7 +20,7 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
 
 ## Before starting
 
-1. Read `../../references/pipeline.md`, `../../references/spec-kit.md`
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case), `../../references/spec-kit.md`
    and `../../references/visual-direction.md`.
 2. Required inputs: `specs/000-design-system/` and at least one feature
    with `ui.md` and a `## Frontend` section in `tasks.md`. If missing,

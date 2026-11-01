@@ -10,7 +10,7 @@ description: Design and write CI/CD pipelines — pull request, main, release, s
 1. Read `../../references/principles.md` (role, platform detection and
    default, principles), `../../references/platforms/concepts.md`, and the
    detected platform's file in `../../references/platforms/`.
-2. Read `../../references/pipeline.md`, `../../references/releasing.md`
+2. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case), `../../references/releasing.md`
    (the default release flow), `../../references/release-platforms.md`
    (the script and the release job per platform), and the inputs that
    exist:

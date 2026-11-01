@@ -7,7 +7,7 @@ description: Design and run performance tests — smoke, load, stress, spike, so
 
 ## Before starting
 
-1. Read `../../references/qa-quality.md` and `../../references/pipeline.md`.
+1. Read `../../references/qa-quality.md` and `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case).
 2. Read: `docs/product/architecture.md` (capacity model, SLOs, evolution
    triggers), the brief's NFRs, `specs/*/qa.md` load profiles,
    `contracts/openapi.yaml`, `backend.md` performance budgets, and

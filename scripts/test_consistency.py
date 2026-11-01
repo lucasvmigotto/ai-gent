@@ -125,6 +125,48 @@ class PipelinePaths(unittest.TestCase):
         self.assertEqual(consistency.check_pipeline_paths(consistency.ROOT), [])
 
 
+class PipelineDigest(unittest.TestCase):
+    FULL = ("# P\n\n## Artifacts and owners\n\n| Path | Owner | R | N |\n|---|---|---|---|\n"
+            "| `docs/product/brief.md` | `project:init` | all | x |\n| `specs/README.md` | `project:spec` | all | x |\n\n"
+            "## Rules every stage follows\n\n1. **A.** x\n2. **B.** y\n   - *Planned* — a;\n"
+            "   - *Verified* — b;\n")
+    DIGEST = ("# D\n\nread `pipeline.md`.\n\n| Path | Owner | R |\n|---|---|---|\n"
+              "| `docs/product/brief.md` | `project:init` | all |\n| `specs/README.md` | `project:spec` | all |\n\n"
+              "## Statuses\n\nPlanned, Verified.\n\nSee §\"Rules every stage follows\" #2.\n")
+
+    def run_check(self, full=None, digest=None):
+        root = tree({"shared/pipeline.md": full or self.FULL, "shared/pipeline-digest.md": digest or self.DIGEST})
+        return consistency.check_pipeline_digest(root)
+
+    def test_a_faithful_digest_passes(self):
+        self.assertEqual(self.run_check(), [])
+
+    def test_a_path_the_contract_has_and_the_digest_lacks_fails(self):
+        self.assertEqual(len(self.run_check(digest=self.DIGEST.replace("| `specs/README.md` | `project:spec` | all |\n", ""))), 1)
+
+    def test_a_digest_path_the_contract_lacks_fails(self):
+        d = self.DIGEST.replace("`specs/README.md`", "`specs/OTHER.md`")
+        self.assertTrue(any("OTHER" in p for p in self.run_check(digest=d)))
+
+    def test_a_different_owner_fails(self):
+        d = self.DIGEST.replace("`project:spec`", "`project:init`")
+        self.assertTrue(any("owner" in p for p in self.run_check(digest=d)))
+
+    def test_a_missing_status_fails(self):
+        d = self.DIGEST.replace("Planned, Verified.", "Planned.")
+        self.assertTrue(any("Verified" in p for p in self.run_check(digest=d)))
+
+    def test_a_pointer_to_no_heading_fails(self):
+        d = self.DIGEST.replace("Rules every stage follows", "Nowhere")
+        self.assertTrue(any("Nowhere" in p for p in self.run_check(digest=d)))
+
+    def test_a_pointer_to_no_rule_fails(self):
+        self.assertTrue(any("#9" in p for p in self.run_check(digest=self.DIGEST.replace("#2", "#9"))))
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_pipeline_digest(consistency.ROOT), [])
+
+
 class StageNames(unittest.TestCase):
     MODEL = ("  {{ path: BRIEF, label: 'brief', stage: '/project:init', after: [] }},\n"
              "  {{ path: 'a.md', label: 'a', stage: '/project:architecture', after: [] }},\n"

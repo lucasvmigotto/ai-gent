@@ -8,7 +8,7 @@ description: Write and run cross-stack end-to-end journeys, Playwright by defaul
 ## Before starting
 
 1. Read `../../references/qa-quality.md`, `../../references/browsers.md`
-   and `../../references/pipeline.md`.
+   and `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case).
 2. Required: `specs/NNN-*/qa.md` journeys (from `qa:strategy`) — if
    missing, derive journeys from the feature's acceptance scenarios and
    `ui.md` flows, and record them in `qa.md` as an `[UPSTREAM GAP]` fix.
