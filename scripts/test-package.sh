@@ -38,7 +38,8 @@ mkdir -p "$SANDBOX/b1" "$SANDBOX/b2"
 python3 "$REPO_DIR/scripts/package.py" --version 9.9.0 --out "$SANDBOX/b1" >/dev/null
 python3 "$REPO_DIR/scripts/package.py" --version 9.9.0 --out "$SANDBOX/b2" >/dev/null
 check "two builds are byte-identical" cmp -s "$SANDBOX/b1/ai-gent-9.9.0.tar.gz" "$SANDBOX/b2/ai-gent-9.9.0.tar.gz"
-check "SHA256SUMS matches the tarball" bash -c 'cd "$1" && (sha256sum -c SHA256SUMS >/dev/null 2>&1 || shasum -a 256 -c SHA256SUMS >/dev/null 2>&1)' _ "$SANDBOX/b1"
+check "SHA256SUMS also lists install.sh" grep -q "  install.sh$" "$SANDBOX/b1/SHA256SUMS"
+check "SHA256SUMS matches the tarball and install.sh" bash -c 'cd "$1" && (sha256sum -c SHA256SUMS >/dev/null 2>&1 || shasum -a 256 -c SHA256SUMS >/dev/null 2>&1)' _ "$SANDBOX/b1"
 check "--check passes" bash -c 'python3 "$1/scripts/package.py" --check >/dev/null' _ "$REPO_DIR"
 check "a bad version is refused" bash -c '! python3 "$1/scripts/package.py" --version v1 --out "$2" >/dev/null 2>&1' _ "$REPO_DIR" "$SANDBOX/b3"
 
@@ -89,7 +90,12 @@ check "a linked skill resolves (shared symlinks survive)" test -f "$CLAUDE_SKILL
 check "no stage or temp leftovers" bash -c '! compgen -G "$1/.stage.*" >/dev/null && ! compgen -G "$1/*.new.*" >/dev/null' _ "$AI_GENT_HOME"
 VERSION=9.9.0 inst
 check "re-install is idempotent" test "$(cur)" == 9.9.0 -a ! -e "$AI_GENT_HOME/previous"
+check "an explicit VERSION pins" test "$(cat "$AI_GENT_HOME/pinned")" == 9.9.0
 inst # latest -> 9.9.1 through LATEST
+check "latest clears the pin" test ! -e "$AI_GENT_HOME/pinned"
+VERSION=9.9.1 inst
+check "the pin is recorded again" test "$(cat "$AI_GENT_HOME/pinned")" == 9.9.1
+inst
 check "latest resolves and upgrades" test "$(cur)" == 9.9.1
 check "previous keeps the old version" test "$(prev)" == 9.9.0
 check "the old version stays unpacked" test -f "$AI_GENT_HOME/9.9.0/setup.sh"
