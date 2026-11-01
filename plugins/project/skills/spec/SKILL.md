@@ -16,7 +16,7 @@ stage builds on — so make them explicit, justified and consistent.
 ## Before starting
 
 1. Read `../../references/spec-kit.md` — the five steps, their gates and
-   who owns each — and `../../references/pipeline.md` for ownership,
+   who owns each — and `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) for ownership,
    artifacts and statuses.
 2. Required input: `docs/product/brief.md`. If missing, propose
    `project:init`; if the user wants to skip it, run its clarifying

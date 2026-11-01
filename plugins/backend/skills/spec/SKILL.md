@@ -15,7 +15,7 @@ source of truth.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` (ownership: this skill **adds a
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) (ownership: this skill **adds a
    backend layer** to features `project:spec` owns, and **owns the
    canonical contract**), `../../references/spec-kit.md` (the `tasks` step
    this extends) and `../../references/backend-quality.md`.

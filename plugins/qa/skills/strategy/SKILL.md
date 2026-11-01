@@ -9,7 +9,7 @@ description: Define a risk-based test strategy for the project and each feature 
 
 1. Read `../../references/qa-quality.md` (role, division of labor,
    anti-patterns), `../../references/browsers.md` (containerized browser
-   execution), `../../references/pipeline.md` and
+   execution), `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) and
    `../../references/spec-kit.md`.
 2. Read: the brief (NFRs, compliance, audiences), `architecture.md`
    (topology, capacity model, SLOs), the constitution, every feature's

@@ -18,7 +18,7 @@ the user has to, and keep what survives with its reason.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` — paths, ownership, rules.
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) — paths, ownership, rules.
 2. If `docs/product/brief.md` exists, this is an **update**: read it,
    keep its structure and decision log, change only what the new input
    changes, and record why in the decision log.

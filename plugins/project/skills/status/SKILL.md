@@ -10,7 +10,7 @@ in a recommendation of what to run next. It never writes or fixes
 anything: every problem it finds goes into the report, with the stage that
 owns the fix.
 
-Read `../../references/pipeline.md` first — the artifact table and the
+Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) first — the artifact table and the
 status rules there are what this skill checks against — and
 `../../references/spec-kit.md` for the steps a feature moves through.
 

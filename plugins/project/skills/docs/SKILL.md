@@ -10,7 +10,7 @@ website for a software project — a product that evolves with the project,
 not a one-off page. All versioning follows `git:workflow`, one branch per
 phase.
 
-Part of the product pipeline — read `../../references/pipeline.md` first.
+Part of the product pipeline — read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) first.
 Its artifacts are content sources, not substitutes for reading the code:
 
 | Source | Used for | Maturity label |

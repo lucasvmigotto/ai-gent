@@ -24,7 +24,7 @@ tool to manage orders"), ask which interface they want.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md`,
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case),
    `../../references/terminal-design.md` and
    `../../references/terminal-stacks.md`.
 2. Read what exists: `docs/product/ux-vision.md` (its terminal section),
