@@ -19,6 +19,15 @@ description: Design and run performance tests — smoke, load, stress, spike, so
 
 ## Workload model
 
+Research the stack's benchmarks, k6's current version and executor
+semantics, and the vendor's published rate limits
+(`../../references/research.md`, about 5 searches and 5 fetches). Never
+exceed a published limit and never research how to bypass a limiter;
+authorization stays in the step above. Query tool and vendor names only.
+Cite source and date in the report and the README, labelled
+`[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`; with no web tools, a
+limit claim is `[ASSUMPTION]`, "verify before relying".
+
 Before any script, write the model in `qa.md` / a `tests/load/README.md`
 (conventions in `../../references/readme.md`; never run against
 production is a `[!CAUTION]` there):
