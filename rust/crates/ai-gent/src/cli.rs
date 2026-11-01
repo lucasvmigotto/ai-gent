@@ -29,6 +29,8 @@ pub enum Command {
     Guard(GuardArgs),
     /// Token usage per card, estimates and the budget (a port of `token_report.py`).
     Tokens(crate::cmd::tokens::TokensArgs),
+    /// Worktrees for parallel tracks and their container leftovers (a port of `wt.py`).
+    Wt(crate::cmd::wt::WtArgs),
 }
 
 /// Arguments of `guard`.
