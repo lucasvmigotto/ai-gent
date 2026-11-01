@@ -13,17 +13,10 @@ file covers changing things.
 - Versioning follows `git:workflow` (`plugins/git/skills/workflow/SKILL.md`),
   and its guard hook is active here too.
 - Run `scripts/check.sh` before every commit; CI runs the same script.
-- Before pushing a change to `plugins/repo/scripts/reporun.py`, also run
-  `scripts/test-reporun-github.py`: it drives reporun against a throwaway
-  private GitHub repository (issues, sub-issues, rebase and merge-commit PRs,
-  a batch) and deletes it (that needs `gh auth refresh -s delete_repo`;
-  otherwise it names the repository to delete). Needs `gh` signed in; not
-  part of CI.
-- Before pushing a change to `plugins/db/scripts/dbrun.py`, also run
-  `scripts/test-dbrun-engines.py` (`--engine <name>` for one engine): it
-  tests dbrun end to end against real PostgreSQL, MySQL, MariaDB, SQL
-  Server and Oracle containers, one at a time (at most 2 GB of RAM; about
-  5.5 GB of images, pulled once). Not part of CI.
+- Before pushing a change to `plugins/repo/scripts/reporun.py` or
+  `plugins/db/scripts/dbrun.py`, also run `scripts/test-reporun-github.py`
+  or `scripts/test-dbrun-engines.py` (real GitHub repo / real engine
+  containers; their headers say what they need). Not part of CI.
 
 ## Layout rules
 
@@ -72,48 +65,23 @@ file covers changing things.
   (`ai-gent/<area>/<name>`), a plain-text file last, and only a runner
   ever reads a value. A skill that needs a secret follows it, and the
   `secrets` guard keeps values out of the agent's reach.
-- Token tracking is `plugins/agents/scripts/token_report.py` (stdlib only,
-  tests in `test_token_report.py`, run by `check.sh`), explained in
-  `shared/token-tracking.md`. The tag vocabulary is `shared/token-tags.json`
-  plus its documentation `shared/token-tags.md`; to add a value, change both
-  (`scripts/consistency.py` fails if they differ, if a value is in two facets,
-  or if a `cards.md` card lacks `Tags:` or `Tokens: projected`). The tests
-  never read real transcripts or `~/.ai-gent`; they build a fake `HOME`.
+- Token tracking (`plugins/agents/scripts/token_report.py`, tag vocabulary `shared/token-tags.json`): see `shared/token-tracking.md`; adding a tag changes the JSON and `shared/token-tags.md` together.
 - Hook scripts are POSIX `sh`, tested by `scripts/test-guard.sh` (git),
   `scripts/test-db-guard.sh`, `scripts/test-secrets-guard.sh`,
   `scripts/test-repo-guard.sh` and `scripts/test-containers-guard.sh`
   (the devcontainer guard and its SessionStart leftovers report).
-- Container resources a skill creates carry the project's ownership label
-  and go by ID or label, never by a prune (`shared/containers.md` §9a).
-  `scripts/consistency.py` fails a skill that creates volumes, tools
-  images, compose stacks or worktrees without saying how they're removed,
-  and a line that teaches a prune. `wt.py`'s container code is tested
-  against a fake `CONTAINER_ENGINE`; never point its tests at a real one.
+- Container resources a skill creates carry the project's ownership label and go by ID or label, never a prune: `shared/containers.md` §9a.
 
 ## Releases
 
-Automated: every push to `main` runs `.github/workflows/release.yml`, which
-runs the checks and then `scripts/release.py`. The commits since the last
-tag decide: `feat` → minor; `fix`, `perf`, `refactor` → patch; `type!:` or
-a `BREAKING CHANGE:` footer → major; anything else (docs, chore, ci, test,
-style) → no release. A release bumps the `version` of each plugin whose
-files (or the shared files it links) changed, promotes `CHANGELOG.md`'s
-`## Unreleased` section (or generates one from the commits), commits
-`chore(release): X.Y.Z`, tags `X.Y.Z` and publishes a GitHub Release.
+Automated on every push to `main` (`scripts/release.py`); commit types decide
+the bump. Full flow: `shared/releasing.md`.
 
-- Tags are plain SemVer without a `v` (`1.1.0`); a `v` only in display text.
-- Write release notes by hand under `## Unreleased` when the commit
-  subjects aren't enough; they're used as they are.
-- Don't bump plugin versions or tag by hand; a version already changed by
-  hand since the last tag is left alone.
+- Tags are plain SemVer without a `v` (`1.1.0`).
+- Don't bump plugin versions or tag by hand.
+- Notes written under `## Unreleased` are used as they are.
 - Preview with `scripts/release.py --dry-run`.
-- The same flow is what the skills set up in other projects: the
-  single-version template is `shared/release-single.py` (tested by
-  `scripts/test-release-single.sh`) and the per-platform release jobs are
-  in `shared/release-platforms.md`. Change the bump rules in both
-  scripts together.
-- After pushing, the bot's release commit lands on `main`: run
-  `git pull --ff-only` before the next local commit.
+- After pushing, run `git pull --ff-only` before the next local commit (the bot's release commit).
 
 ## Evals
 
@@ -128,29 +96,7 @@ shell (tag `behavior`, with a `scaffold.sh`) also need `--scaffold
 prints a table and records the scores in `docs/product/evals.md`.
 Eval runs cost real tokens and aren't part of CI.
 
-## Docs site (`docs/site/`)
+## Docs site
 
-A static, English-only documentation site for this toolkit (Bun · React ·
-TypeScript · Vite · Tailwind · HashRouter · Biome), deployed to Cloudflare
-R2 at `https://docs.lucasvmigotto.me/ai-gent/` by
-`.github/workflows/docs-ci.yml`. The brief and UX vision live in
-`docs/product/`.
-
-- Run commands in `docs/site/`: `bun install`, then
-  `bun run dev|build|test|lint|typecheck`.
-- Content is generated from this repository by
-  `scripts/generate-content.mjs` into `src/content/generated.json`
-  (gitignored). Never hand-edit it — change the source and re-run
-  `bun run gen` (it runs automatically before `dev`, `build`, `test` and
-  `typecheck`).
-- Copy lives in `src/i18n.tsx`. `LOCALES` is the single source of truth and
-  every registered locale must be a complete `Messages`; a completeness
-  test fails the build on a gap, so adding a locale is additive.
-- The deploy syncs only under the repository-name R2 prefix
-  (`/ai-gent/`); never sync at the bucket root — sibling docs share it.
-- e2e smoke drives the built site in containerized Chrome:
-  `bun run build`, serve it, then `SELENIUM_URL=<url> bun run e2e` (CI job
-  `e2e`, pinned `selenium/standalone-chrome` — never a host driver).
-- Open Graph image: `bun run og` regenerates the committed
-  `public/og-image.png` (1200×630) from `scripts/og-image.svg`; CI asserts
-  it is built and advertised.
+`docs/site/` (Bun · React · Vite): commands, generated content, i18n, deploy,
+e2e and OG image rules are in `docs/site/README.md`.
