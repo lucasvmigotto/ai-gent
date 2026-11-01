@@ -114,3 +114,67 @@ fn usage_error_is_exit_2_with_envelope() {
 fn no_subcommand_is_usage() {
     bin().assert().code(2);
 }
+
+fn guard(args: &[&str], input: &str) -> String {
+    let out = bin()
+        .arg("guard")
+        .args(args)
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    String::from_utf8(out).unwrap()
+}
+
+#[test]
+fn guard_asks_on_push_and_is_silent_on_ls() {
+    let push = r#"{"tool_name":"Bash","cwd":"/tmp","tool_input":{"command":"git push origin x"}}"#;
+    let v: serde_json::Value = serde_json::from_str(&guard(&["--guard", "git"], push)).unwrap();
+    assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "ask");
+    assert!(
+        v["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .unwrap()
+            .starts_with("git:workflow guard: ")
+    );
+    let ls = r#"{"tool_name":"Bash","cwd":"/tmp","tool_input":{"command":"ls -la"}}"#;
+    assert_eq!(guard(&["--guard", "all"], ls), "");
+}
+
+#[test]
+fn guard_failure_is_an_ask_line_and_exit_zero() {
+    let v: serde_json::Value =
+        serde_json::from_str(&guard(&["--guard", "secrets"], "not json")).unwrap();
+    assert_eq!(v["hookSpecificOutput"]["permissionDecision"], "ask");
+    assert!(
+        v["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .unwrap()
+            .starts_with("secrets guard: guard failed internally")
+    );
+}
+
+#[test]
+fn guard_opencode_format() {
+    let out = guard(
+        &["--format", "opencode"],
+        r#"{"action":"shell","resources":["podman system prune -a"],"cwd":"/tmp"}"#,
+    );
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["decision"], "deny");
+}
+
+#[test]
+fn guard_list_reasons_json() {
+    let out = bin()
+        .args(["guard", "list-reasons", "--json"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert!(v["data"].as_array().unwrap().len() >= 20);
+}

@@ -18,6 +18,9 @@ thiserror = "2"
 assert_cmd = "2"
 insta = { version = "1", features = ["json"] }
 tempfile = "3"
+# Linear-time matching for the guard rules (spec 033). No Unicode tables, no SIMD: the patterns are ASCII
+# and the binary is size-budgeted.
+regex = { version = "1", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
