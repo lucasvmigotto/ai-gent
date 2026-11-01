@@ -31,7 +31,52 @@ jobs:
           pipx --version # check.sh runs its pinned shellcheck, and a pinned uv for compact:code's Pygments, through pipx
           claude --version
 
+      # The Rust gates run on every push to main and on pull requests that touch what they check;
+      # check.yml is also called by release.yml (a push), so that path is always "true".
+      - name: Does this change need the Rust gates?
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          rust=true
+          if [ "$EVENT" = pull_request ]; then
+            rust=false
+            if git diff --name-only "$BASE_SHA"...HEAD | grep -E -q '^(rust/|shared/guard-fixtures/|plugins/[^/]+/hooks/guard\.sh$|opencode/guard/|\.github/workflows/rust[^/]*\.yml$|scripts/test-rust-workflows\.sh$)'; then
+              rust=true
+            fi
+          fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+          echo "rust gates: $rust" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Rust toolchain (pinned by rust/rust-toolchain.toml)
+        if: steps.changes.outputs.rust == 'true'
+        working-directory: rust
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          cargo --version
+
+      - name: Cache cargo registry, build output and cargo-deny
+        if: steps.changes.outputs.rust == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-deny
+            rust/target
+          key: rust-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock', 'rust/rust-toolchain.toml') }}-deny0.20.2
+          restore-keys: |
+            rust-${{ runner.os }}-
+
+      - name: Install cargo-deny
+        if: steps.changes.outputs.rust == 'true'
+        run: command -v cargo-deny >/dev/null || cargo install cargo-deny --version 0.20.2 --locked
+
       - name: Check
+        env:
+          CHECK_SKIP_RUST: ${{ steps.changes.outputs.rust != 'true' && '1' || '' }}
         run: scripts/check.sh
 
   # The installer on macOS: the system bash is 3.2, so setup.sh hands over to

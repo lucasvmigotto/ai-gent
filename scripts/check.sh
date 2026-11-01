@@ -20,6 +20,8 @@
 #                then the one on PATH; else the lint is skipped)
 #   SHELLCHECK_VERSION  shellcheck-py release to pin (default below)
 #   PYGMENTS_VERSION    Pygments release compact:code's tests run with (default below)
+#   CHECK_SKIP_RUST     any value skips the Rust gates (CI sets it when a pull request
+#                       touches nothing they check)
 #   UV_VERSION          uv release fetched through pipx when uv isn't installed
 
 set -euo pipefail
@@ -398,6 +400,44 @@ elif scripts/test-update-check.sh; then
   pass "update-check tests"
 else
   fail "update-check tests"
+fi
+
+# -------------------------------------------------------------------- rust
+
+# The workspace under rust/ (spec 032): fmt, clippy, tests, deny. Skipped with a warning when
+# cargo is missing; --quick skips only the tests. The pinned toolchain comes from
+# rust/rust-toolchain.toml (rustup installs it on first use).
+rust_gate() { # rust_gate <label> <command...>
+  local label="$1" out status
+  shift
+  out="$(mktemp "${TMPDIR:-/tmp}/ai-gent-rust.XXXXXX")"
+  if (cd rust && "$@") >"$out" 2>&1; then
+    pass "rust $label"
+  else
+    status=$?
+    tail -n 40 "$out"
+    fail "rust $label (exit $status)"
+  fi
+  rm -f "$out"
+}
+
+if [[ -n "${CHECK_SKIP_RUST:-}" ]]; then
+  warn "CHECK_SKIP_RUST set (CI: no Rust files changed); skipped the Rust gates"
+elif ! command -v cargo >/dev/null 2>&1; then
+  warn "cargo not on PATH; skipped the Rust gates (fmt, clippy, test, deny)"
+else
+  rust_gate fmt cargo fmt --all -- --check
+  rust_gate clippy cargo clippy --workspace --all-targets --locked -- -D warnings
+  if ((QUICK)); then
+    warn "--quick: skipped rust tests"
+  else
+    rust_gate test cargo test --workspace --locked
+  fi
+  if command -v cargo-deny >/dev/null 2>&1; then
+    rust_gate deny cargo deny check
+  else
+    warn "cargo-deny not installed (cargo install cargo-deny --locked); skipped rust deny"
+  fi
 fi
 
 ((QUIET)) || echo

@@ -1,0 +1,23 @@
+name: rust
+
+# Rehearsal of the Rust build (spec 032 FR-012): never tags, releases, attests or publishes.
+# Dispatch only at this stage; pull_request triggers arrive with the check.yml wiring (T014).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/rust-build.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ github.sha }}
+      release: dev
+      dry_run: true

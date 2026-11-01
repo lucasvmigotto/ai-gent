@@ -39,6 +39,9 @@
      the labels in prose are only [RESEARCHED: S<n>], [KNOWN], [ASSUMPTION];
      the method file keeps its required sections.
 
+ 13. The Rust workspace (rust/, spec 032) is not a plugin (no .claude-plugin,
+     no skills/) and every crate's license is the one the plugins declare.
+
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
 (default 19000, room for growth; raise it deliberately with a new plugin,
@@ -48,6 +51,7 @@ import json
 import os
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -649,6 +653,39 @@ def check_research_method(root: Path) -> list[str]:
     return [f"{RESEARCH_SHARED}: lost its {name} section" for name, pat in RESEARCH_SECTIONS if not re.search(pat, text, re.I | re.M)]
 
 
+def check_rust_workspace(root: Path) -> list[str]:
+    """rust/ is not a plugin, and its crates carry the repository's license."""
+    ws = root / "rust" / "Cargo.toml"
+    if not ws.is_file():
+        return []
+    problems = []
+    for stray in (".claude-plugin", "skills", "plugins"):
+        if (root / "rust" / stray).exists():
+            problems.append(f"rust/{stray}: rust/ is a Cargo workspace, not a plugin; plugins live in plugins/<name>/")
+    licenses = set()
+    for manifest in sorted(root.glob("plugins/*/.claude-plugin/plugin.json")):
+        lic = json.loads(manifest.read_text(encoding="utf-8")).get("license")
+        if lic:
+            licenses.add(lic)
+    if len(licenses) != 1:
+        return problems + [f"plugin licenses are not one value ({sorted(licenses)}); cannot compare the crates to them"]
+    (expected,) = licenses
+    workspace = tomllib.loads(ws.read_text(encoding="utf-8"))
+    ws_license = workspace.get("workspace", {}).get("package", {}).get("license")
+    for member in workspace.get("workspace", {}).get("members", []):
+        manifest = root / "rust" / member / "Cargo.toml"
+        if not manifest.is_file():
+            problems.append(f"rust/{member}/Cargo.toml: workspace member is missing")
+            continue
+        pkg = tomllib.loads(manifest.read_text(encoding="utf-8")).get("package", {})
+        lic = pkg.get("license")
+        if isinstance(lic, dict) and lic.get("workspace") is True:
+            lic = ws_license
+        if lic != expected:
+            problems.append(f"rust/{member}/Cargo.toml: license is {lic!r}, the plugins declare {expected!r}")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
     if "--sync-shared-code" in sys.argv[1:] or "--sync-guard-ux" in sys.argv[1:]:
         for shared, plugins in SHARED_CODE.items():
@@ -660,13 +697,13 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, rust workspace license, descriptions ({total} characters)")
     return 1 if problems else 0
 
 
