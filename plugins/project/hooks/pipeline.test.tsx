@@ -233,7 +233,7 @@ test('the pane follows a change within one poll, and an idle pane spawns nothing
   expect(await ui.find({ type: 'Text', text: /✗ architecture: missing/ })).toBeDefined()
 
   const spawned = w.runs.length
-  await clock.advance(600_000)
+  await clock.advance(60_000)
   expect(w.runs.length).toBe(spawned)
 
   w.files[ARCH] = '# Architecture'
@@ -337,7 +337,7 @@ test('the header says LIVE while the poll checks, and the caption advances with 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: / LIVE / })).toBeDefined()
   const first = (await ui.find({ type: 'Text', text: /^Checked / }))?.text
-  expect(first).toMatch(/^Checked \d\d:\d\d:\d\d · every 5 s$/)
+  expect(first).toMatch(/^Checked \d\d:\d\d:\d\d · ⏱ 5 s$/)
   await w.clock.advance(65_000)
   const later = (await ui.find({ type: 'Text', text: /^Checked / }))?.text
   expect(later).not.toBe(first)

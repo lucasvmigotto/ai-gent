@@ -198,6 +198,7 @@ export const GLYPH = {
   arrow: ['→', '->'],
   current: ['◆', '>'],
   sep: ['·', '|'],
+  poll: ['⏱', 'every'],
   ellipsis: ['…', '...'],
   edge: ['▎', '|'],
   branch: ['└─', '`-'],
@@ -530,7 +531,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   const caption = ctx.checkedAt <= 0
     ? 'Not checked yet'
     : isLive
-      ? `Checked ${clock(ctx.checkedAt)}${sep}every ${ctx.pollMs / 1000} s`
+      ? `Checked ${clock(ctx.checkedAt)}${sep}${glyph('poll', ascii)} ${ctx.pollMs / 1000} s`
       : `Last checked ${clock(ctx.checkedAt)}`
 
   return {

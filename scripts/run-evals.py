@@ -16,6 +16,7 @@ in CI. Exit 1 when any case scores under the threshold (default 1.0).
 import argparse
 import datetime
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -44,9 +45,27 @@ def plugins_with_evals(names: list[str]) -> list[str]:
     return names
 
 
+def eval_target(plugin: str, scratch: Path) -> str:
+    """The folder to evaluate. The eval loads the plugin alone, and a plugin that lists
+    `dependencies` is refused when they are not installed beside it (its skills never
+    load, so every trigger case fails). Such a plugin is evaluated from a copy with the
+    list removed; its mod's hooks do not run headless, so nothing under test changes."""
+    src = ROOT / "plugins" / plugin
+    manifest = src / ".claude-plugin" / "plugin.json"
+    if "dependencies" not in json.loads(manifest.read_text()):
+        return f"plugins/{plugin}"
+    copy = scratch / plugin
+    shutil.copytree(src, copy, symlinks=False, ignore=shutil.ignore_patterns("results"))
+    data = json.loads((copy / ".claude-plugin" / "plugin.json").read_text())
+    data.pop("dependencies")
+    (copy / ".claude-plugin" / "plugin.json").write_text(json.dumps(data, indent=2))
+    return str(copy)
+
+
 def run_one(plugin: str, behavior: bool, runs: int, extra: list[str]) -> dict | None:
-    out = Path(tempfile.mkdtemp()) / "result.json"
-    cmd = ["claude", "plugin", "eval", f"plugins/{plugin}", "--runs", str(runs), "--ablation", "none",
+    scratch = Path(tempfile.mkdtemp())
+    out = scratch / "result.json"
+    cmd = ["claude", "plugin", "eval", eval_target(plugin, scratch), "--runs", str(runs), "--ablation", "none",
            "--trust-plugin", "--no-publish", "--json", str(out)]
     if behavior:
         cmd += ["--tag", "behavior", "--scaffold", "--allow-tools", "Bash"]

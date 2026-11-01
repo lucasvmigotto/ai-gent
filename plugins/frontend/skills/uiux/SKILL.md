@@ -104,8 +104,8 @@ audiences that must not be alienated).
    `../../references/research.md`, about 5 searches and 5 fetches): the
    current WCAG 2.2 and 3.0 status, the platform HIG, and the legal
    standards that apply (EAA, ADA, Section 508), each cited with a dated
-   URL as `[RESEARCHED: S<n>]`, else `[ASSUMPTION]` with "verify before
-   relying" (not legal advice; confirm with counsel).
+   URL fetched in this run as `[RESEARCHED: S<n>]`, else `[ASSUMPTION]`
+   with "verify before relying" and no URL written from memory (not legal advice; confirm with counsel).
 9. **Language.**
    - **Which language, first.** Infer the interface's primary language
      from what's given and confirm it with the user before writing any
