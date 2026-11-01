@@ -1,6 +1,6 @@
 ---
 name: sync
-description: Mirror Spec Kit features into the tracker — a GitHub issue, Azure Boards Feature, GitLab issue or Jira Epic per feature and a child item per user story with its tasks as a checklist — keeping states in step with tasks.md and specs/README.md and closing at Verified once the work is on the integration branch. One confirmation per batch. Use for "create the issues for the specs", "sync the tracker".
+description: Mirror Spec Kit features into the tracker — a GitHub issue, Azure Boards Feature, GitLab issue or Jira Epic per feature and a child item per user story — keeping states in step with tasks.md and closing at Verified. One confirmation per batch. Use for "create the issues for the specs", "sync the tracker".
 ---
 
 # Specs ↔ tracker sync

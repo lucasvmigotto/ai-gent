@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the pipeline's brief, domain model and specs (labelled Planned until built), branded from the UX vision — plus llms.txt and Markdown pages for LLMs, with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
+description: Build a static, accessible, internationalized documentation site in docs/site/ — truth-first from the code, enriched by the brief, domain model and specs (Planned until built) — plus llms.txt and Markdown pages for LLMs, with tests and R2 or Docker shipping. Use for "document this project", "create a docs site", "add a documentation website".
 ---
 
 # Project documentation websites

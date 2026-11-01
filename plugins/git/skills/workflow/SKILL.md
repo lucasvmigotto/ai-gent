@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: This user's git rules — Conventional Commits, branch-per-context naming, the dev → staging → main chain, landing through platform PRs or local --no-ff/--ff-only merges, what each permission level allows, branch cleanup and safe history. Use whenever committing, branching, merging, opening or merging a PR, promoting or tagging ("commit this", "merge it in", "open the PR", "promote to main").
+description: This user's git rules — Conventional Commits, branch-per-context naming, the dev → staging → main chain, landing through platform PRs or local --no-ff/--ff-only merges, permission levels, safe history. Use whenever committing, branching, merging, opening or merging a PR, promoting or tagging ("commit this", "merge it in", "open the PR", "promote to main").
 ---
 
 # Git versioning workflow

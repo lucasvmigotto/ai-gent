@@ -1,6 +1,6 @@
 ---
 name: build
-description: Implement the frontend — the Spec Kit implement step for a feature's Frontend tasks — design system first, then each feature's ui.md phase by phase, against a mock of contracts/openapi.yaml, with i18n, WCAG 2.2 AA, responsive layouts, tests, screenshot self-critique and /speckit-converge before marking Implemented. Use for "build the frontend", "implement the UI". Runs after frontend-spec.
+description: Implement the frontend — the Spec Kit implement step for a feature's Frontend tasks — design system first, then each ui.md, against a mock of contracts/openapi.yaml, with i18n, WCAG 2.2 AA, tests and /speckit-converge before marking Implemented. Use for "build the frontend", "implement the UI".
 ---
 
 # Frontend implementation — the Spec Kit `implement` step

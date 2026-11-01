@@ -1,6 +1,6 @@
 ---
 name: tui
-description: Build a terminal interface the user asked for — a TUI and the CLI it sits on (subcommands, --json, exit codes), or a CLI alone — with Go/Bubble Tea, Rust/Ratatui, Python/Textual, Java/Lanterna, TypeScript/Ink or .NET/Spectre.Console, against the API contract, with snapshot and keystroke tests and packaging. Use for "build a TUI", "terminal dashboard", "design the CLI". Never creates a TUI unasked.
+description: Build a terminal interface the user asked for — a TUI and the CLI it sits on (subcommands, --json, exit codes), or a CLI alone — in the stack that fits (Go, Rust, Python, TypeScript, .NET, Java), with snapshot and keystroke tests. Use for "build a TUI", "terminal dashboard", "design the CLI". Never creates a TUI unasked.
 ---
 
 # Terminal interfaces — TUI and CLI

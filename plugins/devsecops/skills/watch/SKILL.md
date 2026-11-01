@@ -1,6 +1,6 @@
 ---
 name: watch
-description: Follow CI/CD runs to the end and explain failures — find a commit's runs, watch them without blocking, read only the failed steps' logs, classify the cause with evidence, check secrets (names only), variables, environments and permissions — on GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket, Jenkins, Forgejo/Gitea. Use for "watch the CI", "why did the pipeline fail", "is the deploy done".
+description: Follow CI/CD runs to the end and explain failures — find a commit's runs, watch without blocking, read only failed steps' logs, classify the cause with evidence — on GitHub Actions, GitLab CI, Azure Pipelines, Bitbucket, Jenkins, Forgejo/Gitea. Use for "watch the CI", "why did the pipeline fail", "is the deploy done".
 model: haiku
 context: fork
 allowed-tools: Bash(gh run list *) Bash(gh run view *) Bash(gh run watch *) Bash(git rev-parse *) Bash(git log *) Bash(git remote get-url *)

@@ -1,6 +1,6 @@
 ---
 name: survey
-description: Survey a project on first contact — its stack and versions, layout and entry points, how it builds, tests and runs, CI and containers, history and conventions, main branches and how far they drift apart, stale or unmerged branches, and red flags — ending in which stage to run next. Read-only. Use for "get to know this project", "survey this repo", "cold start", or before project:introspec.
+description: Survey a project on first contact — stack and versions, layout, how it builds, tests and runs, CI and containers, history, how far the main branches drift apart, stale branches, red flags — ending in which stage to run next. Read-only. Use for "get to know this project", "survey this repo", "cold start", or before project:introspec.
 ---
 
 # Survey — first contact with a project

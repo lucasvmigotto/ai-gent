@@ -1,6 +1,6 @@
 ---
 name: connect
-description: List, test and classify database connection profiles — which databases exist for this project, their engine and environment class (production, staging, development, proven local), and whether they connect — without ever printing credentials, and help the user add a profile safely. Use for "test the DB connection", "which databases can you reach", "add a database profile", "is this database local".
+description: List, test and classify database connection profiles — engine, environment class (production, staging, development, proven local) and whether they connect — without printing credentials, and add a profile safely. Use for "test the DB connection", "which databases can you reach", "add a database profile", "is this database local".
 ---
 
 # Database connections
