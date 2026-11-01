@@ -300,6 +300,23 @@ for t in "${TRIPLES[@]}"; do
   fi
 done
 
+echo "      -- install: this machine's own platform (no AI_GENT_TARGET)"
+case "$(uname -s)/$(uname -m)" in
+  Linux/x86_64) native=x86_64-unknown-linux-musl ;;
+  Linux/aarch64 | Linux/arm64) native=aarch64-unknown-linux-musl ;;
+  Darwin/arm64) native=aarch64-apple-darwin ;;
+  Darwin/x86_64) native=x86_64-apple-darwin ;;
+  *) native="" ;;
+esac
+if [ -n "$native" ]; then
+  rm -rf "$AI_GENT_HOME" "$HOME/.local/bin"
+  env -u AI_GENT_TARGET AI_GENT_RELEASE_BASE="file://$TRIPREL" VERSION=9.8.0 sh "$REPO_DIR/install.sh" --skip-prompt --target claude >"$SANDBOX/out" 2>&1 || cat "$SANDBOX/out"
+  check "the detected triple on this machine is $native" grep -q "installing ai-gent 9.8.0 ($native)" "$SANDBOX/out"
+  check "its binary is installed and linked" test -x "$AI_GENT_HOME/9.8.0/bin/ai-gent" -a -L "$HOME/.local/bin/ai-gent"
+else
+  printf '      skip  native detection (%s is not a supported test host)\n' "$(uname -s)/$(uname -m)"
+fi
+
 echo "      -- install: a missing or broken per-triple archive"
 mkdir -p "$SANDBOX/fb"
 pkg 2.99.0 "$SANDBOX/fb/2.99.0" # a 2.x release with the content-only package only (what 2.26 published)

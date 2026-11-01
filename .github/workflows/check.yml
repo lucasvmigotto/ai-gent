@@ -110,3 +110,8 @@ jobs:
 
       - name: Installer tests, run by the system bash 3.2
         run: /bin/bash scripts/test-install.sh
+
+      # The per-triple archives and install.sh's platform map on macOS: BSD tar, shasum, env and sed,
+      # the native uname (arm64), unzip for the Windows archive.
+      - name: Package and per-triple install tests, run by the system bash 3.2
+        run: /bin/bash scripts/test-package.sh
