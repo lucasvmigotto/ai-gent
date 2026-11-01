@@ -1,6 +1,6 @@
 ---
 name: parallel
-description: Develop independent work at the same time — several features, or a feature's frontend, backend and QA tracks — each on its own branch in a git worktree under .worktrees/, only where dependencies and file ownership make it safe, then land the branches on dev one at a time in dependency order, checking after each. Use for "build these features in parallel", "use worktrees", "run the tracks at once".
+description: Develop independent work at the same time — several features, or a feature's frontend, backend and QA tracks — each on its own branch in a git worktree under .worktrees/, landed on dev one at a time in dependency order. Use for "build these features in parallel", "use worktrees", "run the tracks at once".
 ---
 
 # Parallel development in worktrees
