@@ -1,0 +1,55 @@
+{
+ "name": "cli-child-status-and-stderr-redacted",
+ "derived_from": "reporun.cmd_cli / run_cli_capture",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "args": "pr list",
+     "stdout": "out token={env:GH_TOKEN}\n",
+     "stderr": "err {env:GH_TOKEN}\n",
+     "exit": 4
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"a\", \"cli\": [\"pr\", \"list\"]}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "cli",
+    "github",
+    "--",
+    "pr",
+    "list"
+   ],
+   "stdin": null,
+   "exit": 4,
+   "stdout": "out token=<token>\nerr <token>\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": false,\n  \"steps\": [\n    {\n      \"name\": \"a\",\n      \"ok\": false,\n      \"error\": \"gh exited 4: out token=<token>\\nerr <token>\"\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

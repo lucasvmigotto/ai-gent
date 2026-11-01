@@ -1,0 +1,65 @@
+{
+ "name": "batch-references-and-records",
+ "derived_from": "BatchTest::test_references_and_records",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"feature\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues\", \"data\": {\"title\": \"[012] Export\"}}, \"record\": {\"key\": \"feature\", \"ref\": \"#{{self.number}}\", \"id\": \"{{self.id}}\", \"url\": \"{{self.html_url}}\", \"state\": \"todo\"}}, {\"name\": \"US1\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues\", \"data\": {\"title\": \"[012] US1: CSV\"}}, \"record\": {\"key\": \"US1\", \"ref\": \"#{{self.number}}\", \"id\": \"{{self.id}}\", \"state\": \"todo\"}}, {\"name\": \"US1-parent\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues/{{feature.number}}/sub_issues\", \"data\": {\"sub_issue_id\": \"{{US1.id}}\"}}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json",
+    "--write",
+    "--out",
+    "<ROOT>/out.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": true,\n  \"steps\": [\n    {\n      \"name\": \"feature\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"US1\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"US1-parent\",\n      \"ok\": true\n    }\n  ],\n  \"records\": [\n    {\n      \"key\": \"feature\",\n      \"ref\": \"#101\",\n      \"id\": 9101,\n      \"url\": \"https://github.com/o/r/issues/101\",\n      \"state\": \"todo\"\n    },\n    {\n      \"key\": \"US1\",\n      \"ref\": \"#102\",\n      \"id\": 9102,\n      \"state\": \"todo\"\n    }\n  ],\n  \"skipped\": []\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/repos/o/r/issues",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"title\": \"[012] Export\"}"
+    },
+    {
+     "method": "POST",
+     "path": "/repos/o/r/issues",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"title\": \"[012] US1: CSV\"}"
+    },
+    {
+     "method": "POST",
+     "path": "/repos/o/r/issues/101/sub_issues",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"sub_issue_id\": 9102}"
+    }
+   ]
+  }
+ ],
+ "expect_files": {
+  "out.json": "{\n  \"platform\": \"github\",\n  \"ok\": true,\n  \"steps\": [\n    {\n      \"name\": \"feature\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"US1\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"US1-parent\",\n      \"ok\": true\n    }\n  ],\n  \"records\": [\n    {\n      \"key\": \"feature\",\n      \"ref\": \"#101\",\n      \"id\": 9101,\n      \"url\": \"https://github.com/o/r/issues/101\",\n      \"state\": \"todo\"\n    },\n    {\n      \"key\": \"US1\",\n      \"ref\": \"#102\",\n      \"id\": 9102,\n      \"state\": \"todo\"\n    }\n  ],\n  \"skipped\": []\n}\n"
+ }
+}

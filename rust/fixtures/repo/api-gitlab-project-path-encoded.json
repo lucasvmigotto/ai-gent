@@ -1,0 +1,52 @@
+{
+ "name": "api-gitlab-project-path-encoded",
+ "derived_from": "ApiTest::test_gitlab_project_path_encoded",
+ "remote": "git@gitlab.com:grp/sub/proj.git",
+ "git": [],
+ "store": {
+  "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "gitlab",
+    "GET",
+    "/projects/{project_path}/issues"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/projects/grp%2Fsub%2Fproj/issues",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "gitlab",
+    "GET",
+    "/projects/{nope}/issues"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

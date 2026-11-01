@@ -1,0 +1,32 @@
+{
+ "name": "cli-not-installed",
+ "derived_from": "reporun.prepare_cli (cli missing)",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "cli",
+    "github",
+    "--",
+    "pr",
+    "list"
+   ],
+   "stdin": null,
+   "exit": 2,
+   "stdout": "",
+   "stderr_has": [
+    "isn't installed"
+   ],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

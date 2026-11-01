@@ -1,0 +1,95 @@
+{
+ "name": "batch-plan-errors",
+ "derived_from": "reporun.cmd_batch (validation and reference errors)",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "dup.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"a\", \"api\": {\"path\": \"/x\"}}, {\"name\": \"a\", \"api\": {\"path\": \"/y\"}}]}",
+  "noname.json": "{\"platform\": \"github\", \"steps\": [{\"api\": {\"path\": \"/x\"}}]}",
+  "badplat.json": "{\"platform\": \"svn\", \"steps\": []}",
+  "kind.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"a\"}]}",
+  "missing-ref.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"a\", \"api\": {\"method\": \"GET\", \"path\": \"/ok\"}}, {\"name\": \"b\", \"api\": {\"method\": \"GET\", \"path\": \"/x/{{a.nope}}\"}}, {\"name\": \"c\", \"api\": {\"method\": \"GET\", \"path\": \"/x\"}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/dup.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 2,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/noname.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 2,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/badplat.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 2,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/kind.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/missing-ref.json",
+    "--out",
+    "<ROOT>/out.json"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": false,\n  \"steps\": [\n    {\n      \"name\": \"a\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"b\",\n      \"ok\": false,\n      \"error\": \"{{a.nope}}: 'nope' isn't in that step's result\"\n    }\n  ],\n  \"records\": [],\n  \"skipped\": [\n    \"c\"\n  ]\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/ok",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {
+  "out.json": "{\n  \"platform\": \"github\",\n  \"ok\": false,\n  \"steps\": [\n    {\n      \"name\": \"a\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"b\",\n      \"ok\": false,\n      \"error\": \"{{a.nope}}: 'nope' isn't in that step's result\"\n    }\n  ],\n  \"records\": [],\n  \"skipped\": [\n    \"c\"\n  ]\n}\n"
+ }
+}

@@ -316,6 +316,18 @@ if [ -f scripts/test-parity-spec.py ]; then
   rm -f "${TMPDIR:-/tmp}/ai-gent-parity-spec.out"
 fi
 
+# Parity gate of `ai-gent repo` (spec 037): same shape, against a loopback stub and fake tools (never a
+# real platform). Deleted with reporun.py at the 3.0.0 cutover.
+if [ -f scripts/test-parity-repo.py ]; then
+  if python3 scripts/test-parity-repo.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-parity-repo.out" 2>&1; then
+    pass "repo parity oracle ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-parity-repo.out" | cut -c1-60))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-parity-repo.out"
+    fail "repo parity fixtures (scripts/test-parity-repo.py)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-parity-repo.out"
+fi
+
 if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
   pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
 else

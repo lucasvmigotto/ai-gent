@@ -1,0 +1,39 @@
+{
+ "name": "chain-no-production-and-no-default",
+ "derived_from": "reporun.cmd_chain (nothing to go on)",
+ "remote": "git@github.com:o/r.git",
+ "git": [
+  [
+   "checkout",
+   "-q",
+   "-b",
+   "trunk"
+  ],
+  [
+   "commit",
+   "-q",
+   "--allow-empty",
+   "-m",
+   "init"
+  ]
+ ],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "chain",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"default\": null,\n  \"ambiguous\": [\n    \"production: no main/master and no remote default branch\"\n  ],\n  \"integration\": null,\n  \"staging\": null,\n  \"production\": null,\n  \"order\": [\n    \"work branches\"\n  ],\n  \"integrated_on\": null,\n  \"keywords_close_on\": null,\n  \"ask\": true\n}\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

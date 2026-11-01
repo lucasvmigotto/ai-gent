@@ -9,6 +9,7 @@ pub mod install;
 pub mod output;
 pub mod passstore;
 pub mod paths;
+pub mod repo;
 pub mod spec;
 pub mod tokens;
 pub mod update;

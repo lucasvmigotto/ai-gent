@@ -1,0 +1,46 @@
+{
+ "name": "batch-cli-steps-keep-json-structured",
+ "derived_from": "reporun.cmd_batch (cli steps)",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "args": "api repos/o/r/pulls",
+     "stdout": "[{\"number\": 7, \"url\": \"https://x/7\"}]\n"
+    },
+    {
+     "args": "pr view",
+     "stdout": "plain text\n"
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"prs\", \"cli\": [\"api\", \"repos/o/r/pulls\"]}, {\"name\": \"text\", \"cli\": [\"pr\", \"view\", \"{{prs.0.url}}\"]}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json",
+    "--out",
+    "<ROOT>/out.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": true,\n  \"steps\": [\n    {\n      \"name\": \"prs\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"text\",\n      \"ok\": true\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {
+  "out.json": "{\n  \"platform\": \"github\",\n  \"ok\": true,\n  \"steps\": [\n    {\n      \"name\": \"prs\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"text\",\n      \"ok\": true\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n"
+ }
+}

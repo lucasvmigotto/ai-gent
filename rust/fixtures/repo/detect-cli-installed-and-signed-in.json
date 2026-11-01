@@ -1,0 +1,46 @@
+{
+ "name": "detect-cli-installed-and-signed-in",
+ "derived_from": "reporun.cli_state",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "args": "auth status",
+     "exit": 0
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"git@github.com:o/r.git\",\n    \"host\": \"github.com\",\n    \"platform\": \"github\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"github\": {\n      \"token_entry\": \"ai-gent/github/pat\",\n      \"token_in_pass\": true,\n      \"cli\": {\n        \"name\": \"gh\",\n        \"installed\": true,\n        \"signed_in\": true\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "remote    git@github.com:o/r.git\nplatform  github\nowner     o\nrepo      r\n\ngithub: CLI (gh installed, signed in)\n  token   ai-gent/github/pat — in pass\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

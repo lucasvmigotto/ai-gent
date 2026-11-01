@@ -4,7 +4,7 @@
 //! - `pass show E` / `gopass show -f E`: print `$PASSWORD_STORE_DIR/E.gpg` (or `.age`), else exit 1.
 //! - `pass insert --multiline E` / `gopass insert -m E`: store stdin as `E.gpg`; `FAKE_TOOL_FAIL_INSERT` fails it.
 //! - `FAKE_TOOL_SLEEP=<seconds>`: sleep first (timeouts).
-//! - anything else (`gh`, `az`, ...): `FAKE_TOOL_RULES` names a JSON file `{"rules": [{"args": "pr list",
+//! - anything else (`gh`, `az`, ...): `FAKE_TOOL_RULES` (else `<name>.rules.json` beside the tool) names a JSON file `{"rules": [{"args": "pr list",
 //!   "stdout": "x {args} {env:GH_TOKEN}", "stderr": "", "exit": 0, "capture": "path"}], "default": {...}}`;
 //!   the first rule whose `args` is a prefix of the joined arguments wins. `{args}` and `{env:NAME}` are
 //!   expanded. `capture` writes the joined arguments to that file.
@@ -102,8 +102,14 @@ fn expand(t: &str, joined: &str) -> String {
 
 fn rules(args: &[String]) -> i32 {
     let joined = args.join(" ");
+    let beside = std::env::current_exe().ok().and_then(|e| {
+        let stem = e.file_stem()?.to_string_lossy().to_string();
+        Some(e.with_file_name(format!("{stem}.rules.json")))
+    });
     let spec: serde_json::Value = std::env::var("FAKE_TOOL_RULES")
         .ok()
+        .map(std::path::PathBuf::from)
+        .or(beside)
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or(serde_json::json!({}));

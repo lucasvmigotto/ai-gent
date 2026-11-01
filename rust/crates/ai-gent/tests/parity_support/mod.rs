@@ -80,6 +80,8 @@ pub fn normalise(text: &str, root: &str) -> String {
     out
 }
 
+pub mod repo;
+
 /// Run one spec case through `ai-gent spec`.
 pub fn run_spec_case(path: &Path) -> Vec<String> {
     let case: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
@@ -126,7 +128,7 @@ pub fn run_spec_case(path: &Path) -> Vec<String> {
             ));
         }
     }
-    problems.extend(compare_files(&name, &case, &before, &root, &rs));
+    problems.extend(compare_files(&name, &case, &before, &root, &rs, &|_| false));
     problems
 }
 
@@ -136,11 +138,12 @@ pub fn compare_files(
     before: &BTreeMap<String, Vec<u8>>,
     root: &Path,
     rs: &str,
+    skip: &dyn Fn(&str) -> bool,
 ) -> Vec<String> {
     let after = tree(root);
     let mut files: BTreeMap<String, String> = BTreeMap::new();
     for (rel, data) in &after {
-        if before.get(rel) != Some(data) {
+        if !skip(rel) && before.get(rel) != Some(data) {
             files.insert(rel.clone(), normalise(&String::from_utf8_lossy(data), rs));
         }
     }
