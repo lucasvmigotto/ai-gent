@@ -4,6 +4,39 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## 2.24.0 — 2026-11-01
+
+### Added
+
+- **project:** show not-applicable artifacts and chain the stage strip in the pipeline pane
+- **qa:** research k6 limits, test tooling and mutation tools
+- **devsecops:** research action pins, scanner versions, provider limits and platform parity
+- **agents:** add a research card for the scout role in orchestrate
+- **devcontainer:** research base images and proxy semantics in setup and proxy
+- **backend:** research dependency advisories and compliance categories in build and domain
+- **frontend:** research accessibility law, library versions and framework APIs in uiux, spec, build and tui
+- **project:** research standards, framework status and third-party docs in spec, refactor, introspec, survey, docs and pitch
+- **security:** research advisories and techniques in red and blue, only after a scope record
+- **devcontainer:** research sandboxes, image versions and licences in infra
+- **backend:** research vendor limits and standards when specifying the contract
+- **project:** research EOL, advisories and migration paths in retrofit and evidence for architecture decisions
+- **project:** add critique rounds to init with a Challenges and decisions section
+- **agents:** add report --summary and --top, idle cache rebuild hint, model id in history and a measured Sonnet starting table
+- add a --quiet flag to scripts/check.sh that prints only failures and the final line
+- **project:** research the web in init, with shared research method and cited sources
+- **project:** show the account's usage limits beside the context meter
+- **project:** show the context meter as an icon, a bar and the percent only
+
+### Changed
+
+- **skills:** read the pipeline digest first in stage consumers
+- **shared:** add a pipeline digest and a check that derives it from the contract
+- **agents:** trim the orchestrate and parallel descriptions
+- trim the longest skill descriptions
+- point the cost-recording and CI-watch paragraphs at the shared references
+- move rarely needed detail of seven heavy skills into references
+- **git:** move branch, landing and tag detail of git:workflow into references
+
 ## 2.23.0 — 2026-10-31
 
 ### Added
