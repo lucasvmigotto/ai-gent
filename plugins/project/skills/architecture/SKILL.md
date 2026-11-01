@@ -21,7 +21,7 @@ opinionated, but every opinion is traceable to a driver or a number.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` and
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) and
    `../../references/architecture-quality.md` (the AI-default
    architecture choices to avoid, and the decision checklists).
 2. Read every input that exists: `docs/product/brief.md` (NFRs, volumes,

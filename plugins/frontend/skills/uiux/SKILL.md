@@ -24,7 +24,7 @@ the brief's goal is explicitly conversion on that surface.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md` (relative to this skill's base
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) (relative to this skill's base
    directory) — the artifact paths, ownership and rules used below.
 2. Read `../../references/visual-direction.md` — the visual-design method
    and the list of AI-default looks to avoid. This skill applies it.

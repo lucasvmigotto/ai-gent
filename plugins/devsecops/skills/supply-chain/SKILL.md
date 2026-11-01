@@ -9,7 +9,7 @@ description: Harden the software supply chain and add security scanning to CI â€
 
 1. Read `../../references/principles.md`,
    `../../references/platforms/concepts.md` and the platform's file.
-2. Read `../../references/pipeline.md`, the constitution (security
+2. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case), the constitution (security
    baseline, e.g. ASVS level), `docs/product/architecture.md` (what gets
    built and shipped: images, packages, static sites, functions), and the
    existing CI and dependency manifests.

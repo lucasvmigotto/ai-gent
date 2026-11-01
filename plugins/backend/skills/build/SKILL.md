@@ -15,7 +15,7 @@ another senior engineer would approve without a rewrite.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md`, `../../references/spec-kit.md`
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case), `../../references/spec-kit.md`
    and `../../references/backend-quality.md`.
 2. Required inputs: `contracts/openapi.yaml` marked canonical and at
    least one feature with `backend.md` and a `## Backend` section in

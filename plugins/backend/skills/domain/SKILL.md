@@ -16,7 +16,7 @@ rules and the non-functional requirements.
 
 ## Before starting
 
-1. Read `../../references/pipeline.md`,
+1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case),
    `../../references/spec-kit.md` (the `plan` step's `data-model.md` is
    an input here) and `../../references/backend-quality.md` (the modeling
    tells apply here).

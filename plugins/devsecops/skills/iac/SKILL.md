@@ -12,7 +12,7 @@ anything to make local dev work.
 
 ## Before starting
 
-1. Read `../../references/principles.md` and `../../references/pipeline.md`.
+1. Read `../../references/principles.md` and `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case).
 2. Read the inputs that exist:
    - `docs/product/architecture.md` and `docs/product/adr/` — hosting,
      regions, topology, data stores, messaging, identity, DR targets
