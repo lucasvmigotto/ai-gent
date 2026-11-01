@@ -31,7 +31,12 @@ description: Migrate CI/CD pipelines between GitHub Actions, GitLab CI, Azure Pi
    |---|---|---|
 
    Name every **gap** explicitly (a feature the target lacks or gates
-   behind a tier) and its workaround.
+   behind a tier) and its workaround. Check current feature parity and
+   marketplace equivalents on the web (`../../references/research.md`,
+   about 5 searches and 5 fetches; platform and feature names only, never
+   pipeline content): cite source and date in the gaps table, labelled
+   `[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]` ("verify before
+   relying" with no web tools).
    **The release job maps like any other**, and is the one most often
    lost: the source's push-to-default-branch job that runs
    `scripts/release.py`, commits `chore(release)` and tags. Carry

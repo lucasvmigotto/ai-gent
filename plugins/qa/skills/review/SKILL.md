@@ -24,7 +24,10 @@ for large or many files in a brace language.
 1. **Traceability gaps** — acceptance scenarios, invariants, authz rows
    and UI states with no test; tests that trace to nothing (dead or
    redundant).
-2. **Mutation testing** on the highest-risk modules (domain logic,
+2. **Mutation testing** (pick the tool per stack and its current version
+   on the web, `../../references/research.md`, about 5 searches and 5
+   fetches; cite source and date in the report, labelled
+   `[RESEARCHED: S<n>]`, `[KNOWN]` or `[ASSUMPTION]`) on the highest-risk modules (domain logic,
    authorization, money/time calculations, state machines) — surviving
    mutants point at assertions that don't check what matters. Run it
    scoped (changed files or a module), not on the whole codebase at

@@ -51,7 +51,11 @@ description: Define a risk-based test strategy for the project and each feature 
    `selenium/standalone-*` containers per `../../references/browsers.md`), CI (ephemeral
    services, the same browser images), preview/staging; what runs where; the limits of each
    (e.g. load numbers from a laptop are relative only).
-5. **Gates per pipeline stage** — PR, main, pre-production, scheduled:
+5. **Gates per pipeline stage** (research the tool versions, browser
+   support and accessibility tooling first, `../../references/research.md`,
+   about 5 searches and 5 fetches; cite source and date in
+   `test-strategy.md`, labelled `[RESEARCHED: S<n>]`, `[KNOWN]` or
+   `[ASSUMPTION]`, "verify before relying" with no web tools) — PR, main, pre-production, scheduled:
    which suites must pass, thresholds (e.g. zero axe violations, p95 from
    SLOs), max allowed flake rate. `devsecops:pipeline` implements them.
 6. **Exit criteria for Verified** — per feature: its e2e journeys pass
