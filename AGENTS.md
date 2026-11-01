@@ -18,7 +18,8 @@ file covers changing things.
 - Before pushing a change to `plugins/repo/scripts/reporun.py` or
   `plugins/db/scripts/dbrun.py`, also run `scripts/test-reporun-github.py`
   or `scripts/test-dbrun-engines.py` (real GitHub repo / real engine
-  containers; their headers say what they need). Not part of CI.
+  containers; their headers say what they need). `test-reporun-github.py` is
+  not part of CI; `test-dbrun-engines.py` runs weekly in `scheduled.yml`.
 
 ## Layout rules
 
