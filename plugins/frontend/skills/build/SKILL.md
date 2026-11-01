@@ -21,7 +21,9 @@ Terminal interfaces (`tui.md`, tasks tagged `[TUI]` / `[CLI]`) are built by
 ## Before starting
 
 1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case), `../../references/spec-kit.md`
-   and `../../references/visual-direction.md`.
+   and `../../references/visual-direction.md`. Also read
+   `../../references/build-verification.md` (rendered review, CSS); read
+   `../../references/design-tokens.md` only when a token value is unclear.
 2. Required inputs: `specs/000-design-system/` and at least one feature
    with `ui.md` and a `## Frontend` section in `tasks.md`. If missing,
    stop and propose `frontend:spec`.
@@ -132,7 +134,7 @@ For each phase:
 - **Motion**: only what the design system specifies; honor
   `prefers-reduced-motion`.
 - Watch CSS specificity — utility/component styles cancelling each other
-  out (see `visual-direction.md`).
+  out (see `build-verification.md`).
 
 ### Checkpoint — verification per phase
 

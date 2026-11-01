@@ -27,7 +27,8 @@ the brief's goal is explicitly conversion on that surface.
 1. Read `../../references/pipeline-digest.md` (the short form; the full `../../references/pipeline.md` only when the digest conflicts with or is silent on your case) (relative to this skill's base
    directory) — the artifact paths, ownership and rules used below.
 2. Read `../../references/visual-direction.md` — the visual-design method
-   and its list of generic defaults to challenge. This skill applies it.
+   and its list of generic defaults to challenge. This skill applies it;
+   for the token draft, read `../../references/design-tokens.md` too.
 3. Read every upstream artifact that exists: `docs/product/brief.md`
    (especially its Glossary), `docs/product/domain-model.md`, any
    `specs/`. Without a brief, work from the user's text and say so in the
@@ -97,7 +98,8 @@ audiences that must not be alienated).
 7. **Responsive behavior.** Breakpoints by content, not by device names;
    what reflows, what collapses, what's hidden (and how it's still
    reachable); touch targets.
-8. **Accessibility targets.** WCAG 2.2 AA minimum: contrast pairs checked
+8. **Accessibility targets.** WCAG 2.2 AA is the minimum; an approved
+   requirement may raise it, never lower it: contrast pairs checked
    for the drafted palette, focus visibility, keyboard paths for each key
    flow, reduced motion, target size, language of page, screen-reader
    announcements for async results. **Research** (method in
