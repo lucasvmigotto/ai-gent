@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: behavior-uiux-research-sources
+description: Behavior — frontend:uiux ties each WCAG or legal accessibility claim in ux-vision.md to a Sources row or marks it [ASSUMPTION] with a verify-before-relying note
+tags: [behavior]
+runs: 1
+execution:
+  prompt: |
+    Run the accessibility targets step of frontend:uiux for this project, no questions. Write
+    docs/product/ux-vision.md with the Accessibility targets and a Sources section, naming the WCAG
+    version and the legal standards that apply in the EU and the US. Then reply with the
+    Accessibility targets and Sources sections.
+  max_turns: 20
+  timeout_seconds: 420
+  allowed_tools: [Skill, Read, Glob, Grep, Bash, Write]
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: claims-sourced-or-assumed
+    type: llm
+    focus: last_message
+    criteria: |
+      Each claim about the WCAG version or status and each legal standard (EAA, ADA, Section 508)
+      carries a Sources row (number, URL, retrieved date) or is labelled `[ASSUMPTION]` with a
+      verify-before-relying note. It fails if such claims stand bare as verified fact.
+    arm: both
+  - name: no-invented-urls
+    type: llm
+    focus: last_message
+    criteria: |
+      A cited URL must have been fetched in this run. With no web tool, a Sources section with
+      no URLs, or all rows marked `[ASSUMPTION]`, passes; a specific invented URL fails.
+    arm: both

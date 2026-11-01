@@ -35,7 +35,11 @@ tool to manage orders"), ask which interface they want.
 3. **Stack.** Use the architecture's choice; if it's open, choose with
    `terminal-stacks.md` (client of the API → free choice; embeds the
    project's code → its language) and record an ADR. Default when free:
-   Go with Bubble Tea.
+   Go with Bubble Tea. Check the candidate libraries' current versions
+   and maintenance status and the terminal compatibility they rely on
+   (`../../references/research.md`, about 5 searches and 5 fetches;
+   library names only), cited in the ADR as `[RESEARCHED: S<n>]`; offline,
+   `[ASSUMPTION]`, "verify before relying".
 4. **Environment.** Build and test in the project's tools container
    (`devcontainer:workflow`); interactive runs need a TTY (`run -it`).
 
