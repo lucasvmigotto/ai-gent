@@ -1,0 +1,65 @@
+{
+ "name": "no-engine",
+ "derived_from": "test_without_an_engine_containers_are_skipped",
+ "engine": false,
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/a\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-a\",\n  \"compose_project\": \"shop-feat-a\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-a\"\n  }\n}\n",
+    "stderr": "no container engine found: skipping the disk check\n\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-a AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-a; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "wt": [
+    "resources"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: no container engine found (set CONTAINER_ENGINE)\n"
+   }
+  },
+  {
+   "wt": [
+    "baseline"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: no container engine found (set CONTAINER_ENGINE)\n"
+   }
+  },
+  {
+   "wt": [
+    "finish"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: no container engine found (set CONTAINER_ENGINE)\n"
+   }
+  },
+  {
+   "wt": [
+    "remove",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "removed .worktrees/feat-a and branch feat/a\n",
+    "stderr": "no container engine found: the track's containers and volumes weren't checked\n"
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

@@ -1,0 +1,69 @@
+{
+ "name": "add-offsets-never-reuse-a-live-one",
+ "derived_from": "test_offsets_never_reuse_a_live_one",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/a\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-a\",\n  \"compose_project\": \"shop-feat-a\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-a\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-a AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-a; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "feat/b"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/b\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-b\",\n  \"compose_project\": \"shop-feat-b\",\n  \"port_offset\": 200,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-b\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-b AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-b; publish ports +200 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "git": [
+    "switch",
+    "-q",
+    "dev"
+   ],
+   "cwd": "."
+  },
+  {
+   "wt": [
+    "remove",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "removed .worktrees/feat-a and branch feat/a\n",
+    "stderr": ""
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "feat/c"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/c\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-c\",\n  \"compose_project\": \"shop-feat-c\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-c\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-c AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-c; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "cat": ".worktrees/.ports.json",
+   "expect": {
+    "text": "{\n  \"feat/b\": 200,\n  \"feat/c\": 100\n}\n"
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

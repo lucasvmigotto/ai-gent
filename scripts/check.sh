@@ -328,6 +328,18 @@ if [ -f scripts/test-parity-repo.py ]; then
   rm -f "${TMPDIR:-/tmp}/ai-gent-parity-repo.out"
 fi
 
+# Parity gate of `ai-gent wt` (spec 036): the shared fixtures still describe what wt.py does.
+# The binary side runs in cargo test (parity_wt). Deleted with wt.py at the 3.0.0 cutover.
+if [ -f scripts/test-parity-wt.py ]; then
+  if python3 scripts/test-parity-wt.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-parity-wt.out" 2>&1; then
+    pass "wt parity oracle ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-parity-wt.out" | cut -c1-60))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-parity-wt.out"
+    fail "wt parity fixtures (scripts/test-parity-wt.py)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-parity-wt.out"
+fi
+
 if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
   pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
 else

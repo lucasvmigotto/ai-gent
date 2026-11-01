@@ -1,0 +1,42 @@
+{
+ "name": "add-disk-settings",
+ "derived_from": "test_add_reads_settings_and_caps_volumes",
+ "steps": [
+  {
+   "write": {
+    ".ai-gent/parallel.yaml": "max_parallel: 3\nmax_volumes: 1\nvolume_estimate_gb: 1 # small\n"
+   }
+  },
+  {
+   "usage": [
+    100,
+    22
+   ]
+  },
+  {
+   "wt": [
+    "add",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/a\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-a\",\n  \"compose_project\": \"shop-feat-a\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-a\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-a AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-a; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "feat/b"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: 1 track(s) already hold a volume each; the cap is 1 (max_volumes in .ai-gent/parallel.yaml). Land or remove one first\n"
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

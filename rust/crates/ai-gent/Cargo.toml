@@ -17,6 +17,12 @@ include = ["/src/**", "/README.md"]
 name = "ai-gent"
 path = "src/main.rs"
 
+# The fake container engine of the `wt` parity tests. An example is built by `cargo test` and never by
+# `cargo build --release`.
+[[example]]
+name = "ai-gent-fake-engine"
+path = "examples/fake_engine.rs"
+
 [dependencies]
 ai-gent-core = { path = "../ai-gent-core", version = "0.1.0" }
 clap.workspace = true
@@ -24,6 +30,8 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+# `wt` test hooks (fake disk usage and builds, no engine): compiled only when testing.
+ai-gent-core = { path = "../ai-gent-core", features = ["test-support"] }
 assert_cmd.workspace = true
 insta.workspace = true
 tempfile.workspace = true

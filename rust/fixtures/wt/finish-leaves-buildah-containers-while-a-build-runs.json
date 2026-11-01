@@ -1,0 +1,176 @@
+{
+ "name": "finish-leaves-buildah-containers-while-a-build-runs",
+ "derived_from": "test_finish_leaves_buildah_containers_while_a_build_runs",
+ "steps": [
+  {
+   "wt": [
+    "baseline"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "baseline: 0 external container(s) already in the store; `wt.py finish` leaves them alone\n",
+    "stderr": ""
+   }
+  },
+  {
+   "engine_update": {
+    "containers_append": [
+     {
+      "id": "b-new",
+      "name": "w",
+      "status": "Storage",
+      "external": true
+     }
+    ]
+   }
+  },
+  {
+   "builds": {
+    "mine": [],
+    "other": [
+     "podman build -t elsewhere ."
+    ]
+   }
+  },
+  {
+   "wt": [
+    "finish"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "left    external b-new w (a build is running: podman build -t elsewhere .)\n",
+    "stderr": ""
+   }
+  },
+  {
+   "state": true,
+   "expect": {
+    "containers": [
+     "b-new"
+    ],
+    "volumes": [],
+    "images": [],
+    "calls": [
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ]
+    ]
+   }
+  },
+  {
+   "rm": ".worktrees/.containers-baseline.json"
+  },
+  {
+   "builds": {
+    "mine": [],
+    "other": []
+   }
+  },
+  {
+   "wt": [
+    "finish"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "left    buildah containers: no baseline (`wt.py baseline` at the start of the wave)\n",
+    "stderr": ""
+   }
+  },
+  {
+   "state": true,
+   "expect": {
+    "containers": [
+     "b-new"
+    ],
+    "volumes": [],
+    "images": [],
+    "calls": [
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ]
+    ]
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}
