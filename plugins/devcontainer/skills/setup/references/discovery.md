@@ -75,3 +75,4 @@ references, an unusual stack, or you need the catalog and evidence rules.
     `devenv:java-*` base) — that's redundant at best and a version
     conflict at worst. Features are for what the base image *doesn't*
     already bake in.
+- A sibling project's convention beats a novel one people don't know how to operate, but it is evidence of *style*, not license to skip a split (Phase 1).
