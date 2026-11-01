@@ -162,3 +162,4 @@ working, not an error — never work around it.
    one level at a time.
 8. Writing the message? → `type(scope): subject`, no body paragraph,
    footers allowed, no co-author trailer.
+
