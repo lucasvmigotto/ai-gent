@@ -12,7 +12,7 @@ pub fn install_root() -> Option<PathBuf> {
     })
 }
 
-fn root_from(get: impl Fn(&str) -> Option<PathBuf>) -> Option<PathBuf> {
+pub(crate) fn root_from(get: impl Fn(&str) -> Option<PathBuf>) -> Option<PathBuf> {
     if let Some(p) = get("AI_GENT_HOME") {
         return Some(p);
     }
