@@ -15,6 +15,7 @@ Each gate is a row with a **measure** that is a command, a file or a CI run, and
 | G27-7 | Shadow wired, decisions unchanged | `scripts/test-*guard.sh` unchanged counts (192 shell cases); `scripts/guard-fixtures.py run --impl sh` green | |
 | G27-8 | Fixtures extracted with no loss | `shared/guard-fixtures/manifest.json` counts equal the old suites | |
 | G27-9 | Guard parity for sh | `cargo test -p ai-gent-core --test guard_parity` 100 percent | |
+| G27-11 | Release notes carry the checksum block (D25) | rehearsal output in `dist/` (032 T035a) | |
 | G27-10 | Release notes under `## Unreleased` | `python3 scripts/release.py --dry-run` plans 2.27.0 | |
 
 ## G28 - before cutting 2.28 (the binary decides)
@@ -28,7 +29,7 @@ Each gate is a row with a **measure** that is a command, a file or a CI run, and
 | G28-5 | Update and doctor | `cargo test --test update_check --test update_apply --test doctor`, `scripts/test-update.sh` | |
 | G28-6 | `test-update-check.sh` inventory fully covered | `specs/034-update-and-doctor/quickstart.md` table, then the script deleted | |
 | G28-7 | `ai-gent-update.sh` fetches the target release's installer, and the 2.28 notice announces 3.0.0 as a major | `scripts/test-update.sh` case | |
-| G28-8 | Each tool cutover merged so far met D10's parity gate before its Python file was deleted | per-tool spec evidence (035-038) | |
+| G28-8 | Each ported subcommand shipped so far runs beside its old tool and passes the parity fixtures against the package binary; no Python file deleted yet (D7 amended) | per-tool spec evidence (035-037) | |
 | G28-9 | Migration guide drafted; `scripts/test-migrate.sh` passes against a 3.0.0 candidate package | script output | |
 | G28-10 | `scripts/dev-bin.sh` exists and a fresh clone passes the guard tests after it | run in a throwaway clone | |
 | G28-11 | Six-target release succeeded for 2.27 (the real run) | the 2.27 release run URL; all assets attested | |
@@ -38,7 +39,7 @@ Each gate is a row with a **measure** that is a command, a file or a CI run, and
 | Id | Criterion | Measure | Evidence |
 |---|---|---|---|
 | G30-1 | 2.28.x in use with the binary deciding, no guard regression reported | issues query; shadow log clean until cutover; owner statement | |
-| G30-2 | All ported tools meet D10 and their Python files are deleted; no skill references a deleted file | `grep -rEn 'wt\.py|token_report\.py|reporun\.py|specsync\.py|compact\.py' plugins shared README.md AGENTS.md docs/site/src` empty except the migration guide and changelog (the exact list is whatever 035-038 delivered) | |
+| G30-2 | All ported tools meet D10 in the package; skills switch to `ai-gent <sub>` and the replaced files are deleted together; no skill references a deleted file; `dbrun.py` is not in this gate (D26/D27) | `grep -rEn 'wt\.py|token_report\.py|reporun\.py|specsync\.py|compact\.py' plugins shared README.md AGENTS.md docs/site/src` empty except the migration guide and changelog (the exact list is whatever 035-037 delivered) | |
 | G30-3 | Git mode removed, installer messages updated, tests updated | `scripts/test-install.sh`, `scripts/test-package.sh`, `scripts/test-migrate.sh` | |
 | G30-4 | Tier policy in force in CI | required checks list in the repository settings equals FR-012; `tier3` job exists and is non-required | |
 | G30-5 | Windows legs required and green for the last three runs of `rust.yml` plus the 2.28 release | run URLs | |
@@ -50,6 +51,9 @@ Each gate is a row with a **measure** that is a command, a file or a CI run, and
 | G30-11 | All items in `docs/product/rust-decisions.md` "Open" answered or moved | file reviewed by the owner | |
 | G30-12 | CHANGELOG `## Unreleased` holds the breaking-changes list verbatim and the merge commit carries `BREAKING CHANGE:` | `git log -1 --format=%B` of the merge | |
 | G30-13 | Crates decision recorded: publish switch on or off, and why | note in the release PR | |
+| G30-15 | `install.ps1` passes its tests on Windows x64 and arm64 runners; owner ran the one-liner on a machine without Git Bash | `scripts/test-install-ps1.ps1` in CI; transcript (032 T058) | |
+| G30-16 | The README says plainly which tools still need `uv` and Python (the db plugin, while `dbrun` is Python) | grep for the sentence in `README.md` and the docs Install page | |
+| G30-17 | The 3.0.0 release notes contain the SHA256 of `install.sh`, `install.ps1` and every archive; the install page prefers the GitHub Releases URL (D25) | the draft release body; page text | |
 | G30-14 | `grep -rn 'AI_GENT_MODE' install.sh setup.sh scripts` shows only the removal message and its test | grep | |
 
 ## Rollback

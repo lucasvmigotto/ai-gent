@@ -36,6 +36,7 @@
 - [ ] T046 [P] Plugin references: for each deleted tool, change skills and references that name the file (counts in the decisions file); this is each ported tool's own cutover task (D7), tracked here by the grep gate only. Verify: G30-2.
 - [ ] T047 `docs/product/release-3-notes.md`: mark the "would change" section as decided and link the specs; fix `introspec`/`recap` mentions only if they claim current behavior. Verify: `scripts/check.sh`.
 - [ ] T048 `CHANGELOG.md`: write `## Unreleased` with the breaking-changes list (B1-B12) verbatim and the migration table; the merge commit message carries `BREAKING CHANGE:`. Verify: `python3 scripts/release.py --dry-run --json` shows `3.0.0` (G30-10, G30-12).
+- [ ] T049a `README.md` and the docs Install page: the plain sentence about which tools still need `uv` and Python (D27), and "prefer the GitHub Releases URL" with the published checksums (D25). Verify: G30-16, G30-17.
 - [ ] T049 `specs/README.md`: statuses of 032-040 updated only with evidence; the Notes column links the gate rows. Verify: `scripts/check.sh`.
 
 ## Phase 4 - rehearsals, gates and the release
@@ -46,4 +47,5 @@
 - [ ] T060 [US1] Walk G27 (before 2.27), fill evidence; owner sign-off in the PR. Verify: no empty evidence cell.
 - [ ] T061 [US1] Walk G28 (before 2.28). Same.
 - [ ] T062 [US1] Walk G30; run `python3 scripts/release.py --dry-run --json`; owner merges `dev` into `main` by PR. Verify: SC-001, SC-003.
+- [ ] T062a Roadmap note after 3.0.0: the `dbrun` migration is the last 3.x step (spec 038, owned by another builder); add it to `specs/README.md` notes and the migration guide's "what is still Python" line. Verify: reviewed.
 - [ ] T063 [US1] After the release: install on six targets (032 SC-007 for 3.0.0), `releases/latest` check, `ai-gent doctor` green on a migrated home, update `specs/README.md` to Implemented with evidence. Verify: SC-007.

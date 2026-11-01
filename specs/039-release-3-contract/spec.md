@@ -8,7 +8,7 @@
 
 **Input**: D1, D2, D7, D8, D13, D16, D18, D20, D21 of `docs/product/rust-decisions.md` and `docs/product/release-3-notes.md`. This spec is the checklist for the 3.0.0 release: what it contains and removes, what breaks and how an existing user migrates, the measurable gates that 2.27, 2.28 and 3.0.0 must pass, how to go back, what tier 3 means, and the documentation changes (as tasks, not edits). The version is written 3.0.0 or 3.x; tags carry no `v` (D21).
 
-**Depends on**: 032, 033, 034 (written with this spec) and 035-038, 040 (written by another builder: the ported tools and the docs-site v2; this spec reads their status, not their content). Read by nobody else; it closes the series.
+**Depends on**: 032, 033, 034 (written with this spec) and 035-038, 040 (written by another builder: the ported tools, the dbrun spike (038) and the docs-site v2; this spec reads their status, not their content). Read by nobody else; it closes the series.
 
 ## Context and ground rules
 
@@ -19,6 +19,7 @@ Verified on 2026-11-01 (commit 7c09c56):
 - Releases are automated: a `feat!:`/`type!:` subject or a `BREAKING CHANGE:` footer makes `scripts/release.py` plan a major bump (`shared/releasing.md`). The release job's `chore(release)` commit and tag are made by the bot; nobody tags by hand (CLAUDE.md).
 - The README lists seven tier-3 agents without a tier concept; guard hooks are "instructions only" on every agent but Claude Code and opencode (README:124, 396); `AGENT_IDS` in `setup.sh:103` has nine agents.
 - Python and shell tools referenced from skills (decisions file counts): `wt.py` 73 times, `token_report.py` 52, `reporun.py` 18, `compact.py` 18, `dbrun.py` 11, `specsync.py` 6. D19 keeps `dbrun` last or never.
+- D24 puts a native Windows installer `install.ps1` in 3.0.0; D25 keeps docs hosting on R2 and puts the SHA256 of `install.sh`, `install.ps1` and the packages in each release's notes; D26/D27 make the `dbrun` migration the last 3.x step and not a 3.0.0 gate.
 - Docs: `README.md`, `AGENTS.md`/`CLAUDE.md`, `docs/site/` (React/Vite), `shared/*.md` (releasing, secrets, token-tracking, containers, release-platforms, ...), `CHANGELOG.md`.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -72,7 +73,7 @@ Verified on 2026-11-01 (commit 7c09c56):
 - **FR-002**: The breaking changes are listed with an id (B1-B10), who is affected, what they see, and the migration step; the release notes in `CHANGELOG.md` `## Unreleased` reproduce the list verbatim before the merge to `main`, and the merge includes a `BREAKING CHANGE:` footer so `release.py` plans the major.
 - **FR-003**: The package is the only install path: `install.sh` has no git mode and exits with a clear message on `AI_GENT_MODE`, `AI_GENT_BRANCH`, `AI_GENT_REPO`, `AI_GENT_DIR`; links in agent skill directories made by `install.sh` always lead into `.../current/`; `setup.sh` run from a checkout still links the checkout (contributors).
 - **FR-004**: The tier policy of `contracts/tier-policy.md` is in force: tier 1 Claude Code, tier 2 Codex, tier 3 opencode, Cursor, Antigravity, GitHub Copilot, Amp, Kiro, Windsurf (best-effort and frozen, D2). Nothing is removed in 3.0.0.
-- **FR-005**: `ai-gent` replaces the shell guards (033), the update scripts (034) and the Python tools ported by 035-038; the Python files are deleted in the same release as their skill references change (D7); `dbrun.py` stays unless D19's spike says otherwise.
+- **FR-005**: `ai-gent` replaces the shell guards (033), the update scripts (034) and the Python tools ported by 035-037 (D7 amended): the subcommands ship in 2.27/2.28 beside the old tools with parity proven in the package, and at 3.0.0 the skills switch to `ai-gent <sub>` and every replaced Python and shell file is deleted in the same release. `dbrun` is not part of that set: its migration is the last step of the roadmap within 3.x (D26, D27; spec 038 and its spike), so `dbrun.py` and the need for `uv` remain in 3.0.0 unless the spike says otherwise.
 - **FR-006**: The gates of `contracts/release-gates.md` are measurable (a command, a file or a CI run each) and checked in order: G27 (before 2.27), G28 (before 2.28), G30 (before 3.0.0).
 - **FR-007**: Migration: `setup.sh --migrate` keeps its 2.26 behavior and additionally reports leftover removed variables, links the `ai-gent` binary into `~/.local/bin`, and relinks hooks-related paths; `contracts/migration-guide.md` is the user-facing text, shipped in the README and the docs site (D18's Install page).
 - **FR-008**: The rollback plan (user-level and project-level) is rehearsed before the 3.0.0 merge: a scripted rehearsal installs 3.0.0 over 2.28.x in a throwaway home and rolls back.
@@ -109,13 +110,14 @@ See `data-model.md`: Gate, Breaking change, Tier, Migration path, Doc task.
 - **SC-004**: `grep -rEn 'wt\.py|token_report\.py|reporun\.py|specsync\.py|compact\.py' plugins shared README.md AGENTS.md docs/site/src` finds only mentions inside the migration guide and the changelog.
 - **SC-005**: the check of T040 (`python3 scripts/consistency.py`) is green: the old spelling appears only in the allowlisted D21 text and past changelog entries.
 - **SC-006**: The rollback rehearsal restores 2.28.x with green `ai-gent doctor`.
+- **SC-008**: On a Windows 11 machine without Git Bash, `irm .../install.ps1 | iex` installs and `ai-gent doctor` is green (032 US7, T058); the release notes of 3.0.0 carry the checksum block (D25).
 - **SC-007**: After release, `releases/latest` serves a package that installs on all six targets (the 032 SC-007 check, repeated for 3.0.0).
 
 ## Open questions (for the owner)
 
-1. **Which release removes the shell guards?** (shared with 033 Q2) Recommended: 2.28 deletes the shell rule logic (launcher only), 3.0.0 removes git mode and the Python tools. If you prefer to hold the guard cutover to 3.0.0, G28 loses its guard rows and G30 gains them.
+1. **Answered (D7 amended)**: package installs are decided by the binary from 2.28; clones keep the shell guard; the shell logic, `rules.mjs`, the Python tools and git mode all go at 3.0.0.
 2. **Bridge for old updaters.** A 2.26-2.27 install running its own updater against 3.0.0 fails at download (safe, nothing written). Recommended: no bridge asset; rely on the 2.28 notice (`ai-gent update --check` says "3.0.0 is a major release") and the README. Alternative: publish a stub `ai-gent-3.0.0.tar.gz` that only prints the reinstall command; rejected as more surface for little gain.
 3. **Support window for 2.28.x.** Recommended: none beyond one patch if the 3.0.0 installer is found broken (solo project, `release.py` releases from `main` only); stated in the README.
 4. **Codex tier-2 guard enforcement.** Unverified whether Codex can run hook commands. Recommended: T032 verifies; if yes, Codex gets enforced guards through `ai-gent guard` and tier 2 means "enforced"; if no, tier 2 means "skills and tools tested in CI, guards advisory".
-5. **Is `uv` still a prerequisite in 3.0.0?** Yes while `dbrun` stays Python (D19). Recommended: say so plainly in the README ("only the db plugin needs uv").
+5. **Is `uv` still a prerequisite in 3.0.0?** Yes while `dbrun` stays Python (D26, D27). The README says so plainly ("only the db plugin needs uv and Python") unless spec 038's spike lands a port earlier; the sentence is a G30 gate (G30-16).
 6. **Docs-site v2 (040) must ship with 3.0.0** (D18 says "built after the Rust pieces"). Recommended: it is a G30 gate, but a minimal Install page and the compatibility matrix suffice; search can slip to 3.1.

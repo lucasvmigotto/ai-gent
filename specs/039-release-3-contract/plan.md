@@ -30,9 +30,12 @@
 
 ```
 2.27  032 foundation + 033 shadow         (G27)         binary exists, nothing user-visible breaks
-2.28  033 cutover + 034 + first tools     (G28)         announce 3.0.0; B3-B6, B8 (update-check)
-3.0.0 remaining tools, git mode removed,  (G30)         B1, B2, B7 (rest), B8 (rest), B9, B10, B11
-      tiers, docs v2, content asset gone
+2.28  binary decides for package installs  (G28)        announce 3.0.0; subcommands ship beside the old tools
+      (033), 034, 035-037 subcommands
+3.0.0 skills switch, old tools deleted,   (G30)         B1, B2, B5-B9, B10, B11; install.ps1 (D24); checksums in notes (D25)
+      git mode removed, tiers, docs v2,
+      content asset gone
+3.x   dbrun port (038 spike, D26)         (not a 3.0.0 gate)
 ```
 
 Why this order: the binary must ship and be observed (2.27) before it decides (2.28); the user-facing migration is only safe when the update path already installs a fresh installer (G28-7) and every user has had a release with the binary present; the destructive removals (git mode, content-only asset, Python files) are the last step.

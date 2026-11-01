@@ -22,7 +22,7 @@
 | `ai-gent update`, `rollback`, `doctor` | Yes | Yes | Yes (agent-independent CLI) |
 | Model-role routing (`shared/agent-roles.md`) | Yes (subagents) | Yes (custom agents) | Best-effort (opencode commands as subtasks; others custom agents where they exist) |
 | Evals (`claude plugin eval`) | Yes (not in CI) | N/A | N/A |
-| Install paths and `--target` | Yes | Yes | Yes; `--target all` still includes them |
+| Install paths and `--target` | Yes (Windows: `install.ps1` + `setup.ps1`) | Yes (Windows: same) | Yes; `--target all` still includes them; on Windows through Git Bash or WSL |
 | Required CI | Linux `check`, macOS installer job, Windows binary and guard job, six-target build | Codex install case in `scripts/test-install.sh` (required) | install cases in a separate `tier3` job, `continue-on-error` |
 | Docs-site compatibility matrix | green | green | "best-effort" |
 
