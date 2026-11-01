@@ -1,0 +1,36 @@
+{
+ "name": "resources-below-floor",
+ "derived_from": "resources text, floor reached",
+ "steps": [
+  {
+   "usage": [
+    100,
+    5
+   ]
+  },
+  {
+   "wt": [
+    "resources"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "disk: 5.0 GB free on <ROOT> (floor 20.0 GB)  BELOW THE FLOOR\nimages labelled shop: 0, dangling: 0\ncontainers labelled shop: 0\nreport only; `wt.py finish` removes the dangling images and new buildah containers, `wt.py remove` a landed track's volumes; ask before anything else\n",
+    "stderr": ""
+   }
+  },
+  {
+   "wt": [
+    "resources",
+    "--json"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"project\": \"shop\",\n  \"disk\": {\n    \"path\": \"<ROOT>\",\n    \"free_gb\": 5.0,\n    \"floor_gb\": 20.0,\n    \"below_floor\": true\n  },\n  \"images\": [],\n  \"dangling_images\": [],\n  \"volumes\": [],\n  \"containers\": [],\n  \"external_new\": [],\n  \"baseline\": false\n}\n",
+    "stderr": ""
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

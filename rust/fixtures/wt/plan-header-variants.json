@@ -1,0 +1,19 @@
+{
+ "name": "plan-header-variants",
+ "derived_from": "readme parser (depends header, bad rows, retired)",
+ "readme": "| # | Feature | Depends | QA | Status |\n|---|---|---|---|---|\n| 001 | one | — | Planned | **Implemented** |\n| 002 | two | 001, 009 | Partial | Retired |\n| 3 | bad | — | Planned | Planned |\n",
+ "steps": [
+  {
+   "wt": [
+    "plan",
+    "--json"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"ready\": [\n    {\n      \"number\": \"001\",\n      \"name\": \"one\",\n      \"depends\": [],\n      \"sides\": {\n        \"qa\": \"Planned\",\n        \"status\": \"**Implemented**\"\n      },\n      \"todo\": {\n        \"qa\": \"Planned\"\n      },\n      \"waiting\": []\n    }\n  ],\n  \"blocked\": [\n    {\n      \"number\": \"002\",\n      \"name\": \"two\",\n      \"depends\": [\n        \"001\",\n        \"009\"\n      ],\n      \"sides\": {\n        \"qa\": \"Partial\",\n        \"status\": \"Retired\"\n      },\n      \"todo\": {\n        \"qa\": \"Partial\"\n      },\n      \"waiting\": [\n        \"001\",\n        \"009\"\n      ]\n    }\n  ],\n  \"done\": []\n}\n",
+    "stderr": ""
+   }
+  }
+ ]
+}

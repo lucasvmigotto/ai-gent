@@ -19,6 +19,10 @@ serde_json.workspace = true
 regex.workspace = true
 thiserror.workspace = true
 
+[features]
+# Test hooks of `wt` (fake disk usage, fake builds, no engine). Never enabled in a release build.
+test-support = []
+
 [lints]
 workspace = true
 
