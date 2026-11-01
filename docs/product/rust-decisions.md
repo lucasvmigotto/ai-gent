@@ -39,6 +39,7 @@ assistant tools for code agents.
 | D20 | A **major bump** is earned by the breaking contract: package-only install, tiers in force, the binary replacing the shell guards and the first Python tools. Not by packaging alone. | analysis, owner agreed to discuss |
 | D21 | Version naming: 3.0.0 / 3.x, never "v3"; tags carry no `v` prefix. | owner |
 | D22 | Crate homepage is the docs site: `homepage = "https://docs.lucasvmigotto.me/ai-gent/"` and `repository = "https://github.com/lucasvmigotto/ai-gent"` on both crates; `documentation` unset on `ai-gent-core` (docs.rs API docs). crates.io reads these per published version, so they land with the first real release (the 0.1.0 placeholders keep the repository as homepage and cannot be edited). | owner |
+| D23 | Crate versioning: the `ai-gent` binary crate is in lockstep with the repo tag (2.27.0, 2.28.0, 3.0.0; `ai-gent --version` equals the package `VERSION` file and the tag; jumping up from 0.1.0 is fine). `ai-gent-core` has independent SemVer: 0.x while its API is unstable (a minor bump may break), 1.0.0 no earlier than 3.0.0 and only when the API is deliberately stable. `scripts/release.py` writes the versions (never by hand); the release job publishes core first, then the binary. | owner |
 
 ## Constraints every spec must respect
 

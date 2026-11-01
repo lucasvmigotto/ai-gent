@@ -109,7 +109,7 @@ Differences from rstory worth recording: rstory is tag-triggered with a `verify`
 | `scripts/test-package.sh` | per-triple install matrix over `file://` |
 | `scripts/test-rust-workflows.sh` | shape test, wired in `check.sh` |
 | `scripts/check.sh` | Rust section |
-| `scripts/release.py`, `release.json` | `rust/Cargo.toml` as a manifest; Cargo.lock sync |
+| `scripts/release.py`, `scripts/test-release.sh` | D23: binary crate lockstep with the tag, core independent from commits, Cargo.lock sync, dependency-requirement check, dry-run preview |
 | `scripts/consistency.py` | ignores `rust/`; checks crate metadata equals `plugin.json` license/author |
 | `install.sh`, `setup.sh` | platform map, binary install, PATH link |
 | `specs/032-.../de-risk.md` | probe sheet and decision |
@@ -118,7 +118,7 @@ Differences from rstory worth recording: rstory is tag-triggered with a `verify`
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| `release.py` `version_in(text)` may not read `Cargo.toml`, and bumps each manifest independently of the tag | crate version drift or release failure | T021 probes it first; fallback is a small `rust` manifest kind in `release.py` with tests in `scripts/test-release.sh` |
+| `release.py` manages per-manifest versions from commit types, not a lockstep tag version, and reads JSON-style manifests | D23 needs two behaviors (write the tag into the binary crate; commit-driven bump for core, minor for breaking while 0.x) and a Cargo.lock edit | T021 specifies and implements them as a small `rust` target kind in `release.py` with tests in `scripts/test-release.sh`; `--dry-run --json` lists both targets (`kind` `rust`) |
 | `Cargo.lock` stale after the bump | `--locked` fails on the release commit | release job runs `cargo update --workspace --offline` or edits the two entries; covered by a test that bumps in a temp repo |
 | First real run of the matrix happens on `main` | tag and draft exist, nothing published | rehearsal on `dev` (T031); the draft rule means `latest` is untouched; recovery in `quickstart.md` |
 | `windows-11-arm` or `macos-15-intel` label retired or flaky | a required leg blocks releases | probes record availability; the leg is required at the 3.0.0 gate (039) and optional (`continue-on-error`) before it, with the failure surfaced in the run summary |

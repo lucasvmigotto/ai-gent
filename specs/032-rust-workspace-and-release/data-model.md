@@ -12,13 +12,15 @@ No database. The entities are build and install artifacts.
 | `LATEST` | `package.py --out` (file:// releases) | the version string |
 | Install root | `$AI_GENT_HOME` (default `${XDG_DATA_HOME:-~/.local/share}/ai-gent`; Windows `%LOCALAPPDATA%\ai-gent`) | `<ver>/`, `current`, `previous`, `pinned` (shared with 034) |
 | PATH link | `~/.local/bin/ai-gent` | symlink to `$AI_GENT_HOME/current/bin/ai-gent` |
-| Crate | crates.io | name, version (independent SemVer), owners, Trusted Publishing config (repo, workflow file `release.yml`, environment `crate-release`) |
+| Crate | crates.io | name, version (`ai-gent`: lockstep with the tag; `ai-gent-core`: independent SemVer, D23), owners, Trusted Publishing config (repo, workflow file `release.yml`, environment `crate-release`) |
 
-## Version relations
+## Version relations (D23)
 
 - Tag and `VERSION` file: `X.Y.Z` of the release (no `v`).
-- Crate version: independent SemVer in `rust/Cargo.toml` `[workspace.package]`, bumped by `release.py` on commits touching `rust/`.
-- `ai-gent --version` prints `ai-gent <crate> (release <AI_GENT_RELEASE>, <triple>)`; `doctor` fails when the release differs from the `VERSION` file of the install it lives in (open item "version compatibility" of the decisions file, answered here).
+- `ai-gent` (binary crate): equals the tag, written by `release.py` into its `Cargo.toml` and `Cargo.lock` entry.
+- `ai-gent-core`: independent SemVer in its own `Cargo.toml`, bumped by `release.py` from commits touching `rust/crates/ai-gent-core`; below 1.0.0 a breaking commit is a minor bump. The binary's dependency line `ai-gent-core = { path = "../ai-gent-core", version = "<requirement>" }` must match the core version published in the same release (checked).
+- Publishing order: core first, wait for the index, then the binary.
+- `ai-gent --version` prints `ai-gent <X.Y.Z> (<triple>)`, and `<X.Y.Z>` equals the package `VERSION` (the "version compatibility" open item of the decisions file is thereby answered); `doctor` fails when it differs from the install's `VERSION` file. Contract text in `contracts/cli.md` keeps a `release` field, equal to the crate version for release builds and `dev` otherwise.
 
 ## Triple to platform map (used by `install.sh`)
 

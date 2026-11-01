@@ -29,7 +29,7 @@ Status of each row is a promise for the 3.0.0 release notes. "Ships in" says the
 | B9 | Content-only asset `ai-gent-<ver>.tar.gz` no longer published; assets are per target | old installers (2.26-2.27) updating straight to 3.0.0; automation fetching the old name | download error, nothing written | go through 2.28 or run the current installer | 3.0.0 | `test-migrate.sh` `pkg-2.26` |
 | B10 | Tier-3 agents are best-effort and frozen, outside required CI (D2); nothing removed | users of opencode, Cursor, Antigravity, Copilot, Amp, Kiro, Windsurf | a "best-effort" label in docs | none | 3.0.0 | CI job split |
 | B11 | `uv`/Python no longer needed except for the db plugin (`dbrun`, D19) | people who installed uv for ai-gent | none | optional cleanup | 3.0.0 | doctor `tools` |
-| B12 | The `--version` output format gains the release field | scripts parsing it | `ai-gent 0.2.0 (release 3.0.0, <triple>)` | use `version --json` | 2.27 | 032 cli tests |
+| B12 | The `--version` output format now equals the package version | scripts parsing it | `ai-gent 3.0.0 (<triple>)` | use `version --json` | 2.27 | 032 cli tests |
 
 ## What does not change
 

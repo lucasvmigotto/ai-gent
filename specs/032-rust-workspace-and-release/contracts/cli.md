@@ -6,7 +6,7 @@ Binary `ai-gent`. This file fixes what every subcommand shares; each spec adds i
 
 - `ai-gent [--json] <subcommand> [args]`. `--json` is accepted by every subcommand (D9), before or after the subcommand name, and makes stdout exactly one JSON object followed by a newline; human text then goes to nothing (errors go to stderr as text, and also as `{"schema":1,"ok":false,"error":{...}}` on stdout when `--json` is set).
 - `NO_COLOR` and a non-terminal stdout disable color. Output is UTF-8.
-- `ai-gent --version` prints one line: `ai-gent <crate-version> (release <release-version>, <triple>)`.
+- `ai-gent --version` prints one line: `ai-gent <X.Y.Z> (<triple>)`, where `<X.Y.Z>` is the binary crate version, equal to the tag and the package `VERSION` (D23).
 - Environment: `AI_GENT_HOME` (install root), `AI_GENT_NO_UPDATE_CHECK`, `XDG_*` on Unix, `%LOCALAPPDATA%` on Windows.
 - A secret value is never printed (shared/secrets.md).
 
@@ -34,13 +34,13 @@ Binary `ai-gent`. This file fixes what every subcommand shares; each spec adds i
 
 ## `ai-gent version [--json]`
 
-Text: `ai-gent 0.1.0 (release 2.27.0, x86_64-unknown-linux-musl)`.
+Text: `ai-gent 2.27.0 (x86_64-unknown-linux-musl)`.
 
 ```json
-{ "schema": 1, "ok": true, "data": { "crate": "0.1.0", "release": "2.27.0", "target": "x86_64-unknown-linux-musl", "commit": "abc1234", "profile": "release" } }
+{ "schema": 1, "ok": true, "data": { "crate": "2.27.0", "release": "2.27.0", "target": "x86_64-unknown-linux-musl", "commit": "abc1234", "profile": "release" } }
 ```
 
-`release` is `"dev"` for a build outside the release workflow; `commit` is `null` when unavailable.
+`crate` and `release` are equal for release builds; `release` is `"dev"` for a build outside the release workflow; `commit` is `null` when unavailable.
 
 ## `ai-gent doctor [--json]` (2.27 throwaway; 034 replaces)
 
