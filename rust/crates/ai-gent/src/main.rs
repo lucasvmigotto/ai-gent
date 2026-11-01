@@ -41,8 +41,9 @@ fn real_main() -> Exit {
         Some(Command::Version) => cmd::version::run(cli.json),
         Some(Command::Doctor) => cmd::doctor::run(cli.json),
         Some(Command::Guard(a)) => cmd::guard::run(&a, cli.json),
+        Some(Command::Tokens(a)) => cmd::tokens::run(&a, cli.json),
         None => {
-            eprintln!("usage: ai-gent [--json] <version|doctor|guard>");
+            eprintln!("usage: ai-gent [--json] <version|doctor|guard|tokens>");
             if cli.json {
                 println!(
                     "{}",

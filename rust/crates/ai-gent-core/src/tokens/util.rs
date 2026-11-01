@@ -649,4 +649,62 @@ mod tests {
             [("a", 3), ("b", 2)]
         );
     }
+
+    /// The rows of an exported `[...]` table in `pct-fixtures.ts` (the same file the TypeScript
+    /// toast tests and the Python tests read).
+    fn ts_rows(name: &str, width: usize) -> Vec<Vec<String>> {
+        let text = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../plugins/agents/hooks/pct-fixtures.ts"
+        ))
+        .unwrap();
+        let body = text
+            .split(&format!("export const {name}"))
+            .nth(1)
+            .unwrap()
+            .split("\n]\n")
+            .next()
+            .unwrap();
+        let body = body.split("= [").nth(1).unwrap();
+        let mut rows = Vec::new();
+        let mut rest = body;
+        while let Some(a) = rest.find('[') {
+            let b = rest[a..].find(']').unwrap() + a;
+            let cells: Vec<String> = rest[a + 1..b]
+                .split(',')
+                .map(|c| c.trim().trim_matches('\'').to_string())
+                .collect();
+            assert_eq!(cells.len(), width);
+            rows.push(cells);
+            rest = &rest[b + 1..];
+        }
+        assert!(!rows.is_empty());
+        rows
+    }
+
+    #[test]
+    fn pct_error_gives_each_fixture_percentage() {
+        for r in ts_rows("PCT_FIXTURES", 3) {
+            let (p, u): (i64, i64) = (r[0].parse().unwrap(), r[1].parse().unwrap());
+            assert_eq!(pct_error(Some(p), Some(u)), r[2], "{p}/{u}");
+        }
+        assert_eq!(pct_error(None, Some(5)), "—");
+        assert_eq!(pct_error(Some(0), Some(5)), "—");
+        assert_eq!(pct_error(Some(5), None), "—");
+    }
+
+    #[test]
+    fn cells_and_exact_figures_may_differ_by_a_point() {
+        for r in ts_rows("PCT_GAP_FIXTURES", 6) {
+            let n = |i: usize| r[i].parse::<i64>().unwrap();
+            assert_eq!(pct_error(Some(n(0)), Some(n(1))), r[2]);
+            assert_eq!(pct_error(Some(n(3)), Some(n(4))), r[5]);
+            assert_eq!(
+                (fmt_tok(Some(n(3))), fmt_tok(Some(n(4)))),
+                (fmt_tok(Some(n(0))), fmt_tok(Some(n(1))))
+            );
+            let pct = |s: &str| s.trim_end_matches('%').parse::<i64>().unwrap();
+            assert_eq!((pct(&r[2]) - pct(&r[5])).abs(), 1);
+        }
+    }
 }

@@ -373,6 +373,80 @@ pub fn _epoch(ts: &str) -> Option<i64> {
     parse_iso(ts)
 }
 
+/// The windows between stage markers: `(lo, hi)` pairs, the last open (`"9999"`).
+#[must_use]
+pub fn windows(snaps: &[Snap]) -> Vec<(String, String)> {
+    let mut bounds: Vec<(String, String)> = snaps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            (
+                if i > 0 {
+                    snap_at(&snaps[i - 1]).to_string()
+                } else {
+                    String::new()
+                },
+                snap_at(s).to_string(),
+            )
+        })
+        .collect();
+    if let Some(last) = snaps.last() {
+        bounds.push((snap_at(last).to_string(), "9999".into()));
+    }
+    if bounds.is_empty() {
+        bounds.push((String::new(), "9999".into()));
+    }
+    bounds
+}
+
+/// Each window's coordinator billable, shared among the features whose subagents ran in it
+/// (weighted by their billable in that window). Returns (feature to share, unassigned, total).
+#[must_use]
+pub fn split_coordinator(
+    main_msgs: &[(String, MsgMap)],
+    groups: &[super::attribute::Group],
+    rows: &[Row],
+    snaps: &[Snap],
+) -> (OMap<f64>, i64, i64) {
+    let coord: Vec<(&str, i64)> = main_msgs
+        .iter()
+        .flat_map(|(_, m)| m.values())
+        .filter(|m| !m.ts.is_empty())
+        .map(|m| (m.ts.as_str(), m.usage.bill()))
+        .collect();
+    let mut share: OMap<f64> = OMap::new();
+    let mut unassigned = 0;
+    for (lo, hi) in windows(snaps) {
+        let inside = |t: &str| lo.as_str() < t && t <= hi.as_str();
+        let c: i64 = coord
+            .iter()
+            .filter(|(t, _)| inside(t))
+            .map(|(_, b)| b)
+            .sum();
+        let mut w: OMap<i64> = OMap::new();
+        for g in groups {
+            let Some(f) = &g.feature else { continue };
+            let sum: i64 = g
+                .rows
+                .iter()
+                .flat_map(|&i| rows[i].msgs.iter())
+                .filter(|m| !m.ts.is_empty() && inside(&m.ts))
+                .map(|m| m.usage.bill())
+                .sum();
+            *w.entry(f, || 0) += sum;
+        }
+        let tot: i64 = w.values().sum();
+        if tot == 0 {
+            unassigned += c;
+            continue;
+        }
+        for (f, v) in w.iter() {
+            *share.entry(f, || 0.0) += c as f64 * *v as f64 / tot as f64;
+        }
+    }
+    (share, unassigned, coord.iter().map(|(_, b)| b).sum())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,5 +482,57 @@ mod tests {
         all.extend(markers_from_log("2026-10-19T00:00:00+00:00|chore: initial commit\n2026-10-20T00:00:00+00:00|manual one\n"));
         assert_eq!(save_snapshots(&p, all).unwrap().len(), 2);
         assert_eq!(load_snapshots(&p).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn by_stage_table_renders_with_markers_and_top() {
+        // token_report.py crashes here (its `top` loop variable shadows the --top argument).
+        let mk = |ts: &str, out: i64| Msg {
+            ts: ts.into(),
+            model: "m".into(),
+            usage: Usage {
+                input: 0,
+                cache_w: 0,
+                cache_r: 5,
+                output: out,
+            },
+        };
+        let m = mk("2026-10-20T10:00:00", 400);
+        let row = Row {
+            who: "subagent a1".into(),
+            label: "T001".into(),
+            desc: "T001: x".into(),
+            msgs: vec![m.clone()],
+            ..Row::default()
+        };
+        let tagged = vec![(
+            "T001: x".to_string(),
+            m.ts.clone(),
+            m.model.clone(),
+            m.usage,
+        )];
+        let snaps = vec![obj(vec![
+            ("at", J::s("2026-10-20T12:00:00")),
+            ("label", J::s("landed")),
+        ])];
+        let (l, _) = render(
+            "p",
+            &["s1".into()],
+            1,
+            &[],
+            &[row],
+            &tagged,
+            &snaps,
+            Some(1),
+            "2026-10-20 12:00",
+        );
+        let text = l.join("\n");
+        assert!(text.contains("## By stage"));
+        assert!(
+            text.contains(
+                "| 1 | landed | start → 2026-10-20 12:00 | 0.4k | 0.4k | T001: x (0.4k) |"
+            ),
+            "{text}"
+        );
     }
 }

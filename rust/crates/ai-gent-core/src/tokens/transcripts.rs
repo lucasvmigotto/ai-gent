@@ -588,7 +588,7 @@ pub fn project_roots(slug: &str) -> Vec<PathBuf> {
             v.push(p);
         }
     }
-    v.sort();
+    v.sort_by(|a, b| a.to_string_lossy().cmp(&b.to_string_lossy())); // a string sort, like Python's sorted(glob(...)): `.claude-b/` sorts before `.claude/`
     v
 }
 
@@ -721,5 +721,24 @@ mod tests {
         ];
         let refs: Vec<&Msg> = ms.iter().collect();
         assert_eq!(idle_rebuilds(&refs, 300, 20_000), (1, 60_000));
+    }
+
+    #[test]
+    fn gather_row_carries_prompt_and_edit_size() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path().join("proj");
+        let a1 = format!(
+            "{}\n{}",
+            r#"{"type": "user", "message": {"role": "user", "content": "Goal: complete T001, T002 of specs/001-widget/tasks.md"}}"#,
+            r#"{"type": "assistant", "timestamp": "2026-10-20T10:01:00Z", "message": {"id": "a1m1", "model": "claude-sonnet-5-5", "usage": {"input_tokens": 1, "output_tokens": 2}, "content": [{"type": "tool_use", "id": "tu1", "name": "Write", "input": {"file_path": "src/a.py", "content": "a\nb\nc"}}]}}"#
+        );
+        write(&root.join("sess1/subagents/agent-a1.jsonl"), &a1);
+        let g = gather(&[root], &["sess1".to_string()]);
+        let row = &g.rows[0];
+        assert!(row.prompt.contains("specs/001-widget"));
+        assert_eq!(
+            (row.files.clone(), row.lines, row.family.as_str()),
+            (vec!["src/a.py".to_string()], 3, "sonnet")
+        );
     }
 }
