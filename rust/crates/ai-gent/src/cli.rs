@@ -22,7 +22,9 @@ pub enum Command {
     /// Print the version, release, target and commit.
     Version,
     /// Check that the binary and its install are healthy.
-    Doctor,
+    Doctor(crate::cmd::doctor::DoctorArgs),
+    /// Check for, install, list or roll back releases (notify-only: never self-replaces).
+    Update(crate::cmd::update::UpdateArgs),
     /// Evaluate a guard on a hook event read from stdin (shadow phase: the shell guards decide).
     Guard(GuardArgs),
 }

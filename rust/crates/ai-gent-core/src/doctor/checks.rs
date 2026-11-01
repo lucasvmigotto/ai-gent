@@ -612,23 +612,36 @@ fn loose(path: &Path, dir: bool) -> Option<String> {
 pub fn permissions(ctx: &Ctx) -> Check {
     #[cfg(unix)]
     {
-        let mut dirs: Vec<PathBuf> = Vec::new();
-        dirs.extend(ctx.env.state_dir());
-        dirs.extend(
-            ctx.env
-                .path("XDG_CONFIG_HOME")
-                .or_else(|| ctx.env.home_dir().map(|h| h.join(".config")))
-                .map(|c| c.join("ai-gent")),
-        );
+        // What ai-gent itself keeps private: the config directory (credential files of
+        // shared/secrets.md) and, in the state directory, the shadow log the binary writes 0600.
+        // Files other tools create there (`targets`, the cache) are not credentials and are not judged.
         let mut problems = Vec::new();
         let mut looked = 0usize;
-        for d in dirs.iter().filter(|d| d.is_dir()) {
+        let config = ctx
+            .env
+            .path("XDG_CONFIG_HOME")
+            .or_else(|| ctx.env.home_dir().map(|h| h.join(".config")))
+            .map(|c| c.join("ai-gent"));
+        if let Some(d) = config.filter(|d| d.is_dir()) {
             looked += 1;
-            problems.extend(loose(d, true));
-            for e in std::fs::read_dir(d).into_iter().flatten().flatten() {
-                let ft = e.file_type();
-                if ft.is_ok_and(|t| t.is_file()) && e.file_name() != cache::FILE {
+            problems.extend(loose(&d, true));
+            for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+                if e.file_type().is_ok_and(|t| t.is_file()) {
                     problems.extend(loose(&e.path(), false));
+                }
+            }
+        }
+        if let Some(d) = ctx.env.state_dir() {
+            let logs: Vec<PathBuf> = ["guard-shadow.jsonl", "guard-shadow.1.jsonl"]
+                .iter()
+                .map(|n| d.join(n))
+                .filter(|p| p.is_file())
+                .collect();
+            if !logs.is_empty() {
+                looked += 1;
+                problems.extend(loose(&d, true));
+                for l in logs {
+                    problems.extend(loose(&l, false));
                 }
             }
         }
