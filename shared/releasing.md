@@ -101,10 +101,20 @@ When a release publishes bytes beyond the git objects — an archive, a
 binary, an installer — checksum them before publishing: build the
 archive deterministically, `sha256sum` it, and append the sums to the
 release notes (dottod's `dottod-scripts-<v>.tar.gz` + `.sha256sums`
-is the reference shape). Checksums prove integrity, not provenance: hand
+is the reference shape). Checksums prove integrity, not provenance:
+attest the assets (`actions/attest-build-provenance`, as below) and hand
 off to `devsecops:supply-chain` for signing and SLSA. A source-only
-release (ai-gent) ships no files, so it has nothing to checksum — the
-obligation is conditional on the artifact shape, not a ritual.
+release ships no files, so it has nothing to checksum — the obligation is
+conditional on the artifact shape, not a ritual.
+
+ai-gent is not source-only: each release attaches per-target archives
+(`ai-gent-X.Y.Z-<triple>.tar.gz`, `.zip` for Windows), `SHA256SUMS`,
+`install.sh` and `install.ps1`, with a `## Checksums` block in the notes and
+a build-provenance attestation for every archive and installer. The
+content-only `ai-gent-X.Y.Z.tar.gz` is still attached to every 2.x release so
+an older installer keeps working; it is not published from 3.0.0 (spec 039 B9). The required CI set a release waits for is
+listed under "Required checks" below. The job-by-job description is in "The
+release package" below.
 
 ## If the release ships a container image
 
