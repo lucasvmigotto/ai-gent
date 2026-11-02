@@ -57,6 +57,39 @@ Rust, Java and TypeScript are at or below the Python size (SC-005 holds for them
 
 The rule says: pass when the prototype is green and at least 18 of 24 keep L4. The prototype is green and 21 can; but the rule did not price the grammars. The spike therefore **passes the test and raises a size question that open question 4 must answer** before T064-T068 are built. Nothing past T063 was started.
 
+## Compact spike gate for D29 (T063b, 2026-11-02)
+
+Spike: `rust/spikes/compact` (still outside the workspace and never shipped). Scope (D29): rust, java, c, cpp, csharp, go, javascript (with JSX), typescript, tsx, kotlin, css, and scss for the hazard. `cargo test --release` in the spike: 13 tests green, including `proto_every_fixture_at_every_level`, which runs the 13 in-scope fixtures at levels 1 to 4 and asserts: no fallback, the level reached equals `min(level, EXPECTED)` (scss 2), and the output is at most 1.005 times the `compact.py` output (the `PYTHON` table in `tests/fixtures.rs` holds the sizes of `compact.py -q -LN` with Pygments 2.21.0).
+
+Output bytes, Rust spike against `compact.py` (L1 / L2 / L3 / L4); the Rust numbers are from `cargo run --release --example sizes plugins/compact/skills/code/tests/fixtures`:
+
+| File | Python | Rust spike |
+|---|---|---|
+| Widget.tsx | 568 / 440 / 425 / 396 | 568 / 440 / 425 / 396 |
+| service.ts | 1567 / 1491 / 1443 / 1309 | 1567 / 1491 / 1442 / 1308 |
+| app.mjs | 1473 / 1341 / 1281 / 1162 | same |
+| nosemi.mjs | 446 / 414 / 401 / 352 | same |
+| cache.rs | 1550 / 1378 / 1332 / 1243 | 1550 / 1378 / 1332 / 1241 |
+| Inventory.java | 2530 / 2096 / 2046 / 1894 | same |
+| matrix.c | 1102 / 984 / 965 / 890 | same |
+| graph.cpp | 1260 / 1139 / 1104 / 983 | same |
+| Program.cs | 1382 / 1104 / 1079 / 1014 | same |
+| server.go | 1533 / 1456 / 1422 / 1309 | same |
+| Shapes.kt | 1705 / 1421 / 1396 / 1282 | same |
+| site.css | 401 / 381 / 364 / 346 | same |
+| theme.scss | 182 / 162 / 162 / 162 | same |
+
+What was proven, per condition:
+
+- **TSX (SC-005).** `Widget.tsx` went from +7.8% to equal at L4 (396 bytes, 0%). Ported: the JSX tag and text classification (from the tree-sitter tree, not from a lexer: words of JSX text, tag tokens, gaps between children), the attribute rule (a newline between attributes is a space), the text/tag rule (whitespace with a newline between JSX text and a tag or `{expr}` goes; a space stays, it is text), and `semi_join`, `value_end`, `js_block_close` for the `js` and `kotlin` families. Whitespace-only JSX text is not content for the tree-shape check.
+- **go, kotlin, css.** All three reach L4 with the same bytes as Python. The tree-sitter-go and tree-sitter-kotlin-ng grammars drop tokens when they re-parse joined code (the plan's risk note, now measured: `sealed class Shape {...;data class ...` loses a `;`), so for Go and Kotlin the verifier is lexical, the `lexical_diff` of `compact.py`: a whitespace-free character stream, a `;` only where the original had a statement-ending newline (for Go, only where its lexer inserts one, and a place where it would insert one keeps a newline or a `;`), no fusing of tokens that were apart, strings, comments and preprocessor lines verbatim and in order. A file whose original does not parse (macros in C, `UNUSED int x;`) takes the same lexical path, as `bad_a` does in Python; the dropped text comes back as plain tokens.
+- **Preprocessor lines (c, cpp, csharp).** A leaf starting with `#` at the start of a line becomes one verbatim token through the end of the directive (`\` continuations and a `/* */` opened on it included); no newline next to it is joined; `matrix.c` (continued macros, `#ifdef` and an unknown macro) matches Python byte for byte.
+- **Look-around patterns, no heavier regex engine.** `rust/spikes/compact/src/lookaround.rs`: `has_line_comment_hazard` (`(?<![:/])//` of scss and less) and `csharp_raw_strings` (`\$*("{3,})[\s\S]*?\1(?!")` of csharp `protect`, including the greedy-then-backtrack group length and the lazy scan), each a few lines with tests whose expected values were computed with Python's `re`; the C# tokenizer refuses a raw string that comes out split. `less` has no grammar and stays outline only; its pattern is the same function.
+
+Two known differences from Python, both inside the D29 scope: (1) a source whose original does not parse at all in a non-C-family grammar is still accepted through the lexical path, which is weaker than Python's lexer view only where Pygments would have flagged a token; (2) Kotlin and Go joins are only as safe as their rules, as in Python (the verifier cannot tell `return\nx` from `return x`; the rule `value_end` keeps that newline, covered by `kotlin_keeps_newlines_where_the_grammar_needs_them`).
+
+**Binary size of the D29 scope.** A release binary (opt-level z, LTO, strip) linking tree-sitter and the 11 grammars above plus the spike code: 18.5 MB on x86_64 Linux (glibc), `cargo build --release --example sizes` in the spike. That is under the 25 MB proposal for `ai-gent-compact` (about 35% headroom for the CLI, the outline and the other targets) and far over the 8 MB of `ai-gent`, which is why D29 splits it.
+
 ## Not measured yet
 
 - T006 gopass on Windows.
