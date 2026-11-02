@@ -1,4 +1,10 @@
 import ast, json, sys, os
+from pathlib import Path
+import inspect
+import re
+import unittest
+from unittest.mock import patch
+from contextlib import ExitStack
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(ROOT, "plugins/db/scripts"))
@@ -47,5 +53,42 @@ msgs = ['connection to server at "db.secret-host.internal" (10.0.0.5) failed: FA
 out["redact"] = [[m, dbrun.redact(m)] for m in msgs]
 out["network"] = [[{"container_id":"abc","pod":""}, dbrun.network_args({"container_id":"abc","pod":""})],
  [{"container_id":"abc","pod":"p1","pid":4242}, dbrun.network_args({"container_id":"abc","pod":"p1","pid":4242})]]
-json.dump(out, open("golden.json","w"), ensure_ascii=False)
+# Run the original 16 driver-free tests, retaining each test's provenance and
+# every call's Python result (including refusal reasons). No copied expectations.
+import test_dbrun
+functions = ("classify_statement", "split_statements", "is_ddl", "cost_rules",
+             "mask_result", "redact", "network_args", "require_user_database", "explain_sql")
+out["unit"] = []
+for cls in (test_dbrun.ClassifierTest, test_dbrun.CostTest, test_dbrun.MaskTest,
+            test_dbrun.RedactTest, test_dbrun.NetworkTest):
+    for name in unittest.defaultTestLoader.getTestCaseNames(cls):
+        case = {"derived_from": f"{cls.__name__}::{name}", "calls": []}
+        def wrap(fn, op):
+            def record(*args, **kwargs):
+                bound = inspect.signature(fn).bind(*args, **kwargs)
+                bound.apply_defaults()
+                call = {"op": op, "args": bound.arguments}
+                if op == "redact":
+                    call["secrets"] = [[re.sub(r"\\(.)", r"\1", pattern.pattern[len(r"(?<![\w.-])"):-len(r"(?![\w-])")]), label]
+                                       for pattern, label in dbrun.REDACT]
+                try:
+                    value = fn(*args, **kwargs)
+                except dbrun.Refused as exc:
+                    call["refused"] = str(exc)
+                    case["calls"].append(call)
+                    raise
+                call["expected"] = value
+                case["calls"].append(call)
+                return value
+            return record
+        with ExitStack() as stack:
+            for op in functions:
+                stack.enter_context(patch.object(dbrun, op, wrap(getattr(dbrun, op), op)))
+            result = unittest.TestResult()
+            cls(name).run(result)
+            if not result.wasSuccessful():
+                raise RuntimeError(result.errors + result.failures)
+        out["unit"].append(case)
+fixture = Path(ROOT) / "rust/fixtures/db-core/golden.json"
+fixture.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
 print(len(corp), {k: len(v) for k, v in out.items()})

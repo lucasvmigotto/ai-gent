@@ -53,31 +53,15 @@ fn refuse(why: &str) {
 
 #[cfg(feature = "sqlite")]
 fn sqlite(path: &str, stmts: &[String]) -> Result<Value, String> {
-    use rusqlite::{types::ValueRef, Connection, OpenFlags};
-    let c = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI).map_err(|e| e.to_string())?;
-    c.execute_batch("PRAGMA query_only = ON").map_err(|e| e.to_string())?;
-    let mut results = vec![];
-    for s in stmts {
-        let mut st = c.prepare(s).map_err(|e| e.to_string())?;
-        let cols: Vec<String> = st.column_names().into_iter().map(|s| s.to_string()).collect();
-        let mut rows = vec![];
-        let mut q = st.query([]).map_err(|e| e.to_string())?;
-        while let Some(r) = q.next().map_err(|e| e.to_string())? {
-            let mut row = vec![];
-            for i in 0..cols.len() {
-                row.push(match r.get_ref(i).map_err(|e| e.to_string())? {
-                    ValueRef::Null => Value::Null,
-                    ValueRef::Integer(i) => json!(i),
-                    ValueRef::Real(f) => json!(f),
-                    ValueRef::Text(t) => json!(String::from_utf8_lossy(t)),
-                    ValueRef::Blob(b) => json!(format!("<{} bytes>", b.len())),
-                });
-            }
-            rows.push(row);
-        }
-        results.push(json!({"columns": cols, "rows": rows}));
+    let result = dbcore::drivers::sqlite::execute(&json!({
+        "engine": "sqlite", "conn": {"path": path}, "mode": "read",
+        "statements": stmts, "timeout": 30, "max_rows": 200,
+    }));
+    if result["ok"] == true {
+        Ok(result)
+    } else {
+        Err(result["error"].to_string())
     }
-    Ok(json!({"ok": true, "results": results}))
 }
 
 #[cfg(feature = "pg")]
