@@ -9,7 +9,7 @@
 - [ ] T010b The generic adapter template for further agents: what an adapter must prove (`detect`, `ready`, `preflight`, a trial against the checklist) before the agent is listed as supported.
 - [ ] T013 Scheduler (with the simple-versus-judgment classification of FR-004a): tracks from a task list with disjoint paths, assignment rules (FR-004), worktree cap and disk floor counted together. Verify: fixture task lists.
 - [x] T014 Delegation log and the `delegate` token tag (`shared/token-tags.json` and `.md` together). Verify: `scripts/check.sh`. Evidence: PR #368: `scripts/check.sh` green and the `status::tests`; `worker` facet added to the token vocabulary.
-- [ ] T015 `shared/delegate-worker-rules.md`: each guard's rule as a plain instruction; symlink into the plugin.
+- [x] T015 `shared/delegate-worker-rules.md`: each guard's rule as a plain instruction; symlink into the plugin. Evidence: Codex draft reviewed by the supervisor, `scripts/check.sh` green.
 - [ ] T020 The skill (`agents:delegate`): offer triggers, opt-in file, take-back. Verify: trigger and behavior evals.
 - [ ] T021 Cross-agent review step (FR-010) and the landing checklist. Verify: a trial where the reviewer is not the builder.
 - [ ] T030 Second trial and the comparison with `trial-1-codex.md` (SC-003).
