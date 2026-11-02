@@ -7,7 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Timer } from 'claude-code'
 
 import type { WorkerLogLine, WorkerStatus, WorkersSnapshot } from '../types'
-import { DEFAULT_CAP, MAX_STATUS_BYTES, parseCap, parseLog, parseStatus } from './workers-model'
+import { DEFAULT_CAP, MAX_STATUS_BYTES, agentRow, parseCap, parseLog, parseStatus } from './workers-model'
 import { repoRoot } from './repo'
 
 export const PANE = 'workers'
@@ -16,7 +16,7 @@ const MAX_TRACKS = 100
 const MAX_LOG_BYTES = 2_000_000
 
 // Change the tag when WorkersSnapshot's fields change: it declines what an earlier version stored.
-export const snapshotAtom = atom({ plugin: 'project', key: 'workersSnapshot' } as const, null, { shape: 'workers-1' })
+export const snapshotAtom = atom({ plugin: 'project', key: 'workersSnapshot' } as const, null, { shape: 'workers-2' })
 export const isOpenAtom = atom({ plugin: 'project', key: 'workersIsOpen' } as const, false)
 export const expandedAtom = atom({ plugin: 'project', key: 'workersExpanded' } as const, {})
 export const pollMsAtom = atom({ plugin: 'project', key: 'workersPollMs' } as const, 0)
@@ -26,6 +26,13 @@ const statusByTrack = new Map<string, { mtimeMs: number; status: WorkerStatus | 
 let capCache: { mtimeMs: number; cap: number } | null = null
 let logCache: { mtimeMs: number; lines: WorkerLogLine[] } | null = null
 let ticker: Timer | null = null
+// Set by register.tsx from the workersShowDescription option (default off, FR-017).
+let showDescription = false
+export const configure = (options: { showDescription: boolean }): void => {
+  showDescription = options.showDescription
+}
+// The API gives a subagent no clock: when this poll first saw it, and when its status last changed (epoch seconds).
+const agentSeen = new Map<string, { first: number; changed: number; status: string }>()
 let intervalMs = 0
 
 export async function compute($: EngineInterface): Promise<WorkersSnapshot> {
@@ -53,6 +60,19 @@ export async function compute($: EngineInterface): Promise<WorkersSnapshot> {
     else workers.push(known.status)
   }
   for (const name of statusByTrack.keys()) if (!live.has(name)) statusByTrack.delete(name)
+
+  // Kind 1: the session's own subagents, read from the API; kinds 2 and 3 are the status files above.
+  const nowS = Math.floor((await $.clock.now()) / 1000)
+  const agents = await $.agent.list().catch(() => [])
+  const present = new Set<string>()
+  for (const info of agents.slice(0, MAX_TRACKS)) {
+    present.add(info.id)
+    const known = agentSeen.get(info.id)
+    const seen = known === undefined ? { first: nowS, changed: nowS, status: info.status } : known.status === info.status ? known : { ...known, changed: nowS, status: info.status }
+    agentSeen.set(info.id, seen)
+    workers.push(agentRow(info, seen, showDescription))
+  }
+  for (const id of agentSeen.keys()) if (!present.has(id)) agentSeen.delete(id)
 
   const logStat = await $.fs.stat(`${base}/delegation.log`).catch(() => undefined)
   if (logStat?.kind !== 'file') logCache = null

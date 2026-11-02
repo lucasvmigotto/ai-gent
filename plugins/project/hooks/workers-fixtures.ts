@@ -1,6 +1,8 @@
 // Status files and log lines the workers tests read, as the Rust core writes them
 // (rust/crates/ai-gent-core/src/delegate/status.rs; contracts/status.md).
 
+import type { AgentInfo } from 'claude-code'
+
 import type { WorkerState } from '../types'
 
 export const NOW = 1_700_000_600_000
@@ -40,3 +42,17 @@ export const LOG = [
   'not json',
   JSON.stringify({ ts: 1_700_000_200, track: 'feat-old', agent: 'codex', tasks: ['T002'], wall_secs: 90, tokens: null, result: 'taken-back', tags: ['delegate'] }),
 ].join('\n')
+
+// Kinds 2 and 3: a headless session of another Claude profile and another code agent, as status files.
+export const PROFILE_AND_CODEX: Record<string, string> = {
+  'feat-prof': track('feat-prof', 'running', { agent: 'claude-profile:work', tasks: ['T060'], updated: 1_700_000_595 }),
+  'feat-cx': track('feat-cx', 'running', { agent: 'codex', tasks: ['T061'], updated: 1_700_000_590 }),
+}
+
+// Kind 1: what `$.agent.list()` gives. The descriptions are prompts on purpose (never shown by default).
+export const AGENTS: AgentInfo[] = [
+  { id: 'a1b2c3d4e5f6a7b8', description: 'PROMPT-SECRET: read the vault', type: 'general-purpose', status: 'running' },
+  { id: 'e1', description: 'survey \u001b[31mthe repo\u0007', type: 'Explore', status: 'pending' },
+  { id: 'r2', description: 'review it', type: 'code-reviewer', status: 'completed' },
+  { id: 'f3', description: 'x', type: 'general-purpose', status: 'failed' },
+]

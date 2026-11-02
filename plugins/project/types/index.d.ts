@@ -105,7 +105,14 @@ export type GuardRow = {
 // .ai-gent/delegate/<track>/status.json and .ai-gent/delegation.log, spec 041).
 export type WorkerState = 'queued' | 'running' | 'stalled' | 'done' | 'failed' | 'taken-back'
 
+// Where a worker comes from: a subagent of this session ($.agent.list()), a headless session of another Claude
+// profile (claude-profile[:name]) or any other code agent; the last two are status files.
+export type WorkerKind = 'subagent' | 'profile' | 'agent'
+
 export type WorkerStatus = {
+  kind: WorkerKind
+  // A subagent's description, only with the workersShowDescription option; null otherwise.
+  note: string | null
   track: string
   agent: string
   role: 'builder' | 'reviewer' | 'researcher'

@@ -135,7 +135,7 @@
     "workersPane": {
       "type": "boolean",
       "title": "Workers pane",
-      "description": "The /workers-pane pane: the delegation workers (agent, role, task, state, slots) from .ai-gent/delegate/*/status.json; it never opens by itself, /workers still prints the list",
+      "description": "The /workers-pane pane: every worker dispatch (agent, kind, role, task, state, slots): this session's subagents from the API and other Claude profiles or code agents from .ai-gent/delegate/*/status.json; it never opens by itself, /workers still prints the list",
       "default": true
     },
     "workersPollSeconds": {
@@ -151,6 +151,12 @@
       "default": 30,
       "min": 1,
       "max": 200
+    },
+    "workersShowDescription": {
+      "type": "boolean",
+      "title": "Workers pane: show subagent descriptions",
+      "description": "Show a session subagent's description beside its row. Off by default: the description is the Agent call's free text and can be a prompt",
+      "default": false
     },
     "workersLine": {
       "type": "boolean",
