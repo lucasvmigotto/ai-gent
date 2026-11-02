@@ -51,13 +51,17 @@ curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/ins
 
 **Git mode was removed in 3.0.0.** `AI_GENT_MODE`, `AI_GENT_BRANCH`, `AI_GENT_REPO` and `AI_GENT_DIR` are no longer read: the installer stops when one is set and prints the steps above. Remove them from your shell profile.
 
-When a Claude Code session starts with the git plugin installed, a SessionStart hook prints one line if a newer release is known — the check reads a weekly cache and never blocks startup:
+When a Claude Code session starts with the git plugin installed, a SessionStart hook runs `ai-gent update --check` (the package's `bin/ai-gent`; `scripts/update-check.sh` when the binary is missing) and prints at most one line a day if a newer release is known — the check reads a cache refreshed in the background and never blocks startup:
 
 ```text
-[ai-gent] update available: 1.9.0 → 1.10.0 — run scripts/ai-gent-update.sh in the ai-gent checkout (propose first, never self-apply in-session)
+[ai-gent] update available: 2.27.0 -> 2.28.0 - run: ai-gent update (propose first, never self-apply in-session)
 ```
 
-Pinned git checkouts stay silent, and `AI_GENT_NO_UPDATE_CHECK=1` disables the check. An update rewrites the agent's own instructions, so the session that notices it only proposes — applying it (`scripts/ai-gent-update.sh`, which re-runs the installer for a package install) takes effect next session. (opencode has no session-start hook point yet, so the notice is Claude-only for now.)
+A pinned install (`VERSION=x.y.z`, which writes a `pinned` marker) stays silent, `AI_GENT_UPDATE_DAYS` widens the check interval (default 7), and `AI_GENT_NO_UPDATE_CHECK=1` disables the check. An update rewrites the agent's own instructions, so the session that notices it only proposes — applying it (`ai-gent update`, or `scripts/ai-gent-update.sh`, which re-runs the installer) takes effect next session. `ai-gent update --check --json` reports the same state for scripts, `ai-gent update --rollback` returns to the previous version, and `ai-gent doctor` checks the install. (opencode has no session-start hook point yet, so the notice is Claude-only for now.)
+
+**Which tools need `uv` and Python.** The installer, `ai-gent` itself (guards in shadow mode, `update`, `doctor`) and the hooks need neither. Python 3 with only its standard library runs the tools not yet ported to `ai-gent` subcommands: `wt.py`, `token_report.py`, `reporun.py`, `specsync.py` and the `project` scripts. `uv` is needed by `compact:code` (it fetches Pygments and the tree-sitter language pack) and by the `db` plugin (`dbrun` fetches the database driver on demand). Each port to an `ai-gent` subcommand removes one of these needs; this sentence is updated with it.
+
+Prefer the GitHub Releases URL above over a mirror: each release's notes list the SHA256 of `install.sh` and of every package under `## Checksums`, and the installer verifies the package against `SHA256SUMS` before unpacking.
 
 With the devcontainer plugin installed, a second SessionStart hook reports the project's container leftovers — dangling images and volumes carrying its `me.lucasvmigotto.ai-gent.project` label, volumes of worktrees that are gone, buildah working containers from interrupted builds — and a container store under its disk floor (20 GB or 10 % of the disk, whichever is larger). It only reports, never removes; it's silent when there's nothing to say, and `AI_GENT_NO_LEFTOVERS_CHECK=1` disables it. Removal stays label-scoped and in the skills (`wt.py remove`, `wt.py finish`, the project's `clean` recipe, `containers.md` §9a).
 
@@ -460,14 +464,16 @@ plugins/<name>/.claude-plugin/plugin.json
 plugins/<name>/skills/<skill>/SKILL.md          a plugin skill                    → /<name>:<skill>
 plugins/<name>/skills/<skill>/references/       files one skill reads on demand
 plugins/<name>/references/                      files a plugin's skills share
-plugins/<name>/hooks/                           guard hooks (git, db)
+plugins/<name>/hooks/                           guard hooks (git, db, secrets, repo, devcontainer)
 plugins/<name>/skills/<skill>/scripts/          tools one skill runs (compact:code: compact.py)
 plugins/<name>/scripts/                         tools a plugin's skills run (db: dbrun; project: sessions, repo_state)
 plugins/<name>/evals/                           trigger and behavior evals
 skills/<name>/SKILL.md                          personal skills (skill-docs)     → /<name>
 shared/                                         pipeline, container, release and code-reading rules, symlinked into plugins' references/
 opencode/guard/                                 the OpenCode V2 guard plugin, its rules and parity test
-scripts/                                        check.sh, release.py, run-evals.py, sbom-from-bunlock.py, opencode-config.py, test-dbrun-engines.py and the tests
+rust/                                           the `ai-gent` binary (Cargo workspace; not a plugin) and its test fixtures
+shared/guard-fixtures/                          guard cases every implementation (shell, OpenCode, binary) must decide the same
+scripts/                                        check.sh, release.py, dev-bin.sh, package.py, run-evals.py, sbom-from-bunlock.py, opencode-config.py, test-dbrun-engines.py and the tests
 .github/workflows/                              check (pull requests), release (pushes to main)
 ```
 
@@ -479,7 +485,7 @@ Conventions for editing skills and plugins are in `AGENTS.md` (also available as
 - **Metadata:** skill names and description budgets (400 characters, since every session loads them), and plugin manifests.
 - **References:** `plugin:skill` references, relative paths and symlinks.
 - **Scripts:** shell scripts through shellcheck.
-- **Tests:** the git, db, secrets and repo guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), `reporun` (remotes, read/write classification, auth headers against a local stub), the project scripts (`sessions.py`, `repo_state.py`), `compact:code` (with a pinned Pygments, `PYGMENTS_VERSION`, fetched through `uv`), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
+- **Tests:** the Rust workspace (`cargo fmt`, `clippy -D warnings`, `cargo test --locked`, run when `cargo` is available), the shared guard fixtures against the shell guards, the parity fixtures of the ported tools, the git, db, secrets and repo guards, `dbrun` (its statement classifier, masking and SQLite end-to-end paths), `reporun` (remotes, read/write classification, auth headers against a local stub), the project scripts (`sessions.py`, `repo_state.py`), `compact:code` (with a pinned Pygments, `PYGMENTS_VERSION`, fetched through `uv`), the OpenCode guard rules (in parity with the shell guards, run with `bun` or `node`), the release script, and the installers in a throwaway `HOME`.
 - **Options:** `--quick` skips the installer tests. Shellcheck runs at a pinned version (`SHELLCHECK_VERSION`) through `uvx` or `pipx`, so a local run and CI agree.
 
 **Database engines.** Before pushing a change to `dbrun`, run `scripts/test-dbrun-engines.py` (`--engine <name>` for one). It tests `dbrun` end to end against real PostgreSQL, MySQL, MariaDB, SQL Server and Oracle containers, one at a time, capped at 2 GB of RAM; the images (about 5.5 GB) are pulled once. It isn't part of CI.
