@@ -230,3 +230,32 @@ fn reads_the_cache_the_shell_script_writes() {
     write_cache(&f.state, now(), "v2.28.0");
     assert!(stdout(cmd(&f.exe, &f.state).args(["update", "--check"])).contains("-> 2.28.0"));
 }
+
+// Open question 1 of spec 034: the notice prints at most once a day, even if sessions restart.
+#[test]
+fn notice_prints_once_a_day_and_json_is_unaffected() {
+    let f = fx("2.27.0");
+    write_cache(&f.state, now(), "2.28.0");
+    let first = stdout(cmd(&f.exe, &f.state).args(["update", "--check"]));
+    assert!(first.contains("2.27.0 -> 2.28.0"), "{first}");
+    assert!(
+        cache_text(&f.state).split_whitespace().count() == 3,
+        "the day is recorded as a third field: {}",
+        cache_text(&f.state)
+    );
+    let second = stdout(cmd(&f.exe, &f.state).args(["update", "--check"]));
+    assert_eq!(second, "", "same day: silent");
+    let json = stdout(cmd(&f.exe, &f.state).args(["update", "--check", "--json"]));
+    assert!(
+        json.contains("2.28.0 - run"),
+        "--json still reports it: {json}"
+    );
+    // yesterday's mark prints again
+    std::fs::write(
+        f.state.join("ai-gent/update-check"),
+        format!("{} 2.28.0 2001-01-01\n", now()),
+    )
+    .unwrap();
+    let third = stdout(cmd(&f.exe, &f.state).args(["update", "--check"]));
+    assert!(third.contains("2.28.0"), "{third}");
+}

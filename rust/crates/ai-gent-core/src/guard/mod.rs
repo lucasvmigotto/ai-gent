@@ -5,6 +5,7 @@
 pub mod branch;
 pub mod event;
 pub mod reasons;
+pub mod replay;
 pub mod rules;
 pub mod segment;
 pub mod shadow;

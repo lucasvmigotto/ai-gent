@@ -18,6 +18,18 @@ pub fn run(a: &GuardArgs, json_out: bool) -> Exit {
         Some(GuardAction::ShadowReport { since, guard }) => {
             return shadow_report(since.as_deref(), guard.as_deref(), json_out);
         }
+        Some(GuardAction::Replay {
+            transcripts,
+            guard,
+            oracle,
+        }) => {
+            return replay(
+                transcripts.as_deref(),
+                guard.as_deref(),
+                oracle.as_deref(),
+                json_out,
+            );
+        }
         None => {}
     }
     let mut input = String::new();
@@ -242,6 +254,91 @@ fn shadow_report(since: Option<&str>, guard: Option<&str>, json_out: bool) -> Ex
         }
     }
     if rep.disagreements.is_empty() {
+        Exit::Success
+    } else {
+        Exit::Runtime
+    }
+}
+
+fn replay(
+    transcripts: Option<&std::path::Path>,
+    guard: Option<&str>,
+    oracle: Option<&std::path::Path>,
+    json_out: bool,
+) -> Exit {
+    use ai_gent_core::guard::replay as rp;
+    let guards: Vec<GuardId> = match guard {
+        None | Some("all") => GuardId::ALL.to_vec(),
+        Some(g) => {
+            let Some(id) = GuardId::parse(g) else {
+                eprintln!("ai-gent guard replay: unknown guard {g}");
+                return Exit::Usage;
+            };
+            vec![id]
+        }
+    };
+    let dir = if let Some(d) = transcripts {
+        d.to_path_buf()
+    } else {
+        let Some(h) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) else {
+            eprintln!("ai-gent guard replay: no --transcripts and no HOME");
+            return Exit::Usage;
+        };
+        std::path::PathBuf::from(h).join(".claude/projects")
+    };
+    if !dir.is_dir() {
+        eprintln!("ai-gent guard replay: {} is not a directory", dir.display());
+        return Exit::Runtime;
+    }
+    let branch = |d: &str| git_branch(d);
+    let ctx = Ctx { branch_of: &branch };
+    let files = rp::transcript_files(&dir);
+    #[cfg(unix)]
+    let run_sh = oracle.map(|o| {
+        let o = o.to_path_buf();
+        move |g: GuardId, ev: &Event| rp::run_shell_guard(&o, g, ev)
+    });
+    #[cfg(unix)]
+    let rep = rp::replay(
+        &files,
+        &guards,
+        &ctx,
+        run_sh.as_ref().map(|f| f as &dyn Fn(GuardId, &Event) -> _),
+    );
+    #[cfg(not(unix))]
+    let rep = {
+        if oracle.is_some() {
+            eprintln!("ai-gent guard replay: --oracle needs a Unix sh");
+            return Exit::Usage;
+        }
+        rp::replay(&files, &guards, &ctx, None)
+    };
+    if json_out {
+        println!("{}", ai_gent_core::output::ok_json(1, &rep));
+    } else {
+        println!("{} transcripts, {} shell commands", rep.files, rep.commands);
+        for (g, c) in &rep.guards {
+            print!(
+                "{g:<11} {:>6} deny  {:>6} ask  {:>6} none",
+                c.deny, c.ask, c.none
+            );
+            if oracle.is_some() {
+                print!("  {:>6} compared  {:>4} differ", c.compared, c.differ);
+            }
+            println!();
+        }
+        for d in &rep.differences {
+            println!(
+                "DIFFER {} sha={} rust={} shell={}{}",
+                d.guard,
+                d.cmd_sha,
+                d.rust_decision,
+                d.shell_decision,
+                if d.reason_only { " (reason only)" } else { "" }
+            );
+        }
+    }
+    if rep.differences.is_empty() {
         Exit::Success
     } else {
         Exit::Runtime

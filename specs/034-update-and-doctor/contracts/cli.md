@@ -13,7 +13,7 @@ ai-gent doctor [--fast] [--strict] [--json]
 
 ## `update --check`
 
-stdout: the notice line (FR-008) or nothing. Exit 0 always (it never fails a hook), except usage errors (2).
+stdout: the notice line (FR-008) or nothing; the notice prints at most once per UTC day (the day is kept in the cache's third field), `--json` is not capped. Exit 0 always (it never fails a hook), except usage errors (2).
 `--json`: `{"schema":1,"ok":true,"data":{"installed":"2.27.0","latest":"2.28.0","cached_at":"2026-11-01T12:00:00Z","stale":false,"pinned":false,"checking":false,"notice":"[ai-gent] update available: ..."}}`; `latest` and `cached_at` are `null` with no cache; `notice` is `null` when silent; `checking` is true when a refresh was started by this call.
 
 ## `update`

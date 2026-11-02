@@ -37,6 +37,55 @@ fn fake_tool() -> PathBuf {
     p
 }
 
+/// A private copy of `fake_tool`, made once per test process and proven runnable. Copying it per
+/// test races with the forks of the other test threads: a child forked while the copy is open for
+/// writing holds that descriptor until its `exec`, and running the copy meanwhile fails with
+/// ETXTBSY ("text file busy", issue #360). The write handle is closed here (the copy is synced and
+/// dropped), the probe retries on ETXTBSY until every leaked descriptor is gone, and the sandboxes
+/// hard-link this one file, so nothing is written to an executable after the probe.
+fn template_tool() -> &'static Path {
+    static T: std::sync::OnceLock<(tempfile::TempDir, PathBuf)> = std::sync::OnceLock::new();
+    &T.get_or_init(|| {
+        let d = tempfile::tempdir().unwrap();
+        let t = d.path().join(if cfg!(windows) {
+            "template.exe"
+        } else {
+            "template"
+        });
+        {
+            let mut src = std::fs::File::open(fake_tool()).unwrap();
+            let mut dst = std::fs::File::create(&t).unwrap();
+            std::io::copy(&mut src, &mut dst).unwrap();
+            dst.sync_all().unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                dst.set_permissions(std::fs::Permissions::from_mode(0o755))
+                    .unwrap();
+            }
+        }
+        let mut ready = false;
+        for _ in 0..400 {
+            match std::process::Command::new(&t)
+                .stdin(std::process::Stdio::null())
+                .output()
+            {
+                Ok(_) => {
+                    ready = true;
+                    break;
+                }
+                Err(e) if e.raw_os_error() == Some(26) => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(e) => panic!("cannot run the fake tool: {e}"),
+            }
+        }
+        assert!(ready, "the fake tool stayed busy (ETXTBSY) for 4 s");
+        (d, t)
+    })
+    .1
+}
+
 struct Sandbox {
     _tmp: tempfile::TempDir,
     store: PathBuf,
@@ -58,7 +107,9 @@ impl Sandbox {
             } else {
                 (*t).to_string()
             });
-            std::fs::copy(fake_tool(), dest).unwrap();
+            if std::fs::hard_link(template_tool(), &dest).is_err() {
+                std::fs::copy(template_tool(), &dest).unwrap();
+            }
         }
         Self {
             _tmp: tmp,

@@ -88,6 +88,23 @@ pub fn decide(root: &InstallRoot, env: &Env, cache_file: &Path, now: u64) -> Dec
     }
 }
 
+/// Apply the once-a-day cap to a text-mode notice (spec 034, open question 1).
+///
+/// Returns the notice to print. When the notice for the cached release was already printed on the
+/// UTC day of `now`, it is withheld (`None`); otherwise the day is recorded in the cache so the
+/// next session start the same day stays quiet. A cache that cannot be written only means the
+/// notice may repeat. `--json` does not go through this: it reports state and records nothing.
+#[must_use]
+pub fn cap_notice(report: &CheckReport, cache_file: &Path, now: u64) -> Option<String> {
+    let notice = report.notice.clone()?;
+    let today = cache::day_of(now);
+    if cache::read(cache_file).is_some_and(|c| c.notified.as_deref() == Some(today.as_str())) {
+        return None;
+    }
+    let _ = cache::mark_notified(cache_file, &today);
+    Some(notice)
+}
+
 /// Seconds since the epoch.
 #[must_use]
 pub fn now_secs() -> u64 {
@@ -245,5 +262,38 @@ mod tests {
             NOW,
         );
         assert!(r.refresh && r.report.stale);
+    }
+
+    #[test]
+    fn notice_prints_once_a_day() {
+        let d = tempfile::tempdir().unwrap();
+        let p = cache_with(d.path(), 1, "2.28.0");
+        let rt = root(Some("2.27.0"), Some(d.path()));
+        let report = decide(&rt, &Env::default(), &p, NOW).report;
+        assert!(cap_notice(&report, &p, NOW).is_some(), "first of the day");
+        assert!(
+            cap_notice(&report, &p, NOW + 60).is_none(),
+            "second, same day"
+        );
+        // decide still reports the notice (the JSON view), the cap is applied by the caller
+        assert!(
+            decide(&rt, &Env::default(), &p, NOW)
+                .report
+                .notice
+                .is_some()
+        );
+        assert!(cap_notice(&report, &p, NOW + 86_400).is_some(), "next day");
+    }
+
+    #[test]
+    fn a_new_release_notifies_again_the_same_day() {
+        let d = tempfile::tempdir().unwrap();
+        let p = cache_with(d.path(), 1, "2.28.0");
+        let rt = root(Some("2.27.0"), Some(d.path()));
+        let r = decide(&rt, &Env::default(), &p, NOW).report;
+        assert!(cap_notice(&r, &p, NOW).is_some());
+        cache::write(&p, NOW, "2.29.0").unwrap(); // the refresh found a newer release
+        let r = decide(&rt, &Env::default(), &p, NOW).report;
+        assert!(cap_notice(&r, &p, NOW + 5).is_some());
     }
 }

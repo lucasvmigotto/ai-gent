@@ -46,6 +46,31 @@ fn is_executable(p: &Path) -> bool {
     p.is_file()
 }
 
+/// `cmd.spawn()`, retried a few times when the program is busy (ETXTBSY, errno 26).
+///
+/// A program that was just written (a fake tool in a test, a freshly installed script) can still be
+/// open for writing in a child that another thread forked a moment earlier and that has not
+/// reached its own `exec`; the kernel refuses to run it until that descriptor closes, which takes
+/// microseconds. Any other error is returned at once.
+///
+/// # Errors
+/// The spawn error, after at most about 1 s of ETXTBSY retries.
+pub fn spawn_retry(cmd: &mut Command) -> std::io::Result<std::process::Child> {
+    let mut tries = 0;
+    loop {
+        match cmd.spawn() {
+            Err(e) if e.raw_os_error() == Some(ETXTBSY) && tries < 100 => {
+                tries += 1;
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            r => return r,
+        }
+    }
+}
+
+/// `ETXTBSY` on Linux and macOS; no Windows error maps to 26 that a spawn can return.
+const ETXTBSY: i32 = 26;
+
 /// What a finished child printed.
 #[derive(Debug)]
 pub struct Output {
@@ -80,7 +105,7 @@ pub fn run(
     })
     .stdout(Stdio::piped())
     .stderr(Stdio::piped());
-    let mut child = cmd.spawn()?;
+    let mut child = spawn_retry(&mut cmd)?;
     let mut out = child.stdout.take();
     let mut err = child.stderr.take();
     let t_out = std::thread::spawn(move || {
