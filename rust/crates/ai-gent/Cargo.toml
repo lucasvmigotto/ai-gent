@@ -23,6 +23,11 @@ path = "src/main.rs"
 name = "ai-gent-fake-engine"
 path = "examples/fake_engine.rs"
 
+# The fake agent of the `delegate` tests (stands in for `codex`; no real agent or network in tests).
+[[example]]
+name = "ai-gent-fake-agent"
+path = "examples/fake_agent.rs"
+
 [dependencies]
 ai-gent-core = { path = "../ai-gent-core", version = "0.1.0" }
 clap.workspace = true

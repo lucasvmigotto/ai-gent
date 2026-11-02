@@ -1,5 +1,6 @@
 //! Shared pieces of the `ai-gent` command line.
 pub mod b64;
+pub mod delegate;
 pub mod doctor;
 pub mod env;
 pub mod exec;
