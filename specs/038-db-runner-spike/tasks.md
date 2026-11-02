@@ -11,7 +11,7 @@ Format: `- [ ] Tnnn [P] [USn] description. Files. Verify. Experiment.` The deliv
 
 ## Phase 2: Native candidates
 
-- [ ] T004 [US2] E4 sqlite prototype and the 8 `SqliteEndToEndTest` cases, with a write refused by the server (`mode=ro` plus `query_only`). Files: `rust/spikes/dbrun/src/drivers/sqlite.rs`. Verify: `cargo test -p dbrun-spike sqlite`. Experiment: E4.
+- [ ] T004 [US2] E4 sqlite prototype and the 8 `SqliteEndToEndTest` cases, with a write refused by the server (`mode=ro` plus `query_only`). Files: `rust/spikes/dbrun/src/drivers/sqlite.rs`. Verify: `cargo test --features sqlite sqlite` inside `rust/spikes/dbrun`. Experiment: E4.
 - [ ] T005 [US2] E2 PostgreSQL prototype against `postgres:17` through the adapter: server-side write refusal (`transaction_read_only=on`), errors via `as_db_error()`, the TLS choice noted, plan/apply/restore and the remote-declared checks run (the report did not). Files: `drivers/pg.rs`, `src/bin/adapter.rs`. Verify: `python3 scripts/test-dbrun-engines.py --runner target/debug/adapter --engine postgresql`. Experiment: E2.
 - [ ] T006 [US2] E3 MySQL and MariaDB prototype (one `mysql` crate binary for both; timeout variable after `SELECT VERSION()`; ERROR 1792 on a write), plan/apply/restore and the remote-declared checks. Files: `drivers/mysql.rs`. Verify: the same script with `--engine mysql` then `--engine mariadb`. Experiment: E3.
 
