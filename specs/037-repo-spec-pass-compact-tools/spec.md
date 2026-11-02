@@ -97,7 +97,9 @@ On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when
 
 **Independent Test**: `ProjectStatusTest` (15), `BatchTest` (6), `ChainTest` (3).
 
-### Group D: `ai-gent compact`
+### Group D: `ai-gent-compact`
+
+> **D29 (2026-11-02).** Every `ai-gent compact` below is the separate binary `ai-gent-compact` (crate `rust/crates/ai-gent-compact`); same flags. Scope: java, csharp, c, cpp, go, rust, javascript, kotlin, css, typescript, tsx; any other language prints the outline and a notice "outline only, no compaction" and exits 0. `--list-languages` marks those.
 
 ### User Story 8 - Compact: Compact view of the languages that matter (Priority: P2)
 
@@ -181,7 +183,7 @@ On native Windows the module finds a backend: `pass` (Git Bash or WSL shim) when
 1. **Windows secret store**: add Windows Credential Manager as a documented backend, or require `pass`/`gopass` there? Recommended: no; support `pass` and `gopass` only, keep the contract unchanged, and document WSL as the supported route if gopass proves incompatible. A new backend is a contract change for the owner.
 2. **gopass compatibility** with a pass-created store (same `.gpg` layout, `show -o` semantics) is [ASSUMPTION], not verified. Needs a Windows run (T006).
 3. **A user-facing `ai-gent secrets`** (check/list names) versus keeping `secrets:pass` as the guide. Recommended: not now.
-4. **Compact fate**: port, port with a reduced language set, or leave `compact` out of 3.0.0 and keep it as an optional skill that needs the Python script. The last conflicts with D8/D16 (no Python at runtime), so the real choice is port-reduced or drop the skill. Recommended: port with the reduced set (grammar-backed languages only; others L1), decide after the Phase D0 spike, which gives pass/fail numbers.
+4. **Compact fate**: **answered by the owner on 2026-11-02 (D29).** `compact` is ported as its own binary and crate, `ai-gent-compact` (`rust/crates/ai-gent-compact`), with its own size budget (proposal: 25 MB stripped per target, set from `measurements.md`; the owner confirms), and the core `ai-gent` binary keeps its 8 MB budget. Scope: java, csharp, c, cpp, go, rust, javascript, kotlin and css (the nine the SKILL.md names or relies on) plus typescript and tsx; every other language gets "outline only, no compaction" (exit 0, a notice) instead of failing, and no Python behaviour is ported for them. Conditions before T064: TSX reaches SC-005 (JSX join rules and `semi_join` ported in the spike), the go, kotlin and css families and the preprocessor lines are proven in the spike, and the csharp `protect` and scss/less `hazard` look-around patterns are hand-ported without a heavier regex engine. Not decided: whether the Python script stays for the other L1/L2 languages (no: D16, it is removed at cutover D).
 5. **Compact tokens**: is a 0.5% larger output acceptable (SC-005) when the saving moves from Pygments-style lexing to tree-sitter tokens? Recommended: yes up to 1%.
 6. **HTTP crate and TLS roots** (reqwest vs ureq, platform roots vs bundled) are 032's dependency policy; this spec only needs blocking HTTPS with a custom host allowlist.
 7. **Which release** each group cuts over in: recommended with 035/036 at 3.0.0, groups in order A, B, C, D (D may slip to a later 3.x).

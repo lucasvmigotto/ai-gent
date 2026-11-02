@@ -16,8 +16,8 @@ path = "src/sizeprobe.rs"
 
 [features]
 default = ["proto"]
-# the prototype languages
-proto = ["g-rust", "g-java", "g-typescript"]
+# the prototype languages (the D29 scope: java, csharp, c, cpp, go, rust, javascript, kotlin, css, typescript, tsx, and scss for the hazard port)
+proto = ["g-rust", "g-java", "g-typescript", "g-javascript", "g-c", "g-cpp", "g-c-sharp", "g-go", "g-kotlin-ng", "g-css", "g-scss"]
 # every grammar of the table (size measurement)
 all = ["g-rust", "g-java", "g-typescript", "g-bash", "g-c", "g-cpp", "g-c-sharp", "g-css", "g-cuda", "g-dart", "g-elixir", "g-glsl", "g-go", "g-groovy", "g-haskell", "g-hlsl", "g-html", "g-javascript", "g-json", "g-kotlin-ng", "g-lua", "g-objc", "g-php", "g-python", "g-ruby", "g-scala", "g-scss", "g-solidity", "g-sequel", "g-swift", "g-toml-ng", "g-verilog", "g-xml", "g-yaml", "g-zig"]
 # one feature per grammar crate (per-grammar size measurement)

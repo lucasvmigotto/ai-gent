@@ -1,6 +1,6 @@
 //! Rewrite the gaps between tokens; token text is never touched.
 
-use crate::tokenize::{Kind, Lang, Tok};
+use crate::tokenize::{Family, Kind, Lang, Tok};
 
 /// Which transforms are on (`blank`, `indent`, `join`, `spaces`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -80,6 +80,14 @@ fn need_space(p: &str, n: &str, n_kind: Kind) -> bool {
         || matches!(n_kind, Kind::Com | Kind::Line)
 }
 
+fn css_sep(p: &str, n: &str) -> bool {
+    let (a, b) = (
+        p.chars().last().unwrap_or(' '),
+        n.chars().next().unwrap_or(' '),
+    );
+    !("{};,:".contains(a) || "{};,".contains(b))
+}
+
 const JS_END: &[&str] = &[
     "{", "(", "[", ",", ";", ".", "?.", "...", "=>", "=", "+=", "-=", "*=", "/=", "%=", "**=",
     "<<=", ">>=", ">>>=", "&=", "|=", "^=", "&&=", "||=", "??=", "&&", "||", "??", "?", ":", "+",
@@ -126,43 +134,321 @@ const JS_RESTRICTED: &[&str] = &[
     "override",
     "accessor",
 ];
-const AFTER_CLOSE: &[&str] = &["else", "catch", "finally"];
-const BLOCK_PARENTS: &[&str] = &[
-    "statement_block",
-    "class_body",
-    "enum_body",
-    "switch_body",
-    "interface_body",
-    "object_type",
-    "internal_module",
-    "module",
+const AFTER_CLOSE: &[&str] = &["else", "catch", "finally", "while"];
+const OBJ_BEFORE: &[&str] = &[
+    "(", ",", "=", ":", "[", "?", "||", "&&", "??", "return", "...", "<", "default",
 ];
+const HEADER_WORDS: &[&str] = &[
+    "if", "for", "while", "when", "catch", "switch", "with", "foreach",
+];
+const JS_NO_STMT_START: &[&str] = &[
+    "in",
+    "instanceof",
+    "of",
+    "as",
+    "satisfies",
+    "from",
+    "extends",
+    "implements",
+    "else",
+    "catch",
+    "finally",
+    "keyof",
+    "is",
+];
+const JS_CONTEXTUAL: &[&str] = &[
+    "static",
+    "get",
+    "set",
+    "async",
+    "abstract",
+    "declare",
+    "readonly",
+    "public",
+    "private",
+    "protected",
+    "override",
+    "accessor",
+    "export",
+    "default",
+    "let",
+    "type",
+    "namespace",
+    "module",
+    "interface",
+    "enum",
+    "as",
+    "satisfies",
+    "of",
+    "in",
+    "from",
+    "new",
+    "typeof",
+    "void",
+    "delete",
+    "await",
+    "case",
+    "var",
+    "const",
+    "function",
+    "class",
+    "extends",
+    "implements",
+    "import",
+    "else",
+    "do",
+    "try",
+];
+const KT_MODIFIERS: &[&str] = &[
+    "private",
+    "public",
+    "internal",
+    "protected",
+    "override",
+    "open",
+    "final",
+    "abstract",
+    "lateinit",
+    "const",
+    "inline",
+    "suspend",
+    "operator",
+    "infix",
+    "tailrec",
+    "external",
+    "actual",
+    "expect",
+    "inner",
+    "data",
+    "sealed",
+    "enum",
+    "annotation",
+    "companion",
+    "value",
+    "vararg",
+    "noinline",
+    "crossinline",
+    "reified",
+    "fun",
+    "val",
+    "var",
+    "class",
+    "object",
+    "interface",
+    "typealias",
+    "import",
+    "package",
+    "in",
+    "out",
+    "is",
+    "as",
+    "by",
+    "where",
+    "constructor",
+    "get",
+    "set",
+    "init",
+    "else",
+    "if",
+    "when",
+    "try",
+    "do",
+    "for",
+    "while",
+];
+const KT_NO_STMT_START: &[&str] = &[
+    "get",
+    "set",
+    "by",
+    "where",
+    "constructor",
+    "as",
+    "is",
+    "in",
+    "else",
+    "catch",
+    "finally",
+    "out",
+];
+const KT_END: &[&str] = &[
+    "{", "(", "[", ",", ";", "=", "+=", "-=", "*=", "/=", "%=", "->", "&&", "||", "?:", "+", "-",
+    "*", "/", "%", "..", "..<", "<", "==", "!=", "===", "!==", "<=", ">=", ":", "?.", "::",
+];
+const KT_END_WORDS: &[&str] = &["else", "in", "is", "as", "try", "finally", "do"];
+const KT_START: &[&str] = &[
+    ")", "]", "}", ",", ".", "?.", "?:", "&&", "||", "->", ":", "=", ";",
+];
+const KT_START_WORDS: &[&str] = &["catch", "finally"];
+const GO_KEYWORDS: &[&str] = &[
+    "break",
+    "case",
+    "chan",
+    "const",
+    "continue",
+    "default",
+    "defer",
+    "else",
+    "fallthrough",
+    "for",
+    "func",
+    "go",
+    "goto",
+    "if",
+    "import",
+    "interface",
+    "map",
+    "package",
+    "range",
+    "return",
+    "select",
+    "struct",
+    "switch",
+    "type",
+    "var",
+];
+/// Keywords that are values: the `Keyword.Constant` and `Keyword.Type` of the Pygments lexers.
+const VALUE_WORDS: &[&str] = &[
+    "true",
+    "false",
+    "null",
+    "undefined",
+    "this",
+    "super",
+    "nil",
+    "void",
+    "number",
+    "string",
+    "boolean",
+    "any",
+    "unknown",
+    "never",
+    "object",
+    "symbol",
+    "bigint",
+];
+
+/// Would the Go lexer insert a semicolon after token `p` at a newline?
+#[must_use]
+pub fn go_needs_semi(p: &Tok, src: &str) -> bool {
+    let v = p.text(src);
+    match p.kind {
+        Kind::Str => true,
+        Kind::Code => {
+            if matches!(
+                v,
+                "break" | "continue" | "fallthrough" | "return" | "++" | "--" | ")" | "]" | "}"
+            ) {
+                return true;
+            }
+            if GO_KEYWORDS.contains(&v) {
+                return false;
+            }
+            (p.named || VALUE_WORDS.contains(&v)) && v.chars().last().is_some_and(word)
+        }
+        _ => false,
+    }
+}
 
 struct Ctx<'a> {
     src: &'a str,
     toks: &'a [Tok],
     gaps: &'a [String],
     lang: Lang,
+    fam: Family,
     js_semi: bool,
+    mate: Vec<Option<usize>>,
+    go_imports: Vec<bool>,
 }
 
-impl Ctx<'_> {
+impl<'a> Ctx<'a> {
+    fn new(src: &'a str, toks: &'a [Tok], gaps: &'a [String], lang: Lang) -> Self {
+        let mut cx = Ctx {
+            src,
+            toks,
+            gaps,
+            lang,
+            fam: lang.family(),
+            js_semi: false,
+            mate: vec![None; toks.len()],
+            go_imports: vec![false; toks.len()],
+        };
+        let mut stack = Vec::new();
+        for i in 0..toks.len() {
+            if cx.toks[i].kind != Kind::Code {
+                continue;
+            }
+            match cx.text(i) {
+                "(" | "[" | "{" => stack.push(i),
+                ")" | "]" | "}" => {
+                    if let Some(o) = stack.pop() {
+                        cx.mate[i] = Some(o);
+                        cx.mate[o] = Some(i);
+                    }
+                }
+                _ => {}
+            }
+        }
+        if cx.fam == Family::Go {
+            for i in 0..toks.len().saturating_sub(1) {
+                if cx.text(i) == "import" && cx.text(i + 1) == "(" {
+                    if let Some(c) = cx.mate[i + 1] {
+                        for j in i + 2..c {
+                            cx.go_imports[j] = true;
+                        }
+                    }
+                }
+            }
+        }
+        cx.js_semi = cx.fam == Family::Js && cx.semicolon_style();
+        cx
+    }
+
     fn text(&self, k: usize) -> &str {
         self.toks[k].text(self.src)
+    }
+
+    fn punct(&self, k: usize) -> bool {
+        self.toks[k].kind == Kind::Code && !self.text(k).chars().next().is_some_and(word)
+    }
+
+    /// An identifier, number or value keyword (the `Name`, `Literal`, `Keyword.Constant` and
+    /// `Keyword.Type` token classes of the Pygments lexers).
+    fn value_token(&self, k: usize) -> bool {
+        let t = &self.toks[k];
+        let v = self.text(k);
+        t.kind == Kind::Code
+            && v.chars().next().is_some_and(word)
+            && (t.named || t.parent == "predefined_type" || VALUE_WORDS.contains(&v))
+    }
+
+    fn name(&self, k: usize) -> bool {
+        let t = &self.toks[k];
+        t.kind == Kind::Code && t.named && t.node.contains("identifier")
+    }
+
+    fn number(&self, k: usize) -> bool {
+        let n = self.toks[k].node;
+        self.toks[k].kind == Kind::Code
+            && (n.contains("number")
+                || n.contains("integer")
+                || n.contains("float")
+                || n.contains("decimal"))
     }
 
     /// The `js` family writes `;` for the statement end; only code written that way may join at `}`.
     fn semicolon_style(&self) -> bool {
         let (mut semi, mut bare) = (0, 0);
         for k in 1..self.toks.len() {
-            if !self.gaps[k].contains('\n') || self.toks[k - 1].kind != Kind::Code {
+            let pk = self.toks[k - 1].kind;
+            if !self.gaps[k].contains('\n') || !matches!(pk, Kind::Code | Kind::Str) {
                 continue;
             }
             let p = self.text(k - 1);
-            if p == ";" {
+            if p == ";" && pk == Kind::Code {
                 semi += 1;
-            } else if (matches!(p, ")" | "]") || p.chars().last().is_some_and(word))
-                && !JS_START.contains(&self.text(k))
+            } else if (pk == Kind::Str || matches!(p, ")" | "]") || self.value_token(k - 1))
+                && !(self.punct(k) && JS_START.contains(&self.text(k)))
+                && !p.starts_with('@')
             {
                 bare += 1;
             }
@@ -177,47 +463,321 @@ impl Ctx<'_> {
         own(k) || own(k - 1) || (self.toks[k].kind == Kind::Com && nl(k))
     }
 
-    /// May the newline before token `k` be removed?
-    fn can_join(&self, k: usize) -> bool {
-        let (p, n) = (&self.toks[k - 1], &self.toks[k]);
-        if p.kind == Kind::Line || n.kind == Kind::Line || self.comment_pinned(k) {
+    fn annotation_end(&self, i: usize) -> bool {
+        let mut j = i;
+        loop {
+            if i - j > 8 {
+                return false;
+            }
+            let v = self.text(j);
+            if v.starts_with('@') {
+                return true;
+            }
+            if !(matches!(v, "." | ":") || self.name(j)) || (j < i && !self.gaps[j + 1].is_empty())
+            {
+                return false;
+            }
+            if j == 0 {
+                return false;
+            }
+            j -= 1;
+        }
+    }
+
+    fn kt_infix(&self, i: usize) -> bool {
+        if i < 1 || !self.name(i) || self.gaps[i].is_empty() || self.gaps[i].contains('\n') {
             return false;
         }
-        if !self.lang.is_js() {
+        let q = i - 1;
+        let qv = self.text(q);
+        if self.toks[q].kind == Kind::Str || matches!(qv, ")" | "]" | "}" | "!!") {
             return true;
         }
-        let (pv, nv) = (self.text(k - 1), self.text(k));
-        if p.kind == Kind::Code && JS_RESTRICTED.contains(&pv)
-            || matches!(nv, "++" | "--")
-            || matches!(pv, "++" | "--")
+        self.toks[q].kind == Kind::Code
+            && (self.name(q) || self.number(q) || matches!(qv, "true" | "false" | "null" | "this"))
+            && !KT_MODIFIERS.contains(&qv)
+            && !matches!(qv, "return" | "throw")
+            && !self.annotation_end(q)
+    }
+
+    /// Is the `}` at index `i` the end of a block or declaration (not an object literal, arrow body
+    /// or function expression, which end an expression that ASI terminates)?
+    fn js_block_close(&self, i: usize) -> bool {
+        let Some(o) = self.mate[i] else { return false };
+        if o == 0 {
+            return true;
+        }
+        let pv = self.text(o - 1);
+        if OBJ_BEFORE.contains(&pv) || pv == "=>" {
+            return false;
+        }
+        if pv == ")" {
+            let Some(po) = self.mate[o - 1] else {
+                return true;
+            };
+            if po == 0 {
+                return true;
+            }
+            let mut j = po - 1;
+            if HEADER_WORDS.contains(&self.text(j)) {
+                return true;
+            }
+            if self.name(j) && j > 0 {
+                j -= 1;
+            }
+            if self.text(j) == "*" && j > 0 {
+                j -= 1;
+            }
+            if self.text(j) == "function" {
+                let mut q = if j > 0 { Some(j - 1) } else { None };
+                if q.is_some_and(|x| self.text(x) == "async") {
+                    q = if j > 1 { Some(j - 2) } else { None };
+                }
+                return !q
+                    .is_some_and(|x| OBJ_BEFORE.contains(&self.text(x)) || self.text(x) == "=>");
+            }
+            return true;
+        }
+        if pv == "class" || (o >= 2 && self.text(o - 2) == "class") {
+            let q = if pv != "class" && o >= 3 {
+                Some(o - 3)
+            } else if o >= 2 {
+                Some(o - 2)
+            } else {
+                None
+            };
+            return !q.is_some_and(|x| OBJ_BEFORE.contains(&self.text(x)));
+        }
+        true
+    }
+
+    /// Does token `i` end an expression or statement?
+    fn value_end(&self, i: usize) -> bool {
+        match self.toks[i].kind {
+            Kind::Str => return true,
+            Kind::Code => {}
+            _ => return false,
+        }
+        let v = self.text(i);
+        if v.starts_with('@') {
+            return false;
+        }
+        let kotlin = self.fam == Family::Kotlin;
+        if kotlin && matches!(v, "return" | "throw" | "break" | "continue") {
+            return false;
+        }
+        if v == ")" {
+            let Some(o) = self.mate[i] else { return false };
+            if o == 0 {
+                return false;
+            }
+            return !HEADER_WORDS.contains(&self.text(o - 1)) && !self.annotation_end(o - 1);
+        }
+        if matches!(v, "++" | "--") {
+            // postfix only if glued to its operand on the same line (`i\n++\nj` is `i; ++j`)
+            return i > 0
+                && !self.gaps[i].contains('\n')
+                && (matches!(self.text(i - 1), ")" | "]") || self.name(i - 1));
+        }
+        if matches!(v, "]" | "}") || (kotlin && matches!(v, "!!" | "?")) {
+            return true;
+        }
+        if !kotlin
+            && matches!(
+                v,
+                "return"
+                    | "break"
+                    | "continue"
+                    | "throw"
+                    | "yield"
+                    | "debugger"
+                    | "this"
+                    | "super"
+                    | "null"
+                    | "true"
+                    | "false"
+            )
+        {
+            return true;
+        }
+        if v == "void" && matches!(self.lang, Lang::TypeScript | Lang::Tsx) {
+            return true;
+        }
+        if (!kotlin && JS_CONTEXTUAL.contains(&v)) || (kotlin && KT_MODIFIERS.contains(&v)) {
+            return false;
+        }
+        if self.annotation_end(i) || (kotlin && self.kt_infix(i)) {
+            return false;
+        }
+        self.value_token(i) && v.chars().last().is_some_and(word)
+    }
+
+    /// Can this newline be written as `;`? Only where the language would end the statement there
+    /// anyway (JS ASI, Kotlin newline-as-separator): never inside a control header, before a
+    /// continuation, after an annotation, or in JSX text.
+    fn semi_join(&self, k: usize) -> bool {
+        let (p, n) = (&self.toks[k - 1], &self.toks[k]);
+        if !matches!(self.fam, Family::Js | Family::Kotlin)
+            || p.jsx_text
+            || n.jsx_text
+            || p.jsx_tag
+            || n.jsx_tag
+            || !self.value_end(k - 1)
         {
             return false;
         }
-        // an expanded object literal stays expanded: the formatter would expand it again
-        if pv == "{" && p.parent == "object" {
+        let kotlin = self.fam == Family::Kotlin;
+        let v = self.text(k);
+        if n.kind == Kind::Str {
+            let c = v.chars().next();
+            return if kotlin {
+                c == Some('"')
+            } else {
+                matches!(c, Some('\'' | '"'))
+            };
+        }
+        if n.kind != Kind::Code {
             return false;
         }
-        if p.kind == Kind::Code && (JS_END.contains(&pv) || JS_END_WORDS.contains(&pv)) {
+        if !kotlin {
+            if JS_NO_STMT_START.contains(&v) {
+                return false;
+            }
+            if matches!(v, "!" | "~" | "++" | "--") || v.starts_with(['@', '#']) {
+                return true;
+            }
+            if self.number(k) {
+                return !v.starts_with('.');
+            }
+            return v.chars().next().is_some_and(word);
+        }
+        if KT_NO_STMT_START.contains(&v) {
+            return false;
+        }
+        let mut j = k;
+        while j < self.toks.len() && j < k + 12 {
+            let t = self.text(j);
+            if t.starts_with('@')
+                || (matches!(t, "." | ":") && self.gaps[j].is_empty())
+                || (self.name(j) && j > k && matches!(self.text(j - 1), "." | ":" | "@"))
+            {
+                j += 1;
+                if j < self.toks.len() && self.text(j) == "(" {
+                    if let Some(c) = self.mate[j] {
+                        j = c + 1;
+                    }
+                }
+                continue;
+            }
+            if KT_MODIFIERS.contains(&t) && !KT_NO_STMT_START.contains(&t) {
+                j += 1;
+                continue;
+            }
+            break;
+        }
+        if j < self.toks.len() && KT_NO_STMT_START.contains(&self.text(j)) {
+            return false;
+        }
+        if matches!(v, "!" | "++" | "--") || v.starts_with('@') {
             return true;
         }
-        if n.kind == Kind::Code && JS_START.contains(&nv) {
+        v.chars().next().is_some_and(word)
+    }
+
+    /// May the newline before token `k` be removed?
+    fn can_join(&self, k: usize) -> bool {
+        let (p, n) = (&self.toks[k - 1], &self.toks[k]);
+        if matches!(p.kind, Kind::Line | Kind::Pre)
+            || matches!(n.kind, Kind::Line | Kind::Pre)
+            || self.comment_pinned(k)
+        {
+            return false;
+        }
+        match self.fam {
+            Family::Free | Family::Go | Family::Css => return true,
+            _ => {}
+        }
+        let (pv, nv) = (self.text(k - 1), self.text(k));
+        if self.fam == Family::Js {
+            if p.kind == Kind::Code && JS_RESTRICTED.contains(&pv)
+                || matches!(nv, "++" | "--")
+                || matches!(pv, "++" | "--")
+            {
+                return false;
+            }
+            // an expanded object literal stays expanded: the formatter would expand it again
+            if pv == "{" && p.parent == "object" {
+                return false;
+            }
+            if (self.punct(k - 1) && JS_END.contains(&pv))
+                || (p.kind == Kind::Code && JS_END_WORDS.contains(&pv))
+            {
+                return true;
+            }
+            if (self.punct(k) && JS_START.contains(&nv))
+                || (n.kind == Kind::Code && nv == "instanceof")
+            {
+                return true;
+            }
+            return pv == "}"
+                && p.kind == Kind::Code
+                && (self.js_semi || AFTER_CLOSE.contains(&nv))
+                && self.js_block_close(k - 1);
+        }
+        // kotlin
+        if matches!(pv, "++" | "--" | "!!") || matches!(nv, "++" | "--") {
+            return false;
+        }
+        if self.kt_infix(k - 1) {
             return true;
         }
-        pv == "}"
-            && BLOCK_PARENTS.contains(&p.parent)
-            && (self.js_semi || AFTER_CLOSE.contains(&nv))
+        if (self.punct(k - 1) && KT_END.contains(&pv))
+            || (p.kind == Kind::Code && KT_END_WORDS.contains(&pv))
+        {
+            return true;
+        }
+        if (self.punct(k) && KT_START.contains(&nv))
+            || (n.kind == Kind::Code && KT_START_WORDS.contains(&nv))
+        {
+            return true;
+        }
+        pv == "}" && AFTER_CLOSE.contains(&nv) && nv != "while"
     }
 
     fn sep(&self, k: usize) -> &'static str {
         let (pv, nv) = (self.text(k - 1), self.text(k));
-        if self.lang == Lang::Tsx && pv.ends_with('>') && nv.starts_with('<') {
-            return ""; // a space between two JSX tags would become a text node
+        match self.fam {
+            Family::Css => return if css_sep(pv, nv) { " " } else { "" },
+            Family::Js if pv.ends_with('>') && nv.starts_with('<') => return "",
+            _ => {}
         }
         if need_space(pv, nv, self.toks[k].kind) {
             " "
         } else {
             ""
         }
+    }
+
+    /// The text that replaces a joined newline (Go re-inserts the semicolon its lexer would).
+    fn join_sep(&self, k: usize) -> String {
+        if self.fam == Family::Go {
+            let p = &self.toks[k - 1];
+            let last = if p.kind == Kind::Com {
+                (0..k)
+                    .rev()
+                    .find(|&i| !matches!(self.toks[i].kind, Kind::Com | Kind::Line))
+            } else {
+                Some(k - 1)
+            };
+            if let Some(q) = last {
+                if go_needs_semi(&self.toks[q], self.src)
+                    && !matches!(self.text(k), ")" | "}" | ";")
+                {
+                    return if p.kind == Kind::Com { " ;" } else { ";" }.into();
+                }
+            }
+        }
+        self.sep(k).into()
     }
 
     /// A blank line that formatters treat as intent: between comment groups and import groups.
@@ -229,16 +789,95 @@ impl Ctx<'_> {
         if matches!(p.kind, Kind::Com | Kind::Line) || matches!(n.kind, Kind::Com | Kind::Line) {
             return true;
         }
+        self.import_group_break(k)
+    }
+
+    fn import_group_break(&self, k: usize) -> bool {
+        let (p, n) = (&self.toks[k - 1], &self.toks[k]);
+        let includes = |t: &Tok| {
+            let v = t.text(self.src).trim_start_matches(['#', ' ', '\t']);
+            v.starts_with("include") || v.starts_with("import")
+        };
+        if n.kind == Kind::Pre && p.kind == Kind::Pre {
+            return includes(n) && includes(p);
+        }
         let mut j = k;
         if matches!(self.text(j), "pub" | "export") && j + 1 < self.toks.len() {
             j += 1;
         }
-        matches!(self.text(j), "use" | "import" | "using") && matches!(self.text(k - 1), ";" | "}")
+        let word_ok = matches!(self.text(j), "use" | "import" | "from" | "using");
+        if (word_ok && p.kind == Kind::Code && matches!(self.text(k - 1), ";" | "}"))
+            || (self.fam == Family::Kotlin && self.text(j) == "import")
+        {
+            return true;
+        }
+        if self.lang == Lang::Rust {
+            // skip #[attributes] and visibility to the item keyword
+            let mut j = k;
+            while j < self.toks.len() {
+                if self.text(j) == "#" && j + 1 < self.toks.len() && self.text(j + 1) == "[" {
+                    j = self.mate[j + 1].map_or(j + 2, |c| c + 1);
+                    continue;
+                }
+                if matches!(self.text(j), "pub" | "(" | ")" | "crate" | "super" | "in") {
+                    j += 1;
+                    continue;
+                }
+                break;
+            }
+            return j < self.toks.len() && matches!(self.text(j), "use" | "extern" | "mod");
+        }
+        self.go_imports[k]
+    }
+
+    /// JSX whitespace rules (`_gap` of `compact.py`): `Some(gap)` when they decide.
+    fn jsx_gap(&self, k: usize, flags: Flags) -> Option<String> {
+        if !self.lang.has_jsx() {
+            return None;
+        }
+        let (p, n) = (&self.toks[k - 1], &self.toks[k]);
+        let gap = &self.gaps[k];
+        let nl = gap.contains('\n');
+        if matches!(p.kind, Kind::Line | Kind::Pre)
+            || matches!(n.kind, Kind::Line | Kind::Pre)
+            || self.comment_pinned(k)
+        {
+            return None;
+        }
+        let (pv, nv) = (self.text(k - 1), self.text(k));
+        let text = n.jsx_text || p.jsx_text;
+        let tag = n.jsx_tag || p.jsx_tag;
+        if nl
+            && flags.has(JOIN)
+            && tag
+            && !matches!(pv, "<" | "</")
+            && !matches!(nv, ">" | "/>" | "/")
+        {
+            return Some(" ".into()); // between JSX attributes a newline is just a separator
+        }
+        if nl && flags.has(JOIN) && text && n.jsx_text != p.jsx_text {
+            return Some(String::new()); // JSX drops whitespace-with-newline between text and a tag
+        }
+        if !gap.is_empty() && !nl && (text || n.jsx_gap) {
+            return Some(gap.clone()); // a space between JSX children is text
+        }
+        if !gap.is_empty() && n.jsx_text && p.jsx_text {
+            let indent = if flags.has(INDENT) {
+                ""
+            } else {
+                &gap[gap.rfind('\n').map_or(0, |i| i + 1)..]
+            };
+            return Some(format!("\n{indent}"));
+        }
+        None
     }
 }
 
 fn gap_for(cx: &Ctx, k: usize, flags: Flags) -> String {
     let gap = &cx.gaps[k];
+    if let Some(g) = cx.jsx_gap(k, flags) {
+        return g;
+    }
     let nl = gap.matches('\n').count();
     let tail = gap.rfind('\n').map_or("", |i| &gap[i + 1..]);
     if nl == 0 {
@@ -254,7 +893,10 @@ fn gap_for(cx: &Ctx, k: usize, flags: Flags) -> String {
     }
     let para = cx.keeps_paragraph(k, gap);
     if flags.has(JOIN) && !para && cx.can_join(k) {
-        return cx.sep(k).to_string();
+        return cx.join_sep(k);
+    }
+    if flags.has(JOIN) && !para && cx.semi_join(k) {
+        return ";".into(); // the newline ended a statement: say so explicitly
     }
     let indent = if flags.has(INDENT) { "" } else { tail };
     if para {
@@ -272,14 +914,7 @@ pub fn render(src: &str, toks: &[Tok], gaps: &[String], lang: Lang, flags: Flags
     if toks.is_empty() || flags.is_empty() {
         return src.to_string();
     }
-    let mut cx = Ctx {
-        src,
-        toks,
-        gaps,
-        lang,
-        js_semi: false,
-    };
-    cx.js_semi = lang.is_js() && cx.semicolon_style();
+    let cx = Ctx::new(src, toks, gaps, lang);
     let mut out = String::with_capacity(src.len());
     let g0 = &gaps[0];
     if !flags.has(BLANK) && !flags.has(INDENT) {
