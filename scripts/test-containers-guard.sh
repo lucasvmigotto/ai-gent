@@ -4,6 +4,8 @@
 # against a fake engine (it reports and never removes). Called by scripts/check.sh.
 
 set -euo pipefail
+# the guards' shadow call (spec 033) would log these cases from a binary on PATH
+export AI_GENT_NO_SHADOW=1
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GUARD="$REPO_DIR/plugins/devcontainer/hooks/guard.sh"

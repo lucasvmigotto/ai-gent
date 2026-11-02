@@ -405,6 +405,9 @@ Five plugins install `PreToolUse` hooks in Claude Code. They enforce their rules
 | `containers` (`plugins/devcontainer/hooks/guard.sh`) | any `prune` through `podman`, `docker`, `nerdctl`, `buildah` or `$CONTAINER_ENGINE` (system, image, volume, builder, …, even filtered); `rm`/`rmi`/`volume rm` with `-a`/`--all`; a removal fed by an unfiltered `-q` listing (removal by ID, `name=` or `label=` passes) | — |
 
 > [!NOTE]
+> **Shadow mode.** When the `ai-gent` binary is installed (a package install has it as `bin/ai-gent`; otherwise the first `ai-gent` on `PATH`), each guard hook, after printing its own decision, hands the same event to `ai-gent guard --shadow` in a detached process. The binary only compares its decision with the shell guard's and appends one record (no command text) to `${XDG_STATE_HOME:-~/.local/state}/ai-gent/guard-shadow.jsonl`; `ai-gent guard shadow-report` summarises it. The shell guard still decides: nothing is blocked or allowed differently, the hook never waits for the binary, and it is silent when the binary is missing or fails. Set `AI_GENT_NO_SHADOW=1` to turn the call off.
+
+> [!NOTE]
 > opencode doesn't run Claude Code hooks. `setup.sh` offers to add native V2 `permissions` rules **and** an OpenCode V2 guard plugin (`opencode/guard/`) that enforces the same git, db, secrets and repo guards — including `ask` decisions and the current-branch check, which a shell pattern cannot express. A parity test keeps the plugin's rules identical to the shell guards'. The rules are appended after your own, so they win; the last matching rule counts:
 
 > ```jsonc

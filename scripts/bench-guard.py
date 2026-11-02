@@ -20,6 +20,8 @@ import tempfile
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# the shell guards must not log these runs through a binary on PATH (shadow mode, spec 033)
+os.environ.setdefault("AI_GENT_NO_SHADOW", "1")
 GUARDS = {
     "git": "plugins/git/hooks/guard.sh",
     "db": "plugins/db/hooks/guard.sh",

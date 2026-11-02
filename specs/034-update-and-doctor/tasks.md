@@ -43,8 +43,8 @@
 
 ## Phase 4 - cutover, 2.28 (US5)
 
-- [ ] T040 [US5] `plugins/git/hooks/hooks.json` SessionStart command per FR-012 (binary first, script for clones); the scripts and `scripts/test-update-check.sh` stay in 2.28; add the Rust tests and `scripts/test-update.sh` to `scripts/check.sh`. Verify: `python3 scripts/package.py --check`, `scripts/check.sh`.
-- [ ] T041 [US5] A hook-wiring test replacing `test-update-check.sh:216-251`: the hook command in a package layout and in a plugin outside any tree stays silent and exits 0. Verify: `scripts/test-update.sh` section.
+- [x] T040 [US5] `plugins/git/hooks/hooks.json` SessionStart command per FR-012 (binary first, script for clones); the scripts and `scripts/test-update-check.sh` stay in 2.28; add the Rust tests and `scripts/test-update.sh` to `scripts/check.sh`. Verify: `python3 scripts/package.py --check`, `scripts/check.sh`. **Evidence:** `plugins/git/hooks/hooks.json` SessionStart is the FR-012 command verbatim (binary first, `scripts/update-check.sh` for clones, `exit 0`); the old scripts stay (D7); `scripts/test-update.sh` was already in `check.sh`; `package.py --check` and `check.sh` green.
+- [x] T041 [US5] A hook-wiring test replacing `test-update-check.sh:216-251`: the hook command in a package layout and in a plugin outside any tree stays silent and exits 0. Verify: `scripts/test-update.sh` section. **Evidence:** `scripts/test-update.sh` section `hook wiring` (package with the real binary, once-a-day cap, through the skills symlink, exit 0, package without the binary falls back to the script, clone silent when opted out, a plugin outside any tree silent with exit 0); the replaced block in `scripts/test-update-check.sh` is gone, its script-level tests stay.
 - [ ] T042 [US5] Doc tasks (not edited by this spec): README update section (lines ~55-60), docs site install page, `shared/releasing.md` mention, notice text in the `git` plugin docs. Verify: `scripts/check.sh` links.
 
 ## Phase 5 - 3.0.0

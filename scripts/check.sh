@@ -249,6 +249,14 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-ctrguard.out"
 
+if scripts/test-guard-shadow.sh >"${TMPDIR:-/tmp}/ai-gent-shadow.out" 2>&1; then
+  pass "guard shadow call in the five hooks ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-shadow.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-shadow.out"
+  fail "guard shadow call in the five hooks"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-shadow.out"
+
 # The shared guard fixtures (spec 033): well-formed, and the shell guards (the oracle) still decide
 # what each case records.
 if python3 scripts/guard-fixtures.py lint >"${TMPDIR:-/tmp}/ai-gent-fixtures.out" 2>&1 &&

@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=\"${CLAUDE_PLUGIN_ROOT}/../../scripts/update-check.sh\"; if [ -f \"$f\" ]; then exec bash \"$f\"; fi; exit 0",
+            "command": "b=\"${CLAUDE_PLUGIN_ROOT}/../../bin/ai-gent\"; if [ -x \"$b\" ]; then exec \"$b\" update --check; fi; f=\"${CLAUDE_PLUGIN_ROOT}/../../scripts/update-check.sh\"; if [ -f \"$f\" ]; then exec bash \"$f\"; fi; exit 0",
             "timeout": 15
           }
         ]
