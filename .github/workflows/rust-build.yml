@@ -52,6 +52,14 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
+      # The tree-sitter grammars of ai-gent-compact are C: the musl legs need a musl C compiler.
+      - name: Install the musl C compiler
+        if: ${{ endsWith(matrix.target, '-linux-musl') }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends musl-tools
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
+
       - name: Install rustup when the runner image lacks it
         run: |
           if ! command -v rustup >/dev/null 2>&1; then

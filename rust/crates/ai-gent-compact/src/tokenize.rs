@@ -127,7 +127,9 @@ impl Lang {
             Lang::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
             Lang::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
             Lang::Css => tree_sitter_css::LANGUAGE.into(),
-            Lang::Scss => tree_sitter_scss::language(),
+            // no SCSS grammar builds with MSVC (tree-sitter-scss 1.0.0 passes a GCC flag): SCSS is read with
+            // the CSS grammar, and a file it cannot parse is checked lexically
+            Lang::Scss => tree_sitter_css::LANGUAGE.into(),
         }
     }
 }
