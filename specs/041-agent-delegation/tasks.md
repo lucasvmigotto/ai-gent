@@ -11,3 +11,9 @@
 - [ ] T021 Cross-agent review step (FR-010) and the landing checklist. Verify: a trial where the reviewer is not the builder.
 - [ ] T030 Second trial and the comparison with `trial-1-codex.md` (SC-003).
 - [ ] T040 Docs: README, docs-site skill page, `shared/releasing.md` untouched unless release flow changes.
+- [ ] T050 `contracts/status.md` and the status-file writer used by the adapter and the supervisor (FR-016). Verify: schema tests; the adapter `status` reads only this file.
+- [ ] T051 Workers model: status files and the delegation log in, rows and the pool header out, pure. Verify: unit tests with fixtures (queued, running, stalled, done, failed, taken back; no files).
+- [ ] T052 Workers draw and the text form (golden fixtures, narrow and wide, ASCII fallback). Verify: draw tests.
+- [ ] T053 `/workers` and `/workers-pane` commands, polling, option to turn off, no auto-open; the mod's types. Verify: `claude plugin test plugins/project`.
+- [ ] T054 Check whether the mod API exposes Claude's running subagents and tasks (open question 3); if so read them directly, otherwise keep the supervisor-written files. Record the answer here.
+- [ ] T055 README and docs-site entries for the pane; the `project` plugin's README row.
