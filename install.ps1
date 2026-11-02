@@ -200,6 +200,17 @@ function Test-ZipEntries($Zip, [string]$Name) {
   return $top
 }
 
+# Test-Package <zip> -- look inside before anything is created under the install root
+function Test-Package([string]$ZipPath, [string]$Name) {
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  try {
+    $zip = [IO.Compression.ZipFile]::OpenRead($ZipPath)
+  } catch {
+    Fail "$Name is not a readable zip; nothing was installed" 4
+  }
+  try { [void](Test-ZipEntries $zip $Name) } finally { $zip.Dispose() }
+}
+
 # Expand-Package <zip> <stage dir> -- extract below the archive's top directory, entry by entry
 function Expand-Package([string]$ZipPath, [string]$Stage, [string]$Name) {
   Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -326,6 +337,7 @@ function Invoke-Install([string]$Root, [string]$Base, [string]$Ver, [bool]$Expli
       }
 
       # Look inside, then unpack beside the install, before anything takes its final name.
+      Test-Package $zipPath $name
       New-Item -ItemType Directory -Path $Root -Force | Out-Null
       $stage = Join-Path $Root ".stage.$PID"
       if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }

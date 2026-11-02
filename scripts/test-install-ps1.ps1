@@ -392,6 +392,7 @@ try {
   Check 'a target setup.sh handles but Windows does not exits 2' { (Setup @('-Target', 'cursor')).Code -eq 2 }
   Check 'an unknown target exits 2' { (Setup @('-Target', 'nope')).Code -eq 2 }
   Check '-Uninstall -Target claude removes only the Claude Code links' {
+    [void](Setup @('-Target', 'claude,codex'))
     $r = Setup @('-Uninstall', '-Target', 'claude')
     $r.Code -eq 0 -and -not (Is-Link (Join-Path $Claude 'git')) -and (Test-Path -LiteralPath (Join-Path $Agents 'git-workflow\SKILL.md')) -and
     ((Get-Content -LiteralPath $PathFile -Raw) -split ';') -contains (Join-Path $Home_ 'current\bin') -and
