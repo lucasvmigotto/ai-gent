@@ -11,6 +11,19 @@ workspace, is not built by CI and is never shipped in the release package.
 
 Build one engine: `cargo build --release --features sqlite`. Run the cases: `cargo test`.
 
+T013 H-exec baseline: `cargo build --offline --bin adapter` builds an execution-only
+process connector with no native driver features. It accepts the Python `_exec`
+request on stdin and returns its one-line JSON result unchanged. It launches
+`python3 plugins/db/scripts/dbrun.py _exec` using the source checkout's absolute
+path, so it works from a temporary project directory too. The interpreter must
+already have any non-SQLite driver installed; this bridge does not provision it.
+Run from the repository root with `python3 scripts/test-dbrun-engines.py --runner
+<absolute-target-dir>/debug/adapter --engine sqlite`. This runs the eight original
+SQLite journeys, including the direct classifier-bypass write refusal, through
+the process connector. Omitting `--runner` keeps Python execution in-process;
+omitting `--engine` keeps the original five container engines. The harness owns
+policy, profiles, plans, backups and restore; the adapter owns execution only.
+
 E1 fixtures include the original 16 Python tests, with `derived_from` and
 recorded calls/results, plus the 171-string corpus across six engines (1026
 classifications with exact reasons, splits and DDL checks; 4104 cost checks
