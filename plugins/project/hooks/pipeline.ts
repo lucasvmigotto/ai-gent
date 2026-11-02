@@ -10,6 +10,7 @@ import type { ArtifactState, Feature, Marker, Snapshot } from '../types'
 import { ARTIFACTS, MARKER_DIRS, README, applyApplicability, featureState, parseApplicability, parseReadme, recommend, scanMarkers, split } from './pipeline-model'
 import type { Row } from './pipeline-model'
 import { repoRoot } from './repo'
+import { refresh as refreshWorkers } from './workers'
 
 export const PANE = 'pipeline'
 
@@ -178,6 +179,8 @@ export async function compute($: EngineInterface): Promise<Snapshot> {
 // Reads the files and, when anything but the time changed, redraws the pane.
 export async function refresh($: EngineInterface): Promise<Snapshot> {
   const snapshot = await compute($)
+  // The compact workers line (spec 041 FR-018) reads the same status files on this poll.
+  await refreshWorkers($).catch(() => undefined)
   // A check ran: the badge's evidence. It advances even when nothing changed.
   await update($, checkedAtAtom, () => snapshot.computedAt)
   await update($, pollMsAtom, () => (ticker === null ? 0 : intervalMs))

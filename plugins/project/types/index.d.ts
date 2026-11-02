@@ -101,6 +101,41 @@ export type GuardRow = {
   outcome: 'asked' | null
 }
 
+// The workers pane (hooks/workers-model.ts parses these from
+// .ai-gent/delegate/<track>/status.json and .ai-gent/delegation.log, spec 041).
+export type WorkerState = 'queued' | 'running' | 'stalled' | 'done' | 'failed' | 'taken-back'
+
+export type WorkerStatus = {
+  track: string
+  agent: string
+  role: 'builder' | 'reviewer' | 'researcher'
+  tasks: string[]
+  state: WorkerState
+  // Epoch seconds, as the file has them.
+  started: number
+  updated: number
+  events: number
+  worktree: string
+  // A rule id when rejected, never a diff or a brief.
+  verdict: { result: 'pending' | 'accepted' | 'rejected'; reason: string | null }
+  // Input plus output tokens the agent reported; null when it reported none.
+  tokens: number | null
+}
+
+// One run's line of the delegation log.
+export type WorkerLogLine = { ts: number; track: string; agent: string; tasks: string[]; wallSecs: number; tokens: number | null; result: WorkerState }
+
+export type WorkersSnapshot = {
+  workers: WorkerStatus[]
+  log: WorkerLogLine[]
+  // The worktree cap (max_parallel of .ai-gent/parallel.yaml, else 3).
+  cap: number
+  // Status files that were present but not well-formed.
+  skipped: number
+  // $.clock.now() milliseconds of the read that made it.
+  computedAt: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     project: {
@@ -119,6 +154,13 @@ declare module 'claude-code' {
       contextPercent: number | null
       // The account's rate-limit windows as of the last session.measure, turn or session start (percent used, one decimal; resetsAt is ISO 8601); empty when none was reported.
       rateLimits: { kind: 'five_hour' | 'seven_day' | 'spend_limit'; percent: number; resetsAt?: string }[]
+      // The workers pane (spec 041): what the last read of the status files found.
+      workersSnapshot: Shaped<WorkersSnapshot | null>
+      workersIsOpen: boolean
+      // Tracks whose detail rows the person opened.
+      workersExpanded: Record<string, boolean>
+      // The interval the workers poll keeps now, in milliseconds; 0 when stopped.
+      workersPollMs: number
       pipelineSnapshot: Shaped<Snapshot | null>
       pipelineIsOpen: boolean
       // Sections the person expanded, by name.
