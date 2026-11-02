@@ -727,6 +727,32 @@ def check_token_tags_copy(root: Path) -> list[str]:
         return [f"{TOKEN_TAGS_COPY} differs from {TOKEN_TAGS} (run python3 scripts/consistency.py --sync-token-tags)"]
     return []
 
+# D21: the major is written 3.0.0 or 3.x, never with the letter v and the digit.
+NAMING_PATHS = ("README.md", "AGENTS.md", "CLAUDE.md", "docs/site/src", "docs/product", "shared", "specs", "install.sh", "setup.sh", "scripts")
+NAMING_ALLOW = ("scripts/consistency.py", "scripts/test_consistency.py", "docs/product/rust-decisions.md", "CHANGELOG.md")  # D21 states the rule; the changelog is history
+OLD_MAJOR = re.compile(r"(?<![A-Za-z0-9/.:_-])v3(?![0-9A-Za-z_-]|\.[0-9])")
+GPL_V3 = re.compile(r"GPL\s+v3", re.IGNORECASE)
+
+
+def check_naming(root: Path) -> list[str]:
+    """No file written for the release uses the old spelling of the major version (spec 039 FR-011)."""
+    problems = []
+    for entry in NAMING_PATHS:
+        base = root / entry
+        files = [base] if base.is_file() else sorted(f for f in base.rglob("*") if f.is_file()) if base.is_dir() else []
+        for f in files:
+            rel = f.relative_to(root).as_posix()
+            if rel in NAMING_ALLOW or "node_modules" in f.parts or "__pycache__" in f.parts or f.suffix in (".png", ".ico", ".woff2", ".gz"):
+                continue
+            try:
+                text = f.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            for n, line in enumerate(text.splitlines(), 1):
+                if OLD_MAJOR.search(GPL_V3.sub("", line)):
+                    problems.append(f"{rel}:{n}: write the major version as 3.0.0 or 3.x (D21)")
+    return problems
+
 
 TIERS = "shared/tiers.json"
 
@@ -800,13 +826,13 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_tiers(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_tiers(root) + check_naming(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, rust workspace license, tier matrix, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, rust workspace license, tier matrix, major-version naming, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

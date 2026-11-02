@@ -49,7 +49,7 @@ mv ~/.local/share/ai-gent ~/.local/share/ai-gent.clone
 curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh -s -- --migrate
 ```
 
-**Dev mode (git clone), going away in v3.** Contributors who want edits to take effect live keep the clone: `AI_GENT_MODE=git` (or setting `AI_GENT_BRANCH`) clones into `AI_GENT_DIR` (default `~/.local/share/ai-gent`; `AI_GENT_REPO` picks the remote, `AI_GENT_BRANCH` a branch or tag such as `1.2.0`), and re-running fast-forwards it. The installer prints a notice that this mode is a dev mode. Or clone it yourself and run `./setup.sh`.
+**Git mode was removed in 3.0.0.** `AI_GENT_MODE`, `AI_GENT_BRANCH`, `AI_GENT_REPO` and `AI_GENT_DIR` are no longer read: the installer stops when one is set and prints the steps above. Remove them from your shell profile.
 
 When a Claude Code session starts with the git plugin installed, a SessionStart hook prints one line if a newer release is known — the check reads a weekly cache and never blocks startup:
 
@@ -467,6 +467,8 @@ Conventions for editing skills and plugins are in `AGENTS.md` (also available as
 - **Options:** `--quick` skips the installer tests. Shellcheck runs at a pinned version (`SHELLCHECK_VERSION`) through `uvx` or `pipx`, so a local run and CI agree.
 
 **Database engines.** Before pushing a change to `dbrun`, run `scripts/test-dbrun-engines.py` (`--engine <name>` for one). It tests `dbrun` end to end against real PostgreSQL, MySQL, MariaDB, SQL Server and Oracle containers, one at a time, capped at 2 GB of RAM; the images (about 5.5 GB) are pulled once. It isn't part of CI.
+
+**Contributing from a checkout.** Work in a clone of the repository and run `./setup.sh` from it: the agents' links point at the checkout, so edits to skills take effect live. The `ai-gent` binary is not in a clone; run `scripts/dev-bin.sh` to put it in `bin/` (it builds `rust/` with `cargo`, or downloads the release binary matching the newest tag and verifies it against `SHA256SUMS`; `--build` and `--download` force one), then re-run `./setup.sh` to link it into `~/.local/bin`. There is no Python or shell fallback for a missing binary: `setup.sh` in a checkout without `bin/ai-gent` says to run `scripts/dev-bin.sh`.
 
 **Evals.** `claude plugin eval plugins/<name> --runs 1 --ablation none` runs a plugin's trigger cases. They check that a request loads the right skill and not its neighbor.
 

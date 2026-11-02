@@ -285,7 +285,7 @@ export const enUS: Messages = {
 			"The ai-gent binary checks the install and the update state. update --check only reports a newer release; ai-gent update installs it through the same verified path, and --rollback goes back.",
 		migrate: "Move from the git clone",
 		migrateBody:
-			"An old install at ~/.local/share/ai-gent is a git clone, and the installer refuses to unpack beside it. Move it aside, install, then repoint the links: --migrate is the only thing that ever changes existing links, and it says what first. The clone itself remains a dev mode (AI_GENT_MODE=git) that goes away in 3.0.0.",
+			"An old install at ~/.local/share/ai-gent is a git clone, and the installer refuses to unpack beside it. Move it aside, install, then repoint the links: --migrate is the only thing that ever changes existing links, and it says what first. Git mode (AI_GENT_MODE=git) goes away in 3.0.0: the installer stops and says how to move from a clone.",
 		firstSkill: "Invoke your first skill",
 		firstSkillBody:
 			"Type what you want in plain words and the matching skill loads, or invoke one directly.",

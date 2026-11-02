@@ -30,9 +30,10 @@
 #                         aarch64-unknown-linux-musl, aarch64-apple-darwin,
 #                         x86_64-apple-darwin, x86_64-pc-windows-msvc (Git Bash),
 #                         aarch64-pc-windows-msvc (Git Bash)
-#   AI_GENT_MODE=git      DEV MODE, going away in v3: git clone instead of a package
-#                         (also AI_GENT_DIR, AI_GENT_REPO, AI_GENT_BRANCH; setting
-#                         AI_GENT_BRANCH implies it).
+#
+# Git mode was removed in 3.0.0: when AI_GENT_MODE, AI_GENT_BRANCH, AI_GENT_REPO or
+# AI_GENT_DIR is set the installer stops and says what to do (contributors work in a
+# checkout and run its setup.sh; scripts/dev-bin.sh provides the binary).
 #
 # Everything runs inside main(), called on the last line, so a partially
 # downloaded script never executes.
@@ -238,73 +239,26 @@ do_install() {
   say "installed $ver in $home; to update run this installer again, to undo: sh install.sh --rollback"
 }
 
-# update_to <dir> <branch or tag> — move an existing clone to that ref.
-update_to() {
-  if ! git -C "$1" fetch --quiet --tags origin; then
-    say "couldn't fetch — not updating $1, linking what's there"
-  elif git -C "$1" rev-parse --quiet --verify "refs/tags/$2" >/dev/null; then
-    git -C "$1" checkout --quiet --detach "refs/tags/$2"
-    say "pinned $1 to $2"
-  elif ! { git -C "$1" checkout --quiet "$2" && git -C "$1" pull --ff-only --quiet origin "$2"; }; then
-    say "couldn't move $1 to $2 — linking what's there"
-  fi
-}
+MIGRATION_GUIDE="https://github.com/$SLUG/blob/main/README.md#install--update" # "Moving from the git clone"
 
-git_mode() {
-  need git
-  need bash
-
-  dir="${AI_GENT_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ai-gent}"
-  repo="${AI_GENT_REPO:-https://github.com/lucasvmigotto/ai-gent.git}"
-  branch="${AI_GENT_BRANCH:-}"
-
-  if [ -d "$dir/.git" ]; then
-    say "updating $dir"
-    if [ -n "$(git -C "$dir" status --porcelain)" ]; then
-      say "local changes in $dir — not updating it, linking what's there"
-    elif [ -n "$branch" ]; then
-      update_to "$dir" "$branch"
-    elif ! git -C "$dir" symbolic-ref --quiet HEAD >/dev/null; then
-      say "$dir is pinned to $(git -C "$dir" describe --tags --always) — set AI_GENT_BRANCH to move it"
-    else
-      before="$(git -C "$dir" describe --tags --always)"
-      if ! git -C "$dir" pull --ff-only --quiet; then
-        say "couldn't fast-forward $dir — not updating it, linking what's there"
-      else
-        after="$(git -C "$dir" describe --tags --always)"
-        if [ "$before" = "$after" ]; then
-          say "already at $after"
-        else
-          say "updated $before → $after"
-        fi
-      fi
-    fi
-  elif [ -e "$dir" ]; then
-    die "$dir exists and isn't a git clone; set AI_GENT_DIR to another path"
-  else
-    say "cloning $repo into $dir"
-    mkdir -p "$(dirname "$dir")"
-    if [ -n "$branch" ]; then
-      git clone --quiet --branch "$branch" "$repo" "$dir"
-    else
-      git clone --quiet "$repo" "$dir"
-    fi
-  fi
-
-  [ -f "$dir/setup.sh" ] || die "$dir/setup.sh not found — is AI_GENT_REPO right?"
-  bash "$dir/setup.sh" "$@"
-
-  say "installed from $dir — re-run this installer (or $dir/setup.sh) to update"
+# removed_git_mode <variable> — the dev mode is gone; stop with the steps, never fall through to a package install
+removed_git_mode() {
+  {
+    printf 'ai-gent: error: git mode was removed in 3.0.0 (%s is set).\n' "$1"
+    printf '  To install the release package: unset AI_GENT_MODE AI_GENT_BRANCH AI_GENT_REPO AI_GENT_DIR and run this installer again.\n'
+    printf '  If ~/.local/share/ai-gent is your old clone: mv ~/.local/share/ai-gent ~/.local/share/ai-gent.clone, install, then run ~/.local/share/ai-gent/current/setup.sh --migrate.\n'
+    printf '  To work on ai-gent itself: clone the repository, run ./setup.sh from it and scripts/dev-bin.sh for the binary.\n'
+    printf '  Guide: %s\n' "$MIGRATION_GUIDE"
+  } >&2
+  exit 1
 }
 
 main() {
-  mode=package; verify_att=0; action=install
-  [ "${AI_GENT_MODE:-}" = git ] || [ -n "${AI_GENT_BRANCH:-}" ] && mode=git
-  if [ "$mode" = git ]; then
-    say "git mode is a DEV mode and goes away in v3; the package install is the default"
-    git_mode "$@"
-    return
-  fi
+  verify_att=0; action=install
+  for v in AI_GENT_MODE AI_GENT_BRANCH AI_GENT_REPO AI_GENT_DIR; do
+    eval "val=\${$v:-}"
+    [ -z "$val" ] || removed_git_mode "$v"
+  done
   # our own flags come first; the rest goes to setup.sh
   for a in "$@"; do
     shift
@@ -318,7 +272,7 @@ main() {
   home="${AI_GENT_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/ai-gent}"
   base="${AI_GENT_RELEASE_BASE:-https://github.com/$SLUG/releases/download}"
   if [ -e "$home/.git" ]; then
-    die "$home is a git clone (the old install). Either move it aside and re-run (mv \"$home\" \"$home.clone\"; then ./current/setup.sh --migrate relinks the agents), or set AI_GENT_HOME to another directory, or AI_GENT_MODE=git to keep using it"
+    die "$home is a git clone (the old install). Either move it aside and re-run (mv \"$home\" \"$home.clone\"; then ./current/setup.sh --migrate relinks the agents), or set AI_GENT_HOME to another directory. Guide: $MIGRATION_GUIDE"
   fi
   [ ! -e "$home" ] || [ -d "$home" ] || die "$home exists and is not a directory"
 
