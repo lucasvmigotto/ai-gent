@@ -1,0 +1,105 @@
+[package]
+name = "compact-spike"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Spec 037 D0 spike: tree-sitter token stream plus verifier for compact. Not in the ai-gent workspace, never published or shipped."
+license = "GPL-3.0-or-later"
+
+[lib]
+name = "compactcore"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sizeprobe"
+path = "src/sizeprobe.rs"
+
+[features]
+default = ["proto"]
+# the prototype languages
+proto = ["g-rust", "g-java", "g-typescript"]
+# every grammar of the table (size measurement)
+all = ["g-rust", "g-java", "g-typescript", "g-bash", "g-c", "g-cpp", "g-c-sharp", "g-css", "g-cuda", "g-dart", "g-elixir", "g-glsl", "g-go", "g-groovy", "g-haskell", "g-hlsl", "g-html", "g-javascript", "g-json", "g-kotlin-ng", "g-lua", "g-objc", "g-php", "g-python", "g-ruby", "g-scala", "g-scss", "g-solidity", "g-sequel", "g-swift", "g-toml-ng", "g-verilog", "g-xml", "g-yaml", "g-zig"]
+# one feature per grammar crate (per-grammar size measurement)
+g-rust = ["dep:tree-sitter-rust"]
+g-java = ["dep:tree-sitter-java"]
+g-typescript = ["dep:tree-sitter-typescript"]
+g-bash = ["dep:tree-sitter-bash"]
+g-c = ["dep:tree-sitter-c"]
+g-cpp = ["dep:tree-sitter-cpp"]
+g-c-sharp = ["dep:tree-sitter-c-sharp"]
+g-css = ["dep:tree-sitter-css"]
+g-cuda = ["dep:tree-sitter-cuda"]
+g-dart = ["dep:tree-sitter-dart"]
+g-elixir = ["dep:tree-sitter-elixir"]
+g-glsl = ["dep:tree-sitter-glsl"]
+g-go = ["dep:tree-sitter-go"]
+g-groovy = ["dep:tree-sitter-groovy"]
+g-haskell = ["dep:tree-sitter-haskell"]
+g-hlsl = ["dep:tree-sitter-hlsl"]
+g-html = ["dep:tree-sitter-html"]
+g-javascript = ["dep:tree-sitter-javascript"]
+g-json = ["dep:tree-sitter-json"]
+g-kotlin-ng = ["dep:tree-sitter-kotlin-ng"]
+g-lua = ["dep:tree-sitter-lua"]
+g-objc = ["dep:tree-sitter-objc"]
+g-php = ["dep:tree-sitter-php"]
+g-python = ["dep:tree-sitter-python"]
+g-ruby = ["dep:tree-sitter-ruby"]
+g-scala = ["dep:tree-sitter-scala"]
+g-scss = ["dep:tree-sitter-scss"]
+g-solidity = ["dep:tree-sitter-solidity"]
+g-sequel = ["dep:tree-sitter-sequel"]
+g-swift = ["dep:tree-sitter-swift"]
+g-toml-ng = ["dep:tree-sitter-toml-ng"]
+g-verilog = ["dep:tree-sitter-verilog"]
+g-xml = ["dep:tree-sitter-xml"]
+g-yaml = ["dep:tree-sitter-yaml"]
+g-zig = ["dep:tree-sitter-zig"]
+
+[dependencies]
+tree-sitter = "0.25"
+tree-sitter-rust = { version = "0.24", optional = true }
+tree-sitter-java = { version = "0.23", optional = true }
+tree-sitter-typescript = { version = "0.23", optional = true }
+tree-sitter-bash = { version = "0.25", optional = true }
+tree-sitter-c = { version = "0.24", optional = true }
+tree-sitter-cpp = { version = "0.23", optional = true }
+tree-sitter-c-sharp = { version = "0.23", optional = true }
+tree-sitter-css = { version = "0.25", optional = true }
+tree-sitter-cuda = { version = "0.21", optional = true }
+tree-sitter-dart = { version = "0.3", optional = true }
+tree-sitter-elixir = { version = "0.3", optional = true }
+tree-sitter-glsl = { version = "0.2", optional = true }
+tree-sitter-go = { version = "0.25", optional = true }
+tree-sitter-groovy = { version = "0.1", optional = true }
+tree-sitter-haskell = { version = "0.24", optional = true }
+tree-sitter-hlsl = { version = "0.2", optional = true }
+tree-sitter-html = { version = "0.23", optional = true }
+tree-sitter-javascript = { version = "0.25", optional = true }
+tree-sitter-json = { version = "0.24", optional = true }
+tree-sitter-kotlin-ng = { version = "1.1", optional = true }
+tree-sitter-lua = { version = "0.5", optional = true }
+tree-sitter-objc = { version = "3", optional = true }
+tree-sitter-php = { version = "0.25", optional = true }
+tree-sitter-python = { version = "0.25", optional = true }
+tree-sitter-ruby = { version = "0.23", optional = true }
+tree-sitter-scala = { version = "0.26", optional = true }
+tree-sitter-scss = { version = "1", optional = true }
+tree-sitter-solidity = { version = "1.2", optional = true }
+tree-sitter-sequel = { version = "0.3", optional = true }
+tree-sitter-swift = { version = "0.7", optional = true }
+tree-sitter-toml-ng = { version = "0.7", optional = true }
+tree-sitter-verilog = { version = "1", optional = true }
+tree-sitter-xml = { version = "0.7", optional = true }
+tree-sitter-yaml = { version = "0.7", optional = true }
+tree-sitter-zig = { version = "1.1", optional = true }
+
+[workspace]
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
