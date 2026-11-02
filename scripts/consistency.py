@@ -729,7 +729,7 @@ def check_token_tags_copy(root: Path) -> list[str]:
 
 # D21: the major is written 3.0.0 or 3.x, never with the letter v and the digit.
 NAMING_PATHS = ("README.md", "AGENTS.md", "CLAUDE.md", "docs/site/src", "docs/product", "shared", "specs", "install.sh", "setup.sh", "scripts")
-NAMING_ALLOW = ("scripts/consistency.py", "scripts/test_consistency.py", "docs/product/rust-decisions.md", "CHANGELOG.md")  # D21 states the rule; the changelog is history
+NAMING_ALLOW = ("scripts/consistency.py", "scripts/test_consistency.py", "docs/product/rust-decisions.md", "CHANGELOG.md", "docs/site/src/content/generated.json")  # D21 states the rule; the changelog is history; the generated site content is derived (it carries a third-party "v3 API" from a plugin reference)
 OLD_MAJOR = re.compile(r"(?<![A-Za-z0-9/.:_-])v3(?![0-9A-Za-z_-]|\.[0-9])")
 GPL_V3 = re.compile(r"GPL\s+v3", re.IGNORECASE)
 
