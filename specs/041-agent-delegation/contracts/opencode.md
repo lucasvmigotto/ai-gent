@@ -1,6 +1,6 @@
-# OpenCode (out of scope, kept as a trial record)
+# OpenCode adapter
 
-> **Status (owner, 2026-11-02): delegation in ai-gent supports Codex only.** Nothing here is built. This file records what trials 3 and 4 found about OpenCode with free models, in case a second agent is ever wanted. The sections below were written as an adapter contract before the decision.
+> **Status:** the second adapter of the feature (FR-003), verified in trial 3. ai-gent's own development does not use it: this repository's allowlist is Codex only (FR-002, owner, 2026-11-02).
 
 Observed on this machine (2026-11-02): OpenCode v2.2.5 at `~/.opencode/bin/opencode`.
 

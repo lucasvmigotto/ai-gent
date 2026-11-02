@@ -92,4 +92,4 @@ Codex (read-only, `codex exec -s read-only` with a custom prompt) reviewed OpenC
 3. **Stop the builder-fix round after one try.** A delegate asked to fix review findings can make a new error while fixing the old ones (the second path typo); the supervisor finishes the work.
 4. **A second reviewer finds what the first missed**, and a reviewer should not be shown the supervisor's corrections, only the previous findings.
 5. **Reviewer role command**: `codex exec -s read-only` (see `contracts/adapter.md`).
-6. **Scope**: the owner decided delegation is Codex only; the OpenCode findings stay as evidence for the loop, not as a feature.
+6. **Scope**: the owner decided that ai-gent's own development delegates to Codex only, while the feature supports every doable agent; the OpenCode trials stay as adapter evidence and as evidence for the loop.

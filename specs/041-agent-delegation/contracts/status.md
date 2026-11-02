@@ -5,7 +5,7 @@
 | Field | Meaning |
 |---|---|
 | `track` | Track id (the branch name with `/` as `-`). |
-| `agent` | `claude`, `claude-subagent` or `codex`. |
+| `agent` | `claude`, `claude-subagent`, `codex` or `opencode`; further agents use their adapter id, and for OpenCode the model is added (`opencode:flint-40b-free`). |
 | `role` | `builder`, `reviewer` or `researcher`. |
 | `tasks` | Task ids from the spec (`["T001","T004"]`). |
 | `state` | `queued`, `running`, `stalled`, `done`, `failed` or `taken-back`. |
