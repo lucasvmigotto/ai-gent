@@ -4,8 +4,8 @@
   python3 scripts/gen-compact-langs.py           write the table and the --list-languages golden
   python3 scripts/gen-compact-langs.py --check   exit 1 when either file is out of date
 
-Writes `rust/crates/ai-gent-core/data/compact-langs.rs` (meant for `include!` into the compact module,
-which defines `struct LangSpec` with these fields) and `rust/fixtures/compact/list-languages.golden`
+Writes `rust/crates/ai-gent-compact/src/data/compact-langs.rs` (meant for `include!` into the `ai-gent-compact` crate,
+whose `langs.rs` defines `struct LangSpec` with these fields) and `rust/fixtures/compact/list-languages.golden`
 (the exact `compact.py --list-languages` output, for the Rust command's parity test).
 Both go away with `langs.py` at the 3.0.0 cutover; the table then becomes the source.
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LANGS_PY = ROOT / "plugins/compact/skills/code/scripts/langs.py"
-DATA = ROOT / "rust/crates/ai-gent-core/data/compact-langs.rs"
+DATA = ROOT / "rust/crates/ai-gent-compact/src/data/compact-langs.rs"
 GOLDEN = ROOT / "rust/fixtures/compact/list-languages.golden"
 BITS = {"blank": 1, "indent": 2, "join": 4, "spaces": 8}
 LEVEL_NAMES = {0: "as-is", 1: "blank", 2: "lines", 3: "flat", 4: "dense"}
