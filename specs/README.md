@@ -50,6 +50,7 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 038 | db-runner-spike | time-boxed spike: does dbrun move to Rust (native drivers, container shell-out, or stay a script that needs uv) | P3 | 032, 037 | N/A | Planned | — | not a port; deliverable is a signed decision; engines in test-dbrun-engines.py are the acceptance set |
 | 039 | release-3-contract | what 3.0.0 adds and removes, breaking changes B1-B12, tier policy, migration guide, gates G27/G28/G30, rollback, documentation tasks | P1 | 032, 033, 034 | N/A | Planned | — | the checklist for 3.0.0; reads 035-038 and 040 status; nothing built |
 | 040 | docs-site-2 | 3.x Install page, tier compatibility matrix, search, hosting decision, gated BrowserRouter spike | P2 | 001, 002, 003, 006 | Planned | N/A | — | built after the Rust pieces; no redesign; R2 vs GitHub Pages is an owner decision |
+| 041 | agent-delegation | optional `agents:delegate`: Claude orchestrates and also builds beside other code agents (Codex first), with briefs, supervisor checks, cross-agent review and a delegation log | P3 | 036 (wt), agents plugin | Planned | N/A | #364 | 3.x, after 3.0.0; trial 1 in `trial-1-codex.md` |
 
 Verified needs suites covering every story, running and passing in CI; for tooling without a UI the integration suites stand in for e2e journeys (pipeline rule 6). 008 is Verified: its unit tests run on every pull request and the real-engine suite weekly. The closest others are 006 (all stories but the interactive selector) and 002 (two of four stories).
 
