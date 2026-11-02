@@ -22,7 +22,11 @@
 - [x] T054 Check whether the mod API exposes Claude's running subagents and tasks (open question 3); if so read them directly, otherwise keep the supervisor-written files. Record the answer here. Answer: the mod API does expose the session's subagents (`$.agent.list()`: id, description, type, status) but not a track, task ids, worktree or verdict, and its description is the Agent call's free text (a possible prompt, against FR-017); so the pane keeps the supervisor-written status files.
 - [x] T055 README and docs-site entries for the pane; the `project` plugin's README row. README row done (PR #374). The docs site has no per-pane entries to extend (no mention of `pipeline-pane` or `guards-pane`), so none was added.
 
-**Project policy (owner, 2026-11-02):** this repository delegates to Codex only (FR-002), and delegation is currently paused by the owner. Nothing in this repository's work is handed to an external agent until the owner lifts the pause.
+**Project policy (owner, 2026-11-02):** this repository delegates to Codex and, from 18:50 on 2026-11-02, to a second Claude Code profile (FR-002). The pause the owner set earlier is lifted. Rust development stays with the supervising Claude (FR-004a). The Claude-profile adapter does not exist yet; runs are made by hand and recorded in `trial-1-codex.md` until it is built (T010c).
+
+- [ ] T010c The Claude-profile adapter: `detect` (config directory with a login, never read), `ready` (a one-line headless probe), `run` (`claude -p --output-format json` with `--allowedTools`/`--disallowedTools` per role, stdin closed), usage from the JSON `usage`. Verify: fake-agent tests plus one recorded trial.
+
+**Why T042, T043, T045 and T046 of spec 039 stay open:** they replace Python tool names with `ai-gent <sub>` and so depend on the 3.0.0 cutover.
 
 ## Findings from wiring the scheduler (`delegate plan`) and the source check (`delegate verify-sources`)
 

@@ -93,3 +93,16 @@ Codex (read-only, `codex exec -s read-only` with a custom prompt) reviewed OpenC
 4. **A second reviewer finds what the first missed**, and a reviewer should not be shown the supervisor's corrections, only the previous findings.
 5. **Reviewer role command**: `codex exec -s read-only` (see `contracts/adapter.md`).
 6. **Scope**: the owner decided that ai-gent's own development delegates to Codex only, while the feature supports every doable agent; the OpenCode trials stay as adapter evidence and as evidence for the loop.
+
+## Trial 5 (2026-11-02): second Claude profile as reviewer
+
+Role: read-only reviewer of the spec 039 docs commit (T044, T047, T049), run with `CLAUDE_CONFIG_DIR=<other profile> claude -p --output-format json --allowedTools Read Grep Glob "Bash(git show:*)" ... --disallowedTools Edit Write --max-turns 30`, stdin closed. Builder: a different Claude agent, so the reviewer was not the builder.
+
+| Measure | Result |
+|---|---|
+| Probe (`READY`) | 4.8 s |
+| Review | 47 s, 12 turns, 20 input, 376,694 cached input, 4,063 output tokens |
+| Verified findings | 1 of 3: the spec 041 count was stale (15/21, actually 17/21 after later merges) |
+| False finding | the totals "one too low" for six rows: re-counting with the same pattern gives the totals the README already had |
+
+Lessons: the headless Claude profile works as a delegate with no adapter code; a reviewer's quantitative claims need the supervisor's own recount (T012a, trial 3); a detached `( ... ) &` in the supervising shell dies with the call, so the run goes through the harness's background mode (the future adapter's watcher owns this).
