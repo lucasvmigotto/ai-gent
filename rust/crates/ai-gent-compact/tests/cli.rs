@@ -177,7 +177,7 @@ fn a_directory_is_walked_in_order_with_headers() {
     let order: Vec<&str> = text
         .lines()
         .filter(|l| l.starts_with("==> "))
-        .map(|l| l.rsplit('/').next().unwrap())
+        .map(|l| l.rsplit(['/', '\\']).next().unwrap())
         .collect();
     assert_eq!(order, ["a.rs <==", "z.rs <==", "c.rs <=="], "{text}");
     assert!(!text.contains("fn x"));
