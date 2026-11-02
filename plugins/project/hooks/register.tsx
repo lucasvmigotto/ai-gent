@@ -27,6 +27,10 @@ import type { Tone } from './pipeline-view'
 import { lines as guardLines, clampLimit, summarize } from './guards'
 import { readGuards } from './guards-read'
 import { repoRoot } from './repo'
+import { readLimits } from './usage'
+import { close as closeWorkers, open as openWorkers, toggle as toggleWorker, readExpanded as readWorkersExpanded, readSnapshot as readWorkersSnapshot, PANE as WORKERS_PANE, compute as computeWorkers } from './workers'
+import { drawWorkers } from './workers-draw'
+import { build as buildWorkers, compactLine, text as workersText } from './workers-model'
 import { drawWorkspace } from './workspace'
 import { workspaceView } from './workspace-model'
 
@@ -39,7 +43,7 @@ const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, f
 const isWorkspaceOpen = atom({ plugin: 'project', key: 'workspaceExpanded' } as const, false)
 const sessionModel = atom({ plugin: 'project', key: 'sessionModel' } as const, null)
 
-type Options = BandOptions & HandoffOptions & NextStageOptions & ContextOptions & { workspaceLine?: boolean; holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number; guardLogLimit?: number; guardsPane?: boolean }
+type Options = BandOptions & HandoffOptions & NextStageOptions & ContextOptions & { workspaceLine?: boolean; holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number; guardLogLimit?: number; guardsPane?: boolean; workersPane?: boolean; workersPollSeconds?: number; workersMaxRows?: number; workersLine?: boolean }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
@@ -96,6 +100,26 @@ async function registerGuards($: EngineInterface): Promise<void> {
   await $.command.register({ name: 'guards-pane', description: 'Dock the guard decisions list in a pane' }).catch(() => undefined)
 }
 
+// Declares /workers and /workers-pane (spec 041). Never opens the pane by itself.
+async function registerWorkers($: EngineInterface): Promise<void> {
+  await $.command.register({ name: 'workers', description: 'List the delegation workers: agent, role, task, state and the slot pool' }).catch(() => undefined)
+  await $.command.register({ name: 'workers-pane', description: 'Dock the delegation workers list in a pane' }).catch(() => undefined)
+}
+
+function workersOptions(options: Options, columns: number, now: number, limits: Awaited<ReturnType<typeof readLimits>>) {
+  return { columns, now, ascii: options.pipelineAscii === true, maxRows: Math.max(1, Math.floor(options.workersMaxRows ?? 30)), limits }
+}
+
+async function workersPrint($: EngineInterface, options: Options): Promise<string> {
+  const snapshot = await computeWorkers($).catch(() => null)
+  return workersText(snapshot, workersOptions(options, 200, snapshot?.computedAt ?? 0, await readLimits($)))
+}
+
+// The compact line under the pipeline pane: counts and slots, never a worker (FR-018). Null with no workers.
+async function workersLine($: EngineInterface, options: Options): Promise<{ text: string; tone: Tone } | null> {
+  return options.workersLine === false ? null : compactLine(await readWorkersSnapshot($), options.pipelineAscii === true)
+}
+
 // Records the context figure (when its meter is on) and the rate-limit windows from one usage read.
 async function recordUsage($: EngineInterface, usage: Awaited<ReturnType<typeof readUsage>>, withContext: boolean): Promise<void> {
   if (withContext) await recordContext($, usage?.context.percent)
@@ -116,6 +140,7 @@ export const register: Register = (on, options: Options) => {
       await $.command.register({ name: 'bands', description: 'List the bands above the prompt, and which are hidden by the cap' }).catch(() => undefined)
     }
     await registerGuards($)
+    await registerWorkers($)
     await refresh($, showBand).catch(() => undefined)
     await declareLeader($, showWorkspace).catch(() => undefined)
     if (readsUsage) await recordUsage($, await readUsage($), showMeter).catch(() => undefined)
@@ -317,20 +342,39 @@ export const register: Register = (on, options: Options) => {
     )
   })
 
+  // The delegation workers (spec 041): /workers and /workers-pane over the status files.
+  on('command.run', { command: 'workers' }, async $ => ({ text: await workersPrint($, options) }))
+
+  on('command.run', { command: 'workers-pane' }, async $ => {
+    if (options.workersPane === false) return { text: 'The workers pane is off (workersPane); /workers prints the list.' }
+    if (await openWorkers($, options.workersPollSeconds ?? 5)) return { text: 'Workers pane opened.' }
+    return { text: ['no pane here — /workers prints the list', await workersPrint($, options)].join('\n') }
+  })
+
+  on('ui.close', async ($, e, next) => {
+    const closed = await next(e)
+    if (e.id === WORKERS_PANE) await closeWorkers($)
+    if (e.id === PANE && options.pipelinePane !== false) await close($)
+    return closed
+  }).catch(($, e, next) => next(e))
+
+  on('ui.render', { component: 'Pane', requestId: 'workers' }, async ($, e) => {
+    const snapshot = await readWorkersSnapshot($)
+    const { Text } = $.ui.resolve(e)
+    if (snapshot === null) return <Text dimColor>Reading the workers…</Text>
+    const view = buildWorkers(snapshot, { ...workersOptions(options, Math.max(20, e.props.bodyColumns), snapshot.computedAt, await readLimits($)), expanded: await readWorkersExpanded($) })
+    return drawWorkers($, e, view, { onToggle: track => toggleWorker($, track) })
+  })
+
   if (options.pipelinePane === false) return
   const seconds = options.pipelinePollSeconds ?? 5
 
   on('command.run', { command: 'pipeline-pane' }, async $ => {
     if (await open($, seconds, true)) return { text: 'Pipeline pane opened.' }
     const snapshot = await readSnapshot($)
-    return { text: snapshot ? pipelineText(snapshot) : 'The pipeline could not be read.' }
+    const extra = await workersLine($, options)
+    return { text: snapshot ? [pipelineText(snapshot), ...(extra === null ? [] : [extra.text])].join('\n') : 'The pipeline could not be read.' }
   })
-
-  on('ui.close', async ($, e, next) => {
-    const closed = await next(e)
-    if (e.id === PANE) await close($)
-    return closed
-  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: 'pipeline' }, async ($, e, next) => {
     const snapshot = await readSnapshot($)
@@ -338,6 +382,16 @@ export const register: Register = (on, options: Options) => {
     if (snapshot === null) return <Text dimColor>Reading the pipeline…</Text>
 
     const expanded = await readExpanded($)
+    const extra = await workersLine($, options)
+    const withLine = (node: JSX.Element) =>
+      extra === null ? (
+        node
+      ) : (
+        <Box flexDirection="column">
+          {node}
+          <Text wrap="truncate-end" color={COLOR[extra.tone]}>{extra.text}</Text>
+        </Box>
+      )
     if (options.pipelineLayout !== 'compact') {
       const state = await readPaneState($)
       // The badge's verdict is the poll's: it is LIVE while the poll keeps a
@@ -354,18 +408,18 @@ export const register: Register = (on, options: Options) => {
         maxRows: Math.max(1, Math.floor(options.pipelineMaxRows ?? 60)),
       })
       if (model.mode !== 'compact' && !model.isEmpty) {
-        return drawDashboard($, e, model, {
+        return withLine(drawDashboard($, e, model, {
           onStatus: () => press($, 'status'),
           onMarkers: () => press($, 'markers'),
           onFilter: filter => press($, 'filter', filter),
           onToggle: key => press($, 'toggle', key),
           onFill: command => press($, 'fill', command),
-        })
+        }))
       }
     }
 
     const lines = view(snapshot, e.props.bodyColumns, expanded)
-    return (
+    return withLine(
       <Box flexDirection="column">
         {lines.map(line => (
           <Box key={line.key}>
@@ -377,7 +431,7 @@ export const register: Register = (on, options: Options) => {
             ) : null}
           </Box>
         ))}
-      </Box>
+      </Box>,
     )
   })
 }
