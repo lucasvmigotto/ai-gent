@@ -8,6 +8,8 @@
 
 **Input**: the owner's request (2026-11-02), issue #364, and the first Codex trial (`trial-1-codex.md`).
 
+**Approved**: the owner approved building it on 2026-11-02 ("Go ahead with Rust implementation"). The tools are built in the Rust binary as `ai-gent delegate` (adapters, brief builder, supervisor checks, status files, log), with a thin skill on top; milestone stays 3.x for the release, work proceeds on `dev` behind no hook or skill switch (D7).
+
 **Depends on**: `agents:orchestrate`, `agents:parallel`, `plugins/agents/scripts/wt.py` (spec 036 for its Rust port), the usage meters, `shared/token-tracking.md`. Milestone: 3.x (after 3.0.0).
 
 ## Context and ground rules
@@ -95,6 +97,6 @@ A Claude Code user opens `/workers-pane` (or `/workers` for text) and sees one r
 
 1. Where the delegation log lives if the user wants it kept across machines (default: local only).
 2. Whether a delegate may run containers once the disk floor allows more than one track (default: never, FR-004).
-3. Whether OpenCode's free models may receive repository content (free tiers often use prompts for training; unverified, `contracts/opencode.md`), and whether `setup.sh` may install the ai-gent permissions and guard plugin into the user's OpenCode config for delegated runs.
+3. ~~Whether OpenCode's free models may receive repository content, and whether `setup.sh` may install the ai-gent permissions and guard plugin into the user's OpenCode config.~~ **Decided (owner, 2026-11-02):** (a) the privacy caveat is **told to the user whenever they ask to use delegation** with a free model, in the opt-in and at each offer; for this public repository the supervisor may send public content to the free models after that notice; private repositories, credentials, customer data and `.ai-gent/` stay refused. (b) The supervisor's call: delegated OpenCode runs use a **per-run permission set** and never edit the user's own OpenCode config; installing ai-gent's rules and guard plugin through `setup.sh --target opencode` stays the user's explicit choice, and the skill only points to it.
 4. Whether the mod API exposes Claude's running subagents and tasks (the pane would read them directly); until verified, the supervisor writes the status files for Claude's own tracks.
 5. Which third agent after Codex and OpenCode.

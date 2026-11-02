@@ -1,6 +1,6 @@
 # Tasks: agent delegation
 
-- [ ] T001 Owner review of this spec and its open questions (milestone 3.x, after 3.0.0).
+- [x] T001 Owner review (approved 2026-11-02; open questions 3 decided, see spec) of this spec and its open questions (milestone 3.x, after 3.0.0).
 - [ ] T010 Adapter contract and the Codex adapter (`detect`, `ready`, `preflight`, `run`, `status`, `stop`, `result`) with a fake agent for tests. Verify: unit tests incl. commit preflight, stdin closed, PID-file stop.
 - [ ] T010a The OpenCode adapter (`contracts/opencode.md`): detection outside `PATH`, model selection, permission handling, JSON event reading. Verify: fake-agent tests plus one real trial on a read-only task.
 - [ ] T011 Brief builder from `contracts/brief-template.md` with `allowed_paths`, worker pack and limits. Verify: golden briefs.
