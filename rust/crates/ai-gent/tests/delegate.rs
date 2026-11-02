@@ -56,6 +56,10 @@ fn git(dir: &Path, args: &[&str]) {
 fn repo() -> (tempfile::TempDir, PathBuf) {
     let d = tempfile::tempdir().unwrap();
     git(d.path(), &["init", "-q", "-b", "main"]);
+    // the supervisor commit runs plain `git commit`: give the repository its own identity
+    git(d.path(), &["config", "user.name", "t"]);
+    git(d.path(), &["config", "user.email", "t@t"]);
+    git(d.path(), &["config", "commit.gpgsign", "false"]);
     std::fs::write(d.path().join("seed.txt"), "seed\n").unwrap();
     git(d.path(), &["add", "seed.txt"]);
     git(d.path(), &["commit", "-q", "-m", "chore: seed"]);
