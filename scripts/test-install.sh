@@ -5,6 +5,11 @@
 # entries for agents without plugin namespaces, uninstall, and that
 # directories the scripts didn't create are left alone. Called by
 # scripts/check.sh.
+#
+# Tier switches (spec 039, shared/tiers.json): by default everything runs. TIER3_SKIP=1 leaves
+# out the tier-3 block (every tier-3 agent installed alone, and the opencode config), which the
+# non-required `tier3` CI job runs by itself with TIER3_ONLY=1. The multi-agent cases of the
+# main body (Claude, Codex and the shared-directory logic) stay in the required run.
 
 set -euo pipefail
 
@@ -79,6 +84,7 @@ echo "own" >"$OPENCODE_COMMANDS_DIR/mine.md"
 mkdir -p "$(dirname "$OPENCODE_SKILLS_DIR")"
 ln -s "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR"
 
+if [ -z "${TIER3_ONLY:-}" ]; then
 echo "      -- dry run"
 before="$(snapshot)"
 setup --dry-run
@@ -250,6 +256,23 @@ check "every agent: no entries left" test "$(gen_count "$AGENTS_SKILLS_DIR")" -e
 check "uninstall forgets the choice" test ! -e "$targets_state"
 check "user's own files kept" test -f "$CLAUDE_SKILLS_DIR/mine/SKILL.md" -a -d "$CLAUDE_SKILLS_DIR/synced/one" -a -f "$OPENCODE_COMMANDS_DIR/mine.md"
 
+fi # not TIER3_ONLY
+
+if [ -z "${TIER3_SKIP:-}" ]; then
+# tier 3: each agent installed alone in its own HOME, then removed
+echo "      -- tier 3 agents, one at a time"
+for t3 in opencode cursor antigravity copilot amp kiro windsurf; do
+  t3h="$SANDBOX/t3-$t3"
+  mkdir -p "$t3h/.config/opencode" # opencode is skipped without its binary or config directory
+  t3run() { env -i PATH="$PATH" HOME="$t3h" XDG_STATE_HOME="$t3h/.local/state" "$REPO_DIR/setup.sh" --target "$t3" --skip-prompt --no-config-edits "$@" >"$SANDBOX/out" 2>&1; }
+  t3run
+  check "$t3: installs generated entries and remembers the choice" bash -c 'test "$(find "$1" -name .ai-gent-generated | wc -l)" -gt 0 -a "$(cat "$1/.local/state/ai-gent/targets")" = "$2"' _ "$t3h" "$t3"
+  t3run
+  check "$t3: a re-run changes nothing" bash -c '! grep -Eq "^\[(link|relink|generate|backup)\] " "$1"' _ "$SANDBOX/out"
+  t3run --uninstall
+  check "$t3: uninstall removes the entries" test "$(find "$t3h" -name .ai-gent-generated | wc -l)" -eq 0
+done
+
 # opencode config: the V2 permission rules, the guard plugin and the skill
 # denies are merged into opencode.json, and undone on --uninstall.
 oc_run() { # oc_run <home> <setup.sh args...>
@@ -314,6 +337,9 @@ check "no config: created with the plugin" test "$(json_get "$cfg" 'd["plugins"]
 oc_run "$h" --uninstall
 check "uninstall: a created, untouched config is removed" test ! -e "$cfg"
 
+fi # not TIER3_SKIP
+
+if [ -z "${TIER3_ONLY:-}" ]; then
 echo "      -- install.sh (git mode was removed in 3.0.0)"
 for var in AI_GENT_MODE AI_GENT_BRANCH AI_GENT_REPO AI_GENT_DIR; do
   check "$var set: stops with the removal message" bash -c 'env "$1=git" sh "$2/install.sh" --target claude >"$3" 2>&1; rc=$?; test $rc -ne 0 && grep -q "git mode was removed in 3.0.0" "$3" && grep -q "setup.sh --migrate" "$3" && grep -q "scripts/dev-bin.sh" "$3"' _ "$var" "$REPO_DIR" "$SANDBOX/out"
@@ -404,5 +430,6 @@ dl_bad=1
 dl && dl_bad=0
 check "a checksum mismatch fails and writes nothing" test "$dl_bad" -eq 1 -a ! -e "$db/bin" && grep -q "checksum mismatch" "$SANDBOX/out"
 check "an unsupported tag/version is refused" bash -c '! VERSION=../x sh "$1/scripts/dev-bin.sh" --download >/dev/null 2>&1' _ "$db"
+fi # not TIER3_ONLY
 
 exit $((failures > 0))

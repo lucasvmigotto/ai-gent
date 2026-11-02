@@ -10,11 +10,21 @@
 #   pinned        VERSION=x.y.z pins; a later unpinned install clears it
 #   pkg-2.26      a real 2.26.0 install (git archive of the tag): its updater against a release that
 #                 has no content-only asset fails before writing anything; the new installer works
+#   pkg-2.28      a 2.28.x package install with the real binary (this tree, packaged as 2.28.0): both
+#                 `ai-gent update --yes` and scripts/ai-gent-update.sh upgrade it to the 3.0.0
+#                 candidate (the target release's installer, fetched and checked against SHA256SUMS),
+#                 `previous` is 2.28.0, the links lead into `current`, `ai-gent doctor` is green
+#   rollback      the same upgrade, then `ai-gent update --rollback --yes` and `sh install.sh --rollback`
+#                 restore 2.28.0 with the links and `ai-gent doctor` green (G30-7); `--rollback` runs
+#                 only this case
 #
-# Not covered yet (they need the 2.28 updater and `ai-gent doctor`): pkg-2.28 and --rollback.
+# pkg-2.28 and rollback need cargo (the real binary) and skip with a notice without it.
 # Called by scripts/check.sh (skipped by --quick).
 
 set -euo pipefail
+
+ONLY=""
+[ "${1:-}" = --rollback ] && ONLY=rollback
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SANDBOX="$(mktemp -d)"
@@ -52,6 +62,7 @@ python3 "$REPO_DIR/scripts/package.py" --version 9.9.0 --out "$REL/9.9.0" --targ
 printf '9.9.0\n' >"$REL/LATEST"
 export AI_GENT_RELEASE_BASE="file://$REL"
 
+if [ -z "$ONLY" ]; then
 echo "      -- env-git-mode"
 reset
 for var in AI_GENT_MODE AI_GENT_BRANCH AI_GENT_REPO AI_GENT_DIR; do
@@ -128,6 +139,80 @@ else
   inst
   check "the candidate installer upgrades the home" test "$(readlink "$AI_GENT_HOME/current")" == 9.9.0 -a "$(readlink "$AI_GENT_HOME/previous")" == 2.26.0
   check "...and the links lead into current" test "$(readlink "$CLAUDE_SKILLS_DIR/git")" == "$AI_GENT_HOME/current/plugins/git"
+fi
+fi # ONLY
+
+# --- pkg-2.28 and rollback: the real binary, the current tree as 2.28.0, the 3.0.0 candidate -------
+if ! command -v cargo >/dev/null 2>&1; then
+  printf '      skip  pkg-2.28, rollback: cargo not on PATH\n'
+else
+  (cd "$REPO_DIR/rust" && cargo build --locked -q -p ai-gent --target-dir "${CARGO_TARGET_DIR:-$REPO_DIR/rust/target}")
+  BIN="${CARGO_TARGET_DIR:-$REPO_DIR/rust/target}/debug/ai-gent"
+  R28="$SANDBOX/rel28"
+  mkdir -p "$R28"
+  for v in 2.28.0 3.0.0; do
+    mkdir -p "$R28/$v"
+    python3 "$REPO_DIR/scripts/package.py" --version "$v" --out "$R28/$v" >/dev/null
+    python3 "$REPO_DIR/scripts/package.py" --version "$v" --out "$R28/$v" --target "$AI_GENT_TARGET" --binary "$BIN" >/dev/null
+  done
+  cur() { readlink "$AI_GENT_HOME/current"; }
+  prev() { readlink "$AI_GENT_HOME/previous"; }
+  AI() { "$AI_GENT_HOME/current/bin/ai-gent" "$@"; }
+  # shellcheck disable=SC2329 # run through check
+  doctor_ok() { AI doctor >"$SANDBOX/doctor" 2>&1 || { cat "$SANDBOX/doctor"; return 1; }; }
+  # shellcheck disable=SC2329 # run through check
+  links_in_current() { test "$(readlink "$CLAUDE_SKILLS_DIR/git")" == "$AI_GENT_HOME/current/plugins/git" -a "$(readlink "$HOME/.local/bin/ai-gent")" == "$AI_GENT_HOME/current/bin/ai-gent"; }
+  # a 2.28.0 package install, with 3.0.0 as the newest release
+  install28() {
+    reset
+    printf '3.0.0\n' >"$R28/LATEST"
+    AI_GENT_RELEASE_BASE="file://$R28" VERSION=2.28.0 sh "$REPO_DIR/install.sh" --skip-prompt --target claude >"$SANDBOX/out" 2>&1
+    rm -f "$AI_GENT_HOME/pinned"
+  }
+  export AI_GENT_RELEASE_BASE="file://$R28" AI_GENT_NO_UPDATE_CHECK=1
+
+  if [ -z "$ONLY" ]; then
+    echo "      -- pkg-2.28"
+    install28
+    check "2.28.0 installs with the real binary" test "$(cur)" == 2.28.0
+    check "...doctor green before the upgrade" doctor_ok
+    AI update --check >"$SANDBOX/out" 2>&1 || true
+    AI update --yes >"$SANDBOX/out" 2>&1
+    check "ai-gent update: current is 3.0.0 and previous is 2.28.0" test "$(cur)/$(prev)" == 3.0.0/2.28.0
+    check "...the agent links and the binary link lead into current" links_in_current
+    check "...ai-gent doctor is green on 3.0.0" doctor_ok
+    # tampered installer in the target release: refused, nothing changed (G28-7)
+    install28
+    echo 'exit 0' >>"$R28/3.0.0/install.sh"
+    rc=0
+    AI update --yes >"$SANDBOX/out" 2>&1 || rc=$?
+    check "a tampered 3.0.0 installer is refused with exit 4 and nothing changed" test "$rc" -eq 4 -a "$(cur)" == 2.28.0
+    python3 "$REPO_DIR/scripts/package.py" --version 3.0.0 --out "$R28/3.0.0" >/dev/null
+    python3 "$REPO_DIR/scripts/package.py" --version 3.0.0 --out "$R28/3.0.0" --target "$AI_GENT_TARGET" --binary "$BIN" >/dev/null
+    # the script a 2.28 install ships
+    install28
+    "$AI_GENT_HOME/current/scripts/ai-gent-update.sh" >"$SANDBOX/out" 2>&1
+    check "scripts/ai-gent-update.sh: current is 3.0.0 and previous is 2.28.0" test "$(cur)/$(prev)" == 3.0.0/2.28.0
+    check "...the links" links_in_current
+    check "...doctor" doctor_ok
+  fi
+
+  echo "      -- rollback"
+  install28
+  AI update --yes >"$SANDBOX/out" 2>&1
+  check "upgraded to 3.0.0 first" test "$(cur)/$(prev)" == 3.0.0/2.28.0
+  AI update --rollback --yes >"$SANDBOX/out" 2>&1
+  check "ai-gent update --rollback: current is 2.28.0 again" test "$(cur)" == 2.28.0
+  check "...the links lead into current" links_in_current
+  check "...ai-gent doctor is green" doctor_ok
+  check "...the binary reports 2.28.0 via VERSION" test "$(cat "$AI_GENT_HOME/current/VERSION")" == 2.28.0
+  # the installer's own rollback, from the same state
+  install28
+  AI update --yes >"$SANDBOX/out" 2>&1
+  sh "$AI_GENT_HOME/current/install.sh" --rollback >"$SANDBOX/out" 2>&1
+  check "sh install.sh --rollback: current is 2.28.0" test "$(cur)" == 2.28.0
+  check "...the links" links_in_current
+  check "...doctor" doctor_ok
 fi
 
 exit $((failures > 0))

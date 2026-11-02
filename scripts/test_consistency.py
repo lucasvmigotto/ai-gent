@@ -628,6 +628,23 @@ class Tiers(unittest.TestCase):
 
     def test_the_repository_agrees(self):
         self.assertEqual(consistency.check_tiers(consistency.ROOT), [])
+        self.assertEqual(consistency.check_readme_tiers(consistency.ROOT), [])
+
+    def readme(self, agents="`claude`", policy="p"):
+        return f"| Tier | Agents | Promise |\n|---|---|---|\n| T1 | {agents} | {policy} |\n"
+
+    def readme_tree(self, text):
+        d = {"tiers": [{"id": "t1", "label": "T1", "agents": ["claude"], "policy": "p"}]}
+        files = {"README.md": text, "shared/tiers.json": json.dumps(d)}
+        return tree(files)
+
+    def test_readme_table_clean(self):
+        self.assertEqual(consistency.check_readme_tiers(self.readme_tree(self.readme())), [])
+
+    def test_readme_table_with_other_agents_or_promise_or_no_row_fails(self):
+        self.assertTrue(consistency.check_readme_tiers(self.readme_tree(self.readme("`claude`, `codex`"))))
+        self.assertTrue(consistency.check_readme_tiers(self.readme_tree(self.readme(policy="q"))))
+        self.assertTrue(consistency.check_readme_tiers(self.readme_tree("no table")))
 
 
 class Naming(unittest.TestCase):

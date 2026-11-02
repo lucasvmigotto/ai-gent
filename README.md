@@ -123,6 +123,18 @@ The rules are built by `scripts/opencode-config.py`. Your own rules always stay;
 > [!WARNING]
 > On these agents the [guard hooks](#guard-hooks) are instructions only, not enforced. Some of them (Cursor, for one) also read `~/.claude/skills`, where plugin skills appear under short names (`spec`, `build`, …) next to the `<plugin>-<skill>` entries; prefer the namespaced ones.
 
+### Support tiers
+
+<!-- Generated from shared/tiers.json; scripts/consistency.py fails when the rows differ. -->
+
+| Tier | Agents | Promise |
+|---|---|---|
+| Tier 1 | `claude` | Fully supported: every feature is developed and tested here. |
+| Tier 2 | `codex` | Supported: in the required CI install test. Only what the matrix marks yes is verified. |
+| Tier 3 | `opencode`, `cursor`, `antigravity`, `copilot`, `amp`, `kiro`, `windsurf` | Best-effort and frozen: out of the required CI, nothing removed in 3.x. |
+
+The per-feature matrix is on the docs site's compatibility page.
+
 ## Usage
 
 Ask for what you want and the matching skill loads: "set up CI for this repo", "model the domain", "why is this record wrong in the database". Or invoke one directly:
