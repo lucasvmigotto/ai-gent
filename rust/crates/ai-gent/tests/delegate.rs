@@ -307,9 +307,21 @@ fn stop_uses_the_pid_file_and_never_a_pattern() {
     );
     assert_eq!(code, 0, "{v}");
     let pid = v["data"]["pid"].as_u64().unwrap();
-    let (_, s) = cli(d.path(), "stall", &["status", "t-stall"]);
+    // `run` returns once the agent is spawned, not once its first events reached the log: wait for
+    // the condition (the item.started the stalled agent writes last), never for a fixed time
+    let t = Instant::now();
+    let s = loop {
+        let (_, s) = cli(d.path(), "stall", &["status", "t-stall"]);
+        if s["data"]["items_started"] == 1 {
+            break s;
+        }
+        assert!(
+            t.elapsed() < Duration::from_secs(60),
+            "the agent's first item never reached the event log: {s}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    };
     assert_eq!(s["data"]["running"], true);
-    assert_eq!(s["data"]["items_started"], 1);
     let recorded: u64 =
         std::fs::read_to_string(d.path().join(".ai-gent/delegate/t-stall/agent.pid"))
             .unwrap()
