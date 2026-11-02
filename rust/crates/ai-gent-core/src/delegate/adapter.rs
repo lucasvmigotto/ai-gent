@@ -226,11 +226,22 @@ pub fn launch(
     ] {
         let _ = std::fs::remove_file(dir.join(f));
     }
-    let rel = super::rel_to(root, &req.worktree);
+    let canon = |p: &Path| {
+        let c = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        PathBuf::from(super::slash(&c).trim_start_matches("//?/"))
+    };
+    let (root_c, wt_c) = (canon(root), canon(&req.worktree));
+    let rel = wt_c.strip_prefix(&root_c).map_err(|_| {
+        Error::Invalid(format!(
+            "worktree {} is not inside the repository root {}",
+            req.worktree.display(),
+            root.display()
+        ))
+    })?;
     let rel = if rel.as_os_str().is_empty() {
         ".".to_string()
     } else {
-        super::slash(&rel)
+        super::slash(rel)
     };
     let st = Status::new(
         &req.track,

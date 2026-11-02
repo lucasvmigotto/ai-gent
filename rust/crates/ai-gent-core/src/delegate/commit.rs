@@ -134,6 +134,9 @@ mod tests {
     fn repo() -> tempfile::TempDir {
         let d = tempfile::tempdir().unwrap();
         sh(d.path(), &["init", "-q", "-b", "main"]);
+        sh(d.path(), &["config", "user.name", "t"]);
+        sh(d.path(), &["config", "user.email", "t@t"]);
+        sh(d.path(), &["config", "commit.gpgsign", "false"]);
         std::fs::write(d.path().join("seed.txt"), "seed\n").unwrap();
         sh(d.path(), &["add", "seed.txt"]);
         sh(d.path(), &["commit", "-q", "-m", "chore: seed"]);
