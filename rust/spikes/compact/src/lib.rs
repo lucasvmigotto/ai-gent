@@ -1,6 +1,6 @@
-//! Spec 037 D0 spike: a tree-sitter token stream, a renderer for levels 1-4 and a verifier, for rust,
-//! java, typescript and tsx. This is a prototype to answer "does the Pygments-free design hold", not
-//! the shipped `ai-gent compact` (it has no preprocessor lines, no Go, Kotlin or CSS families, no
+//! Spec 037 D0 spike: a tree-sitter token stream, a renderer for levels 1-4 and a verifier, for the
+//! D29 scope (rust, java, c, cpp, csharp, go, javascript, typescript, tsx, kotlin, css, scss). This is
+//! a prototype to answer "does the Pygments-free design hold", not the shipped `ai-gent-compact` (no
 //! outline and no CLI).
 //!
 //! Flow: [`tokenize`] turns the source into significant tokens (leaves of the syntax tree; strings,
@@ -9,12 +9,13 @@
 //! sequence. [`compact`] steps down one flag at a time when a check fails, like `compact.py`.
 #![forbid(unsafe_code)]
 
+pub mod lookaround;
 pub mod render;
 pub mod tokenize;
 pub mod verify;
 
 pub use render::{render, Flags};
-pub use tokenize::{tokenize, Kind, Lang, Tok};
+pub use tokenize::{tokenize, Family, Kind, Lang, Tok};
 pub use verify::verify;
 
 /// What `compact` did.
@@ -40,7 +41,7 @@ impl Info {
 /// The source does not parse (the caller keeps level 1 at most, `fallback[parse]`).
 pub fn compact(src: &str, lang: Lang, level: u8) -> Result<(String, Info), String> {
     let (toks, gaps) = tokenize(src, lang)?;
-    let mut flags = Flags::from_level(level.min(4));
+    let mut flags = Flags::from_level(level.min(lang.max_level(src)));
     let mut fallback = Vec::new();
     loop {
         if flags.is_empty() {
