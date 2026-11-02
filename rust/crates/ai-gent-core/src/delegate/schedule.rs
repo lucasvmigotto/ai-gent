@@ -96,6 +96,7 @@ pub struct Track {
     /// The track's class: judgment if any task is.
     pub class: Class,
     /// The worker.
+    #[serde(flatten)]
     pub worker: Worker,
     /// Why it is not a delegate's, when it is not.
     pub reason: Option<String>,
@@ -149,6 +150,8 @@ pub struct Deferred {
 /// The plan.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Plan {
+    /// Every track, in list order, with its class and assignment (started or deferred).
+    pub tracks: Vec<Track>,
     /// Tracks to start now, in list order.
     pub start: Vec<Track>,
     /// Tracks that wait for a slot.
@@ -324,8 +327,10 @@ pub fn plan(tasks: &[Task], allowed: &[String], pool: &Pool) -> Res<Plan> {
             because,
         })
         .collect();
+    let tracks = all.clone();
     all.truncate(slots);
     Ok(Plan {
+        tracks,
         start: all,
         deferred,
         slots,
