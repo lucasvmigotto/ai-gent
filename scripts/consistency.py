@@ -729,7 +729,7 @@ def check_token_tags_copy(root: Path) -> list[str]:
 
 # D21: the major is written 3.0.0 or 3.x, never with the letter v and the digit.
 NAMING_PATHS = ("README.md", "AGENTS.md", "CLAUDE.md", "docs/site/src", "docs/product", "shared", "specs", "install.sh", "setup.sh", "scripts")
-NAMING_ALLOW = ("scripts/consistency.py", "scripts/test_consistency.py", "docs/product/rust-decisions.md", "CHANGELOG.md")  # D21 states the rule; the changelog is history
+NAMING_ALLOW = ("scripts/consistency.py", "scripts/test_consistency.py", "docs/product/rust-decisions.md", "CHANGELOG.md", "docs/site/src/content/generated.json")  # D21 states the rule; the changelog is history; the generated site content is derived (it carries a third-party "v3 API" from a plugin reference)
 OLD_MAJOR = re.compile(r"(?<![A-Za-z0-9/.:_-])v3(?![0-9A-Za-z_-]|\.[0-9])")
 GPL_V3 = re.compile(r"GPL\s+v3", re.IGNORECASE)
 
@@ -754,6 +754,63 @@ def check_naming(root: Path) -> list[str]:
     return problems
 
 
+TIERS = "shared/tiers.json"
+
+
+def check_tiers(root: Path) -> list[str]:
+    """The docs site's compatibility matrix (spec 040): every agent `setup.sh` installs for sits in exactly one tier, and every cell has a state, a reason and a source that exists."""
+    path, setup = root / TIERS, root / "setup.sh"
+    if not path.is_file() or not setup.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as e:
+        return [f"{TIERS}: not valid JSON ({e})"]
+    found = re.search(r"^AGENT_IDS=\(([^)]*)\)", setup.read_text(encoding="utf-8"), re.M)
+    agents = found.group(1).split() if found else []
+    problems = []
+    if not agents:
+        return [f"setup.sh: AGENT_IDS not found; cannot check {TIERS}"]
+    tiers = data.get("tiers", [])
+    tier_ids = [t.get("id") for t in tiers]
+    if len(set(tier_ids)) != len(tier_ids) or not all(tier_ids):
+        problems.append(f"{TIERS}: tier ids must be present and unique")
+    placed: dict[str, int] = {}
+    for t in tiers:
+        for a in t.get("agents", []):
+            placed[a] = placed.get(a, 0) + 1
+    for a in agents:
+        n = placed.get(a, 0)
+        if n != 1:
+            problems.append(f"{TIERS}: agent {a} is in {n} tiers, setup.sh AGENT_IDS needs exactly one")
+    for a in placed:
+        if a not in agents:
+            problems.append(f"{TIERS}: agent {a} is not in setup.sh AGENT_IDS")
+    states = set(data.get("states", []))
+    rows = data.get("rows", [])
+    if not rows:
+        problems.append(f"{TIERS}: no rows")
+    for row in rows:
+        rid = row.get("id", "?")
+        for tid in tier_ids:
+            cell = row.get("cells", {}).get(tid)
+            if not isinstance(cell, dict):
+                problems.append(f"{TIERS}: row {rid} has no cell for {tid}")
+                continue
+            if cell.get("state") not in states:
+                problems.append(f"{TIERS}: row {rid}/{tid} state {cell.get('state')!r} is not one of {sorted(states)}")
+            if not str(cell.get("reason", "")).strip():
+                problems.append(f"{TIERS}: row {rid}/{tid} has no reason")
+            src = cell.get("source", "")
+            if not src or not (root / src).exists():
+                problems.append(f"{TIERS}: row {rid}/{tid} source {src!r} does not exist")
+            if not isinstance(cell.get("verified"), bool):
+                problems.append(f"{TIERS}: row {rid}/{tid} needs a verified flag")
+            if cell.get("state") == "unverified" and cell.get("verified") is not False:
+                problems.append(f"{TIERS}: row {rid}/{tid} is unverified, so verified must be false")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
     if "--sync-token-tags" in sys.argv[1:]:
         (root / TOKEN_TAGS_COPY).write_bytes((root / TOKEN_TAGS).read_bytes())
@@ -769,13 +826,13 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_naming(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_tiers(root) + check_naming(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, rust workspace license, major-version naming, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, rust workspace license, tier matrix, major-version naming, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

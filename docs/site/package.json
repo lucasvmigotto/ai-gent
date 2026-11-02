@@ -4,7 +4,7 @@
 	"version": "1.6.0",
 	"type": "module",
 	"scripts": {
-		"gen": "node scripts/generate-content.mjs",
+		"gen": "node scripts/generate-content.mjs && bun scripts/generate-search-index.ts",
 		"og": "bun run scripts/og-image.ts",
 		"dev": "bun run gen && vite",
 		"build": "bun run gen && vite build && bun scripts/generate-llms.ts",

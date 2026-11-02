@@ -6,12 +6,20 @@ on:
     paths:
       - "docs/site/**"
       - "docs/product/**"
+      - "shared/tiers.json"
+      - "setup.sh"
+      - "install.sh"
+      - "README.md"
       - "CHANGELOG.md"
       - ".github/workflows/docs-ci.yml"
   pull_request:
     paths:
       - "docs/site/**"
       - "docs/product/**"
+      - "shared/tiers.json"
+      - "setup.sh"
+      - "install.sh"
+      - "README.md"
   # Deploy once release.yml has tagged main, so the footer shows the new
   # version (ai-gent@vX.Y.Z), not the previous one. Its bot push doesn't
   # trigger workflows; this event does.

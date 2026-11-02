@@ -3,6 +3,7 @@ import { Layout } from "./components";
 import { I18nProvider } from "./i18n";
 import {
 	ChangelogPage,
+	CompatibilityPage,
 	ContributePage,
 	FlowPage,
 	InstallPage,
@@ -24,6 +25,7 @@ export function App() {
 						<Route path="/use/skills" element={<SkillsPage />} />
 						<Route path="/use/skills/:id" element={<SkillPage />} />
 						<Route path="/use/flow" element={<FlowPage />} />
+						<Route path="/use/compatibility" element={<CompatibilityPage />} />
 						<Route path="/contribute" element={<ContributePage />} />
 						<Route path="/reference" element={<ReferencePage />} />
 						<Route path="/changelog" element={<ChangelogPage />} />

@@ -30,6 +30,7 @@ export interface Messages {
 		changelog: string;
 		flow: string;
 		install: string;
+		compatibility: string;
 		search: string;
 		searchLabel: string;
 		language: string;
@@ -52,6 +53,8 @@ export interface Messages {
 		emptyBody: string;
 		results: (count: number) => string;
 		clearing: string;
+		listLabel: string;
+		kinds: Record<"page" | "heading", string>;
 	};
 	skills: { title: string; lede: string; filter: string; all: string };
 	skill: {
@@ -69,18 +72,53 @@ export interface Messages {
 		title: string;
 		lede: string;
 		choose: string;
+		chooseBody: string;
 		claude: string;
 		claudeBody: string;
 		others: string;
 		othersBody: string;
+		inspect: string;
+		os: string;
+		osUnix: string;
+		osUnixBody: string;
+		osWindows: string;
+		osWindowsBody: string;
+		pin: string;
+		pinBody: string;
+		unpinBody: string;
 		verify: string;
+		verifyBody: string;
+		attestationBody: string;
+		attestationManual: string;
+		verifyInstalled: string;
 		updates: string;
 		updatesBody: string;
+		rollbackBody: string;
+		afterInstall: string;
+		afterInstallBody: string;
+		migrate: string;
+		migrateBody: string;
 		firstSkill: string;
 		firstSkillBody: string;
 		troubleshooting: string;
 		troubleshootingItems: { problem: string; fix: string; command?: string }[];
 		next: string;
+	};
+	compat: {
+		title: string;
+		lede: string;
+		matrix: string;
+		matrixLabel: string;
+		legend: string;
+		feature: string;
+		states: Record<
+			"yes" | "partial" | "instructions-only" | "no" | "unverified",
+			{ symbol: string; label: string }
+		>;
+		tiers: string;
+		tiersBody: string;
+		unverifiedNote: string;
+		installLink: string;
 	};
 	contribute: {
 		title: string;
@@ -159,6 +197,7 @@ export const enUS: Messages = {
 		changelog: "Changelog",
 		flow: "Flow",
 		install: "Install",
+		compatibility: "Compatibility",
 		search: "Search skills",
 		searchLabel: "Search skills",
 		language: "Language",
@@ -178,10 +217,12 @@ export const enUS: Messages = {
 		index: "All skills, by plugin",
 	},
 	search: {
-		emptyTitle: (query) => `No skill matches “${query}”.`,
+		emptyTitle: (query) => `Nothing matches “${query}”.`,
 		emptyBody: "Try fewer words, or browse the full index.",
-		results: (count) => `${count} skills match`,
+		results: (count) => `${count} results`,
 		clearing: "Search cleared",
+		listLabel: "Search results",
+		kinds: { page: "Page", heading: "Section" },
 	},
 	skills: {
 		title: "Skills",
@@ -204,23 +245,77 @@ export const enUS: Messages = {
 	},
 	install: {
 		title: "Install ai-gent",
-		lede: "One command downloads a release package, checks its SHA-256 and installs it under a versioned directory. On a terminal it asks which agents to install for, with Claude Code preselected. Re-run it to update.",
-		choose: "Choose your agents",
+		lede: "One command downloads a release package, checks its SHA-256 before unpacking it and installs it under a versioned directory. On a terminal it asks which agents to install for, with Claude Code preselected. Re-run it to update.",
+		choose: "Choose how to install",
+		chooseBody:
+			"The release package is the default. It downloads ai-gent-<version> and its SHA256SUMS, verifies the checksum before unpacking anything, unpacks into ~/.local/share/ai-gent/<version>/, points current at it (keeping previous for rollback) and runs the package's setup.sh. It needs curl, tar, bash and sha256sum (or shasum); no git, no sudo, and nothing is written outside the install root except the agents' skill links.",
 		claude: "Claude Code (default)",
 		claudeBody:
 			"Without a terminal, or with --skip-prompt, it installs your previous choice, or Claude Code alone the first time.",
 		others: "Other agents",
 		othersBody:
-			"opencode, Codex, Cursor, Antigravity, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the guards (git, db, secrets, repo, containers); elsewhere they are instructions.",
-		verify: "Verify",
-		updates: "Updates",
+			"opencode, Codex, Cursor, Antigravity, GitHub Copilot, Amp, Kiro and Windsurf are opt-in: pick them in the selector or name them with --target. Codex, Cursor, Copilot and Amp share one ~/.agents/skills directory. Only Claude Code and opencode enforce the guards (git, db, secrets, repo, containers); elsewhere they are instructions. The compatibility page lists what each agent gets.",
+		inspect:
+			"Piping a script into sh runs it unseen. To read it first, download it, inspect it, then run it.",
+		os: "Per operating system",
+		osUnix: "Linux and macOS",
+		osUnixBody:
+			"x86_64 and aarch64. The command in the first section is the whole install. Start a new agent session afterwards: agents read their skills when a session starts.",
+		osWindows: "Windows",
+		osWindowsBody:
+			"Run the same command from WSL or Git Bash; the installer is a POSIX script and detects the Windows targets under Git Bash. Native PowerShell support is not documented here yet.",
+		pin: "Pin a version",
+		pinBody:
+			"VERSION=x.y.z installs that release and pins it: a pinned install shows no update notices.",
+		unpinBody: "Leave the pin by installing latest.",
+		verify: "Verify the download",
+		verifyBody:
+			"The checksum is always checked and protects against corruption. It comes from the same host as the package, so it cannot reveal a tampered asset; the build-provenance attestation can.",
+		attestationBody:
+			"Add --verify-attestation to also run gh attestation verify on the download. It needs the GitHub CLI; without gh the installer says the attestation was not verified and continues with the checksum only.",
+		attestationManual: "Or verify a downloaded file yourself.",
+		verifyInstalled: "Check what is installed.",
+		updates: "Update and roll back",
 		updatesBody:
-			"When a Claude Code session starts, a SessionStart check prints one line if a newer release is known — the check reads a weekly cache and never blocks startup. AI_GENT_NO_UPDATE_CHECK=1 disables it. The session that notices an update only proposes it; applying it (scripts/ai-gent-update.sh re-runs the installer) takes effect next session. Pin with VERSION=x.y.z, list with --list, undo with --rollback, drop old versions with --prune. Git mode (AI_GENT_MODE=git) was removed in 3.0.0; the README explains how to move from a clone.",
+			"Run the install command again to update. When a Claude Code session starts, a SessionStart check prints one line if a newer release is known; it reads a weekly cache and never blocks startup, and AI_GENT_NO_UPDATE_CHECK=1 disables it. The session that notices an update only proposes it; applying it takes effect next session.",
+		rollbackBody:
+			"Each install keeps the previous version. List the installed versions, go back, or drop the old ones.",
+		afterInstall: "After install",
+		afterInstallBody:
+			"The ai-gent binary checks the install and the update state. update --check only reports a newer release; ai-gent update installs it through the same verified path, and --rollback goes back.",
+		migrate: "Move from the git clone",
+		migrateBody:
+			"An old install at ~/.local/share/ai-gent is a git clone, and the installer refuses to unpack beside it. Move it aside, install, then repoint the links: --migrate is the only thing that ever changes existing links, and it says what first. Git mode (AI_GENT_MODE=git) goes away in 3.0.0: the installer stops and says how to move from a clone.",
 		firstSkill: "Invoke your first skill",
 		firstSkillBody:
 			"Type what you want in plain words and the matching skill loads, or invoke one directly.",
 		troubleshooting: "If it does not work",
 		troubleshootingItems: [
+			{
+				problem:
+					"ai-gent: command not found, or a skill says the binary is missing.",
+				fix: "The tool fails with the install command and there is no Python fallback. Run the install command again; it links bin/ai-gent into ~/.local/bin, so make sure that directory is on your PATH, then check with doctor.",
+				command: "ai-gent doctor",
+			},
+			{
+				problem:
+					"The installer says gh is not installed and the attestation was not verified.",
+				fix: "That is the checksum-only path: nothing failed, the attestation check was skipped. Install the GitHub CLI and re-run with --verify-attestation if you want it.",
+				command:
+					"sh ~/.local/share/ai-gent/current/install.sh --verify-attestation",
+			},
+			{
+				problem: "A pinned install shows no update notice.",
+				fix: "That is what a pin does. Install latest to leave it and get notices again.",
+				command:
+					"curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | VERSION=latest sh",
+			},
+			{
+				problem: "The installer refuses to unpack beside an old clone.",
+				fix: "The install root is a git clone from the old install. Move it aside and install again with --migrate, which repoints the agents' links.",
+				command:
+					"mv ~/.local/share/ai-gent ~/.local/share/ai-gent.clone\ncurl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh -s -- --migrate",
+			},
 			{
 				problem: "The skills don't show up.",
 				fix: "Agents read their skills (and Claude Code its hooks) when a session starts: start a new session after running setup.sh. Then check one plugin is linked.",
@@ -242,17 +337,33 @@ export const enUS: Messages = {
 				fix: "That's the guard working: it asks before pushes, merges on main and remote changes, and blocks force pushes, --no-verify and secret values. For a hands-off run, allow pushes in your agent's permission settings; never work around a block.",
 			},
 			{
-				problem: "A newer release is announced.",
-				fix: "Re-run the installer (the updater does this for a package install, and fast-forwards a git clone); it keeps the previous version for --rollback. Start a new session.",
-				command: "~/.local/share/ai-gent/current/scripts/ai-gent-update.sh",
-			},
-			{
 				problem: "A directory or link is in the way.",
 				fix: "setup never overwrites what it didn't create. Preview with --dry-run; --force backs up the real directory or foreign link and replaces it.",
 				command: "./setup.sh --dry-run\n./setup.sh --force",
 			},
 		],
 		next: "Next: browse the skills",
+	},
+	compat: {
+		title: "Compatibility",
+		lede: "What you get on each agent. ai-gent is built for Claude Code; the other agents read the same skills, but not every feature reaches them.",
+		matrix: "Feature matrix",
+		matrixLabel: "Features by tier",
+		legend:
+			"Each cell says what holds, with the reason. The symbol and the word always go together. Unverified means the repository has no test or mechanism that shows it either way.",
+		feature: "Feature",
+		states: {
+			yes: { symbol: "✓", label: "Yes" },
+			partial: { symbol: "◐", label: "Partial" },
+			"instructions-only": { symbol: "○", label: "Instructions only" },
+			no: { symbol: "✕", label: "No" },
+			unverified: { symbol: "?", label: "Unverified" },
+		},
+		tiers: "Tiers and agents",
+		tiersBody:
+			"Agents are named as the installer's --target values. Tier 3 is best-effort and frozen: it is out of the required CI and nothing is removed in 3.x.",
+		unverifiedNote: "unverified",
+		installLink: "How to install for an agent",
 	},
 	contribute: {
 		title: "Contribute",
