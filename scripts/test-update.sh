@@ -44,6 +44,36 @@ printf '%s 9.9.1\n' "$(date +%s)" >"$XDG_STATE_HOME/ai-gent/update-check"
 check "--check prints one notice from the cache" test "$(AI update --check | grep -c 'update available: 9.9.0 -> 9.9.1')" = 1
 check "update without --yes and without a terminal exits 2" bash -c '"$1" update </dev/null >/dev/null 2>&1; [ $? -eq 2 ]' _ "$AI_GENT_HOME/current/bin/ai-gent"
 
+# --- hook wiring (spec 034 FR-012): plugins/git/hooks/hooks.json SessionStart, binary first ---
+HOOK_CMD="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['hooks']['SessionStart'][0]['hooks'][0]['command'])" "$REPO_DIR/plugins/git/hooks/hooks.json")"
+# the notice is capped at once a day, so every run starts from a fresh cache line
+fresh() { printf '%s 9.9.1\n' "$(date +%s)" >"$XDG_STATE_HOME/ai-gent/update-check"; }
+hook() { env -u AI_GENT_UPDATE_ROOT CLAUDE_PLUGIN_ROOT="$1" sh -c "$HOOK_CMD"; }
+mkdir -p "$SANDBOX/skills"
+ln -s "$AI_GENT_HOME/current/plugins/git" "$SANDBOX/skills/git"
+fresh
+check "package with the binary: the hook prints the notice" \
+  test "$(hook "$AI_GENT_HOME/current/plugins/git" | grep -c 'update available: 9.9.0 -> 9.9.1')" = 1
+check "package with the binary: the second session of the day is silent" \
+  test -z "$(hook "$AI_GENT_HOME/current/plugins/git")"
+fresh
+check "package with the binary: works through the skills symlink" \
+  test "$(hook "$SANDBOX/skills/git" | grep -c 'update available: 9.9.0 -> 9.9.1')" = 1
+fresh
+hook "$AI_GENT_HOME/current/plugins/git" >/dev/null && rc=0 || rc=$?
+check "package: the hook exits 0" test "$rc" = 0
+# the same package without the binary falls back to the script
+cp -R "$AI_GENT_HOME/9.9.0" "$SANDBOX/nobin"
+rm -f "$SANDBOX/nobin/bin/ai-gent"
+fresh
+OUT="$(hook "$SANDBOX/nobin/plugins/git")"
+check "package without the binary: the script prints the notice" \
+  test "$(printf '%s' "$OUT" | grep -c 'update available: 9.9.0')" = 1
+check "a clone (no bin/): the hook exits 0, silent when opted out" \
+  test -z "$(AI_GENT_NO_UPDATE_CHECK=1 hook "$REPO_DIR/plugins/git")"
+check "a plugin outside any ai-gent tree: the hook is a silent no-op that exits 0" \
+  bash -c 'out="$(env CLAUDE_PLUGIN_ROOT="$1/nowhere/plugins/git" sh -c "$2")"; [ $? -eq 0 ] && [ -z "$out" ]' _ "$SANDBOX" "$HOOK_CMD"
+
 AI update --yes >/dev/null 2>&1
 check "update flips current to 9.9.1 and previous to 9.9.0" test "$(cur)/$(prev)" = 9.9.1/9.9.0
 check "the new version runs" bash -c '"$1" --version >/dev/null' _ "$AI_GENT_HOME/current/bin/ai-gent"

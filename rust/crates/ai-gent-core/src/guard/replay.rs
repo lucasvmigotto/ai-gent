@@ -198,6 +198,7 @@ pub fn run_shell_guard(hooks: &Path, guard: GuardId, ev: &Event) -> Option<Shell
     let input = json!({"hook_event_name": "PreToolUse", "tool_name": ev.tool_name, "cwd": ev.cwd, "tool_input": ev.tool_input});
     let mut cmd = Command::new("sh");
     cmd.arg(script)
+        .env("AI_GENT_NO_SHADOW", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
