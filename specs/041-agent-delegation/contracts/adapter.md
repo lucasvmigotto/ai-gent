@@ -30,7 +30,7 @@ One adapter per delegate agent (first: Codex). An adapter is a small script or m
 
 ## Claude profile (verified in trial 5)
 
-A second Claude Code profile works as a delegate. The profile is a config directory passed as `CLAUDE_CONFIG_DIR=<dir>`; nothing inside it is read or copied (`AI_GENT_CLAUDE_CONFIG_DIR` names it for the adapter; unset, the CLI's own default profile is used, which is the supervisor's, not a second one). `AI_GENT_CLAUDE_BIN` overrides the program.
+A second Claude Code profile works as a delegate. The profile is a config directory passed as `CLAUDE_CONFIG_DIR=<dir>`; nothing inside it is read or copied (`AI_GENT_CLAUDE_CONFIG_DIR` names it for the adapter; unset, `run` refuses, see below). `AI_GENT_CLAUDE_BIN` overrides the program.
 
 - `detect`: `claude --version`.
 - `ready`: `claude -p "Reply with exactly: READY" --output-format json` with stdin closed; answers in about 5 s. Ready only when the exit code is 0, `is_error` is false and `result` contains `READY`; anything else is "not logged in".
@@ -39,4 +39,8 @@ A second Claude Code profile works as a delegate. The profile is a config direct
 - Reviewer and researcher roles are read-only: allowed `Read Grep Glob Bash(git status:*) Bash(git diff:*)`; `Edit` and `Write` disallowed.
 - The CLI prints one JSON object when it ends, with `result`, `is_error`, `num_turns` and `usage` (`input_tokens`, `cache_read_input_tokens`, `output_tokens`). The watcher keeps it as the single event in `events.jsonl`; `result` reads the final message and the usage from it. Usage maps `input_tokens` plus `cache_read_input_tokens` to the input, `cache_read_input_tokens` to the cached part, `output_tokens` to the output (no reasoning count).
 - There is no progress before the end: `run` does not wait for a first event (the requested wait is ignored), `status` shows one event once the run ends, and `items_started` and `items_completed` stay 0.
+- The watcher also reads that object: `status.json` tokens and the delegation log line carry the usage, and `last.txt` is written from `result`.
+- Stall: with no events while it works, a Claude run is never stalled sooner than 1 hour (the stall limit is the larger of the requested one and 3600 s; Codex keeps the requested one, 600 s by default).
+- `is_error`: a run that exits 0 with `is_error: true` is recorded as `failed`, not `done`. `exit.json` gets `is_error` and a `reason` (the `subtype` without `error_`, `max-turns` for `error_max_turns`, else `error`), and `result` answers both next to the unchanged `exit_code` (0).
+- Profile required: `run` refuses without `AI_GENT_CLAUDE_CONFIG_DIR` (or an explicit profile in the library call) with "a Claude delegate needs its own profile: set AI_GENT_CLAUDE_CONFIG_DIR", so the supervisor's own profile is never used by accident. `detect` and `ready` still work with the variable set.
 - `stop` is by PID file only, as for Codex.

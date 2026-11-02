@@ -130,6 +130,16 @@ impl ClaudeAdapter {
     }
 }
 
+/// The shortest stall limit of a Claude run: the CLI prints nothing until it ends, so a shorter silence
+/// is not a stall (the request's value, 600 s by default, would report every long run as stalled).
+pub const MIN_STALL_SECS: u64 = 3600;
+
+/// The stall limit of a Claude run: the request's, but at least [`MIN_STALL_SECS`].
+#[must_use]
+pub fn stall_limit(requested: u64) -> u64 {
+    requested.max(MIN_STALL_SECS)
+}
+
 /// The result object of a run: the last JSON object of `events.jsonl` that has a `result` field.
 fn result_event(dir: &Path) -> Option<Value> {
     std::fs::read_to_string(dir.join(files::EVENTS))
@@ -263,6 +273,11 @@ impl Adapter for ClaudeAdapter {
     }
 
     fn run(&self, req: &RunRequest) -> Res<RunHandle> {
+        if self.config_dir.is_none() {
+            return Err(Error::Invalid(
+                "a Claude delegate needs its own profile: set AI_GENT_CLAUDE_CONFIG_DIR".into(),
+            ));
+        }
         state::track_dir(&self.root, &req.track)?;
         if req.brief.trim().is_empty() {
             return Err(Error::Invalid("the brief is empty".into()));
@@ -282,7 +297,7 @@ impl Adapter for ClaudeAdapter {
             args: self.run_args(req.role),
             cwd: slash(&req.worktree),
             env,
-            stall_secs: req.stall_secs,
+            stall_secs: stall_limit(req.stall_secs),
         };
         // The only event comes when the agent ends, so waiting for a first one would stop every run.
         let req = RunRequest {
@@ -330,6 +345,32 @@ mod tests {
             config_dir: Some("/home/u/.claude-second".into()),
             max_turns: 30,
         }
+    }
+
+    #[test]
+    fn the_stall_limit_is_at_least_an_hour() {
+        assert_eq!(stall_limit(600), 3600);
+        assert_eq!(stall_limit(7200), 7200);
+    }
+
+    #[test]
+    fn a_run_without_a_profile_is_refused() {
+        let mut a = adapter();
+        a.config_dir = None;
+        let req = RunRequest {
+            track: "t".into(),
+            worktree: "/r".into(),
+            brief: "b".into(),
+            tasks: vec![],
+            role: Role::Builder,
+            stall_secs: 600,
+            first_event_wait: Duration::ZERO,
+        };
+        let e = a.run(&req).unwrap_err().to_string();
+        assert!(
+            e.contains("needs its own profile: set AI_GENT_CLAUDE_CONFIG_DIR"),
+            "{e}"
+        );
     }
 
     #[test]

@@ -217,6 +217,112 @@ fn a_failing_run_is_failed_with_its_exit_code() {
 }
 
 #[test]
+fn status_tokens_last_txt_and_the_log_line_come_from_the_result_object() {
+    let (d, tmp, profile) = repo();
+    let a = adapter(d.path(), &tmp, &profile);
+    a.run(&request(d.path(), "c-tally", Role::Builder, 0))
+        .unwrap();
+    wait_finished(d.path(), "c-tally");
+    let st = status::read(d.path(), "c-tally").unwrap();
+    assert_eq!(st.events, 1);
+    let u = st.tokens.unwrap();
+    assert_eq!(
+        (u.input_tokens, u.cached_input_tokens, u.output_tokens),
+        (1000, 800, 50)
+    );
+    let last =
+        std::fs::read_to_string(d.path().join(".ai-gent/delegate/c-tally/last.txt")).unwrap();
+    assert!(last.contains("Done: T010c"));
+    let log = std::fs::read_to_string(d.path().join(".ai-gent/delegation.log")).unwrap();
+    let line: Value = serde_json::from_str(log.lines().last().unwrap()).unwrap();
+    assert_eq!(line["track"], "c-tally");
+    assert_eq!(line["tokens"]["input_tokens"], 1000);
+    assert_eq!(line["tokens"]["cached_input_tokens"], 800);
+    assert_eq!(line["tokens"]["output_tokens"], 50);
+}
+
+#[test]
+fn a_claude_run_gets_at_least_an_hour_before_it_can_stall() {
+    let (d, tmp, profile) = repo();
+    let a = adapter(d.path(), &tmp, &profile);
+    a.run(&request_mode(d.path(), "c-long", Role::Builder, 0, "stall"))
+        .unwrap();
+    let launch: Value = serde_json::from_str(
+        &std::fs::read_to_string(d.path().join(".ai-gent/delegate/c-long/launch.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(launch["stall_secs"], 3600);
+    a.stop("c-long").unwrap();
+}
+
+#[test]
+fn exit_zero_with_is_error_is_failed_with_a_reason() {
+    let (d, tmp, profile) = repo();
+    let a = adapter(d.path(), &tmp, &profile);
+    a.run(&request_mode(
+        d.path(),
+        "c-turns",
+        Role::Builder,
+        0,
+        "maxturns",
+    ))
+    .unwrap();
+    let r = wait_finished(d.path(), "c-turns");
+    assert_eq!(r.exit_code, Some(0));
+    assert_eq!(r.state, State::Failed);
+    assert!(r.is_error);
+    assert_eq!(r.reason.as_deref(), Some("max-turns"));
+    assert_eq!(
+        status::read(d.path(), "c-turns").unwrap().state,
+        State::Failed
+    );
+    // a clean run is not an error
+    a.run(&request(d.path(), "c-clean", Role::Builder, 0))
+        .unwrap();
+    let ok = wait_finished(d.path(), "c-clean");
+    assert!(!ok.is_error && ok.reason.is_none());
+}
+
+#[test]
+fn run_without_a_profile_is_refused_but_detect_and_ready_work() {
+    let (d, _tmp, profile) = repo();
+    let brief = d.path().join("brief.txt");
+    std::fs::write(&brief, "Task: T\nMODE:ok").unwrap();
+    let cli = |args: &[&str], with_profile: bool| {
+        let mut c = Command::new(bin());
+        c.args(["delegate", "--agent", "claude", "--root"])
+            .arg(d.path())
+            .args(args)
+            .env("AI_GENT_CLAUDE_BIN", fake())
+            .env_remove("AI_GENT_CLAUDE_CONFIG_DIR");
+        if with_profile {
+            c.env("AI_GENT_CLAUDE_CONFIG_DIR", &profile);
+        }
+        c.output().unwrap()
+    };
+    let run_args = [
+        "run",
+        "--track",
+        "c-noprofile",
+        "--worktree",
+        ".",
+        "--brief-file",
+        brief.to_str().unwrap(),
+    ];
+    let out = cli(&run_args, false);
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr)
+            .contains("a Claude delegate needs its own profile: set AI_GENT_CLAUDE_CONFIG_DIR"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!d.path().join(".ai-gent/delegate/c-noprofile").exists());
+    assert!(cli(&["detect"], true).status.success());
+    assert!(cli(&["ready"], true).status.success());
+}
+
+#[test]
 fn stop_uses_the_pid_file() {
     let (d, tmp, profile) = repo();
     let a = adapter(d.path(), &tmp, &profile);

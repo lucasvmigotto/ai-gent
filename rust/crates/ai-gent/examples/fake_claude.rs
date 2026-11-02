@@ -3,7 +3,7 @@
 //! stdin is open), then prints one JSON result object, as the real one does when it ends.
 //!
 //! The mode is a `MODE:<name>` line in the brief (an environment variable would race between parallel
-//! tests): `ok` (default), `fail` (exit 1 with `is_error`), `edit` (also writes
+//! tests): `ok` (default), `fail` (exit 1 with `is_error`), `maxturns` (exit 0 with `is_error` and `error_max_turns`), `edit` (also writes
 //! `fake-output.txt` in the working directory), `slow` (sleeps 3 s before answering, to prove no first
 //! event is awaited), `stall` (never answers). `FAKE_LOGGED_IN=0` makes the probe fail like a missing
 //! login.
@@ -23,7 +23,7 @@ fn main() {
     let brief = args[1].clone();
     let mut sink = Vec::new();
     let _ = std::io::stdin().read_to_end(&mut sink);
-    let mode = ["fail", "edit", "slow", "stall"]
+    let mode = ["fail", "maxturns", "edit", "slow", "stall"]
         .into_iter()
         .find(|m| brief.contains(&format!("MODE:{m}")))
         .unwrap_or("ok");
@@ -47,10 +47,11 @@ fn main() {
         let _ = std::fs::write(cwd.join("fake-output.txt"), "delegate output\n");
     }
     let failed = mode == "fail";
+    let max_turns = mode == "maxturns";
     let v = serde_json::json!({
         "type": "result",
-        "subtype": if failed { "error_max_turns" } else { "success" },
-        "is_error": failed,
+        "subtype": if failed || max_turns { "error_max_turns" } else { "success" },
+        "is_error": failed || max_turns,
         "num_turns": 3,
         "result": "Done: T010c. Rules I found hard to follow: none.",
         "usage": {
