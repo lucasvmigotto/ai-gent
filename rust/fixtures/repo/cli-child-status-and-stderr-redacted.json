@@ -12,8 +12,11 @@
     {
      "args": "pr list",
      "stdout": "out token={env:GH_TOKEN}\n",
-     "stderr": "err {env:GH_TOKEN}\n",
      "exit": 4
+    },
+    {
+     "args": "pr view",
+     "stderr": "err {env:GH_TOKEN}\n"
     }
    ]
   }
@@ -34,7 +37,22 @@
    ],
    "stdin": null,
    "exit": 4,
-   "stdout": "out token=<token>\nerr <token>\n",
+   "stdout": "out token=<token>\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "cli",
+    "github",
+    "--",
+    "pr",
+    "view",
+    "3"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "err <token>\n",
    "stderr_has": [],
    "seen": []
   },
@@ -46,7 +64,7 @@
    ],
    "stdin": null,
    "exit": 1,
-   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": false,\n  \"steps\": [\n    {\n      \"name\": \"a\",\n      \"ok\": false,\n      \"error\": \"gh exited 4: out token=<token>\\nerr <token>\"\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n",
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": false,\n  \"steps\": [\n    {\n      \"name\": \"a\",\n      \"ok\": false,\n      \"error\": \"gh exited 4: out token=<token>\"\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n",
    "stderr_has": [],
    "seen": []
   }

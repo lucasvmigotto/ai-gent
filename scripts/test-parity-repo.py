@@ -262,8 +262,10 @@ def cases():
     s = Scn()
     s.run("cli", "github", "--", "pr", "list", stderr_has=["isn't installed"])
     add("cli-not-installed", "reporun.prepare_cli (cli missing)", s)
-    s = Scn().tool("gh", [{"args": "pr list", "stdout": "out token={env:GH_TOKEN}\n", "stderr": "err {env:GH_TOKEN}\n", "exit": 4}])
+    s = Scn().tool("gh", [{"args": "pr list", "stdout": "out token={env:GH_TOKEN}\n", "exit": 4},
+                          {"args": "pr view", "stderr": "err {env:GH_TOKEN}\n"}])
     s.run("cli", "github", "--", "pr", "list")
+    s.run("cli", "github", "--", "pr", "view", "3")
     s.run("batch", "<ROOT>/b.json", "--write")
     s.put("b.json", json.dumps({"platform": "github", "steps": [{"name": "a", "cli": ["pr", "list"]}]}))
     add("cli-child-status-and-stderr-redacted", "reporun.cmd_cli / run_cli_capture", s)
