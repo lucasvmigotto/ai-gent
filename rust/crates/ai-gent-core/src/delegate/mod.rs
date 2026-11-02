@@ -6,6 +6,7 @@
 pub mod adapter;
 pub mod brief;
 pub mod checks;
+pub mod claude;
 pub mod codex;
 pub mod commit;
 pub mod diff;

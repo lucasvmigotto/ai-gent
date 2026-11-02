@@ -27,3 +27,16 @@ One adapter per delegate agent (first: Codex). An adapter is a small script or m
 - The review prompt names the document or diff, the files it must be checked against, what to check (consistency, claims that contradict the cited files, unlabelled claims, empty cells, conclusions that do not follow) and says the reviewer has no network, must list what it could not check, and must not edit anything.
 - Trial 4: a read-only review of a 50-line survey took 28 s and about 99k input and 1.1k output tokens, and found five spec-compliance gaps neither the builder nor the supervisor had noticed.
 - The loop: builder drafts, supervisor fact-checks decisive claims, a different agent reviews against the acceptance criteria, the findings go back to the builder (or the supervisor fixes them), then a second review; the task is done only when the acceptance criteria pass, not when the builder says so.
+
+## Claude profile (verified in trial 5)
+
+A second Claude Code profile works as a delegate. The profile is a config directory passed as `CLAUDE_CONFIG_DIR=<dir>`; nothing inside it is read or copied (`AI_GENT_CLAUDE_CONFIG_DIR` names it for the adapter; unset, the CLI's own default profile is used, which is the supervisor's, not a second one). `AI_GENT_CLAUDE_BIN` overrides the program.
+
+- `detect`: `claude --version`.
+- `ready`: `claude -p "Reply with exactly: READY" --output-format json` with stdin closed; answers in about 5 s. Ready only when the exit code is 0, `is_error` is false and `result` contains `READY`; anything else is "not logged in".
+- `run`: `claude -p "<brief>" --output-format json --allowedTools <list> --disallowedTools <list> --max-turns N < /dev/null`, working directory the worktree. Each tool list is one comma-joined argument. Started by the watcher like Codex, never detached with a shell `&`. `--max-turns` defaults to 40.
+- Builder role: allowed `Read Grep Glob Edit Write Bash(cargo:*) Bash(git status:*) Bash(git diff:*)`; disallowed `Bash(git commit:*) Bash(git push:*) Bash(git add:*) Bash(git reset:*)`. The delegate never commits; the supervisor stages by explicit path and commits.
+- Reviewer and researcher roles are read-only: allowed `Read Grep Glob Bash(git status:*) Bash(git diff:*)`; `Edit` and `Write` disallowed.
+- The CLI prints one JSON object when it ends, with `result`, `is_error`, `num_turns` and `usage` (`input_tokens`, `cache_read_input_tokens`, `output_tokens`). The watcher keeps it as the single event in `events.jsonl`; `result` reads the final message and the usage from it. Usage maps `input_tokens` plus `cache_read_input_tokens` to the input, `cache_read_input_tokens` to the cached part, `output_tokens` to the output (no reasoning count).
+- There is no progress before the end: `run` does not wait for a first event (the requested wait is ignored), `status` shows one event once the run ends, and `items_started` and `items_completed` stay 0.
+- `stop` is by PID file only, as for Codex.

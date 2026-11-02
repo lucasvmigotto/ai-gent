@@ -24,7 +24,7 @@
 
 **Project policy (owner, 2026-11-02):** this repository delegates to Codex and, from 18:50 on 2026-11-02, to a second Claude Code profile (FR-002). The pause the owner set earlier is lifted. Rust development stays with the supervising Claude (FR-004a). The Claude-profile adapter does not exist yet; runs are made by hand and recorded in `trial-1-codex.md` until it is built (T010c).
 
-- [ ] T010c The Claude-profile adapter: `detect` (config directory with a login, never read), `ready` (a one-line headless probe), `run` (`claude -p --output-format json` with `--allowedTools`/`--disallowedTools` per role, stdin closed), usage from the JSON `usage`. Verify: fake-agent tests plus one recorded trial.
+- [x] T010c The Claude-profile adapter: `detect` (config directory with a login, never read), `ready` (a one-line headless probe), `run` (`claude -p --output-format json` with `--allowedTools`/`--disallowedTools` per role, stdin closed), usage from the JSON `usage`. Verify: fake-agent tests plus one recorded trial. Evidence: `ClaudeAdapter` in `delegate/claude.rs` and `--agent claude`; `cargo test -p ai-gent --test delegate_claude` (6 tests, fake `claude` in `examples/fake_claude.rs`) and the `delegate::claude` unit tests pass; `cargo clippy --all-targets -- -D warnings` clean. The recorded trial is trial 5; tests make no real Claude call.
 
 **Why T042, T043, T045 and T046 of spec 039 stay open:** they replace Python tool names with `ai-gent <sub>` and so depend on the 3.0.0 cutover.
 
