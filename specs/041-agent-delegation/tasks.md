@@ -2,10 +2,12 @@
 
 - [x] T001 Owner review (approved 2026-11-02; open questions 3 decided, see spec) of this spec and its open questions (milestone 3.x, after 3.0.0).
 - [ ] T010 Adapter contract and the Codex adapter (`detect`, `ready`, `preflight`, `run`, `status`, `stop`, `result`) with a fake agent for tests. Verify: unit tests incl. commit preflight, stdin closed, PID-file stop.
-- [ ] T010a The OpenCode adapter (`contracts/opencode.md`): detection outside `PATH`, model selection, permission handling, JSON event reading. Verify: fake-agent tests plus one real trial on a read-only task.
+- [ ] T012a Supervisor step: re-fetch the cited sources for any claim that decides a verdict and compare (trial 3, finding 1).
+- [ ] T010a The OpenCode adapter (`contracts/opencode.md`): detection outside `PATH`, model selection, per-run permissions, JSON event reading summed per step. Verify: fake-agent tests; the facts are already trial-verified (trial 3). Not used in ai-gent's own work (FR-002).
 - [ ] T011 Brief builder from `contracts/brief-template.md` with `allowed_paths`, worker pack and limits. Verify: golden briefs.
 - [ ] T012 Supervisor diff checks (FR-011) with fixtures from trial 1 (marker line, out-of-scope path, environment prose, weakened test). Verify: each fixture is refused with its reason.
-- [ ] T013 Scheduler: tracks from a task list with disjoint paths, assignment rules (FR-004), worktree cap and disk floor counted together. Verify: fixture task lists.
+- [ ] T010b The generic adapter template for further agents: what an adapter must prove (`detect`, `ready`, `preflight`, a trial against the checklist) before the agent is listed as supported.
+- [ ] T013 Scheduler (with the simple-versus-judgment classification of FR-004a): tracks from a task list with disjoint paths, assignment rules (FR-004), worktree cap and disk floor counted together. Verify: fixture task lists.
 - [ ] T014 Delegation log and the `delegate` token tag (`shared/token-tags.json` and `.md` together). Verify: `scripts/check.sh`.
 - [ ] T015 `shared/delegate-worker-rules.md`: each guard's rule as a plain instruction; symlink into the plugin.
 - [ ] T020 The skill (`agents:delegate`): offer triggers, opt-in file, take-back. Verify: trigger and behavior evals.

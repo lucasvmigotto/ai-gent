@@ -48,3 +48,48 @@ Setup: the same CLI and sandbox; brief per `contracts/brief-template.md` with `a
 ## Open
 
 Time per run is not yet recorded (the adapter will keep its own clock); the second-agent reviewer step (FR-010) has not been exercised.
+
+---
+
+# Trial 3: OpenCode (`opencode/flint-40b-free`) on spec 038 T002 (2026-11-02)
+
+Setup: a read-and-research task writing one file (`engine-matrix.md`), `allowed_paths` of that file only, per-run permissions from `OPENCODE_CONFIG_CONTENT` (ai-gent's rules with every `ask` turned into `deny`, plus denies for commits, pushes, `gh`, `sudo` and credential directories), `--standalone --auto --format json`, stdin closed, public content only after the privacy notice.
+
+## Result
+
+- Wall time 835 s; 27 steps, 55 tool calls (23 reads, 23 fetches, 3 searches, 1 write); about 115k input, 47k output tokens (1.39M cached read); cost 0. Exit code 1 although the file was complete.
+- Scope respected: only the allowed file, no git writes, no markers, no permission denials needed.
+- Versions, repositories and dates of all ten crates were correct against crates.io. **One decision-relevant conclusion was wrong**: it called `tiberius` unmaintained with an archived repository, citing RUSTSEC-2020-0010; that advisory covers 0.3.x only and the repository is not archived (pushed 2026-09-25). It also cited a non-existent path (`dbun-spike-report.md`) seven times. The supervisor corrected both before committing.
+
+## What it changes
+
+| # | Finding | Change |
+|---|---|---|
+| 1 | A free model is a good first-draft researcher with tools of its own, but can state a wrong conclusion with sources that, read fully, say otherwise. | Mandatory review stays; add a supervisor step that re-fetches the cited sources for any claim that decides a verdict (checklist item). |
+| 2 | Exit code 1 despite a finished file. | Adapter judges by the final `step_finish` reason and the diff; the exit code is advisory. |
+| 3 | Usage is per step. | Adapter sums `step_finish.tokens` and `cost`. |
+| 4 | Time is long (14 min) for a research task. | Record time per run (FR-013); consider a per-task time budget before taking the task back (FR-014). |
+| 5 | `--auto` auto-approves every `ask`. | Per-run config converts `ask` to `deny` (done in this trial). |
+
+---
+
+# Trial 4: cross-agent review loop on the OpenCode survey (2026-11-02)
+
+Codex (read-only, `codex exec -s read-only` with a custom prompt) reviewed OpenCode's `engine-matrix.md` three times; OpenCode fixed round 1's findings once; the supervisor fixed the rest.
+
+| Round | Reviewer time and cost | Result |
+|---|---|---|
+| 1 | 28 s; 98,625 input (66,304 cached), 1,132 output tokens | 8 findings: wrong labelling scheme against `shared/research.md`, MySQL and MariaDB merged, missing columns the spec requires, overstated claims, unsourced claims. |
+| fix by OpenCode | 1,604 s; 113k input, 87k output tokens | Relabelled and added columns, but sent MariaDB to a different crate than the plan allows and invented a new wrong file path. |
+| 2 | 51 s; 164,962 input (133,632 cached), 1,690 output tokens | 8 findings including the MariaDB crate, the broken path, an overstated PostgreSQL claim and labels pointing at sources that do not establish them. Acceptance not met. |
+| fix by supervisor | about 2 minutes of supervisor time | All of round 2's findings. |
+| 3 | 40 s | 4 remaining findings (PostgreSQL wording, maintenance conclusion, two source rows, label coverage). Acceptance not fully met. Fixed by the supervisor. |
+
+## What it changed
+
+1. **The review step is worth its cost.** Three reviews cost about two minutes and 270k input tokens (mostly cached) and found spec-compliance gaps no one else had seen, including two that the supervisor's own correction introduced.
+2. **Review against the acceptance criteria, not "is it good".** The prompt names the acceptance file, the labelling rules and the evidence files, and lists the previous findings so a later review can check each.
+3. **Stop the builder-fix round after one try.** A delegate asked to fix review findings can make a new error while fixing the old ones (the second path typo); the supervisor finishes the work.
+4. **A second reviewer finds what the first missed**, and a reviewer should not be shown the supervisor's corrections, only the previous findings.
+5. **Reviewer role command**: `codex exec -s read-only` (see `contracts/adapter.md`).
+6. **Scope**: the owner decided that ai-gent's own development delegates to Codex only, while the feature supports every doable agent; the OpenCode trials stay as adapter evidence and as evidence for the loop.
