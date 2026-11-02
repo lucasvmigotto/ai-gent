@@ -433,7 +433,7 @@ for f in install.ps1 setup.ps1 scripts/test-install-ps1.ps1; do
 done
 if command -v pwsh >/dev/null 2>&1; then
   for f in install.ps1 setup.ps1 scripts/test-install-ps1.ps1; do
-    if ! pwsh -NoProfile -Command '$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile($args[0], [ref]$null, [ref]$e); if ($e.Count) { $e | ForEach-Object { $_.ToString() }; exit 1 }' "$f"; then
+    if ! PS_FILE="$f" pwsh -NoProfile -Command '$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $env:PS_FILE).Path, [ref]$null, [ref]$e); if ($e.Count) { $e | ForEach-Object { $_.ToString() }; exit 1 }'; then
       fail "$f: does not parse"; ps_bad=1
     fi
   done
