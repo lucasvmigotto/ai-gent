@@ -7,7 +7,7 @@
 - [ ] T011 Brief builder from `contracts/brief-template.md` with `allowed_paths`, worker pack and limits. Verify: golden briefs.
 - [ ] T012 Supervisor diff checks (FR-011) with fixtures from trial 1 (marker line, out-of-scope path, environment prose, weakened test). Verify: each fixture is refused with its reason.
 - [ ] T010b The generic adapter template for further agents: what an adapter must prove (`detect`, `ready`, `preflight`, a trial against the checklist) before the agent is listed as supported.
-- [ ] T013 Scheduler (with the simple-versus-judgment classification of FR-004a): tracks from a task list with disjoint paths, assignment rules (FR-004), worktree cap and disk floor counted together. Verify: fixture task lists.
+- [x] T013 Scheduler (with the simple-versus-judgment classification of FR-004a): tracks from a task list with disjoint paths, assignment rules (FR-004), worktree cap and disk floor counted together. Verify: fixture task lists. Evidence: `delegate::schedule::tests` with fixture lists in `rust/fixtures/delegate/schedule/`. Gaps: tasks.md carries no paths, kind or needs per task, so the scheduler takes a JSON list; the spec names no rule for Claude subagent assignment, so a track goes to Claude or the first allowed delegate.
 - [ ] T014 Delegation log and the `delegate` token tag (`shared/token-tags.json` and `.md` together). Verify: `scripts/check.sh`.
 - [ ] T015 `shared/delegate-worker-rules.md`: each guard's rule as a plain instruction; symlink into the plugin.
 - [ ] T020 The skill (`agents:delegate`): offer triggers, opt-in file, take-back. Verify: trigger and behavior evals.
