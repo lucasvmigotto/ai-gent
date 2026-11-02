@@ -20,3 +20,10 @@ One adapter per delegate agent (first: Codex). An adapter is a small script or m
 - **A Codex delegate cannot commit.** The sandbox keeps `.git` read-only even when the directory is passed with `--add-dir` (trial 1: object store read-only; trial 2, with the common git dir added: `index.lock` read-only). So the contract is: the delegate edits the working tree and stops; the supervisor stages the delegate's changes by explicit path (only inside `allowed_paths`), commits with the project's message rules, and pushes. This also puts the commit message and the path check under the supervisor's control.
 - **Progress** comes from `item.started` / `item.completed` events (trial 1: 39 and 47; trial 2: 20 and 24); the final `turn.completed` event carries `usage` (`input_tokens`, `cached_input_tokens`, `output_tokens`, `reasoning_output_tokens`).
 - A delegate's `apply_patch` can fail on a stale view of a file (trial 2: `tasks.md`); it retries on its own, so a single error event is not a stall.
+
+## Reviewer role (verified in trial 4)
+
+- A Codex reviewer runs as `codex exec --cd <worktree> -s read-only -o <last> --json "<review prompt>" < /dev/null`. The `codex exec review` subcommand cannot be used: `--base` rejects a custom prompt, and the prompt is what carries the acceptance criteria to check.
+- The review prompt names the document or diff, the files it must be checked against, what to check (consistency, claims that contradict the cited files, unlabelled claims, empty cells, conclusions that do not follow) and says the reviewer has no network, must list what it could not check, and must not edit anything.
+- Trial 4: a read-only review of a 50-line survey took 28 s and about 99k input and 1.1k output tokens, and found five spec-compliance gaps neither the builder nor the supervisor had noticed.
+- The loop: builder drafts, supervisor fact-checks decisive claims, a different agent reviews against the acceptance criteria, the findings go back to the builder (or the supervisor fixes them), then a second review; the task is done only when the acceptance criteria pass, not when the builder says so.
