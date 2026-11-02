@@ -47,7 +47,10 @@ function Find-Python {
 $PyFound = @(Find-Python)
 $PyExe = $PyFound[0]
 $PyPre = @($PyFound | Select-Object -Skip 1)
-function Invoke-Py([string[]]$PyArgs) { return (& $PyExe @PyPre @PyArgs 2>&1) }
+function Invoke-Py([string[]]$PyArgs) {
+  $ErrorActionPreference = 'Continue' # Windows PowerShell 5.1 turns native stderr into errors under Stop
+  return (& $PyExe @PyPre @PyArgs 2>&1)
+}
 
 function Quote-Arg([string]$Arg) {
   if ($Arg -ne '' -and $Arg -notmatch '[\s"]') { return $Arg }

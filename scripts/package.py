@@ -161,7 +161,7 @@ def collect(version):
     def add(rel):
         path = os.path.join(ROOT, rel)
         if os.path.islink(path):
-            members[rel] = ("link", os.readlink(path))
+            members[rel] = ("link", os.readlink(path).replace("\\", "/"))  # Windows reports backslashes
         elif os.path.isfile(path):
             members[rel] = ("file", path)
         else:
