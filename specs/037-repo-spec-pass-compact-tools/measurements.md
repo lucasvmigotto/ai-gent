@@ -90,6 +90,12 @@ Two known differences from Python, both inside the D29 scope: (1) a source whose
 
 **Binary size of the D29 scope.** A release binary (opt-level z, LTO, strip) linking tree-sitter and the 11 grammars above plus the spike code: 18.5 MB on x86_64 Linux (glibc), `cargo build --release --example sizes` in the spike. That is under the 25 MB proposal for `ai-gent-compact` (about 35% headroom for the CLI, the outline and the other targets) and far over the 8 MB of `ai-gent`, which is why D29 splits it.
 
+## Compact port (T064-T067, 2026-11-02)
+
+`ai-gent-compact` (release profile, x86_64 Linux glibc): 18,845,392 bytes, under the 25 MB proposal for its own budget. Size comparison with `compact.py` (`scripts/compare-compact.py`): 0 problems over the 17 fixtures and about 330 files in all (the fixtures and this repository's tracked sources), per-language ratios 0.9564 to 1.0002. CI builds it on all six targets (musl legs install `musl-tools`, because the grammars are C).
+
+Known differences from the Python tool: SCSS is read with the CSS grammar (`tree-sitter-scss` 1.0.0 does not build with MSVC), so SCSS with nesting is checked lexically; `.h` files with Objective-C markers and every language outside the D29 scope are printed as they are; input that is not UTF-8 is read lossily; `less` has no grammar and is outline only.
+
 ## Not measured yet
 
 - T006 gopass on Windows.
