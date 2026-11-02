@@ -11,6 +11,7 @@ pub mod commit;
 pub mod diff;
 pub mod gitx;
 pub mod glob;
+pub mod schedule;
 pub mod state;
 pub mod status;
 pub mod watch;
