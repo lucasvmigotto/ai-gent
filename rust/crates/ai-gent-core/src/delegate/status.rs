@@ -249,11 +249,18 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Res<()> {
     io("write", f.write_all(bytes))?;
     io("sync", f.sync_all())?;
     drop(f);
-    io(
-        format!("rename to {}", path.display()),
-        std::fs::rename(&tmp, path),
-    )
-    .inspect_err(|_| {
+    // On Windows the rename fails while a reader has the target open; readers are quick, so retry.
+    let mut tries = 0;
+    let renamed = loop {
+        match std::fs::rename(&tmp, path) {
+            Err(_) if tries < 80 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+            r => break r,
+        }
+    };
+    io(format!("rename to {}", path.display()), renamed).inspect_err(|_| {
         let _ = std::fs::remove_file(&tmp);
     })
 }

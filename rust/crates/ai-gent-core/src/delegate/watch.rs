@@ -150,12 +150,6 @@ pub fn watch(dir: &Path) -> Res<()> {
     let code = run_agent(dir, &root, &track, &launch, &args, &mut tally);
     let ended = now_secs();
     let stopped = dir.join(files::STOPPED).exists();
-    let _ = status::atomic_write(
-        &dir.join(files::EXIT),
-        serde_json::to_string(&ExitRecord { code, ended })
-            .unwrap_or_default()
-            .as_bytes(),
-    );
     let _ = std::fs::remove_file(dir.join(files::PID));
     update(&root, &track, |s| {
         s.state = if stopped {
@@ -171,6 +165,12 @@ pub fn watch(dir: &Path) -> Res<()> {
     if let Ok(s) = status::read(&root, &track) {
         let _ = status::append_log(&root, &LogLine::from_status(&s, ended));
     }
+    let _ = status::atomic_write(
+        &dir.join(files::EXIT),
+        serde_json::to_string(&ExitRecord { code, ended })
+            .unwrap_or_default()
+            .as_bytes(),
+    );
     Ok(())
 }
 
