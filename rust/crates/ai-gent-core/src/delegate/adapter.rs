@@ -115,6 +115,10 @@ pub struct RunResult {
     pub state: State,
     /// The agent's exit code, once it ended.
     pub exit_code: Option<i32>,
+    /// The agent reported an error in its final report although it exited 0.
+    pub is_error: bool,
+    /// Why the run failed when `is_error` (for example `max-turns`).
+    pub reason: Option<String>,
     /// The agent's final message.
     pub message: Option<String>,
     /// Usage the agent reported.
@@ -188,6 +192,12 @@ pub struct ExitRecord {
     pub code: i32,
     /// Epoch seconds.
     pub ended: u64,
+    /// The agent exited 0 but reported `is_error: true` (Claude's final object).
+    #[serde(default)]
+    pub is_error: bool,
+    /// Why such a run failed (`max-turns`, ...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Launch `launch` in the background through the watcher (`watch_exe delegate _watch <dir>`).
@@ -428,6 +438,8 @@ pub fn track_result(root: &Path, track: &str) -> Res<RunResult> {
         track: track.to_string(),
         finished: exit.is_some(),
         state: s.state,
+        is_error: exit.as_ref().is_some_and(|e| e.is_error),
+        reason: exit.as_ref().and_then(|e| e.reason.clone()),
         exit_code: exit.map(|e| e.code),
         message,
         usage: s.tokens,

@@ -7,6 +7,7 @@
 use ai_gent_core::delegate::adapter::{Adapter, RunRequest};
 use ai_gent_core::delegate::brief::{self, BriefInput};
 use ai_gent_core::delegate::checks::{self, CheckInput};
+use ai_gent_core::delegate::claude::ClaudeAdapter;
 use ai_gent_core::delegate::codex::CodexAdapter;
 use ai_gent_core::delegate::schedule::{self, Pool};
 use ai_gent_core::delegate::sources;
@@ -40,6 +41,7 @@ pub struct DelegateArgs {
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum AgentId {
     Codex,
+    Claude,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -625,6 +627,7 @@ fn adapter_action(a: &DelegateArgs, json: bool, env: &Env) -> Result<Exit, Error
     let root = resolve_root(a)?;
     let ad: Box<dyn Adapter> = match a.agent {
         AgentId::Codex => Box::new(CodexAdapter::new(&root, env)),
+        AgentId::Claude => Box::new(ClaudeAdapter::new(&root, env)),
     };
     match &a.action {
         Action::Detect => {

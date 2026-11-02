@@ -11,12 +11,37 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 /// What one agent event adds up to.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct Tally {
     /// Events seen.
     pub events: u64,
     /// Usage from `turn.completed` events.
     pub usage: Option<Usage>,
+    /// The Claude final object (`type:"result"`), when seen.
+    pub result: Option<ClaudeResult>,
+}
+
+/// What the Claude final JSON object says.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClaudeResult {
+    /// `result`: the final message.
+    pub text: String,
+    /// `is_error`.
+    pub is_error: bool,
+    /// `subtype` (`error_max_turns`, ...), when present.
+    pub subtype: Option<String>,
+}
+
+impl ClaudeResult {
+    /// Why an `is_error` run failed: the subtype without `error_` (`max-turns`), else `error`.
+    #[must_use]
+    pub fn reason(&self) -> String {
+        self.subtype
+            .as_deref()
+            .map(|t| t.trim_start_matches("error_").replace('_', "-"))
+            .filter(|t| !t.is_empty() && t != "success")
+            .unwrap_or_else(|| "error".to_string())
+    }
 }
 
 impl Tally {
@@ -40,6 +65,21 @@ impl Tally {
                 reasoning_output_tokens: n("reasoning_output_tokens"),
             });
             self.usage = Some(total);
+        } else if v["type"] == "result" {
+            let u = &v["usage"];
+            let n = |k: &str| u[k].as_u64().unwrap_or(0);
+            let cached = n("cache_read_input_tokens");
+            self.usage = Some(Usage {
+                input_tokens: n("input_tokens") + cached,
+                cached_input_tokens: cached,
+                output_tokens: n("output_tokens"),
+                reasoning_output_tokens: 0,
+            });
+            self.result = Some(ClaudeResult {
+                text: v["result"].as_str().unwrap_or_default().to_string(),
+                is_error: v["is_error"] == true,
+                subtype: v["subtype"].as_str().map(str::to_string),
+            });
         }
         true
     }
@@ -150,11 +190,23 @@ pub fn watch(dir: &Path) -> Res<()> {
     let code = run_agent(dir, &root, &track, &launch, &args, &mut tally);
     let ended = now_secs();
     let stopped = dir.join(files::STOPPED).exists();
+    let claude = tally.result.clone();
+    if let Some(r) = &claude
+        && !r.text.trim().is_empty()
+        && !dir.join(files::LAST).exists()
+    {
+        let _ = std::fs::write(dir.join(files::LAST), &r.text);
+    }
+    let errored = claude.as_ref().is_some_and(|r| r.is_error);
+    let reason = claude
+        .as_ref()
+        .filter(|r| r.is_error)
+        .map(ClaudeResult::reason);
     let _ = std::fs::remove_file(dir.join(files::PID));
     update(&root, &track, |s| {
         s.state = if stopped {
             State::TakenBack
-        } else if code == 0 {
+        } else if code == 0 && !errored {
             State::Done
         } else {
             State::Failed
@@ -167,9 +219,14 @@ pub fn watch(dir: &Path) -> Res<()> {
     }
     let _ = status::atomic_write(
         &dir.join(files::EXIT),
-        serde_json::to_string(&ExitRecord { code, ended })
-            .unwrap_or_default()
-            .as_bytes(),
+        serde_json::to_string(&ExitRecord {
+            code,
+            ended,
+            is_error: errored,
+            reason,
+        })
+        .unwrap_or_default()
+        .as_bytes(),
     );
     Ok(())
 }
@@ -177,6 +234,28 @@ pub fn watch(dir: &Path) -> Res<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tally_reads_the_claude_result_object() {
+        let mut t = Tally::default();
+        assert!(t.line(
+            r#"{"type":"result","subtype":"error_max_turns","is_error":true,"result":"stopped","usage":{"input_tokens":200,"cache_read_input_tokens":800,"output_tokens":50}}"#
+        ));
+        assert_eq!(t.events, 1);
+        assert_eq!(
+            t.usage,
+            Some(Usage {
+                input_tokens: 1000,
+                cached_input_tokens: 800,
+                output_tokens: 50,
+                reasoning_output_tokens: 0
+            })
+        );
+        let r = t.result.unwrap();
+        assert!(r.is_error);
+        assert_eq!(r.reason(), "max-turns");
+        assert_eq!(r.text, "stopped");
+    }
 
     #[test]
     fn tally_counts_json_events_and_sums_usage() {
