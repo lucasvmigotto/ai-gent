@@ -579,5 +579,56 @@ class GuardReasons(unittest.TestCase):
         self.assertTrue(any("no entry" in p for p in problems), problems)
 
 
+class Tiers(unittest.TestCase):
+    SETUP = "AGENT_IDS=(claude codex cursor)\n"
+
+    def files(self, data):
+        return {"setup.sh": self.SETUP, "README.md": "x", "shared/tiers.json": json.dumps(data)}
+
+    def good(self):
+        cell = {"state": "yes", "reason": "r", "source": "README.md", "verified": True}
+        return {
+            "tiers": [
+                {"id": "t1", "agents": ["claude"]},
+                {"id": "t2", "agents": ["codex", "cursor"]},
+            ],
+            "states": ["yes", "unverified"],
+            "rows": [{"id": "a", "cells": {"t1": dict(cell), "t2": dict(cell)}}],
+        }
+
+    def test_clean(self):
+        self.assertEqual(consistency.check_tiers(tree(self.files(self.good()))), [])
+
+    def test_agent_missing_fails(self):
+        d = self.good()
+        d["tiers"][1]["agents"] = ["codex"]
+        self.assertTrue(any("cursor is in 0" in p for p in consistency.check_tiers(tree(self.files(d)))))
+
+    def test_agent_twice_fails(self):
+        d = self.good()
+        d["tiers"][0]["agents"] = ["claude", "codex"]
+        self.assertTrue(any("codex is in 2" in p for p in consistency.check_tiers(tree(self.files(d)))))
+
+    def test_cell_without_reason_fails(self):
+        d = self.good()
+        d["rows"][0]["cells"]["t1"]["reason"] = " "
+        self.assertTrue(any("no reason" in p for p in consistency.check_tiers(tree(self.files(d)))))
+
+    def test_unknown_state_and_missing_source_fail(self):
+        d = self.good()
+        d["rows"][0]["cells"]["t2"].update(state="maybe", source="nope.md")
+        problems = consistency.check_tiers(tree(self.files(d)))
+        self.assertTrue(any("state" in p for p in problems))
+        self.assertTrue(any("does not exist" in p for p in problems))
+
+    def test_unverified_must_not_claim_verified(self):
+        d = self.good()
+        d["rows"][0]["cells"]["t1"]["state"] = "unverified"
+        self.assertTrue(any("verified must be false" in p for p in consistency.check_tiers(tree(self.files(d)))))
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_tiers(consistency.ROOT), [])
+
+
 if __name__ == "__main__":
     unittest.main()

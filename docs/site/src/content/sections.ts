@@ -12,7 +12,10 @@
 // whose content is itself data-driven (e.g. flow's step list) and therefore
 // already shared without needing a Section — the id just keeps it in the
 // same ordered sequence as the rest of the page for both renderers.
+
+import type { TierMatrix } from "../content";
 import type { Messages } from "../i18n";
+import { installFacts } from "./install-facts";
 
 export interface DlItem {
 	term: string;
@@ -28,35 +31,74 @@ export type Section =
 	| { kind: "code"; code: string; label?: string }
 	| { kind: "entries"; items: DlItem[] }
 	| { kind: "list"; items: DlItem[] }
-	| { kind: "table"; headers: string[]; rows: string[][] }
+	| {
+			kind: "table";
+			headers: string[];
+			rows: string[][];
+			/** Makes the first cell of each row a row header (th scope=row) and
+			 *  names the table as a scrollable region. */
+			rowHeaders?: boolean;
+			label?: string;
+	  }
 	| { kind: "custom"; id: string };
 
-const INSTALL_CMD =
-	"curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh";
-const INSTALL_CMD_TARGETS =
-	"curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh -s -- --target claude,opencode,codex,cursor";
-const VERIFY_CMD =
-	"claude plugin details project@skills-dir\nopencode plugin list";
+const F = installFacts;
 
 export function installSections(t: Messages): Section[] {
+	const i = t.install;
 	return [
-		{ kind: "heading", level: 2, text: t.install.choose },
-		{ kind: "heading", level: 3, text: t.install.claude },
-		{ kind: "code", code: INSTALL_CMD },
-		{ kind: "paragraph", text: t.install.claudeBody },
-		{ kind: "heading", level: 3, text: t.install.others },
-		{ kind: "code", code: INSTALL_CMD_TARGETS },
-		{ kind: "paragraph", text: t.install.othersBody },
-		{ kind: "heading", level: 2, text: t.install.verify },
-		{ kind: "code", code: VERIFY_CMD },
-		{ kind: "heading", level: 2, text: t.install.updates },
-		{ kind: "paragraph", text: t.install.updatesBody },
-		{ kind: "heading", level: 2, text: t.install.firstSkill },
-		{ kind: "paragraph", text: t.install.firstSkillBody },
-		{ kind: "heading", level: 2, text: t.install.troubleshooting },
+		{ kind: "heading", level: 2, text: i.choose },
+		{ kind: "paragraph", text: i.chooseBody },
+		{ kind: "heading", level: 3, text: i.claude },
+		{ kind: "code", code: F.install.command },
+		{ kind: "paragraph", text: i.claudeBody },
+		{ kind: "heading", level: 3, text: i.others },
+		{ kind: "code", code: F.targets.command },
+		{ kind: "paragraph", text: i.othersBody },
+		{ kind: "paragraph", text: i.inspect },
+		{ kind: "code", code: F.inspect.command },
+		{ kind: "heading", level: 2, text: i.os },
+		{ kind: "heading", level: 3, text: i.osUnix },
+		{ kind: "paragraph", text: i.osUnixBody },
+		{ kind: "heading", level: 3, text: i.osWindows },
+		{ kind: "paragraph", text: i.osWindowsBody },
+		{ kind: "heading", level: 2, text: i.pin },
+		{ kind: "paragraph", text: i.pinBody },
+		{ kind: "code", code: F.pin.command },
+		{ kind: "paragraph", text: i.unpinBody },
+		{ kind: "code", code: F.unpin.command },
+		{ kind: "heading", level: 2, text: i.verify },
+		{ kind: "paragraph", text: i.verifyBody },
+		{ kind: "paragraph", text: i.attestationBody },
+		{ kind: "code", code: F.verifyAttestation.command },
+		{ kind: "paragraph", text: i.attestationManual },
+		{ kind: "code", code: F.verifyManual.command },
+		{ kind: "paragraph", text: i.verifyInstalled },
+		{ kind: "code", code: F.verifyClaude.command },
+		{ kind: "heading", level: 2, text: i.updates },
+		{ kind: "paragraph", text: i.updatesBody },
+		{ kind: "paragraph", text: i.rollbackBody },
+		{
+			kind: "code",
+			code: [F.list, F.rollback, F.prune].map((f) => f.command).join("\n"),
+		},
+		{ kind: "heading", level: 2, text: i.afterInstall },
+		{ kind: "paragraph", text: i.afterInstallBody },
+		{
+			kind: "code",
+			code: [F.doctor, F.updateCheck, F.update, F.updateRollback]
+				.map((f) => f.command)
+				.join("\n"),
+		},
+		{ kind: "heading", level: 2, text: i.migrate },
+		{ kind: "paragraph", text: i.migrateBody },
+		{ kind: "code", code: F.migrate.command },
+		{ kind: "heading", level: 2, text: i.firstSkill },
+		{ kind: "paragraph", text: i.firstSkillBody },
+		{ kind: "heading", level: 2, text: i.troubleshooting },
 		{
 			kind: "entries",
-			items: t.install.troubleshootingItems.map((item) => ({
+			items: i.troubleshootingItems.map((item) => ({
 				term: item.problem,
 				body: item.fix,
 				code: item.command,
@@ -84,6 +126,43 @@ export function contributeSections(
 			kind: "table",
 			headers: ["plugin", "version"],
 			rows: plugins.map((p) => [p.name, p.version]),
+		},
+	];
+}
+
+export function compatSections(t: Messages, matrix: TierMatrix): Section[] {
+	const c = t.compat;
+	return [
+		{ kind: "heading", level: 2, text: c.matrix },
+		{ kind: "paragraph", text: c.legend },
+		{
+			kind: "table",
+			rowHeaders: true,
+			label: c.matrixLabel,
+			headers: [
+				c.feature,
+				...matrix.tiers.map(
+					(tier) => `${tier.label} (${tier.agents.join(", ")})`,
+				),
+			],
+			rows: matrix.rows.map((row) => [
+				row.feature,
+				...matrix.tiers.map((tier) => {
+					const cell = row.cells[tier.id];
+					if (!cell) return "";
+					const s = c.states[cell.state];
+					return `${s.symbol} ${s.label}: ${cell.reason}`;
+				}),
+			]),
+		},
+		{ kind: "heading", level: 2, text: c.tiers },
+		{ kind: "paragraph", text: c.tiersBody },
+		{
+			kind: "list",
+			items: matrix.tiers.map((tier) => ({
+				term: `${tier.label}: ${tier.agents.join(", ")}`,
+				body: tier.policy,
+			})),
 		},
 	];
 }

@@ -13,7 +13,7 @@ import {
 	command,
 	plugins,
 	type SkillInfo,
-	searchSkills,
+	search,
 	skills,
 	sourceUrl,
 	version,
@@ -21,6 +21,7 @@ import {
 } from "./content";
 import { type Section, sectionKey } from "./content/sections";
 import { LOCALES, type Locale, useI18n } from "./i18n";
+import type { SearchEntry } from "./search";
 
 // react-markdown is heavy; load it only on pages that render Markdown.
 const LazyMarkdown = lazy(() => import("./Markdown"));
@@ -146,6 +147,9 @@ function TopBar() {
 					<NavLink to="/use/flow" className={navClass}>
 						{t.nav.flow}
 					</NavLink>
+					<NavLink to="/use/compatibility" className={navClass}>
+						{t.nav.compatibility}
+					</NavLink>
 					<NavLink to="/contribute" className={navClass}>
 						{t.nav.contribute}
 					</NavLink>
@@ -184,6 +188,9 @@ function TopBar() {
 					</Link>
 					<Link to="/use/flow" onClick={() => setOpen(false)}>
 						{t.nav.flow}
+					</Link>
+					<Link to="/use/compatibility" onClick={() => setOpen(false)}>
+						{t.nav.compatibility}
 					</Link>
 					<Link to="/contribute" onClick={() => setOpen(false)}>
 						{t.nav.contribute}
@@ -312,13 +319,15 @@ function renderSection(s: Section): ReactNode {
 					))}
 				</dl>
 			);
-		case "table":
-			return (
-				<table className="mt-2 w-full max-w-xl text-left text-sm">
+		case "table": {
+			const table = (
+				<table
+					className={`mt-2 w-full text-left text-sm ${s.rowHeaders ? "min-w-[40rem]" : "max-w-xl"}`}
+				>
 					<thead>
 						<tr className="border-b border-muted/30">
 							{s.headers.map((h) => (
-								<th key={h} scope="col" className="py-1">
+								<th key={h} scope="col" className="py-1 pr-3 align-bottom">
 									{h}
 								</th>
 							))}
@@ -326,20 +335,48 @@ function renderSection(s: Section): ReactNode {
 					</thead>
 					<tbody>
 						{s.rows.map((row) => (
-							<tr key={row.join("|")} className="border-b border-muted/15">
-								{row.map((cell, ci) => (
-									<td
-										key={`${row.join("|")}:${s.headers[ci]}`}
-										className={ci === 0 ? "py-1 font-code" : "py-1"}
-									>
-										{cell}
-									</td>
-								))}
+							<tr
+								key={row.join("|")}
+								className="border-b border-muted/15 align-top"
+							>
+								{row.map((cell, ci) =>
+									ci === 0 && s.rowHeaders ? (
+										<th
+											key={`${row.join("|")}:${s.headers[ci]}`}
+											scope="row"
+											className="py-2 pr-3 font-medium"
+										>
+											{cell}
+										</th>
+									) : (
+										<td
+											key={`${row.join("|")}:${s.headers[ci]}`}
+											className={ci === 0 ? "py-1 pr-3 font-code" : "py-2 pr-3"}
+										>
+											{cell}
+										</td>
+									),
+								)}
 							</tr>
 						))}
 					</tbody>
 				</table>
 			);
+			// A wide table scrolls inside its own focusable, named region so the
+			// page never scrolls sideways at 320 px.
+			return s.label ? (
+				<section
+					aria-label={s.label}
+					// biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users must be able to scroll the region
+					tabIndex={0}
+					className="mt-2 overflow-x-auto"
+				>
+					{table}
+				</section>
+			) : (
+				table
+			);
+		}
 		case "custom":
 			// Data-driven blocks (e.g. flow's steps) are rendered by the page
 			// itself, keyed by id — nothing generic to do here.
@@ -379,6 +416,18 @@ export function SkillRow({ skill }: { skill: SkillInfo }) {
 	);
 }
 
+function resultTitle(e: SearchEntry): string {
+	return e.kind === "skill" ? (e.command ?? e.title) : e.title;
+}
+
+function resultDetail(e: SearchEntry): string {
+	if (e.kind === "skill") return e.text.split(". ")[0] ?? e.text;
+	return e.kind === "heading" ? e.text : (e.text.split(". ")[0] ?? e.text);
+}
+
+// A WAI-ARIA combobox with a listbox popup: the input keeps focus and points
+// at the active option with aria-activedescendant; arrows move, Enter opens,
+// Escape clears. The count goes to a polite live region.
 export function SearchBox({
 	query,
 	onQuery,
@@ -387,8 +436,13 @@ export function SearchBox({
 	onQuery: (q: string) => void;
 }) {
 	const { t } = useI18n();
+	const navigate = useNavigate();
 	const inputRef = useRef<HTMLInputElement>(null);
-	const results = searchSkills(query);
+	const listId = useId();
+	const results = search(query);
+	const [active, setActive] = useState(-1);
+	const open = query.trim() !== "" && results.length > 0;
+	const activeId = open && active >= 0 ? `${listId}-${active}` : undefined;
 
 	// "/" focuses search, the vision's keyboard trigger (ignored while typing).
 	useEffect(() => {
@@ -408,35 +462,95 @@ export function SearchBox({
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
 
+	function onInputKey(e: React.KeyboardEvent<HTMLInputElement>) {
+		if (e.key === "ArrowDown" && open) {
+			e.preventDefault();
+			setActive((active + 1) % results.length);
+		} else if (e.key === "ArrowUp" && open) {
+			e.preventDefault();
+			setActive(active <= 0 ? results.length - 1 : active - 1);
+		} else if (e.key === "Enter" && open) {
+			const hit = results[Math.max(active, 0)];
+			if (hit) {
+				e.preventDefault();
+				navigate(hit.url);
+			}
+		} else if (e.key === "Escape" && query) {
+			e.preventDefault();
+			onQuery("");
+			setActive(-1);
+		}
+	}
+
 	return (
 		<div>
 			<label className="block">
 				<span className="sr-only">{t.nav.searchLabel}</span>
 				<input
 					ref={inputRef}
-					type="search"
+					type="text"
+					role="combobox"
+					aria-expanded={open}
+					aria-controls={listId}
+					aria-autocomplete="list"
+					aria-activedescendant={activeId}
+					autoComplete="off"
+					spellCheck={false}
 					value={query}
-					onChange={(e) => onQuery(e.target.value)}
+					onChange={(e) => {
+						onQuery(e.target.value);
+						setActive(-1);
+					}}
+					onKeyDown={onInputKey}
 					placeholder={t.landing.placeholder}
 					className="w-full rounded-[0.375rem] border border-muted/40 bg-surface px-3 py-2 text-base"
 				/>
 			</label>
 			<p aria-live="polite" className="mt-2 text-sm text-muted">
-				{query ? t.search.results(results.length) : ""}
+				{query.trim() ? t.search.results(results.length) : ""}
 			</p>
-			{query && results.length === 0 && (
+			{query.trim() !== "" && results.length === 0 && (
 				<div className="mt-2 text-sm">
 					<p className="font-medium">{t.search.emptyTitle(query)}</p>
 					<p className="text-muted">{t.search.emptyBody}</p>
 				</div>
 			)}
-			{query && results.length > 0 && (
-				<ul className="mt-2">
-					{results.map((s) => (
-						<SkillRow key={s.id} skill={s} />
+			<div
+				id={listId}
+				role="listbox"
+				aria-label={t.search.listLabel}
+				hidden={!open}
+				className="mt-2"
+			>
+				{open &&
+					results.map((e, i) => (
+						// biome-ignore lint/a11y/useKeyWithClickEvents: keyboard use goes through the combobox input (arrows, Enter)
+						<div
+							key={`${e.kind}:${e.id}`}
+							id={`${listId}-${i}`}
+							role="option"
+							aria-selected={i === active}
+							tabIndex={-1}
+							onClick={() => navigate(e.url)}
+							onMouseMove={() => i !== active && setActive(i)}
+							className={`flex cursor-pointer flex-col gap-1 border-t border-muted/15 px-1 py-3 hover:bg-surface ${i === active ? "bg-surface outline outline-2 -outline-offset-2 outline-signal" : ""}`}
+						>
+							<span className="flex flex-wrap items-baseline gap-2">
+								<span
+									className={`text-sm text-signal ${e.kind === "skill" ? "font-code" : ""}`}
+								>
+									{resultTitle(e)}
+								</span>
+								{e.kind !== "skill" && (
+									<span className="text-xs text-muted">
+										{t.search.kinds[e.kind]}
+									</span>
+								)}
+							</span>
+							<span className="text-sm text-muted">{resultDetail(e)}</span>
+						</div>
 					))}
-				</ul>
-			)}
+			</div>
 		</div>
 	);
 }
@@ -454,7 +568,7 @@ export function SkillIndex({ plugin }: { plugin?: string }) {
 				<section key={p.name} aria-labelledby={`plugin-${p.name}`}>
 					<h3 id={`plugin-${p.name}`} className="font-display text-lg">
 						{p.name}{" "}
-						<span className="font-code text-xs text-muted">v{p.version}</span>
+						<span className="font-code text-xs text-muted">{p.version}</span>
 					</h3>
 					<ul>
 						{list.map((s) => (

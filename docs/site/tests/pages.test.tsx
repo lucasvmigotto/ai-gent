@@ -1,11 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { axe } from "jest-axe";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
-import { changelogVersions, skillById } from "../src/content";
+import { changelogVersions, skillById, tierMatrix } from "../src/content";
 import { enUS, I18nProvider } from "../src/i18n";
 import {
 	ChangelogPage,
+	CompatibilityPage,
 	FlowPage,
 	InstallPage,
 	LandingPage,
@@ -43,6 +46,15 @@ describe("pages", () => {
 		).toBeInTheDocument();
 	});
 
+	it("has no accessibility violations on the landing page with search results open", async () => {
+		const { container } = renderPage(<LandingPage />);
+		fireEvent.change(screen.getByRole("combobox"), {
+			target: { value: "instal" },
+		});
+		const results = await axe(container);
+		expect(results.violations).toEqual([]);
+	});
+
 	it("has no accessibility violations on the landing page", async () => {
 		const { container } = renderPage(<LandingPage />);
 		const results = await axe(container);
@@ -57,6 +69,88 @@ describe("pages", () => {
 		for (const item of enUS.install.troubleshootingItems) {
 			expect(screen.getByText(item.problem)).toBeInTheDocument();
 		}
+	});
+
+	it("shows the install sections in the planned order", () => {
+		renderPage(<InstallPage />);
+		const i = enUS.install;
+		const shown = screen
+			.getAllByRole("heading", { level: 2 })
+			.map((h) => h.textContent);
+		expect(shown).toEqual([
+			i.choose,
+			i.os,
+			i.pin,
+			i.verify,
+			i.updates,
+			i.afterInstall,
+			i.migrate,
+			i.firstSkill,
+			i.troubleshooting,
+		]);
+	});
+
+	it("troubleshoots the missing binary, gh, the pin and the old clone", () => {
+		const problems = enUS.install.troubleshootingItems.map((x) => x.problem);
+		for (const word of [
+			/command not found/,
+			/gh is not installed/,
+			/pinned/,
+			/old clone/,
+		])
+			expect(problems.some((p) => word.test(p))).toBe(true);
+	});
+
+	it("has no accessibility violations on the install page", async () => {
+		const { container } = renderPage(<InstallPage />);
+		const results = await axe(container);
+		expect(results.violations).toEqual([]);
+	});
+
+	it("renders the compatibility matrix with row and column headers", () => {
+		renderPage(<CompatibilityPage />);
+		const table = screen.getByRole("table");
+		expect(within(table).getAllByRole("columnheader").length).toBe(
+			1 + tierMatrix.tiers.length,
+		);
+		expect(within(table).getAllByRole("rowheader").length).toBe(
+			tierMatrix.rows.length,
+		);
+		for (const th of within(table).getAllByRole("columnheader"))
+			expect(th).toHaveAttribute("scope", "col");
+		for (const th of within(table).getAllByRole("rowheader"))
+			expect(th).toHaveAttribute("scope", "row");
+	});
+
+	it("never shows a state by colour alone: every cell has a symbol and a word", () => {
+		renderPage(<CompatibilityPage />);
+		const table = screen.getByRole("table");
+		const words = Object.values(enUS.compat.states).map(
+			(s) => `${s.symbol} ${s.label}:`,
+		);
+		for (const cell of within(table).getAllByRole("cell"))
+			expect(words.some((w) => cell.textContent?.startsWith(w))).toBe(true);
+	});
+
+	it("lists every setup.sh agent under exactly one tier", () => {
+		const setup = readFileSync(
+			join(import.meta.dirname, "../../../setup.sh"),
+			"utf8",
+		);
+		const ids = /^AGENT_IDS=\(([^)]*)\)/m.exec(setup)?.[1]?.split(/\s+/) ?? [];
+		expect(ids.length).toBe(9);
+		const listed = tierMatrix.tiers.flatMap((t) => t.agents);
+		for (const id of ids)
+			expect(listed.filter((a) => a === id)).toHaveLength(1);
+		expect(listed.length).toBe(ids.length);
+		renderPage(<CompatibilityPage />);
+		for (const id of ids) expect(document.body.textContent).toContain(id);
+	});
+
+	it("has no accessibility violations on the compatibility page", async () => {
+		const { container } = renderPage(<CompatibilityPage />);
+		const results = await axe(container);
+		expect(results.violations).toEqual([]);
 	});
 
 	it("renders the autonomous flow with every step and a link per skill", () => {
