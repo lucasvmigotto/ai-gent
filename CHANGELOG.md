@@ -4,6 +4,12 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Added
+
+- **agents:** `delegate` skill: offer other code agents (Codex first) bounded tasks, supervise them through `ai-gent delegate`, require a cross-agent review and take work back (spec 041 T020)
+
 ## 2.27.0 — 2026-11-01
 
 ### Added
