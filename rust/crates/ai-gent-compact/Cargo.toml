@@ -1,0 +1,25 @@
+[package]
+name = "ai-gent-compact"
+version = "0.1.0"
+description = "Token-lean source code reader of ai-gent: compact views and outlines (placeholder, not yet functional)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+keywords = ["ai-agent", "claude-code", "tokens", "source-code"]
+categories = ["command-line-utilities", "development-tools"]
+include = ["/src/**", "/README.md"]
+
+[lib]
+name = "ai_gent_compact"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ai-gent-compact"
+path = "src/main.rs"
+
+[lints]
+workspace = true

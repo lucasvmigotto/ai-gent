@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/ai-gent-core", "crates/ai-gent"]
+members = ["crates/ai-gent-core", "crates/ai-gent-compact", "crates/ai-gent"]
 exclude = ["spikes"]
 
 [workspace.package]
