@@ -78,4 +78,17 @@ pub enum GuardAction {
         #[arg(long)]
         guard: Option<String>,
     },
+    /// Evaluate the shell commands in Claude Code transcripts; counts and hashes only.
+    Replay {
+        /// Directory of transcript `.jsonl` files (default `~/.claude/projects`).
+        #[arg(long)]
+        transcripts: Option<std::path::PathBuf>,
+        /// Only this guard.
+        #[arg(long)]
+        guard: Option<String>,
+        /// The `plugins/` directory: also run each plugin's `hooks/guard.sh` and list the
+        /// commands (by hash) the two decide differently. Unix only.
+        #[arg(long)]
+        oracle: Option<std::path::PathBuf>,
+    },
 }

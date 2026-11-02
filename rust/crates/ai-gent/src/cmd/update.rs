@@ -86,9 +86,15 @@ fn run_check(root: &InstallRoot, env: &Env, exe: &std::path::Path, json: bool) -
         let d = check::decide(root, env, std::path::Path::new(""), 0);
         return emit_check(&d.report, json);
     };
-    let mut d = check::decide(root, env, &cache::path_in(&dir), check::now_secs());
+    let file = cache::path_in(&dir);
+    let now = check::now_secs();
+    let mut d = check::decide(root, env, &file, now);
     if d.refresh {
         d.report.checking = check::spawn_refresh(exe);
+    }
+    if !json {
+        // The hook path: at most one notice a day.
+        d.report.notice = check::cap_notice(&d.report, &file, now);
     }
     emit_check(&d.report, json)
 }

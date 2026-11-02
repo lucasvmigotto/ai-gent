@@ -88,12 +88,12 @@ fn null_device() -> &'static str {
 /// Run `cmd` with stdin and stderr closed, return its stdout, kill it after `limit`.
 fn run_bounded(cmd: &mut Command, limit: Duration) -> Result<Vec<u8>, String> {
     use std::io::Read;
-    let mut child = cmd
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .stdout(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("cannot run curl: {e}"))?;
+    let mut child = crate::exec::spawn_retry(
+        cmd.stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .stdout(Stdio::piped()),
+    )
+    .map_err(|e| format!("cannot run curl: {e}"))?;
     let mut stdout = child.stdout.take().ok_or("no stdout")?;
     let reader = std::thread::spawn(move || {
         let mut buf = Vec::new();

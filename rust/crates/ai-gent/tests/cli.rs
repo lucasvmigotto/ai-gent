@@ -254,3 +254,63 @@ fn guard_shadow_report_exits_1_on_an_unexplained_disagreement() {
     assert_eq!(v["data"]["guards"]["git"]["disagree"], 1);
     assert_eq!(v["data"]["disagreements"].as_array().unwrap().len(), 1);
 }
+
+// Spec 033 T043: `guard replay` over a synthetic transcript tree, with the real shell guards as oracle.
+#[cfg(unix)]
+#[test]
+fn guard_replay_counts_and_compares_with_the_shell_guards() {
+    let d = tempfile::tempdir().unwrap();
+    let proj = d.path().join("proj");
+    std::fs::create_dir_all(&proj).unwrap();
+    let mk = |c: &str| {
+        serde_json::json!({"type":"assistant","cwd":"/nonexistent","message":{"content":[
+            {"type":"tool_use","name":"Bash","input":{"command":c}}]}})
+        .to_string()
+    };
+    let text = [
+        mk("echo hello"),
+        mk("psql -c 'drop table t'"),
+        mk("pass show ai-gent/github/pat"),
+    ]
+    .join("\n");
+    std::fs::write(proj.join("s.jsonl"), text).unwrap();
+    let plugins = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../plugins");
+    if !plugins.is_dir() {
+        return; // a published crate has no plugins/
+    }
+    let out = assert_cmd::Command::cargo_bin("ai-gent")
+        .unwrap()
+        .args(["--json", "guard", "replay", "--transcripts"])
+        .arg(d.path())
+        .arg("--oracle")
+        .arg(&plugins)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let out = String::from_utf8(out).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["data"]["commands"], 3);
+    assert_eq!(v["data"]["files"], 1);
+    assert!(v["data"]["guards"]["db"]["deny"].as_u64().unwrap() >= 1);
+    assert_eq!(v["data"]["guards"]["db"]["compared"], 3);
+    assert!(v["data"]["differences"].as_array().unwrap().is_empty());
+    assert!(
+        !out.contains("psql") && !out.contains("hello"),
+        "never prints a command"
+    );
+}
+
+#[test]
+fn guard_replay_rejects_a_missing_directory_and_an_unknown_guard() {
+    let bin = || assert_cmd::Command::cargo_bin("ai-gent").unwrap();
+    bin()
+        .args(["guard", "replay", "--transcripts", "/definitely/not/here"])
+        .assert()
+        .failure();
+    bin()
+        .args(["guard", "replay", "--guard", "nope", "--transcripts", "."])
+        .assert()
+        .code(2);
+}
