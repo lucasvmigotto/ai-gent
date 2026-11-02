@@ -214,10 +214,10 @@ creates the draft Release (and tags it), three jobs follow:
      `Cargo.*`, `target/` or fixture corpus, so only the binary ships. The
      `aarch64-pc-windows-msvc` leg may fail before the 3.0.0 gate: its
      archive is then skipped with a warning;
-  3. attests every archive and `install.sh` with
+  3. attests every archive, `install.sh` and `install.ps1` with
      `actions/attest-build-provenance` (pinned by commit SHA; `SHA256SUMS`
      proves integrity only and is not attested);
-  4. uploads the archives, `SHA256SUMS` and `install.sh`, replaces the draft's
+  4. uploads the archives, `SHA256SUMS`, `install.sh` and `install.ps1`, replaces the draft's
      notes with the changelog section plus the `## Checksums` block, and only
      then publishes the Release (`--draft=false --latest`), so
      `releases/latest`, which the installer and `update-check.sh` read, never
@@ -237,6 +237,15 @@ creates the draft Release (and tags it), three jobs follow:
 verifies and installs that archive, and for a 2.x release that has no
 archive for the triple installs the content-only package with a notice.
 `setup.sh` links `~/.local/bin/ai-gent` to `current/bin/ai-gent`.
+
+`install.ps1` is the native Windows installer (D24), the same steps in
+PowerShell (junctions for `current` and `previous`, the user `PATH` entry
+`<root>\current\bin`); both Windows zips carry it and `setup.ps1`, no other
+archive does. It is checked on Windows PowerShell 5.1 and PowerShell 7, x64
+and arm64, by the `windows` job of `check.yml` (`scripts/test-install-ps1.ps1`).
+Keep both scripts ASCII (`check.sh` enforces it): a download piped to `iex` is
+decoded as Latin-1 by Windows PowerShell 5.1. WSL or Git Bash with `install.sh`
+stays the documented alternative (`specs/032-rust-workspace-and-release/windows-setup.md`).
 
 `rust.yml` rehearses all of this on pull requests that touch Rust or the
 packaging (and on demand): it runs the same `package-release.sh`, installs

@@ -2,7 +2,7 @@
 """Build the ai-gent release package (stdlib only).
 
   scripts/package.py --version 2.26.0 [--out dist]   build dist/ai-gent-<ver>.tar.gz,
-                                                     dist/install.sh, dist/SHA256SUMS and dist/LATEST
+                                                     dist/install.sh, dist/install.ps1, dist/SHA256SUMS and dist/LATEST
   scripts/package.py --version 2.27.0 --target <triple> --binary <path> [--out dist]
                                                      build dist/ai-gent-<ver>-<triple>.tar.gz (.zip for
                                                      *-windows-msvc): the package plus bin/ai-gent[.exe];
@@ -17,7 +17,7 @@ The package is an ALLOWLIST of the repository, keeping its relative layout so
 the relative symlinks (plugins/<n>/references/* -> ../../../shared/*) still
 resolve: plugins/ without dev-only files, the shared/ files those symlinks
 reach, opencode/guard, setup.sh, install.sh, the update scripts, LICENSE,
-README.md, VERSION and MANIFEST (sha256 of every file, `sha256sum -c` format).
+README.md, VERSION and MANIFEST (plus setup.ps1 and install.ps1 in the Windows zips only) (sha256 of every file, `sha256sum -c` format).
 
 It refuses to build when a symlink would dangle, be absolute or leave the
 package, and when a Rust source, Cargo file, target/ directory or fixture
@@ -65,6 +65,10 @@ ROOT_FILES = [
     "scripts/opencode-config.py",  # setup.sh edits opencode.json with it
 ]
 TREES = ["plugins", "opencode/guard"]
+# Only in the *-windows-msvc archives: install.ps1 runs the package's setup.ps1, and `ai-gent update` and
+# the rollback run the installed release's install.ps1 (spec 032 D24).
+# Keeping it out of the others leaves the content-only and Unix archives byte-identical.
+WINDOWS_ONLY_FILES = ["setup.ps1", "install.ps1"]
 
 # Dev-only: never shipped. Directory names are matched anywhere in a tree.
 DEV_DIRS = {"evals", "results", "tests", "test", "__pycache__", "node_modules", ".git", ".ai-gent", ".worktrees"}
@@ -203,8 +207,8 @@ def sha256_of(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def write_sums(out_dir, name, digest, installer, version):
-    """Add `name` to out_dir/SHA256SUMS: archives sorted, install.sh last.
+def write_sums(out_dir, name, digest, installer, installer_ps1, version):
+    """Add `name` to out_dir/SHA256SUMS: archives sorted, then install.sh and install.ps1.
 
     One directory collects the content-only archive and every per-triple one
     (a release runs this script once for each), so existing lines are kept.
@@ -215,13 +219,14 @@ def write_sums(out_dir, name, digest, installer, version):
         with open(path) as fh:
             for line in fh:
                 d, _, n = line.rstrip("\n").partition("  ")
-                if n and n != "install.sh" and re.match(rf"ai-gent-{re.escape(version)}(-|\.tar\.gz$)", n):
+                if n and n not in ("install.sh", "install.ps1") and re.match(rf"ai-gent-{re.escape(version)}(-|\.tar\.gz$)", n):
                     sums[n] = d  # lines of another version are stale
     sums[name] = digest
     with open(path, "w") as fh:
         for n in sorted(sums):
             fh.write(f"{sums[n]}  {n}\n")
         fh.write(f"{installer}  install.sh\n")
+        fh.write(f"{installer_ps1}  install.ps1\n")
 
 
 def build(version, out_dir, target=None, binary=None):
@@ -238,6 +243,11 @@ def build(version, out_dir, target=None, binary=None):
     if target is not None and target not in TARGETS:
         raise PackageError(f"unknown target {target!r}; supported: {', '.join(TARGETS)}")
     members = collect(version)
+    if is_windows(target):
+        for rel in WINDOWS_ONLY_FILES:
+            if not os.path.isfile(os.path.join(ROOT, rel)):
+                raise PackageError(f"{rel}: missing")
+            members[rel] = ("file", os.path.join(ROOT, rel))
     for rel in members:
         if is_rust_artifact(rel):
             raise PackageError(f"{rel}: Rust sources, Cargo files and target/ are never packaged")
@@ -328,11 +338,15 @@ def build(version, out_dir, target=None, binary=None):
     os.replace(tmp, final)
     with open(final, "rb") as fh:
         digest = sha256_of(fh.read())
-    # install.sh is released beside the archives (curl | sh); its checksum is listed too.
-    shutil.copyfile(os.path.join(ROOT, "install.sh"), os.path.join(out_dir, "install.sh"))
-    with open(os.path.join(ROOT, "install.sh"), "rb") as fh:
-        installer = sha256_of(fh.read())
-    write_sums(out_dir, name, digest, installer, version)
+    # install.sh and install.ps1 are released beside the archives (curl | sh, irm | iex); their checksums are listed too.
+    sums = []
+    for script in ("install.sh", "install.ps1"):
+        if not os.path.isfile(os.path.join(ROOT, script)):
+            raise PackageError(f"{script}: missing")
+        shutil.copyfile(os.path.join(ROOT, script), os.path.join(out_dir, script))
+        with open(os.path.join(ROOT, script), "rb") as fh:
+            sums.append(sha256_of(fh.read()))
+    write_sums(out_dir, name, digest, sums[0], sums[1], version)
     with open(os.path.join(out_dir, "LATEST"), "w") as fh:  # for mirrors (AI_GENT_RELEASE_BASE)
         fh.write(version_txt)
     return final, len(entries)
@@ -416,6 +430,11 @@ def verify(archive, target=None):
         for path in names:
             if re.match(r"(scripts/(release|consistency|run-evals|check)\.|\.github/|docs/|specs/)", path):
                 problems.append(f"{path}: repo-maintenance file in the package")
+        for path in WINDOWS_ONLY_FILES:
+            if is_windows(target) and path not in names:
+                problems.append(f"{path}: missing from the Windows archive")
+            elif not is_windows(target) and path in names:
+                problems.append(f"{path}: only the Windows archives carry it")
         bins = sorted(p for p in names if p.startswith("bin/"))
         if target:
             want = "bin/ai-gent" + (".exe" if is_windows(target) else "")
