@@ -491,6 +491,14 @@ else
   fail "package install tests"
 fi
 
+if ((QUICK)); then
+  warn "--quick: skipped migration tests"
+elif scripts/test-migrate.sh; then
+  pass "migration tests"
+else
+  fail "migration tests"
+fi
+
 # ------------------------------------------------------ update-check tests
 
 if ((QUICK)); then
