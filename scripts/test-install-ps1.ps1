@@ -37,14 +37,17 @@ function Find-Python {
     $cmd = Get-Command $c -ErrorAction SilentlyContinue
     if ($cmd) {
       & $cmd.Source -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' 2>$null
-      if ($LASTEXITCODE -eq 0) { return @($cmd.Source) }
+      if ($LASTEXITCODE -eq 0) { return ,@($cmd.Source) }
     }
   }
   $py = Get-Command py -ErrorAction SilentlyContinue
-  if ($py) { return @($py.Source, '-3') }
+  if ($py) { return ,@($py.Source, '-3') }
   throw 'no python found (python3, python or py -3)'
 }
-$Python = Find-Python
+$PyFound = @(Find-Python)
+$PyExe = $PyFound[0]
+$PyPre = @($PyFound | Select-Object -Skip 1)
+function Invoke-Py([string[]]$PyArgs) { return (& $PyExe @PyPre @PyArgs 2>&1) }
 
 function Quote-Arg([string]$Arg) {
   if ($Arg -ne '' -and $Arg -notmatch '[\s"]') { return $Arg }
@@ -123,7 +126,7 @@ function Build-Release([string]$Ver) {
   $dir = Join-Path $Rel $Ver
   New-Item -ItemType Directory -Path $dir -Force | Out-Null
   foreach ($t in $Triples) {
-    $out = & $Python[0] @($Python[1..($Python.Count)] | Where-Object { $_ }) (Join-Path $Repo 'scripts\package.py') --version $Ver --out $dir --target $t --binary $Stub 2>&1
+    $out = Invoke-Py @((Join-Path $Repo 'scripts\package.py'), '--version', $Ver, '--out', $dir, '--target', $t, '--binary', $Stub)
     if ($LASTEXITCODE -ne 0) { throw "package.py failed for $Ver $t : $out" }
   }
 }
@@ -261,7 +264,7 @@ try {
     $zip = Join-Path $dir 'ai-gent-9.9.4-x86_64-pc-windows-msvc.zip'
     $py = Join-Path $Sandbox 'evilzip.py'
     [IO.File]::WriteAllText($py, "import sys, zipfile`nwith zipfile.ZipFile(sys.argv[1], 'w') as z:`n    z.writestr('ai-gent-9.9.4-x86_64-pc-windows-msvc/VERSION', '9.9.4\n')`n    z.writestr('ai-gent-9.9.4-x86_64-pc-windows-msvc/../evil.txt', 'x')`n")
-    & $Python[0] @($Python[1..($Python.Count)] | Where-Object { $_ }) $py $zip
+    [void](Invoke-Py @($py, $zip))
     [IO.File]::WriteAllText((Join-Path $dir 'SHA256SUMS'), ((Sha $zip) + '  ai-gent-9.9.4-x86_64-pc-windows-msvc.zip' + "`n"))
     $env:AI_GENT_TARGET = 'x86_64-pc-windows-msvc'
     $r = Install @('-Version', '9.9.4', '-SkipPrompt')
