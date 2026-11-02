@@ -1,0 +1,46 @@
+{
+ "name": "api-missing-entry",
+ "derived_from": "ApiTest::test_missing_entry",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "gitlab",
+    "GET",
+    "/projects"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [
+    "pass insert -m ai-gent/gitlab/pat"
+   ],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/x",
+    "--entry",
+    "ai-gent/github/other"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [
+    "pass insert -m ai-gent/github/other"
+   ],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

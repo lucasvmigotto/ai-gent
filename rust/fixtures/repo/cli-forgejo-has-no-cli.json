@@ -1,0 +1,45 @@
+{
+ "name": "cli-forgejo-has-no-cli",
+ "derived_from": "ApiTest::test_forgejo_has_no_cli",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {
+  "gh": {
+   "rules": []
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "cli",
+    "forgejo",
+    "--",
+    "issue",
+    "list"
+   ],
+   "stdin": null,
+   "exit": 2,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "cli",
+    "bitbucket",
+    "--",
+    "x"
+   ],
+   "stdin": null,
+   "exit": 2,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

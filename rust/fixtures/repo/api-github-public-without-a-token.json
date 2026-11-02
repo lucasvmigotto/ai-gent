@@ -1,0 +1,36 @@
+{
+ "name": "api-github-public-without-a-token",
+ "derived_from": "reporun.api_call (github needs no entry)",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/repos/o/r"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/repos/o/r",
+     "headers": {
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

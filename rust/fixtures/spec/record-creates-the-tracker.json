@@ -1,0 +1,50 @@
+{
+ "name": "record-creates-the-tracker",
+ "derived_from": "SpecsyncTest::test_tracker_round_trip_and_actions",
+ "files": {
+  "work/specs/README.md": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 012 | export | P1 | — | In progress | In progress |\n| 013 | legacy | P3 | — | — | — |\n\n| # | Notes |\n|---|---|\n",
+  "work/specs/012-export/spec.md": "# Feature Specification: CSV export\n\n## User Scenarios & Testing\n\n### User Story 1 - Export a timesheet (Priority: P1)\n\nA manager downloads the month's timesheet as CSV.\n\n**Acceptance Scenarios**:\n\n1. **Given** a closed month, **When** export runs, **Then** a CSV downloads.\n\n### User Story 2 — Schedule exports (Priority: P2)\n\nExports arrive by email every Monday.\n\n## Requirements\n\n- **FR-001** …\n",
+  "work/specs/013-legacy/.keep": "",
+  "work/specs/012-export/tasks.md": "# Tasks: export\n\n## Phase 1: Setup\n\n- [x] T001 Add the csv writer dependency\n\n## Phase 2: User Story 1 - Export a timesheet (P1)\n\n- [x] T002 [P] Test: CSV columns match the contract\n- [ ] T003 Implement the writer in `api/export.py`\n\n## Phase 3: User Story 2 — Schedule exports (P2)\n\n- [ ] T004 Cron entry in `jobs/schedule.py`\n\n## Frontend\n\n- [x] T010 [P] [US1] Export button on the timesheet page\n",
+  "work/batch-out.json": "{\"ok\": true, \"records\": [{\"key\": \"feature\", \"ref\": \"#101\", \"id\": 9101, \"url\": \"https://x/101\", \"state\": \"doing\", \"hash\": \"92778319aa\"}, {\"key\": \"US1\", \"ref\": \"#102\", \"id\": 9102, \"url\": \"https://x/102\", \"state\": \"doing\", \"hash\": \"d34b87584f\"}, {\"key\": \"US2\", \"ref\": \"#103\", \"id\": 9103, \"url\": \"https://x/103\", \"state\": \"todo\", \"hash\": \"cfc8bc0aac\"}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "plan",
+    "012",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"feature\": \"012-export\",\n  \"retired\": false,\n  \"path\": \"specs/012-export\",\n  \"platform\": \"\",\n  \"statuses\": {\n    \"frontend\": \"In progress\",\n    \"backend\": \"In progress\"\n  },\n  \"items\": [\n    {\n      \"key\": \"feature\",\n      \"kind\": \"feature\",\n      \"title\": \"[012] CSV export\",\n      \"state\": \"doing\",\n      \"parent\": null,\n      \"body\": \"<!-- ai-gent:sync specs/012-export feature -->\\nFeature **012 CSV export** — `specs/012-export/spec.md`\\n\\nFrontend: In progress · Backend: In progress\\n\\nStories:\\n- US1 Export a timesheet (P1)\\n- US2 Schedule exports (P2)\\n\\nTasks outside the stories:\\n- [x] T001 Add the csv writer dependency\\n\",\n      \"hash\": \"92778319aa\",\n      \"body_html\": \"<!-- ai-gent:sync specs/012-export feature -->\\n<p>Feature <b>012 CSV export</b> — <code>specs/012-export/spec.md</code></p>\\n<p>Frontend: In progress · Backend: In progress</p>\\n<p>Stories:</p>\\n<ul>\\n<li>US1 Export a timesheet (P1)</li>\\n<li>US2 Schedule exports (P2)</li>\\n</ul>\\n<p>Tasks outside the stories:</p>\\n<ul>\\n<li>☑ T001 Add the csv writer dependency</li>\\n</ul>\",\n      \"existing\": null,\n      \"action\": \"create\"\n    },\n    {\n      \"key\": \"US1\",\n      \"kind\": \"story\",\n      \"title\": \"[012] US1: Export a timesheet\",\n      \"state\": \"doing\",\n      \"parent\": \"feature\",\n      \"priority\": \"P1\",\n      \"body\": \"<!-- ai-gent:sync specs/012-export US1 -->\\nUser story 1 of **012 CSV export** · P1 — `specs/012-export/spec.md`\\n\\nA manager downloads the month's timesheet as CSV.\\n\\n**Acceptance Scenarios**:\\n\\n1. **Given** a closed month, **When** export runs, **Then** a CSV downloads.\\n\\n### Tasks\\n- [x] T002 Test: CSV columns match the contract\\n- [ ] T003 Implement the writer in `api/export.py`\\n- [x] T010 Export button on the timesheet page (Frontend)\\n\",\n      \"hash\": \"d34b87584f\",\n      \"body_html\": \"<!-- ai-gent:sync specs/012-export US1 -->\\n<p>User story 1 of <b>012 CSV export</b> · P1 — <code>specs/012-export/spec.md</code></p>\\n<p>A manager downloads the month&#x27;s timesheet as CSV.</p>\\n<p><b>Acceptance Scenarios</b>:</p>\\n<ul>\\n<li><b>Given</b> a closed month, <b>When</b> export runs, <b>Then</b> a CSV downloads.</li>\\n</ul>\\n<h4>Tasks</h4>\\n<ul>\\n<li>☑ T002 Test: CSV columns match the contract</li>\\n<li>☐ T003 Implement the writer in <code>api/export.py</code></li>\\n<li>☑ T010 Export button on the timesheet page (Frontend)</li>\\n</ul>\",\n      \"existing\": null,\n      \"action\": \"create\"\n    },\n    {\n      \"key\": \"US2\",\n      \"kind\": \"story\",\n      \"title\": \"[012] US2: Schedule exports\",\n      \"state\": \"todo\",\n      \"parent\": \"feature\",\n      \"priority\": \"P2\",\n      \"body\": \"<!-- ai-gent:sync specs/012-export US2 -->\\nUser story 2 of **012 CSV export** · P2 — `specs/012-export/spec.md`\\n\\nExports arrive by email every Monday.\\n\\n### Tasks\\n- [ ] T004 Cron entry in `jobs/schedule.py`\\n\",\n      \"hash\": \"cfc8bc0aac\",\n      \"body_html\": \"<!-- ai-gent:sync specs/012-export US2 -->\\n<p>User story 2 of <b>012 CSV export</b> · P2 — <code>specs/012-export/spec.md</code></p>\\n<p>Exports arrive by email every Monday.</p>\\n<h4>Tasks</h4>\\n<ul>\\n<li>☐ T004 Cron entry in <code>jobs/schedule.py</code></li>\\n</ul>\",\n      \"existing\": null,\n      \"action\": \"create\"\n    }\n  ],\n  \"orphans\": []\n}\n"
+  },
+  {
+   "argv": [
+    "record",
+    "012",
+    "--platform",
+    "github",
+    "--where",
+    "o/r",
+    "--from",
+    "batch-out.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "specs/012-export/tracker.md: 3 item(s)\n"
+  },
+  {
+   "argv": [
+    "plan",
+    "012"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "012-export · tracker: github · frontend In progress, backend In progress\n  feature  none          doing            #101       [012] CSV export\n  US1      none          doing            #102       [012] US1: Export a timesheet\n  US2      none          todo             #103       [012] US2: Schedule exports\n\nin sync\n"
+  }
+ ],
+ "expect_files": {
+  "work/specs/012-export/tracker.md": "# Tracker — 012-export\n\nWritten by `repo:sync` (`plugins/repo/references/sync.md`): the tracker items that\nmirror this feature. Commits and pull requests reference the `Item` column.\n\n- Platform: github (o/r)\n- Last sync: <DATE>\n\n| Key | Item | Id | State | Hash | URL |\n|---|---|---|---|---|---|\n| feature | #101 | 9101 | doing | 92778319aa | https://x/101 |\n| US1 | #102 | 9102 | doing | d34b87584f | https://x/102 |\n| US2 | #103 | 9103 | todo | cfc8bc0aac | https://x/103 |\n"
+ }
+}

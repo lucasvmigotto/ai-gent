@@ -1,0 +1,67 @@
+{
+ "name": "classify-cli-through-batch-dry-run",
+ "derived_from": "ClassifyTest::test_cli",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {
+  "github.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"r0\", \"cli\": [\"pr\", \"list\"]}, {\"name\": \"r1\", \"cli\": [\"pr\", \"view\", \"3\", \"--comments\"]}, {\"name\": \"r2\", \"cli\": [\"pr\", \"checks\", \"3\"]}, {\"name\": \"r3\", \"cli\": [\"issue\", \"list\", \"--search\", \"bug\"]}, {\"name\": \"r4\", \"cli\": [\"api\", \"repos/o/r/pulls\"]}, {\"name\": \"r5\", \"cli\": [\"run\", \"watch\", \"5\"]}, {\"name\": \"w0\", \"cli\": [\"pr\", \"create\", \"--title\", \"list\"]}, {\"name\": \"w1\", \"cli\": [\"issue\", \"comment\", \"5\", \"--body\", \"x\"]}, {\"name\": \"w2\", \"cli\": [\"pr\", \"merge\", \"3\", \"--squash\"]}, {\"name\": \"w3\", \"cli\": [\"api\", \"repos/o/r/issues\", \"-f\", \"title=x\"]}, {\"name\": \"w4\", \"cli\": [\"api\", \"-X\", \"PATCH\", \"repos/o/r/issues/1\"]}, {\"name\": \"w5\", \"cli\": [\"-R\", \"o/r\", \"pr\", \"list\"]}, {\"name\": \"w6\", \"cli\": [\"run\", \"rerun\", \"5\"]}, {\"name\": \"w7\", \"cli\": [\"label\", \"create\", \"status\"]}, {\"name\": \"w8\", \"cli\": [\"issue\", \"edit\", \"12\", \"view\"]}, {\"name\": \"w9\", \"cli\": [\"pr\", \"comment\", \"3\", \"list\"]}]}",
+  "azure-devops.json": "{\"platform\": \"azure-devops\", \"steps\": [{\"name\": \"r0\", \"cli\": [\"boards\", \"work-item\", \"show\", \"--id\", \"3\"]}, {\"name\": \"r1\", \"cli\": [\"boards\", \"query\", \"--wiql\", \"x\"]}, {\"name\": \"r2\", \"cli\": [\"repos\", \"pr\", \"list\"]}, {\"name\": \"r3\", \"cli\": [\"devops\", \"invoke\", \"--area\", \"wit\"]}, {\"name\": \"w0\", \"cli\": [\"boards\", \"work-item\", \"update\", \"--id\", \"3\", \"--state\", \"Done\"]}, {\"name\": \"w1\", \"cli\": [\"devops\", \"invoke\", \"--area\", \"wit\", \"--http-method\", \"PATCH\"]}]}",
+  "gitlab.json": "{\"platform\": \"gitlab\", \"steps\": [{\"name\": \"r0\", \"cli\": [\"mr\", \"view\", \"2\"]}, {\"name\": \"r1\", \"cli\": [\"issue\", \"list\"]}, {\"name\": \"w0\", \"cli\": [\"mr\", \"merge\", \"2\"]}, {\"name\": \"w1\", \"cli\": [\"issue\", \"note\", \"4\", \"show\"]}]}",
+  "jira.json": "{\"platform\": \"jira\", \"steps\": [{\"name\": \"r0\", \"cli\": [\"issue\", \"list\"]}, {\"name\": \"r1\", \"cli\": [\"issue\", \"view\", \"X-1\"]}, {\"name\": \"w0\", \"cli\": [\"issue\", \"move\", \"X-1\", \"Done\"]}, {\"name\": \"w1\", \"cli\": [\"issue\", \"comment\", \"add\", \"KEY-1\", \"list\"]}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/github.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "r0               read  pr list\nr1               read  pr view 3 --comments\nr2               read  pr checks 3\nr3               read  issue list --search bug\nr4               read  api repos/o/r/pulls\nr5               read  run watch 5\nw0               write pr create --title list\nw1               write issue comment 5 --body x\nw2               write pr merge 3 --squash\nw3               write api repos/o/r/issues -f title=x\nw4               write api -X PATCH repos/o/r/issues/1\nw5               write -R o/r pr list\nw6               write run rerun 5\nw7               write label create status\nw8               write issue edit 12 view\nw9               write pr comment 3 list\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/azure-devops.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "r0               read  boards work-item show --id 3\nr1               read  boards query --wiql x\nr2               read  repos pr list\nr3               read  devops invoke --area wit\nw0               write boards work-item update --id 3 --state Done\nw1               write devops invoke --area wit --http-method PATCH\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/gitlab.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "r0               read  mr view 2\nr1               read  issue list\nw0               write mr merge 2\nw1               write issue note 4 show\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/jira.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "r0               read  issue list\nr1               read  issue view X-1\nw0               write issue move X-1 Done\nw1               write issue comment add KEY-1 list\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

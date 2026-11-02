@@ -1,0 +1,54 @@
+{
+ "name": "chain-no-integration-branch",
+ "derived_from": "ChainTest::test_no_integration_branch",
+ "remote": "git@github.com:o/r.git",
+ "git": [
+  [
+   "checkout",
+   "-q",
+   "-b",
+   "main"
+  ],
+  [
+   "commit",
+   "-q",
+   "--allow-empty",
+   "-m",
+   "init"
+  ],
+  [
+   "branch",
+   "-f",
+   "feat/x"
+  ]
+ ],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "chain",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"default\": null,\n  \"ambiguous\": [],\n  \"integration\": null,\n  \"staging\": null,\n  \"production\": \"main\",\n  \"order\": [\n    \"work branches\",\n    \"main\"\n  ],\n  \"integrated_on\": \"main\",\n  \"keywords_close_on\": \"main\",\n  \"ask\": false\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "chain"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "chain     work branches → main\ndefault   (unknown — no remote HEAD)\nintegrated on   main   (where a story's work lands; repo:sync closes items at Verified there)\nkeywords close  main   (Closes #N acts only when merged here)\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

@@ -1,0 +1,121 @@
+{
+ "name": "api-azure-basic-and-api-version",
+ "derived_from": "ApiTest::test_azure_basic_and_api_version",
+ "remote": "https://dev.azure.com/org/proj/_git/app",
+ "git": [],
+ "store": {
+  "ai-gent/azure-devops/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "w.json": "[{\"op\": \"add\", \"path\": \"/fields/System.Title\", \"value\": \"t\"}]"
+ },
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "azure-devops",
+    "GET",
+    "/{project}/_apis/wit/workitems/12"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/proj/_apis/wit/workitems/12?api-version=7.1",
+     "headers": {
+      "Authorization": "Basic OnRvay0zZjlhMWM3N2Uw",
+      "Accept": "application/json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "azure-devops",
+    "POST",
+    "/{project}/_apis/wit/wiql",
+    "--data",
+    "<ROOT>/w.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/proj/_apis/wit/wiql?api-version=7.1",
+     "headers": {
+      "Authorization": "Basic OnRvay0zZjlhMWM3N2Uw",
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+     },
+     "body": "[{\"op\": \"add\", \"path\": \"/fields/System.Title\", \"value\": \"t\"}]"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "azure-devops",
+    "PATCH",
+    "/proj/_apis/wit/workitems/12",
+    "--data",
+    "<ROOT>/w.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "PATCH",
+     "path": "/proj/_apis/wit/workitems/12?api-version=7.1",
+     "headers": {
+      "Authorization": "Basic OnRvay0zZjlhMWM3N2Uw",
+      "Content-Type": "application/json-patch+json",
+      "Accept": "application/json"
+     },
+     "body": "[{\"op\": \"add\", \"path\": \"/fields/System.Title\", \"value\": \"t\"}]"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "azure-devops",
+    "POST",
+    "/proj/_apis/wit/workitems/$Task",
+    "--data",
+    "<ROOT>/w.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/proj/_apis/wit/workitems/$Task?api-version=7.1",
+     "headers": {
+      "Authorization": "Basic OnRvay0zZjlhMWM3N2Uw",
+      "Content-Type": "application/json-patch+json",
+      "Accept": "application/json"
+     },
+     "body": "[{\"op\": \"add\", \"path\": \"/fields/System.Title\", \"value\": \"t\"}]"
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

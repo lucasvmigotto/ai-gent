@@ -1,0 +1,82 @@
+{
+ "name": "api-jira-basic-with-email",
+ "derived_from": "ApiTest::test_jira_basic_with_email",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/jira/token": "tok-3f9a1c77e0\nemail: me@example.com\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "q.json": "{\"jql\": \"project = KEY\"}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "jira",
+    "POST",
+    "/rest/api/3/search/jql",
+    "--data",
+    "<ROOT>/q.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/rest/api/3/search/jql",
+     "headers": {
+      "Authorization": "Basic bWVAZXhhbXBsZS5jb206dG9rLTNmOWExYzc3ZTA=",
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+     },
+     "body": "{\"jql\": \"project = KEY\"}"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "jira",
+    "POST",
+    "/rest/api/3/issue",
+    "--data",
+    "<ROOT>/q.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "jira",
+    "GET",
+    "/rest/api/3/myself"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/rest/api/3/myself",
+     "headers": {
+      "Authorization": "Basic bWVAZXhhbXBsZS5jb206dG9rLTNmOWExYzc3ZTA=",
+      "Accept": "application/json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

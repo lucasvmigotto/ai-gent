@@ -1,0 +1,50 @@
+{
+ "name": "cli-token-in-env-only-and-redacted",
+ "derived_from": "CliTest::test_token_in_env_only_and_redacted",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {
+  "gh": {
+   "rules": []
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "cli",
+    "github",
+    "--",
+    "pr",
+    "list"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "args: pr list\ntoken: <token>\n",
+   "stderr_has": [
+    "token from pass (ai-gent/github/pat)"
+   ],
+   "seen": []
+  },
+  {
+   "argv": [
+    "cli",
+    "github",
+    "pr",
+    "view",
+    "3"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "args: pr view 3\ntoken: <token>\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}
