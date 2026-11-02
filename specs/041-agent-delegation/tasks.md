@@ -1,0 +1,21 @@
+# Tasks: agent delegation
+
+- [x] T001 Owner review (approved 2026-11-02; open questions 3 decided, see spec) of this spec and its open questions (milestone 3.x, after 3.0.0).
+- [ ] T010 Adapter contract and the Codex adapter (`detect`, `ready`, `preflight`, `run`, `status`, `stop`, `result`) with a fake agent for tests. Verify: unit tests incl. commit preflight, stdin closed, PID-file stop.
+- [ ] T010a The OpenCode adapter (`contracts/opencode.md`): detection outside `PATH`, model selection, permission handling, JSON event reading. Verify: fake-agent tests plus one real trial on a read-only task.
+- [ ] T011 Brief builder from `contracts/brief-template.md` with `allowed_paths`, worker pack and limits. Verify: golden briefs.
+- [ ] T012 Supervisor diff checks (FR-011) with fixtures from trial 1 (marker line, out-of-scope path, environment prose, weakened test). Verify: each fixture is refused with its reason.
+- [ ] T013 Scheduler: tracks from a task list with disjoint paths, assignment rules (FR-004), worktree cap and disk floor counted together. Verify: fixture task lists.
+- [ ] T014 Delegation log and the `delegate` token tag (`shared/token-tags.json` and `.md` together). Verify: `scripts/check.sh`.
+- [ ] T015 `shared/delegate-worker-rules.md`: each guard's rule as a plain instruction; symlink into the plugin.
+- [ ] T020 The skill (`agents:delegate`): offer triggers, opt-in file, take-back. Verify: trigger and behavior evals.
+- [ ] T021 Cross-agent review step (FR-010) and the landing checklist. Verify: a trial where the reviewer is not the builder.
+- [ ] T030 Second trial and the comparison with `trial-1-codex.md` (SC-003).
+- [ ] T040 Docs: README, docs-site skill page, `shared/releasing.md` untouched unless release flow changes.
+- [ ] T050 `contracts/status.md` and the status-file writer used by the adapter and the supervisor (FR-016). Verify: schema tests; the adapter `status` reads only this file.
+- [ ] T051 Workers model: status files and the delegation log in, rows and the pool header out, pure. Verify: unit tests with fixtures (queued, running, stalled, done, failed, taken back; no files).
+- [ ] T052 Workers draw and the text form (golden fixtures, narrow and wide, ASCII fallback). Verify: draw tests.
+- [ ] T052a The compact workers line for the pipeline pane (FR-018) from the same model, with fixtures (no workers adds no row). Verify: pipeline pane tests still pass unchanged when there are no workers.
+- [ ] T053 `/workers` and `/workers-pane` commands, polling, option to turn off, no auto-open; the mod's types. Verify: `claude plugin test plugins/project`.
+- [ ] T054 Check whether the mod API exposes Claude's running subagents and tasks (open question 3); if so read them directly, otherwise keep the supervisor-written files. Record the answer here.
+- [ ] T055 README and docs-site entries for the pane; the `project` plugin's README row.
