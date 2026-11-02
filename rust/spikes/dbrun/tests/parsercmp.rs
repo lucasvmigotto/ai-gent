@@ -2,7 +2,7 @@
 use serde_json::Value;
 #[test]
 fn compare() {
-    let g: Value = serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/golden.json")).unwrap()).unwrap();
+    let g: Value = serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/db-core/golden.json")).unwrap()).unwrap();
     let (mut n, mut diff, mut unsafe_) = (0, 0, 0);
     let mut ex = vec![];
     for r in g["classify"].as_array().unwrap() {
