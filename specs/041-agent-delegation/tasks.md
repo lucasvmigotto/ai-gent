@@ -2,6 +2,7 @@
 
 - [ ] T001 Owner review of this spec and its open questions (milestone 3.x, after 3.0.0).
 - [ ] T010 Adapter contract and the Codex adapter (`detect`, `ready`, `preflight`, `run`, `status`, `stop`, `result`) with a fake agent for tests. Verify: unit tests incl. commit preflight, stdin closed, PID-file stop.
+- [ ] T010a The OpenCode adapter (`contracts/opencode.md`): detection outside `PATH`, model selection, permission handling, JSON event reading. Verify: fake-agent tests plus one real trial on a read-only task.
 - [ ] T011 Brief builder from `contracts/brief-template.md` with `allowed_paths`, worker pack and limits. Verify: golden briefs.
 - [ ] T012 Supervisor diff checks (FR-011) with fixtures from trial 1 (marker line, out-of-scope path, environment prose, weakened test). Verify: each fixture is refused with its reason.
 - [ ] T013 Scheduler: tracks from a task list with disjoint paths, assignment rules (FR-004), worktree cap and disk floor counted together. Verify: fixture task lists.

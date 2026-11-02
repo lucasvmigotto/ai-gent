@@ -68,7 +68,7 @@ A Claude Code user opens `/workers-pane` (or `/workers` for text) and sees one r
 
 - **FR-001**: Off by default; offers only when another agent is detected (the `setup.sh` probes) and at one of three triggers: the user asks, a usage meter is near its limit, or parallel-safe tasks exist.
 - **FR-002**: The opt-in is per project, in `.ai-gent/delegate.yaml` (git-excluded): the agents allowed and the task kinds each may take.
-- **FR-003**: First version supports **Codex only**, behind the adapter contract (`contracts/adapter.md`).
+- **FR-003**: First version supports **Codex and OpenCode** (owner decision, 2026-11-02, superseding "Codex only"), behind the adapter contract (`contracts/adapter.md`). OpenCode runs the free `opencode/*` models the owner picked (`contracts/opencode.md`).
 - **FR-004**: A delegate never receives a task that needs credentials, database or container tools, an owner decision, or an edit to a skill, plugin, hook or shared reference.
 - **FR-005**: Every delegation uses a brief built from `contracts/brief-template.md`, with `allowed_paths`, hard limits, the verification commands, the worker pack and the final report format.
 - **FR-006**: Worktrees come from `wt.py`; the scheduler counts Claude's and delegated tracks together against the worktree cap and the disk floor. It never overrides the floor.
@@ -95,5 +95,6 @@ A Claude Code user opens `/workers-pane` (or `/workers` for text) and sees one r
 
 1. Where the delegation log lives if the user wants it kept across machines (default: local only).
 2. Whether a delegate may run containers once the disk floor allows more than one track (default: never, FR-004).
-3. Whether the mod API exposes Claude's running subagents and tasks (the pane would read them directly); until verified, the supervisor writes the status files for Claude's own tracks.
-4. Which second agent after Codex (opencode is the cheapest: already Tier 1 in `setup.sh`).
+3. Whether OpenCode's free models may receive repository content (free tiers often use prompts for training; unverified, `contracts/opencode.md`), and whether `setup.sh` may install the ai-gent permissions and guard plugin into the user's OpenCode config for delegated runs.
+4. Whether the mod API exposes Claude's running subagents and tasks (the pane would read them directly); until verified, the supervisor writes the status files for Claude's own tracks.
+5. Which third agent after Codex and OpenCode.
