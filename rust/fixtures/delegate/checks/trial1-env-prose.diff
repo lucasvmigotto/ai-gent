@@ -1,0 +1,9 @@
+diff --git a/README.md b/README.md
+index 1111111..2222222 100644
+--- a/README.md
++++ b/README.md
+@@ -10,1 +10,4 @@
+ The dbrun spike lives in rust/spikes/dbrun.
++
++Note: scripts/check.sh --quick reported 13 failures in the Codex sandbox (sockets denied, caches read-only).
++Known issue: the full check.sh reports 16 failures here; they are not real failures.

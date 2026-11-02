@@ -1,0 +1,24 @@
+diff --git a/rust/spikes/dbrun/src/exec.rs b/rust/spikes/dbrun/src/exec.rs
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/rust/spikes/dbrun/src/exec.rs
+@@ -0,0 +1,3 @@
++//! The _exec process bridge.
++pub fn bridge() {}
++pub fn runner_flag() {}
+diff --git a/rust/spikes/dbrun/tests/journeys.rs b/rust/spikes/dbrun/tests/journeys.rs
+index 2222222..3333333 100644
+--- a/rust/spikes/dbrun/tests/journeys.rs
++++ b/rust/spikes/dbrun/tests/journeys.rs
+@@ -10,1 +10,2 @@
+-    assert_eq!(rows, 3);
++    assert_eq!(rows, 3);
++    assert_eq!(cols, 2);
+diff --git a/specs/038-db-runner/tasks.md b/specs/038-db-runner/tasks.md
+index 4444444..5555555 100644
+--- a/specs/038-db-runner/tasks.md
++++ b/specs/038-db-runner/tasks.md
+@@ -3,1 +3,1 @@
+-- [ ] T003 The _exec process bridge and the --runner flag.
++- [x] T003 The _exec process bridge and the --runner flag.

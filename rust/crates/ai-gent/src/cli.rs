@@ -33,6 +33,8 @@ pub enum Command {
     Repo(crate::cmd::repo::RepoArgs),
     /// Plan a feature's tracker items from its specs (a port of `specsync.py`).
     Spec(crate::cmd::spec::SpecArgs),
+    /// Hand work to another coding agent (Codex) and check what comes back (spec 041).
+    Delegate(crate::cmd::delegate::DelegateArgs),
     /// Worktrees for parallel tracks and their container leftovers (a port of `wt.py`).
     Wt(crate::cmd::wt::WtArgs),
 }
