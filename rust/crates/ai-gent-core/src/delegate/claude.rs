@@ -22,37 +22,96 @@ use std::time::Duration;
 /// The one-line probe of `ready`.
 const READY_PROMPT: &str = "Reply with exactly: READY";
 
-/// Tools a builder may use: read, search, edit, and the build and inspection commands.
-const BUILDER_ALLOWED: [&str; 8] = [
+/// Tools a builder may use: read, search, edit, a narrow set of cargo commands and read-only git.
+/// `cargo build`, `check` and `test` still run build scripts and proc macros: subprocesses these
+/// rules do not cover (see [`ClaudeAdapter::run_args`]).
+const BUILDER_ALLOWED: [&str; 12] = [
     "Read",
     "Grep",
     "Glob",
     "Edit",
     "Write",
-    "Bash(cargo:*)",
+    "Bash(cargo test:*)",
+    "Bash(cargo clippy:*)",
+    "Bash(cargo fmt:*)",
+    "Bash(cargo build:*)",
+    "Bash(cargo check:*)",
     "Bash(git status:*)",
     "Bash(git diff:*)",
 ];
 
-/// Tools a builder may not use: the delegate leaves committing and publishing to the supervisor.
-const BUILDER_DENIED: [&str; 4] = [
-    "Bash(git commit:*)",
-    "Bash(git push:*)",
-    "Bash(git add:*)",
-    "Bash(git reset:*)",
+/// Git for a builder is read-only (`status`, `diff`, `log`). The CLI lets a deny rule win over an
+/// allow rule, so `Bash(git:*)` cannot be denied with `status` allowed: every other subcommand that
+/// changes the repository, its config or a remote is listed. The delegate leaves committing and
+/// publishing to the supervisor.
+const BUILDER_DENIED_GIT: [&str; 24] = [
+    "add",
+    "am",
+    "apply",
+    "branch",
+    "checkout",
+    "cherry-pick",
+    "clean",
+    "clone",
+    "commit",
+    "config",
+    "fetch",
+    "merge",
+    "mv",
+    "pull",
+    "push",
+    "rebase",
+    "remote",
+    "reset",
+    "restore",
+    "revert",
+    "rm",
+    "stash",
+    "switch",
+    "tag",
 ];
 
-/// Tools a reviewer or researcher may use: read-only.
-const READONLY_ALLOWED: [&str; 5] = [
-    "Read",
-    "Grep",
-    "Glob",
-    "Bash(git status:*)",
-    "Bash(git diff:*)",
-];
+/// What a reviewer or researcher may use: Read, Grep and Glob only. No Bash at all, because even
+/// `git diff --output=<file>` writes; the supervisor puts the diff text into the review prompt.
+const READONLY_ALLOWED: [&str; 3] = ["Read", "Grep", "Glob"];
 
-/// Tools a reviewer or researcher may not use.
-const READONLY_DENIED: [&str; 2] = ["Edit", "Write"];
+/// What a reviewer or researcher may not use: every write tool and Bash.
+const READONLY_DENIED: [&str; 4] = ["Edit", "Write", "NotebookEdit", "Bash"];
+
+/// Home-level credential directories of other tools, denied next to every dot-directory named after
+/// claude or codex.
+const HOME_SECRET_DIRS: [&str; 2] = [".password-store", ".gnupg"];
+
+/// Deny rules for Read, Grep and Glob on a directory tree, in the CLI's absolute-path syntax
+/// (`//<abs>/**`).
+fn deny_tree(dir: &Path) -> Vec<String> {
+    let abs = slash(dir);
+    let abs = abs.trim_start_matches('/');
+    ["Read", "Grep", "Glob"]
+        .iter()
+        .map(|t| format!("{t}(//{abs}/**)"))
+        .collect()
+}
+
+/// The directories no role may read: the profile, and under the home directory every entry whose
+/// name starts with `.claude` or `.codex` (only names are listed) and the password store.
+fn secret_dirs(config_dir: Option<&Path>, home: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = config_dir.map(Path::to_path_buf).into_iter().collect();
+    if let Some(h) = home {
+        let mut names: Vec<String> = std::fs::read_dir(h)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| e.file_name().into_string().ok())
+            .filter(|n| n.starts_with(".claude") || n.starts_with(".codex"))
+            .collect();
+        names.extend(HOME_SECRET_DIRS.iter().map(|n| (*n).to_string()));
+        names.sort();
+        names.dedup();
+        dirs.extend(names.into_iter().map(|n| h.join(n)));
+    }
+    dirs
+}
 
 /// The Claude-profile adapter.
 #[derive(Debug, Clone)]
@@ -70,6 +129,9 @@ pub struct ClaudeAdapter {
     pub config_dir: Option<PathBuf>,
     /// `--max-turns` of a run.
     pub max_turns: u32,
+    /// The home directory whose agent configuration and credential directories are denied to the
+    /// worker (only directory names are listed, never contents).
+    pub home: Option<PathBuf>,
 }
 
 impl ClaudeAdapter {
@@ -88,6 +150,7 @@ impl ClaudeAdapter {
             tmpdir: env.path("TMPDIR").unwrap_or_else(std::env::temp_dir),
             config_dir: env.path("AI_GENT_CLAUDE_CONFIG_DIR"),
             max_turns: 40,
+            home: env.home_dir(),
         }
     }
 
@@ -109,12 +172,30 @@ impl ClaudeAdapter {
     /// The arguments of `claude -p` for a role (the brief is the single `{brief}` placeholder, which the
     /// watcher fills from `brief.txt`). Tool lists are one comma-joined argument each, so the variadic
     /// flags cannot swallow what follows.
+    ///
+    /// These lists are requests the CLI enforces, not a sandbox: a Claude profile has no OS sandbox,
+    /// and subprocesses (build scripts, proc macros) are not covered by them. What compensates lies
+    /// outside the worker: the supervisor's diff checks (FR-011), verification run outside the worker,
+    /// and the worker never holding push credentials. A reviewer or researcher gets no Bash; the
+    /// supervisor puts the diff text into its prompt.
     #[must_use]
     pub fn run_args(&self, role: Role) -> Vec<String> {
-        let (allowed, denied): (&[&str], &[&str]) = match role {
-            Role::Builder => (&BUILDER_ALLOWED, &BUILDER_DENIED),
-            Role::Reviewer | Role::Researcher => (&READONLY_ALLOWED, &READONLY_DENIED),
+        let (allowed, mut denied): (&[&str], Vec<String>) = match role {
+            Role::Builder => (
+                &BUILDER_ALLOWED,
+                BUILDER_DENIED_GIT
+                    .iter()
+                    .map(|g| format!("Bash(git {g}:*)"))
+                    .collect(),
+            ),
+            Role::Reviewer | Role::Researcher => (
+                &READONLY_ALLOWED,
+                READONLY_DENIED.iter().map(|d| (*d).to_string()).collect(),
+            ),
         };
+        for d in secret_dirs(self.config_dir.as_deref(), self.home.as_deref()) {
+            denied.extend(deny_tree(&d));
+        }
         vec![
             "-p".into(),
             "{brief}".into(),
@@ -265,7 +346,8 @@ impl Adapter for ClaudeAdapter {
             ok: checks.iter().all(|c| c.ok),
             checks,
             notes: vec![
-                "the delegate does not commit: git commit, push, add and reset are disallowed, the supervisor stages by explicit path and commits".into(),
+                "the delegate does not commit: mutating git commands are disallowed, the supervisor stages by explicit path and commits".into(),
+                "a Claude profile has no OS sandbox: the tool lists are requests the CLI enforces and subprocesses (build scripts) are not covered; the supervisor's diff checks and verification outside the worker compensate".into(),
                 "the profile's login is not probed here; `ready` does that with a one-line call".into(),
                 "the CLI prints one JSON object when it ends: there is no progress before that".into(),
             ],
@@ -344,6 +426,7 @@ mod tests {
             tmpdir: "/home/u/tmp".into(),
             config_dir: Some("/home/u/.claude-second".into()),
             max_turns: 30,
+            home: None,
         }
     }
 
@@ -373,32 +456,79 @@ mod tests {
         );
     }
 
-    #[test]
-    fn builder_args_match_the_contract() {
-        assert_eq!(
-            adapter().run_args(Role::Builder),
-            [
-                "-p",
-                "{brief}",
-                "--output-format",
-                "json",
-                "--allowedTools",
-                "Read,Grep,Glob,Edit,Write,Bash(cargo:*),Bash(git status:*),Bash(git diff:*)",
-                "--disallowedTools",
-                "Bash(git commit:*),Bash(git push:*),Bash(git add:*),Bash(git reset:*)",
-                "--max-turns",
-                "30",
-            ]
-        );
+    fn lists(a: &[String]) -> (Vec<String>, Vec<String>) {
+        let split = |s: &String| s.split(',').map(str::to_string).collect::<Vec<_>>();
+        (split(&a[5]), split(&a[7]))
     }
 
     #[test]
-    fn a_reviewer_and_a_researcher_cannot_write() {
+    fn builder_args_match_the_contract() {
+        let a = adapter().run_args(Role::Builder);
+        assert_eq!(
+            a[..5],
+            ["-p", "{brief}", "--output-format", "json", "--allowedTools"]
+        );
+        assert_eq!(
+            a[5],
+            "Read,Grep,Glob,Edit,Write,Bash(cargo test:*),Bash(cargo clippy:*),Bash(cargo fmt:*),Bash(cargo build:*),Bash(cargo check:*),Bash(git status:*),Bash(git diff:*)"
+        );
+        assert_eq!(a[6], "--disallowedTools");
+        assert_eq!(a[8..], ["--max-turns", "30"]);
+        let (allowed, denied) = lists(&a);
+        assert!(!allowed.iter().any(|t| t == "Bash(cargo:*)" || t == "Bash"));
+        for g in [
+            "commit", "push", "add", "reset", "checkout", "config", "remote",
+        ] {
+            assert!(denied.contains(&format!("Bash(git {g}:*)")), "{g}");
+        }
+        for ok in ["status", "diff", "log"] {
+            assert!(!denied.contains(&format!("Bash(git {ok}:*)")), "{ok}");
+        }
+    }
+
+    #[test]
+    fn every_role_is_denied_the_profile_and_other_agents_directories() {
+        let home = tempfile::tempdir().unwrap();
+        for d in [".claude", ".claude-work", ".codex", ".config", "codes"] {
+            std::fs::create_dir(home.path().join(d)).unwrap();
+        }
+        let mut ad = adapter();
+        ad.home = Some(home.path().to_path_buf());
+        for role in [Role::Builder, Role::Reviewer, Role::Researcher] {
+            let (_, denied) = lists(&ad.run_args(role));
+            let h = slash(home.path());
+            let h = h.trim_start_matches('/');
+            for tool in ["Read", "Grep", "Glob"] {
+                for dir in [
+                    ".claude",
+                    ".claude-work",
+                    ".codex",
+                    ".password-store",
+                    ".gnupg",
+                ] {
+                    let rule = format!("{tool}(//{h}/{dir}/**)");
+                    assert!(denied.contains(&rule), "{rule} in {denied:?}");
+                }
+                assert!(denied.contains(&format!("{tool}(//home/u/.claude-second/**)")));
+                assert!(
+                    !denied
+                        .iter()
+                        .any(|d| d.contains("/codes/") || d.contains("/.config/"))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_reviewer_and_a_researcher_cannot_write_or_run_anything() {
         for role in [Role::Reviewer, Role::Researcher] {
             let a = adapter().run_args(role);
-            assert_eq!(a[5], "Read,Grep,Glob,Bash(git status:*),Bash(git diff:*)");
-            assert_eq!(a[7], "Edit,Write");
-            assert!(!a[5].contains("Edit") && !a[5].contains("Write"));
+            assert_eq!(a[5], "Read,Grep,Glob");
+            let (allowed, denied) = lists(&a);
+            assert!(!allowed.iter().any(|t| t.starts_with("Bash")));
+            for t in ["Edit", "Write", "NotebookEdit", "Bash"] {
+                assert!(denied.iter().any(|d| d == t), "{t}");
+            }
         }
     }
 

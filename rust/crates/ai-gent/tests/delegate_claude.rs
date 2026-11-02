@@ -54,6 +54,7 @@ fn adapter(root: &Path, tmp: &Path, profile: &Path) -> ClaudeAdapter {
         tmpdir: tmp.to_path_buf(),
         config_dir: Some(profile.to_path_buf()),
         max_turns: 12,
+        home: None,
     }
 }
 
@@ -178,8 +179,10 @@ fn a_builder_run_reads_message_and_usage_from_the_json_result() {
         args[i + 1].clone()
     };
     assert!(after("--allowedTools").contains("Edit"));
-    assert!(after("--allowedTools").contains("Bash(cargo:*)"));
+    assert!(after("--allowedTools").contains("Bash(cargo test:*)"));
+    assert!(!after("--allowedTools").contains("Bash(cargo:*)"));
     assert!(after("--disallowedTools").contains("Bash(git commit:*)"));
+    assert!(after("--disallowedTools").contains("Read(//"));
     let st = status::read(d.path(), "c-build").unwrap();
     assert_eq!(st.agent, "claude");
     assert_eq!(st.state, State::Done);
@@ -200,9 +203,11 @@ fn a_reviewer_run_is_read_only() {
     let f = fake_report(d.path(), "c-review");
     let args: Vec<String> = serde_json::from_value(f["args"].clone()).unwrap();
     let i = args.iter().position(|x| x == "--allowedTools").unwrap();
-    assert!(!args[i + 1].contains("Edit") && !args[i + 1].contains("Write"));
+    assert_eq!(args[i + 1], "Read,Grep,Glob");
     let j = args.iter().position(|x| x == "--disallowedTools").unwrap();
-    assert_eq!(args[j + 1], "Edit,Write");
+    for t in ["Edit", "Write", "NotebookEdit", "Bash"] {
+        assert!(args[j + 1].split(',').any(|d| d == t), "{t}");
+    }
 }
 
 #[test]
