@@ -22,6 +22,13 @@
 - [x] T054 Check whether the mod API exposes Claude's running subagents and tasks (open question 3); if so read them directly, otherwise keep the supervisor-written files. Record the answer here. Answer: the mod API does expose the session's subagents (`$.agent.list()`: id, description, type, status) but not a track, task ids, worktree or verdict, and its description is the Agent call's free text (a possible prompt, against FR-017); so the pane keeps the supervisor-written status files.
 - [x] T055 README and docs-site entries for the pane; the `project` plugin's README row. README row done (PR #374). The docs site has no per-pane entries to extend (no mention of `pipeline-pane` or `guards-pane`), so none was added.
 
+## Findings from wiring the scheduler (`delegate plan`) and the source check (`delegate verify-sources`)
+
+- `delegate.yaml` has no documented shape (FR-002 names its content, no contract gives keys), so `delegate plan` takes the allowed agents as `--allow-agent` (default `codex`, this repository's allowlist) and does not read the file.
+- No spec says whether a `queued` track holds a slot; `plan` counts `queued`, `running` and `stalled` (T051 counts running and stalled) and ignores status files that break the contract, reporting how many.
+- The disk floor and estimate are `wt.py add`'s (`disk_floor_gb`, else max(20 GB, 10%); `volume_estimate_gb`); with no container engine the disk is not checked, as in `wt.py`, and only the cap binds. The cap is `max_volumes`, else `max_parallel` (default 3), not `max_parallel` alone as the task text says.
+- T012a: no contract says what "compare" means. `verify-sources` checks the claim's terms (quoted text, numbers, versions, identifiers, paths) against the re-fetched sources and prints the excerpts; it cannot detect a source that says the opposite with the same words (the `tiberius` case needs the supervisor to read the excerpt). Fetching is a local path or `curl` for http(s); the URL path is tested against a local socket, never the network.
+
 ## Findings from the delegate-core build (PR #368), to settle in the spec
 
 - `contracts/adapter.md` lists `--add-dir <common .git dir>` for Codex though trial 2 shows it does not make `.git` writable; the adapter leaves it off by default.

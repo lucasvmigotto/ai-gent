@@ -1,17 +1,21 @@
 //! `ai-gent delegate`: hand work to another coding agent and check what comes back (spec 041).
 //!
 //! The adapter operations (`detect`, `ready`, `preflight`, `run`, `status`, `stop`, `result`), the
+//! scheduler (`plan`), the source check (`verify-sources`), the
 //! brief builder, the supervisor's diff checks, the supervisor's commit, the status files and the
 //! delegation log. No hook or skill calls it yet (decision D7).
 use ai_gent_core::delegate::adapter::{Adapter, RunRequest};
 use ai_gent_core::delegate::brief::{self, BriefInput};
 use ai_gent_core::delegate::checks::{self, CheckInput};
 use ai_gent_core::delegate::codex::CodexAdapter;
+use ai_gent_core::delegate::schedule::{self, Pool};
+use ai_gent_core::delegate::sources;
 use ai_gent_core::delegate::status::{self, Role, State, Status, Verdict, VerdictResult};
 use ai_gent_core::delegate::{self, Error, commit, gitx, watch};
 use ai_gent_core::env::Env;
 use ai_gent_core::exit::Exit;
 use ai_gent_core::output::{self, ErrorCode};
+use ai_gent_core::wt;
 use clap::{Args, Subcommand, ValueEnum};
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -201,6 +205,34 @@ enum Action {
         /// The rule id of a rejected verdict.
         #[arg(long)]
         reason: Option<String>,
+    },
+    /// Plan a task list: tracks, who runs each, and which start now (JSON in, JSON out).
+    Plan {
+        /// A JSON file with the task list (`[{id, kind, paths, needs, depends}]`); `-` reads stdin.
+        #[arg(long)]
+        tasks_file: PathBuf,
+        /// A delegate agent the project allows, in preference order (repeat; default `codex`).
+        #[arg(long = "allow-agent")]
+        allow_agent: Vec<String>,
+        /// The disk floor for this call, in GB (default `disk_floor_gb`, else max(20, 10%)).
+        #[arg(long)]
+        min_free_gb: Option<f64>,
+    },
+    /// Re-fetch the sources a claim cites and compare its checkable terms; exit 4 unless confirmed.
+    VerifySources {
+        /// The claim text.
+        #[arg(
+            long,
+            conflicts_with = "claim_file",
+            required_unless_present = "claim_file"
+        )]
+        claim: Option<String>,
+        /// A file holding the claim text.
+        #[arg(long)]
+        claim_file: Option<PathBuf>,
+        /// A cited source: an http(s) URL (fetched with curl) or a local path (repeat).
+        #[arg(long = "source", required = true)]
+        sources: Vec<String>,
     },
     /// Print the delegation log.
     Log,
@@ -473,6 +505,52 @@ fn go(a: &DelegateArgs, json: bool) -> Result<Exit, Error> {
             emit(&s, json);
             Ok(Exit::Success)
         }
+        Action::Plan {
+            tasks_file,
+            allow_agent,
+            min_free_gb,
+        } => {
+            let root = resolve_root(a)?;
+            let raw = if tasks_file.as_os_str() == "-" {
+                let mut b = String::new();
+                std::io::Read::read_to_string(&mut std::io::stdin(), &mut b)
+                    .map_err(|e| Error::Invalid(format!("stdin: {e}")))?;
+                b
+            } else {
+                read(tasks_file)?
+            };
+            let tasks: Vec<schedule::Task> = serde_json::from_str(&raw)
+                .map_err(|e| Error::Invalid(format!("task list: {e}")))?;
+            let allowed = if allow_agent.is_empty() {
+                vec!["codex".to_string()]
+            } else {
+                allow_agent.clone()
+            };
+            let (pool, view) = plan_pool(&root, *min_free_gb);
+            let p = schedule::plan(&tasks, &allowed, &pool)?;
+            let mut v = serde_json::to_value(&p).unwrap_or(Value::Null);
+            v["pool"] = view;
+            emit(&v, json);
+            Ok(Exit::Success)
+        }
+        Action::VerifySources {
+            claim,
+            claim_file,
+            sources,
+        } => {
+            let text = match (claim, claim_file) {
+                (Some(c), _) => c.clone(),
+                (None, Some(f)) => read(f)?,
+                (None, None) => return Err(Error::Invalid("give --claim or --claim-file".into())),
+            };
+            let r = sources::verify(&text, sources)?;
+            emit(&r, json);
+            Ok(if r.outcome == sources::Outcome::Confirmed {
+                Exit::Success
+            } else {
+                Exit::Refused
+            })
+        }
         Action::Log => {
             let root = resolve_root(a)?;
             let lines = status::read_log(&root)?;
@@ -481,6 +559,66 @@ fn go(a: &DelegateArgs, json: bool) -> Result<Exit, Error> {
         }
         _ => adapter_action(a, json, &env),
     }
+}
+
+const GB: f64 = 1e9;
+
+/// Tracks holding a slot: a status file in `queued`, `running` or `stalled`. Unreadable files are
+/// counted apart and do not hold one.
+fn live_tracks(root: &Path) -> (usize, usize) {
+    let dir = root.join(".ai-gent").join("delegate");
+    let (mut live, mut bad) = (0, 0);
+    let Ok(rd) = std::fs::read_dir(&dir) else {
+        return (0, 0);
+    };
+    for e in rd.flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        if !e.path().join("status.json").is_file() {
+            continue;
+        }
+        match status::read(root, &name) {
+            Ok(s) if matches!(s.state, State::Queued | State::Running | State::Stalled) => {
+                live += 1;
+            }
+            Ok(_) => {}
+            Err(_) => bad += 1,
+        }
+    }
+    (live, bad)
+}
+
+/// The pool from `.ai-gent/parallel.yaml` (cap `max_volumes`, else `max_parallel`, default 3) and the
+/// container store's free space, the numbers `wt.py add` checks. Without a container engine the disk
+/// is not checked (as `wt.py` does) and only the cap binds.
+fn plan_pool(root: &Path, flag: Option<f64>) -> (Pool, Value) {
+    let rs = root.to_string_lossy().into_owned();
+    let s = wt::settings(&rs);
+    let (live, unreadable) = live_tracks(root);
+    let cap = usize::try_from(s.volume_cap().max(0)).unwrap_or(0);
+    let est = s.volume_estimate_gb() * GB;
+    #[allow(clippy::cast_precision_loss)]
+    let usage = wt::engine::engine().and_then(|e| wt::disk::store_usage(&e).ok());
+    #[allow(clippy::cast_precision_loss)]
+    let (free, floor, checked) = usage.map_or((f64::INFINITY, 0.0, false), |(total, free, _)| {
+        (free as f64, wt::disk::floor(&s, total, flag), true)
+    });
+    let pool = Pool {
+        cap,
+        live,
+        free,
+        floor,
+        estimate: est,
+    };
+    let view = json!({
+        "cap": cap,
+        "live": live,
+        "unreadable_status_files": unreadable,
+        "disk_checked": checked,
+        "free_gb": if checked { json!((free / GB * 10.0).round() / 10.0) } else { Value::Null },
+        "floor_gb": if checked { json!((floor / GB * 10.0).round() / 10.0) } else { Value::Null },
+        "estimate_gb": est / GB,
+    });
+    (pool, view)
 }
 
 fn adapter_action(a: &DelegateArgs, json: bool, env: &Env) -> Result<Exit, Error> {
