@@ -1,0 +1,60 @@
+{
+ "name": "canary-process-list",
+ "derived_from": "FR-A5 (process list)",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {
+  "gh": {
+   "rules": []
+  }
+ },
+ "env": {
+  "FAKE_TOOL_SLEEP": "1"
+ },
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "cli",
+    "github",
+    "--",
+    "pr",
+    "list"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "args: pr list\ntoken: <token>\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/slow"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"slow\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/slow",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "scan": true,
+ "expect_files": {}
+}

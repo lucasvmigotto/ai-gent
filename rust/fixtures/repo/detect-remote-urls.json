@@ -1,0 +1,556 @@
+{
+ "name": "detect-remote-urls",
+ "derived_from": "RemoteTest::test_platforms, ::test_forced_platform",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@github.com:o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"git@github.com:o/r.git\",\n    \"host\": \"github.com\",\n    \"platform\": \"github\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"github\": {\n      \"token_entry\": \"ai-gent/github/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"gh\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@github.com:o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    git@github.com:o/r.git\nplatform  github\nowner     o\nrepo      r\n\ngithub: REST API (gh)\n  token   ai-gent/github/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/github/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://github.com/o/r"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://github.com/o/r\",\n    \"host\": \"github.com\",\n    \"platform\": \"github\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"github\": {\n      \"token_entry\": \"ai-gent/github/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"gh\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://github.com/o/r"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    https://github.com/o/r\nplatform  github\nowner     o\nrepo      r\n\ngithub: REST API (gh)\n  token   ai-gent/github/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/github/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://acme.ghe.com/o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://acme.ghe.com/o/r.git\",\n    \"host\": \"acme.ghe.com\",\n    \"platform\": \"github\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"github\": {\n      \"token_entry\": \"ai-gent/github/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"gh\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://acme.ghe.com/o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    https://acme.ghe.com/o/r.git\nplatform  github\nowner     o\nrepo      r\n\ngithub: REST API (gh)\n  token   ai-gent/github/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/github/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://org@dev.azure.com/org/My%20Proj/_git/app"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://org@dev.azure.com/org/My%20Proj/_git/app\",\n    \"host\": \"dev.azure.com\",\n    \"platform\": \"azure-devops\",\n    \"org\": \"org\",\n    \"repo\": \"app\",\n    \"project\": \"My Proj\"\n  },\n  \"platforms\": {\n    \"azure-devops\": {\n      \"token_entry\": \"ai-gent/azure-devops/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"az\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://org@dev.azure.com/org/My%20Proj/_git/app"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    https://org@dev.azure.com/org/My%20Proj/_git/app\nplatform  azure-devops\norg       org\nproject   My Proj\nrepo      app\n\nazure-devops: REST API (az)\n  token   ai-gent/azure-devops/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/azure-devops/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@ssh.dev.azure.com:v3/org/proj/app"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"git@ssh.dev.azure.com:v3/org/proj/app\",\n    \"host\": \"dev.azure.com\",\n    \"platform\": \"azure-devops\",\n    \"org\": \"org\",\n    \"project\": \"proj\",\n    \"repo\": \"app\"\n  },\n  \"platforms\": {\n    \"azure-devops\": {\n      \"token_entry\": \"ai-gent/azure-devops/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"az\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@ssh.dev.azure.com:v3/org/proj/app"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    git@ssh.dev.azure.com:v3/org/proj/app\nplatform  azure-devops\norg       org\nproject   proj\nrepo      app\n\nazure-devops: REST API (az)\n  token   ai-gent/azure-devops/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/azure-devops/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://org.visualstudio.com/DefaultCollection/proj/_git/app"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://org.visualstudio.com/DefaultCollection/proj/_git/app\",\n    \"host\": \"dev.azure.com\",\n    \"platform\": \"azure-devops\",\n    \"org\": \"org\",\n    \"repo\": \"app\",\n    \"project\": \"proj\"\n  },\n  \"platforms\": {\n    \"azure-devops\": {\n      \"token_entry\": \"ai-gent/azure-devops/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"az\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://org.visualstudio.com/DefaultCollection/proj/_git/app"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    https://org.visualstudio.com/DefaultCollection/proj/_git/app\nplatform  azure-devops\norg       org\nproject   proj\nrepo      app\n\nazure-devops: REST API (az)\n  token   ai-gent/azure-devops/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/azure-devops/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://dev.azure.com/org/_git/app"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://dev.azure.com/org/_git/app\",\n    \"host\": \"dev.azure.com\",\n    \"platform\": \"azure-devops\",\n    \"org\": \"org\",\n    \"repo\": \"app\",\n    \"project\": \"app\"\n  },\n  \"platforms\": {\n    \"azure-devops\": {\n      \"token_entry\": \"ai-gent/azure-devops/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"az\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://dev.azure.com/org/_git/app"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    https://dev.azure.com/org/_git/app\nplatform  azure-devops\norg       org\nproject   app\nrepo      app\n\nazure-devops: REST API (az)\n  token   ai-gent/azure-devops/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/azure-devops/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@gitlab.com:grp/sub/proj.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"git@gitlab.com:grp/sub/proj.git\",\n    \"host\": \"gitlab.com\",\n    \"platform\": \"gitlab\",\n    \"namespace\": \"grp/sub\",\n    \"repo\": \"proj\",\n    \"project_path\": \"grp/sub/proj\"\n  },\n  \"platforms\": {\n    \"gitlab\": {\n      \"token_entry\": \"ai-gent/gitlab/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"glab\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@gitlab.com:grp/sub/proj.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    git@gitlab.com:grp/sub/proj.git\nplatform  gitlab\nnamespace grp/sub\nrepo      proj\n\ngitlab: REST API (glab)\n  token   ai-gent/gitlab/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/gitlab/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@bitbucket.org:ws/app.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"git@bitbucket.org:ws/app.git\",\n    \"host\": \"bitbucket.org\",\n    \"platform\": \"bitbucket\",\n    \"workspace\": \"ws\",\n    \"repo\": \"app\"\n  },\n  \"platforms\": {\n    \"bitbucket\": {\n      \"token_entry\": \"ai-gent/bitbucket/token\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": null,\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@bitbucket.org:ws/app.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    git@bitbucket.org:ws/app.git\nplatform  bitbucket\nworkspace ws\nrepo      app\n\nbitbucket: REST API (no CLI)\n  token   ai-gent/bitbucket/token — not in pass\n  add it in your own terminal: pass insert -m ai-gent/bitbucket/token\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://codeberg.org/o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://codeberg.org/o/r.git\",\n    \"host\": \"codeberg.org\",\n    \"platform\": \"forgejo\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"forgejo\": {\n      \"token_entry\": \"ai-gent/forgejo/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": null,\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://codeberg.org/o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    https://codeberg.org/o/r.git\nplatform  forgejo\nowner     o\nrepo      r\n\nforgejo: REST API (no CLI)\n  token   ai-gent/forgejo/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/forgejo/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@gitea.example.com:o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"git@gitea.example.com:o/r.git\",\n    \"host\": \"gitea.example.com\",\n    \"platform\": \"forgejo\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"forgejo\": {\n      \"token_entry\": \"ai-gent/forgejo/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": null,\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "git@gitea.example.com:o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    git@gitea.example.com:o/r.git\nplatform  forgejo\nowner     o\nrepo      r\n\nforgejo: REST API (no CLI)\n  token   ai-gent/forgejo/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/forgejo/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://git.example.com/a/b"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://git.example.com/a/b\",\n    \"host\": \"git.example.com\",\n    \"platform\": \"\",\n    \"owner\": \"a\",\n    \"repo\": \"b\"\n  },\n  \"platforms\": {}\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://git.example.com/a/b"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    https://git.example.com/a/b\nplatform  unknown — set git config ai-gent.platform <github|gitlab|azure-devops|bitbucket|forgejo>\nowner     a\nrepo      b\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://user:pw-should-not-matter@github.com/o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://user:pw-should-not-matter@github.com/o/r.git\",\n    \"host\": \"github.com\",\n    \"platform\": \"github\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"github\": {\n      \"token_entry\": \"ai-gent/github/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"gh\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://user:pw-should-not-matter@github.com/o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    https://user:pw-should-not-matter@github.com/o/r.git\nplatform  github\nowner     o\nrepo      r\n\ngithub: REST API (gh)\n  token   ai-gent/github/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/github/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "ssh://git@github.com:22/o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"ssh://git@github.com:22/o/r.git\",\n    \"host\": \"github.com\",\n    \"platform\": \"github\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"github\": {\n      \"token_entry\": \"ai-gent/github/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"gh\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "ssh://git@github.com:22/o/r.git"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "remote    ssh://git@github.com:22/o/r.git\nplatform  github\nowner     o\nrepo      r\n\ngithub: REST API (gh)\n  token   ai-gent/github/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/github/pat\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "git": [
+    [
+     "remote",
+     "set-url",
+     "origin",
+     "https://code.example.com/a/b"
+    ],
+    [
+     "config",
+     "ai-gent.platform",
+     "gitlab"
+    ]
+   ],
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"https://code.example.com/a/b\",\n    \"host\": \"code.example.com\",\n    \"platform\": \"gitlab\",\n    \"namespace\": \"a\",\n    \"repo\": \"b\",\n    \"project_path\": \"a/b\"\n  },\n  \"platforms\": {\n    \"gitlab\": {\n      \"token_entry\": \"ai-gent/gitlab/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"glab\",\n        \"installed\": false\n      }\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

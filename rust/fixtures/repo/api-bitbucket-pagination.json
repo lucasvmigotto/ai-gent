@@ -1,0 +1,100 @@
+{
+ "name": "api-bitbucket-pagination",
+ "derived_from": "ApiTest::test_bitbucket_pagination",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/bitbucket/token": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "bitbucket",
+    "GET",
+    "/page1",
+    "--paginate"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "[\n  1,\n  2,\n  3\n]\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/page1",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/json"
+     },
+     "body": ""
+    },
+    {
+     "method": "GET",
+     "path": "/page2",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "bitbucket",
+    "GET",
+    "/page1",
+    "--paginate",
+    "--max-pages",
+    "1"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "[\n  1,\n  2\n]\n",
+   "stderr_has": [
+    "stopped after 1 pages"
+   ],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/page1",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "bitbucket",
+    "GET",
+    "/page1"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"values\": [\n    1,\n    2\n  ],\n  \"next\": \"http://<STUB>/page2\"\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/page1",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

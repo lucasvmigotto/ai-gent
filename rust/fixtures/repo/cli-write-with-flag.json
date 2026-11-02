@@ -1,0 +1,36 @@
+{
+ "name": "cli-write-with-flag",
+ "derived_from": "CliTest::test_write_with_flag",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {
+  "gh": {
+   "rules": []
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "cli",
+    "github",
+    "--write",
+    "--",
+    "pr",
+    "merge",
+    "3"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "args: pr merge 3\ntoken: \n",
+   "stderr_has": [
+    "token from the CLI's own login"
+   ],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

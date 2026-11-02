@@ -1,0 +1,32 @@
+{
+ "name": "api-jira-without-a-url",
+ "derived_from": "reporun.api_base (jira)",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/jira/token": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {
+  "REPORUN_TEST_BASE": null,
+  "JIRA_URL": null
+ },
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "jira",
+    "GET",
+    "/rest/api/3/myself"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

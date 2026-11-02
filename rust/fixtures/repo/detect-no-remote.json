@@ -1,0 +1,35 @@
+{
+ "name": "detect-no-remote",
+ "derived_from": "reporun.detect_repo (no remote)",
+ "remote": null,
+ "git": [],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"platform\": \"\",\n    \"url\": \"\"\n  },\n  \"platforms\": {}\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "remote    (none)\nplatform  unknown — set git config ai-gent.platform <github|gitlab|azure-devops|bitbucket|forgejo>\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

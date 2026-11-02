@@ -60,6 +60,16 @@ impl Env {
         self.vars.contains_key(key)
     }
 
+    /// Every variable (name, value), in no particular order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &OsString)> {
+        self.vars.iter().map(|(k, v)| (k.as_str(), v))
+    }
+
+    /// Remove a variable.
+    pub fn remove(&mut self, key: &str) {
+        self.vars.remove(key);
+    }
+
     /// The user's home directory.
     #[must_use]
     pub fn home_dir(&self) -> Option<PathBuf> {

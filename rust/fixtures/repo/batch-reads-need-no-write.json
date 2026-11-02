@@ -1,0 +1,39 @@
+{
+ "name": "batch-reads-need-no-write",
+ "derived_from": "BatchTest::test_reads_need_no_write",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"list\", \"api\": {\"method\": \"GET\", \"path\": \"/repos/o/r/issues\"}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": true,\n  \"steps\": [\n    {\n      \"name\": \"list\",\n      \"ok\": true\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/repos/o/r/issues",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

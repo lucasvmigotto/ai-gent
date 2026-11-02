@@ -29,6 +29,10 @@ pub enum Command {
     Guard(GuardArgs),
     /// Token usage per card, estimates and the budget (a port of `token_report.py`).
     Tokens(crate::cmd::tokens::TokensArgs),
+    /// Issues, pull requests and CI on GitHub, Azure DevOps, GitLab, Bitbucket, Forgejo and Jira (a port of `reporun.py`).
+    Repo(crate::cmd::repo::RepoArgs),
+    /// Plan a feature's tracker items from its specs (a port of `specsync.py`).
+    Spec(crate::cmd::spec::SpecArgs),
     /// Worktrees for parallel tracks and their container leftovers (a port of `wt.py`).
     Wt(crate::cmd::wt::WtArgs),
 }

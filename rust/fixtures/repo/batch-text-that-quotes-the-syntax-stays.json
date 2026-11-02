@@ -1,0 +1,51 @@
+{
+ "name": "batch-text-that-quotes-the-syntax-stays",
+ "derived_from": "BatchTest::test_text_that_quotes_the_syntax_stays",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"doc\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues\", \"data\": {\"title\": \"x\", \"body\": \"Use {{step.field}} or {{self.id}} here\"}}}, {\"name\": \"later\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/o/r/issues/{{doc.number}}/comments\", \"data\": {\"body\": \"refs {{doc.number}} and { { doc.id } } and {{ doc.id }}\"}}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": true,\n  \"steps\": [\n    {\n      \"name\": \"doc\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"later\",\n      \"ok\": true\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/repos/o/r/issues",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"title\": \"x\", \"body\": \"Use {{step.field}} or {{self.id}} here\"}"
+    },
+    {
+     "method": "POST",
+     "path": "/repos/o/r/issues/101/comments",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"body\": \"refs 101 and { { doc.id } } and 9101\"}"
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

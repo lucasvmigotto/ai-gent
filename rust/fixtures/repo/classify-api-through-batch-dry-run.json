@@ -1,0 +1,80 @@
+{
+ "name": "classify-api-through-batch-dry-run",
+ "derived_from": "ClassifyTest::test_api",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {
+  "github.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"GET\", \"path\": \"/repos/o/r/issues\"}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"query { viewer { login } }\"}}}, {\"name\": \"s2\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"mutation { x }\"}}}, {\"name\": \"s3\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/o/r/issues\", \"data\": {}}}, {\"name\": \"s4\", \"api\": {\"method\": \"HEAD\", \"path\": \"/x\"}}]}",
+  "azure-devops.json": "{\"platform\": \"azure-devops\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"POST\", \"path\": \"/proj/_apis/wit/wiql\", \"data\": {}}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/proj/_apis/wit/wiql/abc\", \"data\": {}}}, {\"name\": \"s2\", \"api\": {\"method\": \"PATCH\", \"path\": \"/proj/_apis/wit/workitems/1\", \"data\": {}}}]}",
+  "jira.json": "{\"platform\": \"jira\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/api/3/search/jql\", \"data\": {}}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/api/3/search\", \"data\": {}}}, {\"name\": \"s2\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/api/3/issue\", \"data\": {}}}, {\"name\": \"s3\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/agile/1.0/board/5/search\", \"data\": {}}}, {\"name\": \"s4\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/agile/1.0/search\", \"data\": {}}}]}",
+  "bitbucket.json": "{\"platform\": \"bitbucket\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"DELETE\", \"path\": \"/repositories/w/r/pullrequests/1\"}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {}}}]}",
+  "gitlab.json": "{\"platform\": \"gitlab\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"POST\", \"path\": \"/api/graphql\", \"data\": {\"query\": \"{ a }\"}}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"mutation { a }\"}}}, {\"name\": \"s2\", \"api\": {\"method\": \"PUT\", \"path\": \"/x\", \"data\": {}}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/github.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               read  GET /repos/o/r/issues\ns1               read  POST /graphql\ns2               write POST /graphql\ns3               write POST /repos/o/r/issues\ns4               read  HEAD /x\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/azure-devops.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               read  POST /proj/_apis/wit/wiql\ns1               read  POST /proj/_apis/wit/wiql/abc\ns2               write PATCH /proj/_apis/wit/workitems/1\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/jira.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               read  POST /rest/api/3/search/jql\ns1               read  POST /rest/api/3/search\ns2               write POST /rest/api/3/issue\ns3               read  POST /rest/agile/1.0/board/5/search\ns4               write POST /rest/agile/1.0/search\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/bitbucket.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               write DELETE /repositories/w/r/pullrequests/1\ns1               write POST /graphql\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/gitlab.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               read  POST /api/graphql\ns1               write POST /graphql\ns2               write PUT /x\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}
