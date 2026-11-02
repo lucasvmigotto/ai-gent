@@ -107,7 +107,13 @@ fn wait_finished(root: &Path, track: &str) -> ai_gent_core::delegate::adapter::R
 
 /// Run `ai-gent delegate` with a fake-agent mode; stdout as JSON.
 fn cli(root: &Path, mode: &str, args: &[&str]) -> (i32, Value) {
-    let out = Command::new(bin())
+    // stdout goes to a file, not a pipe: on Windows the background watcher and agent inherit the
+    // CLI's handles, and a pipe would stay open (so `output()` would block) until the agent ends.
+    let out_path = root
+        .join("scratch-tmp")
+        .join(format!("cli-out-{}.txt", std::process::id()));
+    let out_file = std::fs::File::create(&out_path).unwrap();
+    let status = Command::new(bin())
         .arg("--json")
         .arg("delegate")
         .arg("--root")
@@ -116,11 +122,15 @@ fn cli(root: &Path, mode: &str, args: &[&str]) -> (i32, Value) {
         .env("AI_GENT_CODEX_BIN", fake())
         .env("FAKE_AGENT_MODE", mode)
         .env("TMPDIR", root.join("scratch-tmp"))
-        .output()
+        .stdin(std::process::Stdio::null())
+        .stdout(out_file)
+        .stderr(std::process::Stdio::null())
+        .status()
         .unwrap();
-    let text = String::from_utf8_lossy(&out.stdout).to_string();
+    let text = std::fs::read_to_string(&out_path).unwrap_or_default();
+    let _ = std::fs::remove_file(&out_path);
     let v = serde_json::from_str(text.lines().next().unwrap_or("null")).unwrap_or(Value::Null);
-    (out.status.code().unwrap(), v)
+    (status.code().unwrap(), v)
 }
 
 fn events(root: &Path, track: &str) -> Vec<Value> {
