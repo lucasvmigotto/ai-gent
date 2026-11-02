@@ -61,7 +61,7 @@ mkdir -p "$SANDBOX/b1" "$SANDBOX/b2"
 python3 "$REPO_DIR/scripts/package.py" --version 9.9.0 --out "$SANDBOX/b1" >/dev/null
 python3 "$REPO_DIR/scripts/package.py" --version 9.9.0 --out "$SANDBOX/b2" >/dev/null
 check "two builds are byte-identical" cmp -s "$SANDBOX/b1/ai-gent-9.9.0.tar.gz" "$SANDBOX/b2/ai-gent-9.9.0.tar.gz"
-check "SHA256SUMS also lists install.sh" grep -q "  install.sh$" "$SANDBOX/b1/SHA256SUMS"
+check "SHA256SUMS also lists install.sh, then install.ps1 last, and both are copied beside it" bash -c 'grep -q "  install.sh$" "$1/SHA256SUMS" && tail -n1 "$1/SHA256SUMS" | grep -q "  install.ps1$" && cmp -s "$1/install.ps1" "$2/install.ps1" && cmp -s "$1/install.sh" "$2/install.sh"' _ "$SANDBOX/b1" "$REPO_DIR"
 check "SHA256SUMS matches the tarball and install.sh" bash -c 'cd "$1" && (sha256sum -c SHA256SUMS >/dev/null 2>&1 || shasum -a 256 -c SHA256SUMS >/dev/null 2>&1)' _ "$SANDBOX/b1"
 check "--check passes" bash -c 'python3 "$1/scripts/package.py" --check >/dev/null' _ "$REPO_DIR"
 check "a bad version is refused" bash -c '! python3 "$1/scripts/package.py" --version v1 --out "$2" >/dev/null 2>&1' _ "$REPO_DIR" "$SANDBOX/b3"
@@ -70,7 +70,7 @@ check "a bad version is refused" bash -c '! python3 "$1/scripts/package.py" --ve
 bad="$SANDBOX/bad"
 mkdir -p "$bad/scripts" "$bad/opencode/guard" "$bad/plugins/p/references" "$bad/shared"
 cp "$REPO_DIR/scripts/package.py" "$bad/scripts/"
-touch "$bad/setup.sh" "$bad/install.sh" "$bad/LICENSE" "$bad/README.md" "$bad/scripts/update-check.sh" \
+touch "$bad/setup.sh" "$bad/install.sh" "$bad/install.ps1" "$bad/setup.ps1" "$bad/LICENSE" "$bad/README.md" "$bad/scripts/update-check.sh" \
   "$bad/scripts/ai-gent-update.sh" "$bad/scripts/opencode-config.py" "$bad/opencode/guard/rules.mjs"
 ln -s ../../../shared/missing.md "$bad/plugins/p/references/x.md"
 check "a dangling symlink refuses to build" bash -c '! python3 "$1/scripts/package.py" --version 1.0.0 --out "$1/dist" >/dev/null 2>"$1/err" && grep -q dangles "$1/err"' _ "$bad"
@@ -174,7 +174,7 @@ check "a failed attestation refuses" bash -c '! FAKE_GH_RC=1 VERSION=9.9.2 PATH=
 echo "      -- per-triple archives"
 TRIP="$SANDBOX/trip"
 pkg 9.8.0 "$TRIP" "${TRIPLES[@]}"
-check "SHA256SUMS lists the content-only archive, six triples and install.sh" bash -c '[ "$(wc -l <"$1/SHA256SUMS")" -eq 8 ] && tail -n1 "$1/SHA256SUMS" | grep -q "  install.sh$"' _ "$TRIP"
+check "SHA256SUMS lists the content-only archive, six triples, install.sh and install.ps1" bash -c '[ "$(wc -l <"$1/SHA256SUMS")" -eq 9 ] && tail -n2 "$1/SHA256SUMS" | head -n1 | grep -q "  install.sh$" && tail -n1 "$1/SHA256SUMS" | grep -q "  install.ps1$"' _ "$TRIP"
 check "SHA256SUMS verifies every asset" bash -c 'cd "$1" && (sha256sum -c SHA256SUMS >/dev/null 2>&1 || shasum -a 256 -c SHA256SUMS >/dev/null 2>&1)' _ "$TRIP"
 for t in "${TRIPLES[@]}"; do
   exe=ai-gent
@@ -183,7 +183,7 @@ for t in "${TRIPLES[@]}"; do
   a="$TRIP/ai-gent-9.8.0-$t.$ext"
   check "$t: ai-gent-9.8.0-$t.$ext exists" test -f "$a"
   if [ "$ext" = zip ]; then
-    check "$t: bin/$exe is the stub, there are no symlink entries" python3 -I - "$a" "$STUB/$exe" <<'PY'
+    check "$t: bin/$exe is the stub, there are no symlink entries" python3 -I - "$a" "$STUB/$exe" "$REPO_DIR" <<'PY'
 import sys, stat, zipfile
 z = zipfile.ZipFile(sys.argv[1])
 top = "ai-gent-9.8.0-x86_64-pc-windows-msvc/" if "x86_64" in sys.argv[1] else "ai-gent-9.8.0-aarch64-pc-windows-msvc/"
@@ -192,6 +192,9 @@ assert oct((z.getinfo(top + "bin/ai-gent.exe").external_attr >> 16) & 0o777) == 
 assert not [i for i in z.infolist() if stat.S_ISLNK(i.external_attr >> 16)]
 assert top + "plugins/git/references/pipeline.md" not in z.namelist() or True
 assert z.read(top + "VERSION") == b"9.8.0\n"
+repo = sys.argv[3]
+for n in ("setup.ps1", "install.ps1"):  # the Windows installer and its setup travel in the Windows zips only
+    assert z.read(top + n) == open(repo + "/" + n, "rb").read(), n
 PY
     check "$t: the zip lists no Rust sources" bash -c '! python3 -I -c "import sys,zipfile; print(*zipfile.ZipFile(sys.argv[1]).namelist(), sep=chr(10))" "$1" | grep -Eq "(\.rs$|/Cargo\.|/target/|/rust/|deny\.toml|rust-toolchain|guard-fixtures)"' _ "$a"
   else
@@ -209,6 +212,7 @@ check "the zip is byte-identical across builds" bash -c 'python3 "$1/scripts/pac
 check "--target without --binary is refused" bash -c '! python3 "$1/scripts/package.py" --version 9.8.0 --out "$2" --target aarch64-apple-darwin >/dev/null 2>&1' _ "$REPO_DIR" "$SANDBOX/b5"
 check "an unknown triple is refused" bash -c '! python3 "$1/scripts/package.py" --version 9.8.0 --out "$2" --target riscv64-unknown-linux-gnu --binary "$3/ai-gent" >/dev/null 2>&1' _ "$REPO_DIR" "$SANDBOX/b5" "$STUB"
 check "--content-only with --binary is refused" bash -c '! python3 "$1/scripts/package.py" --version 9.8.0 --out "$2" --content-only --binary "$3/ai-gent" >/dev/null 2>&1' _ "$REPO_DIR" "$SANDBOX/b5" "$STUB"
+check "only the Windows zips carry setup.ps1 and install.ps1 (the other archives are unchanged by them)" bash -c '! tar -tzf "$1/ai-gent-9.8.0.tar.gz" | grep -q "\.ps1$" && ! tar -tzf "$1/ai-gent-9.8.0-aarch64-apple-darwin.tar.gz" | grep -q "\.ps1$"' _ "$TRIP"
 check "the content-only archive has no bin/" bash -c '! tar -tzf "$1/ai-gent-9.8.0.tar.gz" | grep -q "/bin/"' _ "$TRIP"
 
 # A Rust file under an allowlisted tree must stop the build (a scratch copy of the package script and tree).
@@ -216,7 +220,7 @@ rs="$SANDBOX/rs"
 mkdir -p "$rs/scripts" "$rs/opencode/guard" "$rs/plugins/p" "$rs/plugins/git/hooks" "$rs/plugins/git/.claude-plugin"
 touch "$rs/plugins/git/hooks/hooks.json" "$rs/plugins/git/.claude-plugin/plugin.json"
 cp "$REPO_DIR/scripts/package.py" "$rs/scripts/"
-touch "$rs/setup.sh" "$rs/install.sh" "$rs/LICENSE" "$rs/README.md" "$rs/scripts/update-check.sh" \
+touch "$rs/setup.sh" "$rs/install.sh" "$rs/install.ps1" "$rs/setup.ps1" "$rs/LICENSE" "$rs/README.md" "$rs/scripts/update-check.sh" \
   "$rs/scripts/ai-gent-update.sh" "$rs/scripts/opencode-config.py" "$rs/opencode/guard/rules.mjs"
 check "a clean scratch tree builds" bash -c 'python3 "$1/scripts/package.py" --version 1.0.0 --out "$1/dist" >/dev/null 2>&1' _ "$rs"
 for f in main.rs Cargo.toml Cargo.lock deny.toml rust-toolchain.toml; do

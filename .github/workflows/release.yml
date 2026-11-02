@@ -164,11 +164,12 @@ jobs:
             dist/ai-gent-${{ needs.release.outputs.version }}-*.tar.gz
             dist/ai-gent-${{ needs.release.outputs.version }}-*.zip
             dist/install.sh
+            dist/install.ps1
 
       - name: Attach to the release, then publish it
         run: |
           set -euo pipefail
-          gh release upload "$VERSION" dist/ai-gent-"$VERSION".tar.gz dist/ai-gent-"$VERSION"-*.tar.gz dist/ai-gent-"$VERSION"-*.zip dist/SHA256SUMS dist/install.sh --clobber
+          gh release upload "$VERSION" dist/ai-gent-"$VERSION".tar.gz dist/ai-gent-"$VERSION"-*.tar.gz dist/ai-gent-"$VERSION"-*.zip dist/SHA256SUMS dist/install.sh dist/install.ps1 --clobber
           # The notes gain the ## Checksums block (D25) before the release stops being a draft.
           gh release edit "$VERSION" --notes-file dist/release-notes.md
           gh release edit "$VERSION" --draft=false --latest
