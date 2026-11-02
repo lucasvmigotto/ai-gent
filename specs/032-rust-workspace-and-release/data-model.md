@@ -37,7 +37,7 @@ No database. The entities are build and install artifacts.
 
 ## Size budget (to be measured in T015)
 
-Binary at most 8 MB stripped per target [ASSUMPTION]; archive at most 10 MB; release total at most 80 MB. If exceeded, review dependencies before raising the budget.
+Budget **per binary** (D29). `ai-gent`: at most 8 MB stripped per target [ASSUMPTION]; archive at most 10 MB; release total at most 80 MB. `ai-gent-compact` (spec 037, own binary because its tree-sitter grammars cost 19 MB for the named languages and 39 MB for the full L4 set, `specs/037-repo-spec-pass-compact-tools/measurements.md`): at most **25 MB stripped per target** [PROPOSAL, flagged for the owner, derived from the 19.4 MB measured for the 10 grammars of the keep-at-L4 list plus headroom; to be re-measured with the real port]; its archive counts toward the release total, which is to be revisited with it. If a budget is exceeded, review dependencies before raising it.
 
 ### Measured (T015, 2026-11-01, `ai-gent 0.1.0` with `version` and `doctor` only)
 
