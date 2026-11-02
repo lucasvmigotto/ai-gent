@@ -50,6 +50,7 @@ never to silence a bloated single description).
 import json
 import os
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -714,6 +715,15 @@ def check_rust_workspace(root: Path) -> list[str]:
     return problems
 
 
+def check_compact_langs(root: Path) -> list[str]:
+    """The Rust language table of `ai-gent compact` is generated from langs.py (spec 037 T063)."""
+    gen = root / "scripts" / "gen-compact-langs.py"
+    if not gen.is_file() or not (root / "plugins/compact/skills/code/scripts/langs.py").is_file():
+        return []  # after the 3.0.0 cutover the table is the source
+    done = subprocess.run([sys.executable, str(gen), "--check"], capture_output=True, text=True, cwd=root)
+    return [line.removeprefix("FAIL  ") for line in done.stdout.splitlines() if line.strip()] if done.returncode else []
+
+
 TOKEN_TAGS = "shared/token-tags.json"
 TOKEN_TAGS_COPY = "rust/crates/ai-gent-core/src/tokens/token-tags.json"
 
@@ -854,7 +864,7 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_tiers(root) + check_readme_tiers(root) + check_naming(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_compact_langs(root) + check_tiers(root) + check_readme_tiers(root) + check_naming(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:

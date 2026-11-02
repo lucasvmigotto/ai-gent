@@ -1,0 +1,56 @@
+bash         max L2 (lines)  .sh .bash .zsh .ksh
+c            max L4 (dense)  .c .h
+clojure      max L2 (lines)  .clj .cljs .cljc .edn
+coffeescript max L1 (blank)  indent-sensitive  .coffee
+cpp          max L4 (dense)  .cc .cpp .cxx .c++ .hpp .hh .hxx .h++ .ipp .inl .tpp
+csharp       max L4 (dense)  .cs
+css          max L4 (dense)  .css
+cuda         max L4 (dense)  .cu .cuh
+dart         max L4 (dense)  .dart
+dockerfile   max L2 (lines)  Dockerfile Containerfile
+elixir       max L2 (lines)  .ex .exs
+elm          max L1 (blank)  indent-sensitive  .elm
+fsharp       max L1 (blank)  indent-sensitive  .fs .fsi .fsx
+glsl         max L4 (dense)  .glsl .vert .frag .geom .comp
+go           max L4 (dense)  .go
+groovy       max L2 (lines)  .groovy .gradle
+haskell      max L1 (blank)  indent-sensitive  .hs
+hlsl         max L4 (dense)  .hlsl .fx
+html         max L2 (lines)  .html .htm .vue .svelte
+java         max L4 (dense)  .java
+javascript   max L4 (dense)  .js .mjs .cjs
+json         max L4 (dense)  .json .jsonc
+jsx          max L4 (dense)  .jsx
+kotlin       max L4 (dense)  .kt .kts
+less         max L4 (dense)  .less
+lua          max L2 (lines)  .lua
+make         max L0 (as-is)  indent-sensitive  .mk Makefile makefile GNUmakefile
+markdown     max L0 (as-is)  indent-sensitive  .md .markdown
+nim          max L1 (blank)  indent-sensitive  .nim
+objc         max L4 (dense)  .m
+objcpp       max L4 (dense)  .mm
+perl         max L1 (blank)  .pl .pm
+php          max L4 (dense)  .php
+powershell   max L1 (blank)  .ps1 .psm1
+proto        max L4 (dense)  .proto
+pug          max L0 (as-is)  indent-sensitive  .pug .jade
+python       max L1 (blank)  indent-sensitive  .py .pyi .pyw
+r            max L2 (lines)  .r .R
+rst          max L0 (as-is)  indent-sensitive  .rst
+ruby         max L2 (lines)  .rb .rake .gemspec
+rust         max L4 (dense)  .rs
+sass         max L0 (as-is)  indent-sensitive  .sass
+scala        max L1 (blank)  .scala .sc
+scss         max L4 (dense)  .scss
+solidity     max L4 (dense)  .sol
+sql          max L2 (lines)  .sql
+stylus       max L0 (as-is)  indent-sensitive  .styl
+swift        max L2 (lines)  .swift
+terraform    max L2 (lines)  .tf .tfvars .hcl
+toml         max L2 (lines)  .toml
+tsx          max L4 (dense)  .tsx
+typescript   max L4 (dense)  .ts .mts .cts
+verilog      max L2 (lines)  .v .sv .svh
+xml          max L2 (lines)  .xml .xsd .xsl .xslt .svg .plist .csproj .fsproj .vbproj
+yaml         max L0 (as-is)  indent-sensitive  .yml .yaml
+zig          max L2 (lines)  .zig
