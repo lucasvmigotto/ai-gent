@@ -48,3 +48,25 @@ Setup: the same CLI and sandbox; brief per `contracts/brief-template.md` with `a
 ## Open
 
 Time per run is not yet recorded (the adapter will keep its own clock); the second-agent reviewer step (FR-010) has not been exercised.
+
+---
+
+# Trial 3: OpenCode (`opencode/flint-40b-free`) on spec 038 T002 (2026-11-02)
+
+Setup: a read-and-research task writing one file (`engine-matrix.md`), `allowed_paths` of that file only, per-run permissions from `OPENCODE_CONFIG_CONTENT` (ai-gent's rules with every `ask` turned into `deny`, plus denies for commits, pushes, `gh`, `sudo` and credential directories), `--standalone --auto --format json`, stdin closed, public content only after the privacy notice.
+
+## Result
+
+- Wall time 835 s; 27 steps, 55 tool calls (23 reads, 23 fetches, 3 searches, 1 write); about 115k input, 47k output tokens (1.39M cached read); cost 0. Exit code 1 although the file was complete.
+- Scope respected: only the allowed file, no git writes, no markers, no permission denials needed.
+- Versions, repositories and dates of all ten crates were correct against crates.io. **One decision-relevant conclusion was wrong**: it called `tiberius` unmaintained with an archived repository, citing RUSTSEC-2020-0010; that advisory covers 0.3.x only and the repository is not archived (pushed 2026-09-25). It also cited a non-existent path (`dbun-spike-report.md`) seven times. The supervisor corrected both before committing.
+
+## What it changes
+
+| # | Finding | Change |
+|---|---|---|
+| 1 | A free model is a good first-draft researcher with tools of its own, but can state a wrong conclusion with sources that, read fully, say otherwise. | Mandatory review stays; add a supervisor step that re-fetches the cited sources for any claim that decides a verdict (checklist item). |
+| 2 | Exit code 1 despite a finished file. | Adapter judges by the final `step_finish` reason and the diff; the exit code is advisory. |
+| 3 | Usage is per step. | Adapter sums `step_finish.tokens` and `cost`. |
+| 4 | Time is long (14 min) for a research task. | Record time per run (FR-013); consider a per-task time budget before taking the task back (FR-014). |
+| 5 | `--auto` auto-approves every `ask`. | Per-run config converts `ask` to `deny` (done in this trial). |

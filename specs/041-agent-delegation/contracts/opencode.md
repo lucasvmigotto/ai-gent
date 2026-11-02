@@ -13,7 +13,15 @@ Observed on this machine (2026-11-02): OpenCode v2.2.5 at `~/.opencode/bin/openc
 | Native V2 config has an ordered `permissions` array of `{action, resource, effect}` rules and a `plugins` array; `setup.sh` already writes ai-gent's rules and loads `opencode/guard` (the V2 guard plugin) for the opencode target. | OpenCode can **enforce** ai-gent's guards, which Codex cannot. For a delegate this is the main advantage, but only if that config is in place for the run. On this machine `~/.config/opencode` holds only `service.json`: ai-gent is **not** set up for opencode here. |
 | The model list shows seven free models: `opencode/flint-40b-free` (default), `nemotron-3.5-super-vl-free`, `beam-free`, `mimo-v2.6-flash-free`, `deepseek-v4.1-flash-free`, `glm-5.3-flash-free`, `nemotron-3.5-lightning-free`. | These are the owner's chosen models. Quality varies and none has been tried. |
 
-## Run shape (to verify in trial)
+## Verified in trial 3 (2026-11-02, `opencode/flint-40b-free`)
+
+- `OPENCODE_CONFIG_CONTENT` takes the inline per-run config (permissions array); `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR` and `OPENCODE_CONFIG_PROJECT_DISABLE` also exist. No file is written and the user's config is untouched.
+- `--standalone` gives the run a private server; without it the run goes through the shared background service (`service.json`).
+- Events (`--format json`) are `step_start`, `tool_use`, `step_finish` and `text`; usage is in each `step_finish.part.tokens` (`input`, `output`, `reasoning`, `cache.read|write`) and `cost` (0 for free models), so cost is the **sum** over steps, unlike Codex's single final event.
+- The run can exit **1 even when it wrote its file and finished**: judge by the final `step_finish` (`reason: stop`) and the diff, not the exit code alone.
+- OpenCode has its own `websearch` and `webfetch` tools; `websearch` was cancelled three times and recovered. It also wrote the wrong file name three times before finding the right one.
+
+## Run shape
 
 `opencode run --model opencode/<model> --format json "<brief>" < /dev/null` from the worktree, with stdout and stderr to files under `.ai-gent/delegate/<track>/`, a PID file, and the supervisor's clock. Permissions come from a per-run config that is **not** committed (an env or config-dir override; the exact switch is verified in trial) so the user's own OpenCode config is never edited silently (open question 3).
 
