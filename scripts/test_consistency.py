@@ -579,5 +579,23 @@ class GuardReasons(unittest.TestCase):
         self.assertTrue(any("no entry" in p for p in problems), problems)
 
 
+class Naming(unittest.TestCase):
+    def test_old_spelling_fails(self):
+        root = tree({"README.md": "going away in v3.\n"})
+        self.assertEqual(len(consistency.check_naming(root)), 1)
+
+    def test_allowlist_and_lookalikes_pass(self):
+        root = tree({
+            "docs/product/rust-decisions.md": "never \"v3\"\n",
+            "CHANGELOG.md": "v3\n",
+            "README.md": "GPL v3+, 3.0.0 and 3.x, ssh.dev.azure.com:v3/org, v3.1, dev3, v3.1.2\n",
+        })
+        self.assertEqual(consistency.check_naming(root), [])
+
+    def test_scanned_directories(self):
+        root = tree({"shared/a.md": "the v3 release\n", "scripts/x.sh": "# v3 only\n", "other/a.md": "v3\n"})
+        self.assertEqual(len(consistency.check_naming(root)), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

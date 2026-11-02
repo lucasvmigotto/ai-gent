@@ -45,7 +45,8 @@
 # The binary: a release package carries bin/ai-gent. When it is there, the
 # link $AI_GENT_BIN_DIR/ai-gent (default ~/.local/bin/ai-gent) points at it
 # through the install's `current`, or the PATH line to add is printed when
-# that directory is not on PATH. A git clone has no bin/, so nothing is linked.
+# that directory is not on PATH. A checkout has no bin/ until scripts/dev-bin.sh
+# provides one (setup.sh says so); until then nothing is linked.
 # A full --uninstall (no --target) removes the link.
 #
 # Idempotent: re-run after adding, renaming or removing a skill, or after
@@ -442,6 +443,12 @@ install_claude() {
       old=$((old + 1)); old_from="$(readlink "$dest")"
     fi
   done
+  if ((MIGRATE)); then
+    local v
+    for v in AI_GENT_MODE AI_GENT_BRANCH AI_GENT_REPO AI_GENT_DIR; do
+      [[ -z ${!v:-} ]] || echo "--migrate: $v is set in this environment; git mode was removed in 3.0.0 and the variable is ignored, remove it from your shell profile."
+    done
+  fi
   if ((old && MIGRATE)); then
     echo "--migrate: $old link(s) in $CLAUDE_DIR point into another ai-gent tree (e.g. ${old_from%/*/*}); they will be repointed to $REPO_DIR. The old tree itself is not touched."
   elif ((old)); then
@@ -475,7 +482,13 @@ install_bin() {
     section_end
     return 0
   fi
-  [[ -f $src ]] || return 0
+  if [[ ! -f $src ]]; then
+    # A checkout has no binary until scripts/dev-bin.sh puts one in bin/ (a package carries it).
+    if [[ -e $REPO_DIR/.git && -f $REPO_DIR/rust/Cargo.toml ]]; then
+      line note "no ai-gent binary in $REPO_DIR/bin; run scripts/dev-bin.sh (builds rust/ or downloads the release binary), then re-run setup.sh to link it"
+    fi
+    return 0
+  fi
   section "Binary:" "$BIN_DIR"
   run mkdir -p "$BIN_DIR"
   if [[ -L $dest ]]; then

@@ -215,7 +215,7 @@ export const enUS: Messages = {
 		verify: "Verify",
 		updates: "Updates",
 		updatesBody:
-			"When a Claude Code session starts, a SessionStart check prints one line if a newer release is known — the check reads a weekly cache and never blocks startup. AI_GENT_NO_UPDATE_CHECK=1 disables it. The session that notices an update only proposes it; applying it (scripts/ai-gent-update.sh re-runs the installer) takes effect next session. Pin with VERSION=x.y.z, list with --list, undo with --rollback, drop old versions with --prune. The old git-clone install is a dev mode (AI_GENT_MODE=git) that goes away in v3.",
+			"When a Claude Code session starts, a SessionStart check prints one line if a newer release is known — the check reads a weekly cache and never blocks startup. AI_GENT_NO_UPDATE_CHECK=1 disables it. The session that notices an update only proposes it; applying it (scripts/ai-gent-update.sh re-runs the installer) takes effect next session. Pin with VERSION=x.y.z, list with --list, undo with --rollback, drop old versions with --prune. Git mode (AI_GENT_MODE=git) was removed in 3.0.0; the README explains how to move from a clone.",
 		firstSkill: "Invoke your first skill",
 		firstSkillBody:
 			"Type what you want in plain words and the matching skill loads, or invoke one directly.",
