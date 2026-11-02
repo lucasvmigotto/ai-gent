@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { ALL_STATES, LOG, track } from './workers-fixtures'
+import { AGENTS, ALL_STATES, LOG, PROFILE_AND_CODEX, track } from './workers-fixtures'
 
 type Handlers = Parameters<Parameters<typeof test>[1]>[1]
 
@@ -11,7 +11,7 @@ const PIPELINE_PANE = { plugin: 'project', component: 'Pane', requestId: 'pipeli
 
 // A repository at ROOT as a plain object of files a test edits between steps.
 function world(on: Handlers, files: Record<string, string>) {
-  const w = { files, mtime: {} as Record<string, number>, opened: 0, closed: 0, placed: true, reads: [] as string[], clock: mock.clock(on) }
+  const w = { files, mtime: {} as Record<string, number>, opened: 0, closed: 0, placed: true, reads: [] as string[], agents: [] as unknown[] | null, clock: mock.clock(on) }
   const rel = (p: string) => p.replace(`${ROOT}/`, '')
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.cwd', () => ({ value: ROOT }))
@@ -41,6 +41,7 @@ function world(on: Handlers, files: Record<string, string>) {
     }
     return { value: [...seen].map(([name, kind]) => ({ name, kind, size: 1, mtimeMs: 1, isLink: false })) }
   })
+  on('agent.list', () => (w.agents === null ? { deny: 'nope' } : { value: w.agents as never }))
   on('tool.call', () => ({ result: {} }))
   return w
 }
@@ -166,4 +167,41 @@ test('workersLine off hides the compact line', { options: { pipelineLayout: 'com
   const ui = await $.ui.mount({ ...PIPELINE_PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /Workers:/ })).toBeUndefined()
   await ui.unmount()
+})
+
+test('all three kinds: session subagents from the API, profile and Codex tracks from the files, one total', async ($, on) => {
+  const w = world(on, { ...BASE, ...statusFiles(PROFILE_AND_CODEX) })
+  w.agents = AGENTS.slice(0, 2)
+  await $.session.start(START)
+  const out = await run($)
+  expect(out).toContain('slots 3/3')
+  for (const needle of ['prof ', 'ext ', 'sub ', 'feat-prof', 'feat-cx', 'sub-e1']) expect(out).toContain(needle)
+  expect(out).not.toContain('PROMPT-SECRET')
+  expect(out).not.toContain('survey')
+})
+
+test('the compact pipeline line counts every kind together', { options: { pipelineLayout: 'compact' } }, async ($, on) => {
+  const w = world(on, { ...BASE, ...statusFiles(PROFILE_AND_CODEX) })
+  w.agents = AGENTS.slice(0, 2)
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PIPELINE_PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^Workers: 3 running · 1 queued · slots 3\/3$/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('subagents alone make a list; the description shows only with workersShowDescription', { options: { workersShowDescription: true } }, async ($, on) => {
+  const w = world(on, {})
+  w.agents = AGENTS.slice(0, 2)
+  await $.session.start(START)
+  const out = await run($)
+  expect(out).toContain('survey')
+  expect(out).not.toMatch(/[\u0000-\u0009\u000b-\u001f]/)
+  expect(out).toContain('PROMPT-SECRET')
+})
+
+test('an agent list that fails leaves the status-file rows', async ($, on) => {
+  const w = world(on, statusFiles({ 'feat-core': ALL_STATES['feat-core'] as string }))
+  w.agents = null
+  await $.session.start(START)
+  expect(await run($)).toContain('feat-core')
 })

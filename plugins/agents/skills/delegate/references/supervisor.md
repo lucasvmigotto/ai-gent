@@ -24,6 +24,10 @@ The prompt names the diff, the files to check it against and the acceptance
 criteria; the reviewer has no network, lists what it could not check, edits
 nothing. Do not use `codex exec review`.
 
+## Register every dispatch
+
+A worker launched by hand (another Claude profile's `claude -p`, any other agent) is registered with `ai-gent delegate mark`, or started with `delegate run`: the workers pane and the slot count see only registered tracks.
+
 ## Failure modes
 
 A single `apply_patch` error is not a stall. No first event within the wait
