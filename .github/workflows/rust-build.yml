@@ -52,6 +52,14 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
+      # The tree-sitter grammars of ai-gent-compact are C: the musl legs need a musl C compiler.
+      - name: Install the musl C compiler
+        if: ${{ endsWith(matrix.target, '-linux-musl') }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends musl-tools
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
+
       - name: Install rustup when the runner image lacks it
         run: |
           if ! command -v rustup >/dev/null 2>&1; then
@@ -116,7 +124,7 @@ jobs:
       - name: Test - the guard fixtures on this OS
         if: ${{ inputs.dry_run }}
         working-directory: rust
-        run: cargo test --locked --target "$TARGET" -p ai-gent-core -p ai-gent
+        run: cargo test --locked --target "$TARGET" -p ai-gent-core -p ai-gent -p ai-gent-compact
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
