@@ -89,7 +89,28 @@ jobs:
       - name: Check
         env:
           CHECK_SKIP_RUST: ${{ steps.changes.outputs.rust != 'true' && '1' || '' }}
+          TIER3_SKIP: "1" # the tier-3 install cases run in the non-required tier3 job below
         run: scripts/check.sh
+
+  # Tier 3 (shared/tiers.json): opencode, Cursor, Antigravity, Copilot, Amp, Kiro and Windsurf are
+  # best-effort and never a release blocker (spec 039 FR-012). Their install cases run here alone;
+  # a red job is information, so continue-on-error keeps it out of the merge and release gates.
+  tier3:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true
+    concurrency:
+      group: check-tier3-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Tier-3 installer cases
+        env:
+          TIER3_ONLY: "1"
+        run: scripts/test-install.sh
 
   # The installer on macOS: the system bash is 3.2, so setup.sh hands over to
   # Homebrew's bash, and the BSD userland catches GNU-only commands.
@@ -109,6 +130,8 @@ jobs:
         run: brew install bash
 
       - name: Installer tests, run by the system bash 3.2
+        env:
+          TIER3_SKIP: "1" # tier 3 runs in the tier3 job
         run: /bin/bash scripts/test-install.sh
 
       # The per-triple archives and install.sh's platform map on macOS: BSD tar, shasum, env and sed,

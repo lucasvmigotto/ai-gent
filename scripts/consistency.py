@@ -811,6 +811,34 @@ def check_tiers(root: Path) -> list[str]:
     return problems
 
 
+def check_readme_tiers(root: Path) -> list[str]:
+    """The README's "Support tiers" table equals shared/tiers.json (spec 039 T031): per tier, the same agents and the same policy. The docs site's matrix is generated from the JSON, so it cannot differ."""
+    path, readme = root / TIERS, root / "README.md"
+    if not path.is_file() or not readme.is_file():
+        return []
+    try:
+        tiers = json.loads(path.read_text(encoding="utf-8")).get("tiers", [])
+    except ValueError:
+        return []  # check_tiers reports it
+    rows = {}
+    for line in readme.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if line.startswith("|") and len(cells) == 3:
+            rows[cells[0]] = (re.findall(r"`([^`]+)`", cells[1]), cells[2])
+    problems = []
+    for t in tiers:
+        label = t.get("label", t.get("id", "?"))
+        if label not in rows:
+            problems.append(f"README.md: the Support tiers table has no {label!r} row ({TIERS} is the source)")
+            continue
+        agents, policy = rows[label]
+        if agents != t.get("agents", []):
+            problems.append(f"README.md: {label} lists {agents}, {TIERS} has {t.get('agents', [])}")
+        if policy != t.get("policy", ""):
+            problems.append(f"README.md: {label} promise differs from {TIERS}")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
     if "--sync-token-tags" in sys.argv[1:]:
         (root / TOKEN_TAGS_COPY).write_bytes((root / TOKEN_TAGS).read_bytes())
@@ -826,7 +854,7 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_tiers(root) + check_naming(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_tiers(root) + check_readme_tiers(root) + check_naming(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
