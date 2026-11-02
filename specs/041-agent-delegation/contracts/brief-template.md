@@ -11,7 +11,7 @@ Verify with: <the task's own commands, targeted tests only>.
 Hard limits: no credentials or secrets; no database or container tools; no network (you have none); no edits to skills, plugins, hooks, shared references, AGENTS.md or CLAUDE.md; no version bumps, tags or CHANGELOG edits; no trailers or markers of any kind in commits; no --no-verify; no force-push; stage by explicit path; never delete anything you did not create.
 Environment: TMPDIR=<dir>; build output outside the worktree.
 Environment failures (denied sockets, caches, missing tools) go in your final message, never in a repository file.
-Commit locally on the current branch with a Conventional Commit message, then stop. Do not push.
+Leave your changes in the working tree and stop. Do not commit or push (the supervisor commits).
 
 Final message (short): per task done or skipped and why, commit hashes, and "Rules I found hard to follow".
 ```

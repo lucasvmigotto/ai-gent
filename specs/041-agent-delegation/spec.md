@@ -60,9 +60,9 @@ One line per delegation in the local log: worker, task, wall time, tokens when t
 
 ### User Story 7 - Follow the workers in a pane (Priority: P3)
 
-A Claude Code user opens `/workers-pane` (or `/workers` for text) and sees one row per worker: agent (Claude, a Claude subagent, Codex), role (builder, reviewer, researcher), task and track, state (queued, running, stalled, done, failed, taken back), elapsed time, last-event age and worktree. A header shows the pool: worktree slots used against the cap, the disk-floor margin and the usage meters. Selecting a row shows its brief, its last events and the supervisor's verdict; cost lines come from the delegation log. It is a mod in the `project` plugin, built like the guards and pipeline panes, optional, and never opens by itself.
+A Claude Code user opens `/workers-pane` (or `/workers` for text) and sees one row per worker: agent (Claude, a Claude subagent, Codex), role (builder, reviewer, researcher), task and track, state (queued, running, stalled, done, failed, taken back), elapsed time, last-event age and worktree. A header shows the pool: worktree slots used against the cap, the disk-floor margin and the usage meters. Selecting a row shows its brief, its last events and the supervisor's verdict; cost lines come from the delegation log. The pipeline pane also gets one compact line, for example `Workers: 2 running · 1 done · slots 1/1`, marked when a worker is stalled or failed; the full list stays in the workers pane so the pipeline pane keeps its rows. It is a mod in the `project` plugin, built like the guards and pipeline panes, optional, and never opens by itself.
 
-**Independent Test**: a pure model (status files in, rows out) and a draw function with golden fixtures, then `claude plugin test plugins/project`; with no status files the pane says "No workers" and `/workers` prints the same text where no pane can dock.
+**Independent Test**: a pure model (status files in, rows and the compact line out) and a draw function with golden fixtures, then `claude plugin test plugins/project`; with no status files the pane says "No workers" and `/workers` prints the same text where no pane can dock.
 
 ## Requirements *(mandatory)*
 
@@ -72,15 +72,16 @@ A Claude Code user opens `/workers-pane` (or `/workers` for text) and sees one r
 - **FR-004**: A delegate never receives a task that needs credentials, database or container tools, an owner decision, or an edit to a skill, plugin, hook or shared reference.
 - **FR-005**: Every delegation uses a brief built from `contracts/brief-template.md`, with `allowed_paths`, hard limits, the verification commands, the worker pack and the final report format.
 - **FR-006**: Worktrees come from `wt.py`; the scheduler counts Claude's and delegated tracks together against the worktree cap and the disk floor. It never overrides the floor.
-- **FR-007**: Delegates edit and commit locally; they have no network. The supervisor pushes and opens the PR.
+- **FR-007**: Delegates edit the working tree and stop; they have no network and, for Codex, cannot write `.git`. The supervisor stages by explicit path, commits, pushes and opens the PR.
 - **FR-008**: The supervisor commits (or accepts the delegate's commits) only with the project's message rules and **no marker** of any kind.
 - **FR-009**: Verification runs outside the delegate's sandbox: the full `scripts/check.sh` and every CI leg. A delegate runs only the task's targeted tests.
 - **FR-010**: Review by a **different agent** than the builder is mandatory for delegated work; the reviewer reads the diff and the spec, not the builder's report.
 - **FR-011**: The supervisor rejects, automatically and before review, a diff that touches paths outside `allowed_paths`, adds prose about environment or sandbox failures, adds a forbidden trailer, or changes tests to make them pass.
 - **FR-012**: A delegate's own credentials files are never read, copied or logged; the skill never pools or shares accounts.
-- **FR-013**: The delegation log (`.ai-gent/delegation.log`, git-excluded) holds one JSON line per run (FR in US6); token counts are tagged with the existing token vocabulary (`shared/token-tags.json`, a `delegate` tag added together with `shared/token-tags.md`).
+- **FR-013**: Usage is read from the agent's final event where it reports it (Codex: `turn.completed.usage`) and wall time from the adapter's own clock. The delegation log (`.ai-gent/delegation.log`, git-excluded) holds one JSON line per run (FR in US6); token counts are tagged with the existing token vocabulary (`shared/token-tags.json`, a `delegate` tag added together with `shared/token-tags.md`).
 - **FR-014**: A delegate that stalls (no event for the configured time), exits non-zero or reports a limit is stopped by its PID file (never by pattern), and its task returns to the pool.
 - **FR-016**: Every track has a small, stable **status file** under `.ai-gent/delegate/<track>/status.json` (schema in `contracts/status.md`), written by the adapter for delegates and by the supervisor for Claude's own tracks, so Claude appears as a worker too. The adapter's `status` operation and the workers pane both read only this file and the delegation log.
+- **FR-018**: The pipeline pane shows only the compact workers line (counts, slots, a stalled or failed marker); it reads the same status files, adds no rows when there are no workers, and never lists individual workers.
 - **FR-017**: The workers pane and `/workers` command live in the `project` plugin's mod, follow the guards and pipeline panes (pure model and draw modules, polling like the pipeline pane, counts and states only, never opening by itself, text fallback where no pane can dock), and show no prompt, brief secrets or credentials.
 - **FR-015**: Worker rules for agents without hooks are one shared reference (`shared/delegate-worker-rules.md`) stating each guard's rule as a plain instruction, symlinked into the plugin; the brief names it first.
 

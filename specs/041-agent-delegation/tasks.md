@@ -14,6 +14,7 @@
 - [ ] T050 `contracts/status.md` and the status-file writer used by the adapter and the supervisor (FR-016). Verify: schema tests; the adapter `status` reads only this file.
 - [ ] T051 Workers model: status files and the delegation log in, rows and the pool header out, pure. Verify: unit tests with fixtures (queued, running, stalled, done, failed, taken back; no files).
 - [ ] T052 Workers draw and the text form (golden fixtures, narrow and wide, ASCII fallback). Verify: draw tests.
+- [ ] T052a The compact workers line for the pipeline pane (FR-018) from the same model, with fixtures (no workers adds no row). Verify: pipeline pane tests still pass unchanged when there are no workers.
 - [ ] T053 `/workers` and `/workers-pane` commands, polling, option to turn off, no auto-open; the mod's types. Verify: `claude plugin test plugins/project`.
 - [ ] T054 Check whether the mod API exposes Claude's running subagents and tasks (open question 3); if so read them directly, otherwise keep the supervisor-written files. Record the answer here.
 - [ ] T055 README and docs-site entries for the pane; the `project` plugin's README row.

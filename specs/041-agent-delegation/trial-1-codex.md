@@ -11,7 +11,7 @@ Setup: Codex CLI 0.166.0 run by the supervisor (`codex exec`, workspace-write, n
 
 | # | Problem | Fix (spec reference) |
 |---|---|---|
-| 1 | Could not commit: the common `.git` object store was read-only in the sandbox. | Pass the common git dir with `--add-dir`; preflight proves a commit (adapter `preflight`). |
+| 1 | Could not commit: the common `.git` object store was read-only in the sandbox. | ~~Pass the common git dir with `--add-dir`~~ (failed in trial 2, see below): the supervisor commits (FR-007). |
 | 2 | `codex exec` waited on stdin. | Always `< /dev/null`; fail fast if no first event (adapter `run`). |
 | 3 | Its own `check.sh` reported 13 (quick) and 16 (full) failures, all sandbox artifacts, and it wrote them into the README. | Targeted tests only for the worker; supervisor runs `check.sh` and CI; a brief rule and the FR-011 diff check (new prose about environment failures). |
 | 4 | "Delete nothing outside the worktree" conflicted with checks cleaning their own temp files. | Reword: never delete what you did not create. |
@@ -24,3 +24,27 @@ Setup: Codex CLI 0.166.0 run by the supervisor (`codex exec`, workspace-write, n
 ## Owner decisions taken during the trial
 
 Codex only in v1; no markers at all; offers on request, near a limit and when parallel-safe tasks exist; cross-agent review mandatory.
+
+---
+
+# Trial 2: Codex on spec 038 T003 and T013 (2026-11-02)
+
+Setup: the same CLI and sandbox; brief per `contracts/brief-template.md` with `allowed_paths`, the targeted-tests-only rule, the no-environment-prose rule, the reworded deletion rule, the common git dir passed with `--add-dir`, and a pointer to `git:workflow`. T002 (web research) was not given to Codex: its sandbox has no network.
+
+## Result
+
+- Both tasks done and verified by the supervisor outside the sandbox: spike tests, the eight SQLite journeys through `--runner` and through the default path, default behavior unchanged. Every changed path was inside `allowed_paths`; no environment prose in repository files; no marker anywhere (the supervisor committed).
+- **Cost** (from `turn.completed.usage`): trial 1: 2,680,651 input (2,583,552 cached), 15,651 output tokens; trial 2: 662,346 input (617,088 cached), 6,156 output tokens. Trial 2 was about four times cheaper for two tasks: a narrower brief and no failing `check.sh` to chase.
+
+## What the trial changed
+
+| # | Finding | Change |
+|---|---|---|
+| 1 | The commit fix from trial 1 **failed**: with the common git dir added, `index.lock` was still read-only. Codex keeps `.git` read-only regardless of `--add-dir`. | Contract changed: the delegate leaves changes in the working tree; the supervisor commits (FR-007, adapter `preflight`, brief template). |
+| 2 | A delegate that cannot commit still produced clean, scoped work; letting the supervisor commit removes the marker risk and lets the path check run before anything is committed. | Kept as the design, not a workaround. |
+| 3 | One `apply_patch` verification error appeared mid-run and recovered. | A single error event is not a stall (adapter note). |
+| 4 | Usage is available only in the final event, so a running delegate shows progress but not cost. | The pane shows event counts while running and tokens when done. |
+
+## Open
+
+Time per run is not yet recorded (the adapter will keep its own clock); the second-agent reviewer step (FR-010) has not been exercised.
