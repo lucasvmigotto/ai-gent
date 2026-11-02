@@ -110,7 +110,9 @@ the card's subagents only.
 
 Every card is tagged at planning with one value per facet, from the
 controlled list in `token-tags.md` (`shared/token-tags.json`): `kind`,
-`layer`, `surface`, `lang`, `novelty`, `verification`, `size`, plus any
+`layer`, `surface`, `lang`, `novelty`, `verification`, `size`, plus the
+optional `worker` (`delegate`: the card was built by another agent through
+`ai-gent delegate`, and `.ai-gent/delegation.log` holds its tokens) and any
 number of `stack` values (normalized crate and framework names; aliases such
 as `react-dom` fold into `react`). The planner (`agents:orchestrate`, the
 Spec Kit tasks step) writes them on the card and its first task line:

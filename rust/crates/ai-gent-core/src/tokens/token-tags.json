@@ -132,6 +132,13 @@
         "M": "about 4-10 files or 150-600 lines",
         "L": "more than 10 files or 600 lines"
       }
+    },
+    "worker": {
+      "required": false,
+      "multi": false,
+      "values": {
+        "delegate": "built by another coding agent (Codex, OpenCode) through ai-gent delegate; its usage comes from the delegation log, not Claude's transcripts"
+      }
     }
   }
 }
