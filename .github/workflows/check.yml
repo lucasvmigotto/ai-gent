@@ -115,3 +115,33 @@ jobs:
       # the native uname (arm64), unzip for the Windows archive.
       - name: Package and per-triple install tests, run by the system bash 3.2
         run: /bin/bash scripts/test-package.sh
+
+  # The native Windows installer (spec 032 D24, T054): install.ps1 and setup.ps1 under Windows
+  # PowerShell 5.1 and PowerShell 7, on x64 and on arm64. The runner user is an administrator;
+  # the installer itself needs no elevation (junctions, user PATH), which T058 confirms by hand.
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    concurrency:
+      group: check-windows-${{ matrix.os }}-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Installer tests, Windows PowerShell 5.1
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-install-ps1.ps1
+
+      - name: Installer tests, PowerShell 7
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\test-install-ps1.ps1

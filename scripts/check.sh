@@ -423,6 +423,23 @@ else
   warn "neither bun nor node on PATH; skipped the opencode guard rule test"
 fi
 
+# ------------------------------------------------------ PowerShell scripts
+
+# install.ps1 is read by Windows PowerShell 5.1 as Latin-1 when piped from a download, so the
+# Windows scripts stay ASCII; the behavior tests run on Windows (check.yml, scripts/test-install-ps1.ps1).
+ps_bad=0
+for f in install.ps1 setup.ps1 scripts/test-install-ps1.ps1; do
+  if LC_ALL=C grep -nP '[^\x00-\x7F]' "$f" >/dev/null; then fail "$f: non-ASCII characters"; ps_bad=1; fi
+done
+if command -v pwsh >/dev/null 2>&1; then
+  for f in install.ps1 setup.ps1 scripts/test-install-ps1.ps1; do
+    if ! pwsh -NoProfile -Command '$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile($args[0], [ref]$null, [ref]$e); if ($e.Count) { $e | ForEach-Object { $_.ToString() }; exit 1 }' "$f"; then
+      fail "$f: does not parse"; ps_bad=1
+    fi
+  done
+fi
+((ps_bad)) || pass "PowerShell scripts: ASCII$(command -v pwsh >/dev/null 2>&1 && echo ', parse')"
+
 # ------------------------------------------------------ release package
 
 if python3 scripts/package.py --check >"${TMPDIR:-/tmp}/ai-gent-package.out" 2>&1; then
