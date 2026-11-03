@@ -1,0 +1,30 @@
+{
+  "name": "plan-apply-restore",
+  "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_plan_apply_restore (the connector half: a write commits when its count matches; plans, the confirmation and the backup file are the runner's, so the restore is replayed as a second write)",
+  "kind": "exec",
+  "engines": ["sqlite"],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE customer (id INTEGER PRIMARY KEY, nome TEXT, email TEXT, status TEXT)",
+      "INSERT INTO customer VALUES (1, 'Ana Lima', 'ana@example.com', 'active'), (2, 'Bruno Reis', 'bruno@example.com', 'blocked'), (3, 'Caio Dias', 'caio@example.com', 'active')"
+    ]
+  },
+  "steps": [
+    {
+      "request": {"mode": "write", "statements": ["UPDATE customer SET status = 'blocked' WHERE status = 'active'"], "expect": [2], "timeout": 5, "max_rows": 200},
+      "expected": {"ok": true, "committed": true, "results": [{"rowcount": 2}]}
+    },
+    {
+      "request": {"mode": "read", "statements": ["SELECT COUNT(*) FROM customer WHERE status = 'active'"], "timeout": 5, "max_rows": 10},
+      "expected": {"ok": true, "results": [{"rows": [[0]]}]}
+    },
+    {
+      "request": {"mode": "write", "statements": ["UPDATE customer SET status = 'active' WHERE id IN (1, 3)"], "expect": [2], "timeout": 5, "max_rows": 200},
+      "expected": {"ok": true, "committed": true, "results": [{"rowcount": 2}]}
+    },
+    {
+      "request": {"mode": "read", "statements": ["SELECT COUNT(*) FROM customer WHERE status = 'active'"], "timeout": 5, "max_rows": 10},
+      "expected": {"ok": true, "results": [{"rows": [[2]]}]}
+    }
+  ]
+}

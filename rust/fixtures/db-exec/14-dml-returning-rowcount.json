@@ -1,0 +1,18 @@
+{
+  "name": "dml-returning-rowcount",
+  "derived_from": "plugins/db/scripts/dbrun.py execute(): rowcount is read before the rows are fetched, so a DML with RETURNING reports 0 while a plain SELECT reports -1; the rows come back either way",
+  "kind": "exec",
+  "engines": ["sqlite"],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10), (2, 20)"
+    ]
+  },
+  "steps": [
+    {
+      "request": {"mode": "write", "statements": ["UPDATE t SET n = n + 1 RETURNING id", "SELECT id FROM t ORDER BY id"], "timeout": 5, "max_rows": 200},
+      "expected": {"ok": true, "committed": true, "results": [{"rowcount": 0, "rows": [[1], [2]]}, {"rowcount": -1, "rows": [[1], [2]]}]}
+    }
+  ]
+}

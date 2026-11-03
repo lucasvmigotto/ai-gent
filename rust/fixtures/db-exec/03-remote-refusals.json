@@ -1,0 +1,12 @@
+{
+  "name": "remote-refusals",
+  "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_remote_refusals (the classifier and cost layers; the plan refusal 'use dbrun script' and the exit codes are the runner's)",
+  "kind": "policy",
+  "checks": [
+    {"engine": "sqlite", "sql": "DELETE FROM customer WHERE id = 1", "refused_by": "classifier", "detail_contains": "starts with DELETE"},
+    {"engine": "sqlite", "sql": "SELECT * FROM customer WHERE id = 1", "refused_by": "cost", "detail_contains": "name the columns"},
+    {"engine": "sqlite", "sql": "SELECT count(*) FROM customer", "refused_by": "cost", "detail_contains": "unfiltered COUNT"},
+    {"engine": "sqlite", "sql": "UPDATE customer SET status = 'x' WHERE id = 1", "refused_by": "classifier", "detail_contains": "starts with UPDATE"},
+    {"engine": "sqlite", "sql": "SELECT id FROM customer WHERE id = 1", "refused_by": "none"}
+  ]
+}
