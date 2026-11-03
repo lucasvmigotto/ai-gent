@@ -4,7 +4,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { Snapshot } from '../types'
 import { bigReadme, snapshotOf } from './pipeline-view-fixtures'
-import { ARTIFACTS, STAGE_NAME, applyApplicability, progress, recommend, stageStrip } from './pipeline-model'
+import { ARTIFACTS, STAGE_NAME, applyApplicability, progress, recommend, stageChecks, stageStrip } from './pipeline-model'
 import { DASHBOARD_120, DASHBOARD_120_ASCII, DASHBOARD_80, DASHBOARD_80_ASCII, VIEW_39 } from './pipeline-golden'
 import { build, dashboardText, matrixPlan, statusCell, view } from './pipeline-view'
 import type { Context, Section } from './pipeline-view'
@@ -33,22 +33,22 @@ test('every stage an artifact names has a display name, and the steps and bucket
 test('the summary counts what the snapshot holds, and the mode follows the width', () => {
   const m = build(snapshotOf(), ctx())
   expect(m.summary).toMatchObject({ artifacts: 2, ofArtifacts: 8, features: 9, clarifications: 1, assumptions: 1, gaps: 2 })
-  expect(m.summary.metrics.map(x => `${x.value} ${x.label}${x.isLarge ? '!' : ''}`)).toEqual([
-    '2 Artifacts ready!', '9 Features!', '1 Clarification!', '1 Assumption', '2 Gaps',
-  ])
-  expect(build(snapshotOf(), ctx({ columns: 80 })).summary.line).toBe('2 ready · 9 features · 1 clarification · 1 assumption · 2 gaps')
+  // Four questions, not a partition: implemented is the least advanced side, ready and blocked are wt.py's plan.
+  expect(m.summary.counts.map(x => `${x.value} ${x.label}`)).toEqual(['9 features', '3 implemented', '3 ready', '2 blocked'])
+  expect(build(snapshotOf(), ctx({ columns: 80 })).summary.line).toBe('9 features · 3 implemented · 3 ready · 2 blocked')
+  expect(m.summary.attention).toEqual({ text: '⚠ 1 clarification needs attention · 1 artifact missing · 1 artifact to review', tone: 'warn' })
   expect([39, 40, 90, 91].map(columns => build(snapshotOf(), ctx({ columns })).mode)).toEqual(['compact', 'condensed', 'condensed', 'full'])
 })
 
-test('artifact rows are Ready, Stale, Missing or Pending, with a stage and an edge mark', () => {
+test('artifact rows are Ready, Review, Missing or Pending, with a stage and an edge mark', () => {
   const rows = section(snapshotOf(), 'artifacts').rows
   const by = (key: string) => rows.find(r => r.key === `artifact:${key}`)
   expect(by('docs/product/brief.md')?.cells.map(c => c.text)).toEqual(['brief', 'Project init', 'Ready'])
   expect(by('docs/product/brief.md')).toMatchObject({ edge: 'good' })
   expect(by('docs/product/architecture.md')?.cells[2]).toMatchObject({ text: 'Missing', glyph: '✕', tone: 'bad' })
   expect(by('docs/product/architecture.md')).toMatchObject({ edge: 'bad' })
-  expect(by('specs/README.md')?.cells[2]).toMatchObject({ text: 'Stale', glyph: '↻', tone: 'warn' })
-  expect(by('specs/README.md')?.sub).toBe('└─ Older than docs/product/brief.md (2026-10-09)')
+  expect(by('specs/README.md')?.cells[2]).toMatchObject({ text: 'Review', glyph: '↻', tone: 'warn' })
+  expect(by('specs/README.md')?.sub).toBe('└─ docs/product/brief.md changed 2026-10-09, after this (2026-10-01)')
   expect(by('docs/product/domain-model.md')?.cells[2]).toMatchObject({ text: 'Pending', glyph: '·', tone: 'dim' })
   expect(by('docs/product/domain-model.md')?.cells[1]?.text).toBe('Backend')
   expect(section(snapshotOf(), 'artifacts').columns.map(c => c.key)).toEqual(['artifact', 'stage', 'status'])
@@ -179,7 +179,7 @@ test('the badge is LIVE only when a check ran within three intervals', () => {
 
 test('the next action badge follows the rule', () => {
   const s = snapshotOf()
-  expect(build(s, ctx()).next).toMatchObject({ badge: 'Needs attention', ref: 'specs/004-x/spec.md:12' })
+  expect(build(s, ctx()).next).toMatchObject({ badge: 'Blocking', ref: 'specs/004-x/spec.md:12', where: '004-x · spec.md:12', title: 'Resolve open clarification' })
   expect(build({ ...s, next: { ...s.next, rule: 3 } }, ctx()).next.badge).toBe('Suggested')
   expect(build({ ...s, next: { ...s.next, rule: 2 } }, ctx()).next.badge).toBe('Suggested')
   expect(build({ ...s, next: { ...s.next, rule: null } }, ctx()).next.badge).toBe('Up to date')
@@ -300,20 +300,20 @@ test('an expanded feature lists the dependencies, what it waits for and the Spec
 test('a stale artifact has a secondary line, and expanding gives path, command and dates', () => {
   const sec = section(snapshotOf(), 'artifacts')
   const stale = sec.rows.find(r => r.key === 'artifact:specs/README.md')
-  expect(stale?.cells[2]).toMatchObject({ text: 'Stale', glyph: '↻' })
-  expect(stale?.sub).toBe('└─ Older than docs/product/brief.md (2026-10-09)')
+  expect(stale?.cells[2]).toMatchObject({ text: 'Review', glyph: '↻' })
+  expect(stale?.sub).toBe('└─ docs/product/brief.md changed 2026-10-09, after this (2026-10-01)')
   const missing = sec.rows.find(r => r.key === 'artifact:docs/product/architecture.md')
   expect(missing?.sub).toBe('└─ A later stage already ran')
   expect(sec.rows.find(r => r.key === 'artifact:docs/product/brief.md')?.sub).toBeUndefined()
   expect(sec.rows.find(r => r.key === 'artifact:docs/product/domain-model.md')?.sub).toBeUndefined()
-  expect(section(snapshotOf(), 'artifacts', { ascii: true }).rows.find(r => r.key === 'artifact:specs/README.md')?.sub).toBe('`- Older than docs/product/brief.md (2026-10-09)')
+  expect(section(snapshotOf(), 'artifacts', { ascii: true }).rows.find(r => r.key === 'artifact:specs/README.md')?.sub).toBe('`- docs/product/brief.md changed 2026-10-09, after this (2026-10-01)')
 
   const open = section(snapshotOf(), 'artifacts', { expanded: { 'artifact:specs/README.md': true } }).rows.find(r => r.key === 'artifact:specs/README.md')
   const lines = open?.detail?.map(l => l.map(c => c.text).join(' ')) ?? []
-  expect(lines).toEqual(['Path specs/README.md', 'Command /project:spec', 'Committed 2026-10-01', 'Upstream docs/product/brief.md (2026-10-09)'])
+  expect(lines).toEqual(['Path specs/README.md', 'Command /project:spec', 'Committed 2026-10-01', 'Changed docs/product/brief.md (2026-10-09)', 'Note A review signal from commit dates, not proof this is out of date'])
   const text = dashboardText(snapshotOf(), ctx()).join('\n')
-  expect(text).toContain('↻ Stale')
-  expect(text).toContain('  └─ Older than docs/product/brief.md')
+  expect(text).toContain('↻ Review')
+  expect(text).toContain('  └─ docs/product/brief.md changed 2026-10-09')
 })
 
 test('progress says the percentage and the counts it is computed from', () => {
@@ -336,6 +336,7 @@ test('the next action shows what the recommendation says, never anything else', 
     title: 'Architecture',
     explanation: 'architecture is missing although a later stage already ran',
     ref: 'docs/product/architecture.md',
+    where: 'docs/product/architecture.md',
     action: '/project:architecture',
     hasNext: true,
   })
@@ -348,7 +349,7 @@ test('the next action shows what the recommendation says, never anything else', 
     'Hint only · Full report: /project:status',
   ])
   // a stage that is not a command has no button
-  expect(build(s, ctx()).next).toMatchObject({ badge: 'Needs attention', title: 'Ask the user' })
+  expect(build(s, ctx()).next).toMatchObject({ badge: 'Blocking', title: 'Resolve open clarification', instruction: 'No command resolves this; it needs your answer.' })
   expect(build(s, ctx()).next.action).toBeUndefined()
   // nothing to do: the report is the only command
   const done = { ...s, next: { rule: null, stage: '/project:status', reason: 'nothing is ready' } }
@@ -386,7 +387,7 @@ test('the Features section is collapsed by default, with its counts from the mod
   expect(build(snapshotOf(), ctx({ expanded: { features: true } })).featuresOpen).toBe(true)
   const text = dashboardText(snapshotOf(), ctx())
   expect(text).toContain('Features  9 features · Ready 3 · Blocked 2 · Done 4  ▸ Show')
-  expect(text[2]).toBe('2 Artifacts ready    9 Features    1 Clarification')
+  expect(text[2]).toBe('9 features · 3 implemented · 3 ready · 2 blocked')
   expect(text.some(l => l.startsWith('ID '))).toBe(false)
   expect(text.some(l => l.startsWith('○ Planned'))).toBe(false)
   const c = m.filter.counts
@@ -494,4 +495,127 @@ test('a skipped stage keeps its dash glyph inside the chain, and the compact vie
   expect(stageLine(withNa())).toBe('Stages (an aid)  ✓ Init → ◆ Architecture → ✓ Spec → · Build → · QA → – Delivery')
   expect(stageLine(withNa(), { ascii: true })).toContain('-> - Delivery')
   expect(dashboardText(snapshotOf(), ctx({ columns: 39 })).some(l => l.includes('→'))).toBe(false)
+})
+
+// ------------------------------------------------- decision support
+
+const quiet = (): Snapshot => {
+  const base = snapshotOf()
+  const artifacts = base.artifacts.map(a => ({ ...a, isProblem: false, staleSince: null }))
+  const features = base.features.map(f => ({ ...f, bucket: 'ready' as const, waiting: [] }))
+  return { ...base, artifacts, features, markers: { counts: { gap: 0, clarification: 0, assumption: 0 }, items: [], isTruncated: false }, next: recommend(artifacts, features, []) }
+}
+
+test('no blockers, no attention: neither block is drawn', () => {
+  const m = build(quiet(), ctx())
+  expect(m.blockers).toBeNull()
+  expect(m.summary.attention).toBeNull()
+  const text = dashboardText(quiet(), ctx()).join('\n')
+  expect(text).not.toMatch(/Blockers|⚠ \d/)
+})
+
+test('blockers come from clarifications, dependencies and missing artifacts, and say when a row is Next action', () => {
+  const m = build(snapshotOf(), ctx())
+  expect(m.blockers?.count).toBe(4)
+  expect(m.blockers?.rows.map(r => `${r.title} | ${r.reason} | ${r.isNext}`)).toEqual([
+    '004-x | unresolved clarification | true',
+    '003 guides | dependency 002 not implemented | false',
+    '009 blocked-on-partial | dependency 006 not implemented | false',
+    'architecture | missing although a later stage already ran | false',
+  ])
+  // closed: one line per row; open: the whole marker text and the waiting features
+  const open = dashboardText(snapshotOf(), ctx({ expanded: { blockers: true } }))
+  expect(open).toContain('    specs/004-x/spec.md:12 which login?')
+  expect(open).toContain('    002 search')
+  expect(dashboardText(snapshotOf(), ctx()).some(l => l.includes('which login?') && l.startsWith('    '))).toBe(false)
+})
+
+test('a blocked feature without a recorded wait says the reason is unknown, and the list is capped', () => {
+  const s = snapshotOf()
+  const f = { ...s.features[0], bucket: 'blocked' as const, waiting: [] } as Snapshot['features'][number]
+  expect(build({ ...s, features: [f] }, ctx()).blockers?.rows.find(r => r.key === 'blocker:feature:001')?.reason).toBe('reason not recorded')
+  const many = Array.from({ length: 8 }, (_, i) => ({ ...f, number: `0${i}0`, waiting: ['999'] }))
+  const m = build({ ...s, features: many }, ctx())
+  expect(m.blockers).toMatchObject({ count: 10, more: 5 })
+  expect(m.blockers?.rows).toHaveLength(5)
+})
+
+test('the summary keeps its counts apart and the attention line names only what is there', () => {
+  const m = build(snapshotOf(), ctx())
+  expect(m.summary.counts.map(c => c.key)).toEqual(['features', 'implemented', 'ready', 'blocked'])
+  const only = build({ ...quiet(), markers: { counts: { gap: 0, clarification: 2, assumption: 0 }, items: [], isTruncated: false } }, ctx())
+  expect(only.summary.attention?.text).toBe('⚠ 2 clarifications need attention')
+})
+
+test('a long reason is cut to two lines, whole behind Details, with the actionable core kept', () => {
+  const s = snapshotOf()
+  const long = `an open [NEEDS CLARIFICATION] blocks plan: ${'which login '.repeat(30)}`
+  const next = { ...s.next, reason: long }
+  const closed = build({ ...s, next }, ctx({ columns: 60 })).next
+  expect(closed.full).toBe(long)
+  expect([...(closed.explanation ?? '')].length).toBeLessThanOrEqual(112)
+  expect(closed.explanation?.startsWith('an open [NEEDS CLARIFICATION] blocks plan')).toBe(true)
+  expect(build({ ...s, next }, ctx({ columns: 60, expanded: { next: true } })).next).toMatchObject({ explanation: long, isOpen: true })
+  expect(build(s, ctx({ columns: 60 })).next.full).toBeUndefined()
+})
+
+test('Next action locates a feature number and a spec file; an unavailable path stays plain', () => {
+  const s = snapshotOf()
+  expect(build({ ...s, next: { rule: 3, stage: '/frontend:build', reason: 'x', ref: '002' } }, ctx()).next.where).toBe('feature 002 search')
+  expect(build({ ...s, next: { rule: 3, stage: '/frontend:build', reason: 'x' } }, ctx()).next.where).toBeUndefined()
+  expect(build({ ...s, next: { rule: 3, stage: '/frontend:build', reason: 'x', ref: 'elsewhere.md:3' } }, ctx()).next.where).toBe('elsewhere.md:3')
+})
+
+test('stage readiness: the current step shows the facts the strip reads, and some are open', () => {
+  const s = snapshotOf()
+  const detail = build(s, ctx({ expanded: { stage: true } })).stageDetail
+  expect(detail).toMatchObject({ label: 'Architecture', isOpen: true })
+  expect(detail?.checks.map(c => `${c.state} ${c.text}`)).toEqual(['open docs/product/architecture.md missing'])
+  expect(dashboardText(s, ctx({ expanded: { stage: true } })).join('\n')).toContain('Architecture:\n    · docs/product/architecture.md missing')
+  expect(dashboardText(s, ctx()).join('\n')).not.toContain('docs/product/architecture.md missing')
+})
+
+test('stage readiness: a current step always has an open check, over many shapes', () => {
+  const base = snapshotOf()
+  const shapes: Snapshot[] = [
+    base,
+    quiet(),
+    { ...quiet(), features: [] },
+    { ...quiet(), artifacts: quiet().artifacts.map(a => ({ ...a, isPresent: true })) },
+    { ...quiet(), artifacts: quiet().artifacts.map(a => ({ ...a, isPresent: a.path !== 'docs/product/delivery.md' })), features: quiet().features.map(f => ({ ...f, bucket: 'done' as const, sides: { ...f.sides, qa: 'Verified' } })) },
+  ]
+  for (const sh of shapes) {
+    const c = stageChecks(sh.artifacts, sh.features)
+    const current = stageStrip(sh.artifacts, sh.features).find(x => x.state === 'current')
+    expect(c === null).toBe(current === undefined)
+    if (c) expect(c.checks.some(x => x.state === 'open')).toBe(true)
+  }
+})
+
+test('an expanded feature shows only what its row does not say, and what is grounded', () => {
+  const s = snapshotOf()
+  const withDir = { ...s, features: s.features.map(f => (f.number === '003' ? { ...f, dir: '003-guides' } : f)) }
+  const rows = (columns: number) => build(withDir, ctx({ columns, expanded: { features: true, 'feature:003': true } })).sections.find(x => x.id === 'features')?.rows.find(r => r.key === 'feature:003')?.detail?.map(l => l.map(c => c.text).join(' ')) ?? []
+  const wide = rows(140)
+  // the wide matrix has the sides in words: the detail does not repeat them
+  expect(wide.some(l => l.startsWith('FRONTEND'))).toBe(false)
+  expect(wide).toContain('Source specs/003-guides/')
+  expect(wide.some(l => l.startsWith('Readiness'))).toBe(false)
+  // the narrow one has neither the sides nor the readiness column
+  const narrow = rows(41)
+  expect(narrow).toContain('Readiness blocked')
+  expect(narrow.some(l => l.startsWith('FRONTEND'))).toBe(true)
+  // nothing is invented for a feature without a folder
+  expect(build(s, ctx({ expanded: { features: true, 'feature:003': true } })).sections.find(x => x.id === 'features')?.rows.find(r => r.key === 'feature:003')?.detail?.some(l => l[0]?.text === 'Source')).toBe(false)
+  // open clarifications of the feature's folder are listed
+  const clar = build(s, ctx({ expanded: { features: true, 'feature:004': true } })).sections.find(x => x.id === 'features')?.rows.find(r => r.key === 'feature:004')?.detail?.map(l => l.map(c => c.text).join(' '))
+  expect(clar).toContain('Open 1 clarification')
+})
+
+test('the open state of Details, Blockers and Readiness is plain context, so a new snapshot keeps it', () => {
+  const expanded = { blockers: true, next: true, stage: true, 'feature:003': true }
+  const a = build(snapshotOf(), ctx({ expanded }))
+  const b = build({ ...snapshotOf(), computedAt: 5 }, ctx({ expanded }))
+  expect([a.blockers?.isOpen, a.next.isOpen, a.stageDetail?.isOpen]).toEqual([true, true, true])
+  expect(b).toEqual(a)
 })

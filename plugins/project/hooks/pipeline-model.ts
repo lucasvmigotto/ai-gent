@@ -299,3 +299,39 @@ export function stageStrip(artifacts: readonly ArtifactState[], features: readon
   const current = steps.findIndex(([, , isDone, isSkipped]) => !isDone && !isSkipped)
   return steps.map(([key, label, isDone, isSkipped], i) => ({ key, label, state: isDone ? 'done' : isSkipped ? 'skipped' : i === current ? 'current' : 'pending' }))
 }
+
+export type StageCheck = { text: string; state: 'met' | 'open' | 'info' }
+
+// What stands behind the current step of the strip, from the same facts
+// `stageStrip` reads: a `met` or `open` row is one of its conditions (the step
+// is done when none is `open`), an `info` row is a count that is not one.
+// Null when no step is current. Nothing here is a requirement of its own.
+export function stageChecks(artifacts: readonly ArtifactState[], features: readonly Feature[]): { key: string; label: string; checks: StageCheck[] } | null {
+  const current = stageStrip(artifacts, features).find(step => step.state === 'current')
+  if (!current) return null
+  const has = (path: string): boolean => artifacts.some(a => a.path === path && a.isPresent)
+  const file = (path: string): StageCheck => ({ text: has(path) ? `${path} present` : `${path} missing`, state: has(path) ? 'met' : 'open' })
+  const live = features.filter(f => f.state !== 'retired')
+  const withQa = live.filter(f => 'qa' in f.sides && word(f.sides.qa ?? '') !== '')
+  const verified = withQa.filter(f => word(f.sides.qa ?? '') === 'verified').length
+  const done = live.filter(f => f.bucket === 'done').length
+  const count = (n: number, what: string): string => `${n} ${what}`
+  const checks: Record<string, StageCheck[]> = {
+    init: [file(BRIEF)],
+    architecture: [file('docs/product/architecture.md')],
+    spec: [file(README)],
+    build: [
+      { text: live.length > 0 ? count(live.length, live.length === 1 ? 'live feature listed' : 'live features listed') : 'no live feature listed in specs/README.md', state: live.length > 0 ? 'met' : 'open' },
+      ...(live.length > 0 ? [{ text: `${done} of ${live.length} live features done`, state: done === live.length ? 'met' : 'open' } as StageCheck] : []),
+      ...(live.length > 0 ? [{ text: `${live.filter(f => f.bucket === 'ready').length} ready, ${live.filter(f => f.bucket === 'blocked').length} blocked`, state: 'info' } as StageCheck] : []),
+    ],
+    qa: [
+      artifacts.some(a => a.path === 'docs/product/test-strategy.md' && a.notApplicable !== undefined)
+        ? { text: 'docs/product/test-strategy.md not applicable', state: 'met' }
+        : file('docs/product/test-strategy.md'),
+      ...(withQa.length > 0 ? [{ text: `${verified} of ${withQa.length} features with a QA status Verified`, state: verified === withQa.length ? 'met' : 'open' } as StageCheck] : []),
+    ],
+    delivery: [file('docs/product/delivery.md')],
+  }
+  return { key: current.key, label: current.label, checks: checks[current.key] ?? [] }
+}

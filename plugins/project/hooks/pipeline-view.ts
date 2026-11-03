@@ -2,8 +2,8 @@
 // Pure, so the layout (wide, narrow, headless text) is tested without a surface.
 
 import type { Feature, MarkerKind, Snapshot } from '../types'
-import { STAGE_NAME, letter, progress, stageStrip, word } from './pipeline-model'
-import type { StageStep } from './pipeline-model'
+import { STAGE_NAME, letter, progress, stageChecks, stageStrip, word } from './pipeline-model'
+import type { StageCheck, StageStep } from './pipeline-model'
 
 // 013's six, plus `info` (an active state) for the dashboard.
 export type Tone = 'plain' | 'dim' | 'bold' | 'good' | 'warn' | 'bad' | 'info'
@@ -112,7 +112,17 @@ export type Row = {
 }
 export type Section = { id: string; title: string; columns: Column[]; rows: Row[]; empty?: string; more?: string }
 export type Mode = 'compact' | 'condensed' | 'full'
-export type Metric = { key: string; value: number; label: string; isLarge: boolean; tone?: Tone }
+export type Metric = { key: string; value: number; label: string; tone?: Tone }
+// One problem the snapshot already records: a feature, a file or an artifact, why it blocks, and where.
+export type BlockerRow = {
+  key: string
+  title: string
+  reason: string
+  // The same issue is Next action's: the row points there instead of repeating it.
+  isNext: boolean
+  // Shown when the Blockers list is open.
+  detail: string[]
+}
 export type Filter = 'all' | 'ready' | 'blocked' | 'done'
 export type BarSegment = { key: string; glyph: string; tone: Tone; length: number }
 
@@ -126,7 +136,23 @@ export type PipelineView = {
   // No artifact exists yet: the dashboard is not drawn, 013's lines say so.
   isEmpty: boolean
   header: { title: 'PIPELINE'; badge: 'LIVE' | 'STALE'; caption: string }
-  summary: { artifacts: number; ofArtifacts: number; features: number; clarifications: number; assumptions: number; gaps: number; metrics: Metric[]; line: string }
+  summary: {
+    artifacts: number
+    ofArtifacts: number
+    features: number
+    clarifications: number
+    assumptions: number
+    gaps: number
+    // Features, implemented (the least advanced side), ready and blocked (wt.py's plan). Different questions: they need not add up.
+    counts: Metric[]
+    // Only what needs a decision, from counts the snapshot holds; null when nothing does.
+    attention: { text: string; tone: Tone } | null
+    line: string
+  }
+  // Present only when something blocks: clarifications, features waiting on a dependency, missing artifacts.
+  blockers: { count: number; rows: BlockerRow[]; more: number; isOpen: boolean } | null
+  // The current step of the strip with the facts behind it; null when none is current or none is known.
+  stageDetail: { label: string; checks: (StageCheck & { glyph: string; tone: Tone })[]; isOpen: boolean } | null
   sections: Section[]
   progress: {
     implemented: number
@@ -145,11 +171,18 @@ export type PipelineView = {
   stageArrow: string
   filter: { active: Filter; counts: Record<Filter, number> }
   next: {
-    badge: 'Needs attention' | 'Suggested' | 'Up to date'
+    badge: 'Blocking' | 'Suggested' | 'Up to date'
     // The recommendation as `recommend` made it: a title (its stage), why, what it points at.
     title: string
     explanation?: string
+    // The whole reason, when `explanation` was cut to two lines; the person opens it.
+    full?: string
+    isOpen: boolean
     ref?: string
+    // `ref` read for people: the feature and the file, when the ref is a spec file or a feature number.
+    where?: string
+    // What to do when the stage is not a command (asking the user): text, never a button.
+    instruction?: string
     // The recommended command, when the stage is one; the button that fills it.
     action?: string
     // `${stage}: ${reason}`, the one-line form.
@@ -200,6 +233,7 @@ export const GLYPH = {
   sep: ['·', '|'],
   poll: ['⏱', 'every'],
   ellipsis: ['…', '...'],
+  warn: ['⚠', '!'],
   edge: ['▎', '|'],
   branch: ['└─', '`-'],
   dep: ['↳', '-'],
@@ -283,6 +317,11 @@ export function statusCell(value: string, ascii: boolean): Cell {
   return { text: glyph('none', ascii), tone: 'dim' }
 }
 
+// `specs/011-explorer-ui/spec.md:108` or `specs/011-explorer-ui/` -> `011-explorer-ui`.
+function featureDir(path: string): string | undefined {
+  return /^specs\/(\d{3}-[^/:]+)/.exec(path)?.[1]
+}
+
 function plural(n: number, one: string, many = `${one}s`): string {
   return n === 1 ? one : many
 }
@@ -342,20 +381,26 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   // ---- summary
   const { counts } = snapshot.markers
   const ready = snapshot.artifacts.filter(a => a.isPresent && !a.staleSince).length
-  const metrics: Metric[] = [
-    { key: 'artifacts', value: ready, label: 'Artifacts ready', isLarge: true },
-    { key: 'features', value: snapshot.features.length, label: plural(snapshot.features.length, 'Feature'), isLarge: true },
-    { key: 'clarification', value: counts.clarification, label: plural(counts.clarification, 'Clarification'), isLarge: true, tone: counts.clarification > 0 ? 'warn' : 'dim' },
-    { key: 'assumption', value: counts.assumption, label: plural(counts.assumption, 'Assumption'), isLarge: false },
-    { key: 'gap', value: counts.gap, label: plural(counts.gap, 'Gap'), isLarge: false },
+  const tally = {
+    ready: snapshot.features.filter(f => f.bucket === 'ready').length,
+    blocked: snapshot.features.filter(f => f.bucket === 'blocked').length,
+  }
+  const implemented = progress(snapshot.features).implemented
+  const summaryCounts: Metric[] = [
+    { key: 'features', value: snapshot.features.length, label: plural(snapshot.features.length, 'feature') },
+    { key: 'implemented', value: implemented, label: 'implemented', tone: implemented > 0 ? 'good' : 'dim' },
+    { key: 'ready', value: tally.ready, label: 'ready', tone: tally.ready > 0 ? 'info' : 'dim' },
+    { key: 'blocked', value: tally.blocked, label: 'blocked', tone: tally.blocked > 0 ? 'bad' : 'dim' },
   ]
-  const line = [
-    `${ready} ready`,
-    `${snapshot.features.length} ${plural(snapshot.features.length, 'feature')}`,
-    `${counts.clarification} ${plural(counts.clarification, 'clarification')}`,
-    `${counts.assumption} ${plural(counts.assumption, 'assumption')}`,
-    `${counts.gap} ${plural(counts.gap, 'gap')}`,
-  ].join(sep)
+  const missing = snapshot.artifacts.filter(a => !a.isPresent && a.isProblem && a.notApplicable === undefined).length
+  const review = snapshot.artifacts.filter(a => a.isPresent && a.staleSince).length
+  const needs: string[] = [
+    ...(counts.clarification > 0 ? [`${counts.clarification} ${plural(counts.clarification, 'clarification')} ${counts.clarification === 1 ? 'needs' : 'need'} attention`] : []),
+    ...(missing > 0 ? [`${missing} ${plural(missing, 'artifact')} missing`] : []),
+    ...(review > 0 ? [`${review} ${plural(review, 'artifact')} to review`] : []),
+  ]
+  const attention = needs.length > 0 ? { text: `${glyph('warn', ascii)} ${needs.join(sep)}`, tone: (counts.clarification > 0 || missing > 0 ? 'warn' : 'dim') as Tone } : null
+  const line = summaryCounts.map(x => `${x.value} ${x.label}`).join(sep)
 
   // ---- artifacts
   const artifactWidths = fill(isFull ? [null, 18, 10] : [null, 10], 8, 2)
@@ -365,7 +410,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   ).map(([key, label], i) => ({ key: key as string, label: label as string, width: artifactWidths[i] ?? 0 }))
   const artifactRows: Row[] = snapshot.artifacts.map(a => {
     const [name, key, tone]: [string, GlyphKey, Tone] =
-      a.isPresent && a.staleSince ? ['Stale', 'stale', 'warn']
+      a.isPresent && a.staleSince ? ['Review', 'stale', 'warn']
       : a.isPresent ? ['Ready', 'ready', 'good']
       : a.notApplicable !== undefined ? ['N/A', 'na', 'dim']
       : a.isProblem ? ['Missing', 'missing', 'bad']
@@ -376,7 +421,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     const rowKey = `artifact:${a.path}`
     const branch = glyph('branch', ascii)
     const sub = a.isPresent && a.staleSince
-      ? `${branch} Older than ${a.staleSince.path} (${a.staleSince.date})`
+      ? `${branch} ${a.staleSince.path} changed ${a.staleSince.date}${a.commitDate ? `, after this (${a.commitDate})` : ''}`
       : !a.isPresent && a.isProblem
         ? `${branch} A later stage already ran`
         : undefined
@@ -386,7 +431,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
       pair('Path', a.path),
       pair('Command', a.stage),
       ...(a.commitDate ? [pair('Committed', a.commitDate)] : []),
-      ...(a.staleSince ? [pair('Upstream', `${a.staleSince.path} (${a.staleSince.date})`)] : []),
+      ...(a.staleSince ? [pair('Changed', `${a.staleSince.path} (${a.staleSince.date})`), pair('Note', 'A review signal from commit dates, not proof this is out of date')] : []),
       ...(a.notApplicable !== undefined ? [pair('Reason', a.notApplicable)] : []),
     ]
     return {
@@ -438,16 +483,24 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     const key = `feature:${f.number}`
     const isOpen = ctx.expanded[key] === true
     const pair = (name: string, value: string): Cell[] => [{ text: name, tone: 'dim' }, { text: value }]
+    const own = snapshot.markers.items.filter(m => m.file.startsWith(`specs/${f.number}-`))
+    const clar = own.filter(m => m.kind === 'clarification').length
+    // The matrix already says these in words; the detail adds what it does not.
+    const spoken = !narrow && words ? sides : []
     const detail: Cell[][] = [
-      [{ text: f.name }],
-      ...Object.entries(f.sides).map(([side, value]) => pair(SIDE_HEAD[side] ?? side, value || glyph('none', ascii))),
+      ...(cut(f.name, nameWidth, ascii, true) !== f.name ? [[{ text: f.name }]] : []),
+      ...(narrow ? [pair('Readiness', f.bucket)] : []),
+      ...Object.entries(f.sides).filter(([side]) => !spoken.includes(side)).map(([side, value]) => pair(SIDE_HEAD[side] ?? side, value || glyph('none', ascii))),
       ...(f.depends.length > 0
         ? [
             [{ text: 'Depends on', tone: 'dim' as Tone }],
             ...f.depends.map(n => [{ text: `${glyph('dep', ascii)} ${n}${byNumber.get(n) ? ` ${byNumber.get(n)?.name}` : ''}${f.waiting.includes(n) ? ' (waits for)' : ''}` }]),
           ]
         : []),
+      ...(f.dir ? [pair('Source', `specs/${f.dir}/`)] : []),
       pair('Files', (['spec', 'plan', 'tasks'] as const).map(n => `${n}.md ${f.files[n] ? glyph('ready', ascii) : glyph('missing', ascii)}`).join(` ${glyph('sep', ascii)} `)),
+      ...(clar > 0 ? [[{ text: 'Open', tone: 'dim' as Tone }, { text: `${clar} ${plural(clar, 'clarification')}`, tone: 'warn' as Tone }]] : []),
+      ...(snapshot.next?.ref === f.number ? [pair('Next', `${snapshot.next.stage}, ${snapshot.next.reason}`)] : []),
     ]
     const overall = isRetired ? statusCell('retired', ascii) : statusCell(STATE_WORD[f.state], ascii)
     return {
@@ -517,6 +570,55 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     return { key, text: `${n} ${label}`, tone: n > 0 ? tone : ('dim' as Tone) }
   })
 
+  // ---- blockers
+  // Only what the snapshot already says blocks: an open clarification (the
+  // recommendation's own rule 1), a feature waiting for a dependency (wt.py's
+  // blocked) and an artifact missing although a later stage ran. The reason of
+  // a row is one of those three; none is guessed.
+  const nextRef = snapshot.next?.ref
+  const blockerRows: BlockerRow[] = [
+    ...items
+      .filter(m => m.kind === 'clarification')
+      .map(m => {
+        const dir = featureDir(m.file)
+        const place = `${m.file}:${m.line}`
+        return {
+          key: `blocker:${place}`,
+          title: dir ?? m.file,
+          reason: 'unresolved clarification',
+          isNext: snapshot.next?.rule === 1 && nextRef === place,
+          detail: [`${place} ${m.text}`],
+        }
+      }),
+    ...snapshot.features
+      .filter(f => f.bucket === 'blocked')
+      .map(f => ({
+        key: `blocker:feature:${f.number}`,
+        title: `${f.number} ${f.name}`,
+        reason: f.waiting.length > 0 ? `dependency ${f.waiting.join(', ')} not implemented` : 'reason not recorded',
+        isNext: false,
+        detail: f.waiting.map(n => `${n}${byNumber.get(n) ? ` ${byNumber.get(n)?.name}` : ' (not in specs/README.md)'}`),
+      })),
+    ...snapshot.artifacts
+      .filter(a => !a.isPresent && a.isProblem && a.notApplicable === undefined)
+      .map(a => ({ key: `blocker:artifact:${a.path}`, title: a.label, reason: 'missing although a later stage already ran', isNext: snapshot.next?.rule === 2 && nextRef === a.path, detail: [a.path] })),
+  ]
+  const SHOWN_BLOCKERS = 5
+
+  // ---- stage readiness
+  const readiness = stageChecks(snapshot.artifacts, snapshot.features)
+  const stageDetail = readiness && readiness.checks.length > 0
+    ? {
+        label: readiness.label,
+        isOpen: ctx.expanded.stage === true,
+        checks: readiness.checks.map(c => ({
+          ...c,
+          glyph: glyph(c.state === 'met' ? 'ready' : c.state === 'open' ? 'pending' : 'sep', ascii),
+          tone: (c.state === 'met' ? 'good' : c.state === 'open' ? 'warn' : 'dim') as Tone,
+        })),
+      }
+    : null
+
   // ---- the rest
   const stages = stageStrip(snapshot.artifacts, snapshot.features).map(step => ({
     ...step,
@@ -527,6 +629,15 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   const chained = 'Stages (an aid)'.length + 2 + stages.reduce((n, st) => n + [...`${st.glyph} ${st.label}`].length, 0) + (stages.length - 1) * (arrow.length + 2)
   const stageArrow = chained <= ctx.columns ? arrow : ''
   const next: Snapshot['next'] | undefined = snapshot.next
+  // Two lines of reason fit; the rest waits behind Details.
+  const reasonMax = Math.max(20, ctx.columns * 2 - 8)
+  const reason = next?.reason
+  const isCut = reason !== undefined && [...reason].length > reasonMax
+  const featureOf = next?.ref !== undefined ? byNumber.get(next.ref) : undefined
+  const refDir = next?.ref !== undefined ? featureDir(next.ref) : undefined
+  const refPlain = next?.ref?.replace(/^specs\/\d{3}-[^/]+\//, '')
+  const where = next?.ref === undefined ? undefined : featureOf ? `feature ${featureOf.number} ${featureOf.name}` : refDir ? `${refDir} ${sep.trim()} ${refPlain}` : next.ref
+  const isCommand = next !== undefined && next.stage.startsWith('/')
   const isLive = ctx.pollMs > 0 && ctx.checkedAt > 0 && ctx.now - ctx.checkedAt <= 3 * ctx.pollMs
   const caption = ctx.checkedAt <= 0
     ? 'Not checked yet'
@@ -542,13 +653,14 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     isEmpty: !hasArtifacts,
     header: { title: 'PIPELINE', badge: isLive ? 'LIVE' : 'STALE', caption },
     summary: {
+      attention,
+      counts: summaryCounts,
       artifacts: ready,
       ofArtifacts: snapshot.artifacts.filter(a => a.notApplicable === undefined).length,
       features: snapshot.features.length,
       clarifications: counts.clarification,
       assumptions: counts.assumption,
       gaps: counts.gap,
-      metrics,
       line,
     },
     sections: [
@@ -564,16 +676,24 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
       { id: 'items', title: 'Open items', columns: [{ key: 'kind', label: 'ITEM', width: 0 }, { key: 'count', label: 'COUNT', width: 0, align: 'right' }], rows: itemRows },
     ],
     progress: { ...counted, total, percent, line: pills.map(p => p.text).join(sep), width: barWidth, bar, pills },
+    blockers: blockerRows.length > 0
+      ? { count: blockerRows.length, rows: blockerRows.slice(0, SHOWN_BLOCKERS), more: Math.max(0, blockerRows.length - SHOWN_BLOCKERS), isOpen: ctx.expanded.blockers === true }
+      : null,
+    stageDetail,
     stages,
     stageArrow,
     filter: { active, counts: filterCounts },
     next: {
-      badge: next?.rule === 1 ? 'Needs attention' : next && next.rule !== null ? 'Suggested' : 'Up to date',
-      title: next ? (STAGE_NAME[next.stage] ?? `${next.stage.slice(0, 1).toUpperCase()}${next.stage.slice(1)}`) : 'No recommendation yet',
-      ...(next?.reason ? { explanation: next.reason } : {}),
+      badge: next?.rule === 1 ? 'Blocking' : next && next.rule !== null ? 'Suggested' : 'Up to date',
+      title: !next ? 'No recommendation yet' : next.rule === 1 ? 'Resolve open clarification' : (STAGE_NAME[next.stage] ?? `${next.stage.slice(0, 1).toUpperCase()}${next.stage.slice(1)}`),
+      ...(reason ? { explanation: isCut && ctx.expanded.next !== true ? cut(reason, reasonMax, ascii) : reason } : {}),
+      ...(isCut ? { full: reason } : {}),
+      isOpen: ctx.expanded.next === true,
       ...(next?.ref ? { ref: next.ref } : {}),
+      ...(where ? { where } : {}),
       // A command the stage names, other than the report the hint already offers.
-      ...(next && next.stage.startsWith('/') && next.stage !== '/project:status' ? { action: next.stage } : {}),
+      ...(next && isCommand && next.stage !== '/project:status' ? { action: next.stage } : {}),
+      ...(next && !isCommand ? { instruction: 'No command resolves this; it needs your answer.' } : {}),
       text: next ? `${next.stage}: ${next.reason}` : '',
       hasNext: next !== undefined,
       hint: `Hint only${sep}Full report:`,
@@ -617,16 +737,22 @@ export function dashboardText(snapshot: Snapshot, input: Context): string[] {
   const by = (id: string): Section => m.sections.find(s => s.id === id) as Section
   const lines = [`${m.header.title}  ${m.header.badge}  ${m.header.caption}`, '']
 
-  if (m.mode === 'full') {
-    lines.push(m.summary.metrics.filter(x => x.isLarge).map(x => `${x.value} ${x.label}`).join('    '))
-    lines.push(m.summary.metrics.filter(x => !x.isLarge).map(x => `${x.value} ${x.label}`).join(sep))
-  } else {
-    lines.push(m.summary.line)
+  lines.push(m.summary.line)
+  if (m.summary.attention) lines.push(m.summary.attention.text)
+  if (m.blockers) {
+    const b = m.blockers
+    lines.push('', `Blockers${sep}${b.count}  ${glyph(b.isOpen ? 'open' : 'closed', m.ascii)} ${b.isOpen ? 'Hide' : 'Show'}`)
+    for (const r of b.rows) {
+      lines.push(`${glyph('warn', m.ascii)} ${r.title} ${m.ascii ? '-' : '—'} ${r.reason}${r.isNext ? ' (see Next action)' : ''}`)
+      if (b.isOpen) for (const d of r.detail) lines.push(`    ${d}`)
+    }
+    if (b.more > 0) lines.push(`+${b.more} more`)
   }
 
-  lines.push('', 'Artifacts', ...tableLines(by('artifacts'), m.mode, m.ascii, true))
+  lines.push('', `Artifacts  ${m.summary.artifacts} of ${m.summary.ofArtifacts} ready`, ...tableLines(by('artifacts'), m.mode, m.ascii, true))
   if (!m.hasGit) lines.push('Staleness needs git.')
   lines.push(`Stages (an aid)  ${m.stages.map(s => `${s.glyph} ${s.label}`).join(m.stageArrow ? ` ${m.stageArrow} ` : '  ')}`)
+  if (m.stageDetail?.isOpen) lines.push(`  ${m.stageDetail.label}:`, ...m.stageDetail.checks.map(c => `    ${c.glyph} ${c.text}`))
 
   lines.push('', m.progress.total === 0 ? 'Implementation' : `Implementation   ${m.progress.percent}%`)
   if (m.progress.total === 0) {
@@ -653,10 +779,12 @@ export function dashboardText(snapshot: Snapshot, input: Context): string[] {
     for (const detail of row.detail ?? []) lines.push(`  ${detail.map(cellText).join(' ')}`)
   }
 
-  lines.push('', `Next action  ${m.next.badge}`, `${glyph('current', m.ascii)} ${m.next.title}`)
+  lines.push('', `Next action  ${m.next.badge}`, `${glyph(m.next.badge === 'Blocking' ? 'warn' : 'current', m.ascii)} ${m.next.title}`)
   if (m.next.explanation) lines.push(`  ${m.next.explanation}`)
-  if (m.next.ref) lines.push(`  ${m.next.ref}`)
+  if (m.next.full) lines.push(`  ${glyph(m.next.isOpen ? 'open' : 'closed', m.ascii)} ${m.next.isOpen ? 'Less' : 'Details'}`)
+  if (m.next.where) lines.push(`  ${m.next.where}`)
   if (m.next.action) lines.push(`  Run ${m.next.action}`)
+  else if (m.next.instruction) lines.push(`  ${m.next.instruction}`)
   lines.push(`${m.next.hint} ${m.next.command}`)
   return lines
 }
