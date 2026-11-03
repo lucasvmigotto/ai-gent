@@ -1,0 +1,22 @@
+{
+  "name": "row-cap",
+  "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_row_cap",
+  "kind": "exec",
+  "engines": ["sqlite"],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE customer (id INTEGER PRIMARY KEY, nome TEXT, email TEXT, status TEXT)",
+      "INSERT INTO customer VALUES (1, 'Ana Lima', 'ana@example.com', 'active'), (2, 'Bruno Reis', 'bruno@example.com', 'blocked'), (3, 'Caio Dias', 'caio@example.com', 'active')"
+    ]
+  },
+  "steps": [
+    {
+      "request": {"mode": "read", "statements": ["SELECT id FROM customer ORDER BY id"], "timeout": 5, "max_rows": 2},
+      "expected": {"ok": true, "results": [{"rowcount": -1, "columns": ["id"], "rows": [[1], [2]], "truncated": true}]}
+    },
+    {
+      "request": {"mode": "read", "statements": ["SELECT id FROM customer ORDER BY id"], "timeout": 5, "max_rows": 3},
+      "expected": {"ok": true, "results": [{"rows": [[1], [2], [3]], "truncated": false}]}
+    }
+  ]
+}

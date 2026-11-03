@@ -1,0 +1,37 @@
+{
+  "name": "read-masks-and-reveals",
+  "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_read_masks_and_logs (the connector returns raw rows; masking is core::mask; the log never holding results is the runner's, not the connector's)",
+  "kind": "exec",
+  "engines": ["sqlite"],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE customer (id INTEGER PRIMARY KEY, nome TEXT, email TEXT, status TEXT)",
+      "INSERT INTO customer VALUES (1, 'Ana Lima', 'ana@example.com', 'active'), (2, 'Bruno Reis', 'bruno@example.com', 'blocked'), (3, 'Caio Dias', 'caio@example.com', 'active')"
+    ]
+  },
+  "steps": [
+    {
+      "request": {"mode": "read", "statements": ["SELECT id, nome, email FROM customer ORDER BY id"], "timeout": 5, "max_rows": 200},
+      "expected": {
+        "ok": true,
+        "results": [{
+          "rowcount": -1,
+          "columns": ["id", "nome", "email"],
+          "rows": [[1, "Ana Lima", "ana@example.com"], [2, "Bruno Reis", "bruno@example.com"], [3, "Caio Dias", "caio@example.com"]],
+          "truncated": false
+        }],
+        "seconds": "$number"
+      },
+      "masked": {
+        "reveal": false,
+        "rows": [[1, "A*** L***", "a***@e***.com"], [2, "B*** R***", "b***@e***.com"], [3, "C*** D***", "c***@e***.com"]],
+        "kinds": {"nome": "name", "email": "email"}
+      }
+    },
+    {
+      "request": {"mode": "read", "statements": ["SELECT email FROM customer WHERE id = 1"], "timeout": 5, "max_rows": 200},
+      "expected": {"ok": true, "results": [{"rows": [["ana@example.com"]]}]},
+      "masked": {"reveal": true, "rows": [["ana@example.com"]], "kinds": {}}
+    }
+  ]
+}
