@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import type { WorkersSnapshot } from '../types'
 import { AGENTS, ALL_STATES, LOG, NOW, PROFILE_AND_CODEX, statusJson, track } from './workers-fixtures'
-import { agentRow, build, compactLine, duration, parseCap, parseLog, parseStatus, sortWorkers, text } from './workers-model'
+import { HISTORY_KEY, agentRow, build, compactLine, duration, parseCap, parseLog, parseStatus, sortWorkers, text } from './workers-model'
 
 const snapshot = (files: Record<string, string>, over: Partial<WorkersSnapshot> = {}): WorkersSnapshot => ({
   workers: Object.values(files).flatMap(t => parseStatus(t) ?? []),
@@ -90,63 +90,11 @@ const lines = (s: WorkersSnapshot, over: Record<string, unknown> = {}) =>
   build(s, { ...ctx, ...over } as never).lines.map(l => l.text).join('\n')
 const LIMITS = [{ kind: 'five_hour', percent: 41 }, { kind: 'seven_day', percent: 12 }, { kind: 'spend_limit', percent: 3 }]
 
-test('golden: wide', () => {
-  expect(lines(snapshot(ALL_STATES), { limits: LIMITS })).toBe(`Workers  slots 2/3 · 1 running · 1 queued · 1 stalled ⚠ · 1 failed ✕ · 1 done · 1 taken-back
-Usage  5h 41% · week 12%
-  STATE        AGENT            ROLE       TASKS TRACK         ELAPSED LAST EVENT   VERDICT      WORKTREE
-▸ ▶ running    codex            builder    T010,T011 feat-core 10m     10s ago      · pending    .worktrees/feat-core
-▸ ⚠ stalled    opencode:flint-… builder    T020 feat-ui        10m     8m ago       · pending    .worktrees/feat-ui
-▸ · queued     codex            researcher T040 feat-docs      —       —            · pending    .worktrees/feat-docs
-▸ ✕ failed     claude-subagent  reviewer   T030 feat-api       5m      —            ✕ rejected   .worktrees/feat-api
-▸ ✓ done       gemini           builder    T001 feat-db        6m      —            ✓ accepted   .worktrees/feat-db
-▸ ↩ taken-back codex            builder    T002 feat-old       3m      —            · pending    .worktrees/feat-old`)
-})
 
-test('golden: medium drops the verdict and the worktree', () => {
-  expect(lines(snapshot(ALL_STATES), { columns: 80 })).toBe(`Workers  slots 2/3 · 1 running · 1 queued · 1 stalled ⚠ · 1 failed ✕ · 1 done ·…
-  STATE        AGENT            ROLE       TASKS TRACK         ELAPSED LAST EVE…
-▸ ▶ running    codex            builder    T010,T011 feat-core 10m     10s ago
-▸ ⚠ stalled    opencode:flint-… builder    T020 feat-ui        10m     8m ago
-▸ · queued     codex            researcher T040 feat-docs      —       —
-▸ ✕ failed     claude-subagent  reviewer   T030 feat-api       5m      —
-▸ ✓ done       gemini           builder    T001 feat-db        6m      —
-▸ ↩ taken-back codex            builder    T002 feat-old       3m      —`)
-})
 
-test('golden: narrow is one short row per worker', () => {
-  expect(lines(snapshot(ALL_STATES), { columns: 40 })).toBe(`Workers  slots 2/3 · 1 running · 1 queu…
-▸ ▶ codex feat-core 10m
-▸ ⚠ opencode:flint-40b-free feat-ui 10m
-▸ · codex feat-docs —
-▸ ✕ claude-subagent feat-api 5m
-▸ ✓ gemini feat-db 6m
-▸ ↩ codex feat-old 3m`)
-})
 
-test('golden: ascii fallback uses no non-ASCII glyph', () => {
-  const out = lines(snapshot(ALL_STATES), { ascii: true })
-  expect(out).toBe(`Workers  slots 2/3 | 1 running | 1 queued | 1 stalled ! | 1 failed x | 1 done | 1 taken-back
-  STATE        AGENT            ROLE       TASKS TRACK         ELAPSED LAST EVENT   VERDICT      WORKTREE
-> * running    codex            builder    T010,T011 feat-core 10m     10s ago      . pending    .worktrees/feat-core
-> ! stalled    opencode:flin... builder    T020 feat-ui        10m     8m ago       . pending    .worktrees/feat-ui
-> . queued     codex            researcher T040 feat-docs      -       -            . pending    .worktrees/feat-docs
-> x failed     claude-subagent  reviewer   T030 feat-api       5m      -            x rejected   .worktrees/feat-api
-> + done       gemini           builder    T001 feat-db        6m      -            + accepted   .worktrees/feat-db
-> < taken-back codex            builder    T002 feat-old       3m      -            . pending    .worktrees/feat-old`)
-  expect(out).toMatch(/^[\x20-\x7e\n]*$/)
-})
 
-test('a row opens to its verdict, events, tokens and the log cost lines', () => {
-  const out = lines(snapshot(ALL_STATES), { expanded: { 'feat-db': true, 'feat-api': true } })
-  expect(out).toContain('    verdict: accepted · 12 events · 43k tokens')
-  expect(out).toContain('    log: 1 run, 6m wall, 43k tokens')
-  expect(out).toContain('    verdict: rejected (out-of-scope-path) · 12 events')
-  expect(out).not.toContain('verdict: pending')
-})
 
-test('maxRows cuts the list and says how many more', () => {
-  expect(lines(snapshot(ALL_STATES), { maxRows: 2 })).toContain('+4 more')
-})
 
 test('every line fits the width', () => {
   for (const columns of [20, 30, 40, 60, 80, 100, 140]) for (const l of lines(snapshot(ALL_STATES), { columns, expanded: { 'feat-db': true } }).split('\n')) expect([...l].length).toBeLessThanOrEqual(columns)
@@ -198,20 +146,7 @@ test('the description is carried only when asked, without control characters, an
   expect(agentRow({ ...AGENTS[0], id: 'a\u001b]0;x\u0007/../b', type: 'T\u001b[1m' } as never, SEEN, false).track).toBe('sub-a0x..b')
 })
 
-test('all three kinds count together: header, slots and the pipeline line', () => {
-  const s = mixed()
-  expect(compactLine(s)).toEqual({ text: 'Workers: 3 running · 1 queued · slots 3/3', tone: 'plain' })
-  expect(lines(s).split('\n')[0]).toBe('Workers  slots 3/3 · 3 running · 1 queued')
-})
 
-test('golden: wide with the kind tag, no description', () => {
-  expect(lines(mixed())).toBe(`Workers  slots 3/3 · 3 running · 1 queued
-  STATE        KIND AGENT            ROLE       TASKS TRACK      ELAPSED LAST EVENT   VERDICT      WORKTREE
-▸ ▶ running    prof claude-profile:… builder    T060 feat-prof   10m     5s ago       · pending    .worktrees/feat-prof
-▸ ▶ running    ext  codex            builder    T061 feat-cx     10m     10s ago      · pending    .worktrees/feat-cx
-▸ ▶ running    sub  claude-subagent  builder    sub-a1b2c3d4e5f6 10m     —            · pending    —
-▸ · queued     sub  claude-subagent  researcher sub-e1           —       —            · pending    —`)
-})
 
 test('golden: the description appears only with the option', () => {
   const out = lines(mixed({}, true))
@@ -219,11 +154,176 @@ test('golden: the description appears only with the option', () => {
   expect(lines(mixed({}, false))).not.toContain('survey')
 })
 
-test('golden: narrow and ascii keep a kind tag', () => {
-  expect(lines(mixed(), { columns: 50 })).toBe(`Workers  slots 3/3 · 3 running · 1 queued
-▸ ▶ prof claude-profile:work feat-prof 10m
-▸ ▶ ext codex feat-cx 10m
-▸ ▶ sub claude-subagent sub-a1b2c3d4e5f6 10m
-▸ · sub claude-subagent sub-e1 —`)
-  expect(lines(mixed(), { ascii: true })).toMatch(/^[\x20-\x7e\n]*$/)
+
+
+// The redesigned pane (hierarchy: overview, capacity, attention, workers, history).
+const CAP_ROWS = (s: WorkersSnapshot, over: Record<string, unknown> = {}) => lines(s, over).split('\n').filter(l => /CAPACITY|^\[|^\S.*slots/.test(l) || /available|full|over the limit/.test(l))
+
+test('golden: wide has overview, capacity, attention, a column header and a collapsed history', () => {
+  expect(lines(snapshot(ALL_STATES), { limits: LIMITS })).toBe(`WORKERS                                             1 failed · 1 stalled
+1 running · 1 queued · 1 stalled ⚠ · 1 failed ✕ · 1 done · 1 taken-back
+Usage  5h 41% · week 12%
+CAPACITY                                                     2 / 3 slots
+[■] [■] [ ]                                                  1 available
+
+ATTENTION · 2 issues
+▸ ⚠ feat-ui stalled · T020 · 10m
+▸ ✕ feat-api failed · T030 · 5m · verdict rejected
+
+    WORKER / TRACK  KIND  STATE       TASKS                   TIME
+▸ ▶ feat-core       ext   Running     T010, T011              10m
+▸ ⚠ feat-ui         ext   Stalled     T020                    10m
+▸ ○ feat-docs       ext   Queued      T040                    —
+▸ ✕ feat-api        ext   Failed      T030                    5m
+▸ History · 1 done · 1 taken back`)
+})
+
+test('golden: medium is two lines per worker, state flush right', () => {
+  expect(lines(snapshot(ALL_STATES), { columns: 70 })).toContain(`WORKERS
+▸ ▶ feat-core                                                  Running
+    T010, T011 · 10m · builder · ext · verdict pending
+▸ ⚠ feat-ui                                                    Stalled`)
+})
+
+test('golden: narrow keeps state visible and a compact capacity', () => {
+  const out = lines(snapshot(ALL_STATES), { columns: 40 })
+  expect(out).toContain('CAPACITY         2/3 slots · 1 available')
+  expect(out).not.toContain('[■]')
+  expect(out).toContain('▸ ✕ feat-api                      Failed\n    T030 · 5m · ext')
+})
+
+test('golden: ascii uses only ASCII', () => {
+  const out = lines(snapshot(ALL_STATES), { ascii: true })
+  expect(out).toMatch(/^[\x20-\x7e\n]*$/)
+  expect(out).toContain('[#] [#] [ ]')
+  expect(out).toContain('> o feat-docs')
+})
+
+test('capacity: 0/3, 2/3, 3/3, over, unknown, wide cap and a narrow pane', () => {
+  const none = snapshot({ a: track('a', 'queued') })
+  expect(CAP_ROWS(none).join('\n')).toContain('0 / 3 slots')
+  expect(lines(none)).toContain('[ ] [ ] [ ]')
+  expect(lines(none)).toContain('3 available')
+  expect(lines(snapshot({ a: track('a', 'running'), b: track('b', 'stalled') }))).toContain('[■] [■] [ ]')
+  const full = lines(snapshot({ a: track('a', 'running'), b: track('b', 'running'), c: track('c', 'running') }))
+  expect(full).toContain('3 / 3 slots')
+  expect(full).toContain('full')
+  const over = lines(snapshot({ a: track('a', 'running'), b: track('b', 'running') }, { cap: 1 }))
+  expect(over).toContain('2 / 1 slots')
+  expect(over).toContain('1 over the limit')
+  const unknown = lines(snapshot({ a: track('a', 'running') }, { cap: 0 }))
+  expect(unknown).toContain('1 in use (limit unknown)')
+  expect(unknown).not.toContain('[')
+  expect(lines(snapshot({ a: track('a', 'running') }, { cap: 20 }))).toContain('1/20 slots · 19 available')
+  expect(lines(none, { columns: 40 })).toContain('0/3 slots · 3 available')
+})
+
+test('a queued worker with free capacity is never called blocked or waiting for a slot', () => {
+  const out = text(snapshot({ a: track('a', 'queued') }), ctx)
+  expect(out).toContain('3 available')
+  expect(out).toContain('Queued')
+  expect(out).not.toMatch(/block|waiting for|no slot|wait/i)
+})
+
+test('attention lists failed and stalled only, stalled first, and is absent otherwise', () => {
+  const out = lines(snapshot(ALL_STATES))
+  expect(out).toContain('ATTENTION · 2 issues')
+  expect(out.indexOf('⚠ feat-ui stalled')).toBeLessThan(out.indexOf('✕ feat-api failed'))
+  expect(lines(snapshot({ a: track('a', 'running'), b: track('b', 'done') }))).not.toContain('ATTENTION')
+  expect(lines(snapshot({ a: track('a', 'failed') }))).toContain('ATTENTION · 1 issue\n')
+  const view = build(snapshot(ALL_STATES), ctx)
+  const row = view.lines.find(l => l.buttonKey === 'attention:feat-api')
+  expect(row?.toggle).toBe('feat-api')
+})
+
+test('a failure without a verdict reason or events invents none', () => {
+  const out = lines(snapshot({ a: track('a', 'failed', { events: 0 }) }), { expanded: { a: true } })
+  expect(out).toContain('Verdict: pending')
+  expect(out).toContain('Last event: 0 events')
+  expect(out).not.toMatch(/reason|because|retry|fix/i)
+})
+
+test('history is collapsed with its count; opening it lists done and taken-back rows', () => {
+  const closed = lines(snapshot(ALL_STATES))
+  expect(closed).toContain('▸ History · 1 done · 1 taken back')
+  expect(closed).not.toContain('feat-db')
+  expect(build(snapshot(ALL_STATES), ctx).lines.find(l => l.toggle === HISTORY_KEY)).toBeDefined()
+  const open = lines(snapshot(ALL_STATES), { expanded: { [HISTORY_KEY]: true } })
+  expect(open).toContain('▾ History')
+  expect(open).toContain('✓ feat-db')
+  expect(open).toContain('↩ feat-old')
+})
+
+test('only done workers: no active rows, history still counted', () => {
+  const out = lines(snapshot({ a: track('a', 'done') }))
+  expect(out).toContain('No active workers')
+  expect(out).toContain('History · 1 done')
+})
+
+test('execution state and verdict stay independent', () => {
+  const out = lines(snapshot({ a: track('a', 'done'), b: track('b', 'failed', { verdict: { result: 'accepted' } }), c: track('c', 'running', { verdict: { result: 'rejected', reason: 'x-rule' } }) }), { expanded: { a: true, b: true, c: true, [HISTORY_KEY]: true } })
+  expect(out).toMatch(/State: Done[^\n]*\n\s+Verdict: pending/)
+  expect(out).toMatch(/State: Failed[^\n]*\n\s+Verdict: accepted/)
+  expect(out).toContain('Verdict: accepted')
+  expect(out).toContain('Verdict: rejected (x-rule)')
+})
+
+test('a row opens to its details, shown only when available', () => {
+  const out = lines(snapshot(ALL_STATES), { expanded: { 'feat-db': true, [HISTORY_KEY]: true } })
+  expect(out).toContain('    Track: feat-db')
+  expect(out).toContain('    Tokens: 43k')
+  expect(out).toContain('    Log: 1 run, 6m wall, 43k tokens')
+  expect(out).toContain('    Worktree: .worktrees/feat-db')
+  const sub = lines(mixed(), { expanded: { 'sub-e1': true } })
+  expect(sub).toContain('    Track: sub-e1')
+  expect(sub).not.toMatch(/Worktree|Tokens|Tasks:|Last event/)
+})
+
+test('long values wrap in details and truncate with an ellipsis in rows, never past the width', () => {
+  const long = 'a'.repeat(99)
+  const s = snapshot({ x: track(long, 'failed', { worktree: `.worktrees/${'b'.repeat(100)}`, tasks: Array.from({ length: 30 }, (_, i) => `T${100 + i}`) }) })
+  for (const columns of [20, 40, 60, 80, 100, 140]) {
+    const out = lines(s, { columns, expanded: { [long]: true } })
+    for (const l of out.split('\n')) expect([...l].length).toBeLessThanOrEqual(columns)
+    expect(out).toContain('…')
+    expect(out.replace(/\n\s+/g, '')).toContain('b'.repeat(100))
+  }
+})
+
+test('a large list is cut at maxRows and says how many more', () => {
+  const files = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`w${i}`, track(`w${i}`, 'running')]))
+  const out = lines(snapshot(files), { maxRows: 10 })
+  expect(out.match(/▶ w\d+/g)?.length).toBe(10)
+  expect(out).toContain('+30 more')
+})
+
+test('counts in the header are the snapshot counts', () => {
+  const view = build(snapshot(ALL_STATES), ctx)
+  expect(view.counts).toEqual({ running: 1, queued: 1, stalled: 1, failed: 1, done: 1, 'taken-back': 1 })
+  expect(view.slots).toEqual({ used: 2, cap: 3 })
+  expect(lines(snapshot(ALL_STATES)).split('\n')[1]).toBe('1 running · 1 queued · 1 stalled ⚠ · 1 failed ✕ · 1 done · 1 taken-back')
+})
+
+test('all three kinds count together and show: header, capacity, kind column and pipeline line', () => {
+  const s = mixed()
+  expect(compactLine(s)).toEqual({ text: 'Workers: 3 running · 1 queued · slots 3/3', tone: 'plain' })
+  const out = lines(s)
+  expect(out.split('\n')[1]).toBe('3 running · 1 queued')
+  expect(out).toContain('3 / 3 slots')
+  expect(out).toMatch(/feat-prof\s+prof\s+Running/)
+  expect(out).toMatch(/feat-cx\s+ext\s+Running/)
+  expect(out).toMatch(/sub-a1b2c3d4e5f6\s+sub\s+Running/)
+  expect(out).toMatch(/sub-e1\s+sub\s+Queued/)
+  expect(out).not.toContain('ATTENTION')
+})
+
+test('the description appears only with the option', () => {
+  expect(lines(mixed({}, true))).toContain('sub-e1: survey [31mthe repo'.replace('\u001b', ''))
+  expect(lines(mixed({}, false))).not.toContain('survey')
+})
+
+test('text() opens every row and the history, trimmed', () => {
+  const out = text(snapshot(ALL_STATES), { columns: 80, now: NOW, ascii: false, maxRows: 30 })
+  for (const name of ['feat-core', 'feat-ui', 'feat-docs', 'feat-api', 'feat-db', 'feat-old']) expect(out).toContain(`Track: ${name}`)
+  expect(out.split('\n').every(l => l === l.trimEnd())).toBe(true)
 })

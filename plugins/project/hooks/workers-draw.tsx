@@ -22,10 +22,14 @@ export function drawWorkers($: EngineInterface, e: ResolveInput, view: WorkersVi
       {view.lines.map(line =>
         line.toggle === undefined ? (
           <Text key={line.key} wrap="truncate-end" {...look(line.tone)}>
-            {line.text}
+            {line.text === '' ? ' ' : line.text}
           </Text>
         ) : (
-          <Button key={`toggle:${line.toggle}`} label={line.text} plain dimColor={line.tone === 'dim'} onPress={() => handlers.onToggle(line.toggle as string)} />
+          <Button key={line.buttonKey ?? `toggle:${line.toggle}`} plain onPress={() => handlers.onToggle(line.toggle as string)}>
+            <Text wrap="truncate-end" {...look(line.tone)}>
+              {line.text}
+            </Text>
+          </Button>
         ),
       )}
     </Box>
