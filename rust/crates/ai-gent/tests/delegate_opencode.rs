@@ -134,7 +134,11 @@ fn denied(f: &Value, target: &str) -> bool {
         .as_array()
         .unwrap()
         .iter()
-        .find(|a| a["target"] == target)
+        .find(|a| {
+            a["target"]
+                .as_str()
+                .is_some_and(|t| t.replace('\\', "/") == target.replace('\\', "/"))
+        })
         .unwrap_or_else(|| panic!("no attempt on {target}"))["denied"]
         .as_bool()
         .unwrap()
