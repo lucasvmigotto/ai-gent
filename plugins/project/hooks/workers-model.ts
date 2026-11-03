@@ -162,7 +162,7 @@ const glyphs = (ascii: boolean) => ({
 })
 
 const STATE_GLYPH: Record<WorkerState, [string, string]> = {
-  queued: ['·', '.'],
+  queued: ['○', 'o'],
   running: ['▶', '*'],
   stalled: ['⚠', '!'],
   done: ['✓', '+'],
@@ -216,7 +216,7 @@ export function duration(secs: number): string {
 
 const compactNumber = (n: number): string => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n))
 
-export type Line = { key: string; text: string; tone: Tone; toggle?: string }
+export type Line = { key: string; text: string; tone: Tone; toggle?: string; buttonKey?: string }
 export type Limit = { kind: string; percent: number }
 export type Context = {
   columns: number
@@ -229,8 +229,19 @@ export type Context = {
 }
 export type WorkersView = { isEmpty: boolean; counts: Counts; slots: { used: number; cap: number }; lines: Line[] }
 
+// The expansion key of the History / Done disclosure. It cannot be a track name (TRACK has no '#').
+export const HISTORY_KEY = '#history'
+
 const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
 const fit = (s: string, n: number, ellipsis: string) => (s.length > n ? `${s.slice(0, Math.max(1, n - ellipsis.length))}${ellipsis}` : s)
+// Left text, then right text flush to the width; the left is cut when both do not fit.
+function spread(left: string, right: string, width: number, ellipsis: string): string {
+  if (right === '') return fit(left, width, ellipsis)
+  const room = width - right.length - 1
+  if (room < 4) return fit(`${left} ${right}`, width, ellipsis)
+  return `${pad(fit(left, room, ellipsis), room)} ${right}`
+}
+const cap1 = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 const RANK: Record<WorkerState, number> = { running: 0, stalled: 1, queued: 2, failed: 3, done: 4, 'taken-back': 5 }
 
@@ -251,7 +262,34 @@ function costLine(track: string, log: readonly WorkerLogLine[]): string | null {
   const wall = runs.reduce((a, l) => a + l.wallSecs, 0)
   const tokens = runs.reduce((a, l) => a + (l.tokens ?? 0), 0)
   const reported = runs.some(l => l.tokens !== null)
-  return `log: ${runs.length} ${runs.length === 1 ? 'run' : 'runs'}, ${duration(wall)} wall${reported ? `, ${compactNumber(tokens)} tokens` : ''}`
+  return `${runs.length} ${runs.length === 1 ? 'run' : 'runs'}, ${duration(wall)} wall${reported ? `, ${compactNumber(tokens)} tokens` : ''}`
+}
+
+const KIND_LABEL: Record<WorkerKind, string> = { subagent: 'sub (session subagent)', profile: 'prof (Claude profile)', agent: 'ext (code agent)' }
+const needsAttention = (w: WorkerStatus) => w.state === 'stalled' || w.state === 'failed'
+const isHistory = (w: WorkerStatus) => w.state === 'done' || w.state === 'taken-back'
+
+// The slot meter: one cell per slot of a small positive cap, wider caps and narrow panes as text. The cap is the
+// worker-slot pool (running plus stalled workers hold one); this is occupancy, never task progress, and a queued
+// worker is not said to wait for a slot because nothing in the status says why it waits.
+function capacity(used: number, cap: number, columns: number, ascii: boolean, ellipsis: string): Line[] {
+  const known = Number.isInteger(cap) && cap >= 1
+  if (!known) {
+    return [{ key: 'cap', text: fit(`CAPACITY  ${used} in use (limit unknown)`, columns, ellipsis), tone: 'dim' }]
+  }
+  const over = used > cap
+  const free = Math.max(0, cap - used)
+  const tone: Tone = over ? 'warn' : used > 0 ? 'info' : 'dim'
+  const figure = `${used} / ${cap} slots`
+  const status = over ? `${used - cap} over the limit` : free === 0 ? 'full' : `${free} available`
+  if (cap > 12 || columns < NARROW) return [{ key: 'cap', text: spread('CAPACITY', `${used}/${cap} slots · ${status}`, columns, ellipsis), tone }]
+  const on = ascii ? '[#]' : '[■]'
+  const off = '[ ]'
+  const cells = Array.from({ length: cap }, (_, i) => (i < used ? on : off)).join(' ')
+  return [
+    { key: 'cap', text: spread('CAPACITY', figure, columns, ellipsis), tone },
+    { key: 'cap-meter', text: spread(cells, status, columns, ellipsis), tone },
+  ]
 }
 
 export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersView {
@@ -261,7 +299,22 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
   const cap = snapshot?.cap ?? DEFAULT_CAP
   const slots = { used: slotsUsed(counts), cap }
   const lines: Line[] = []
-  const add = (text: string, tone: Tone = 'plain', toggle?: string) => lines.push({ key: `l${lines.length}`, text: fit(text, ctx.columns, g.ellipsis), tone, toggle })
+  const width = Math.max(10, ctx.columns)
+  const add = (text: string, tone: Tone = 'plain', toggle?: string, buttonKey?: string) =>
+    lines.push({ key: `l${lines.length}`, text: fit(text, width, g.ellipsis), tone, toggle, buttonKey })
+  // Wrapped, not cut: a detail line keeps the whole value on continuation lines.
+  const detail = (label: string, value: string) => {
+    let lead = `    ${label}: `
+    let first = lead
+    if (width - lead.length < 12) {
+      add(`    ${label}:`, 'dim')
+      lead = '      '
+      first = lead
+    }
+    const room = Math.max(4, width - lead.length)
+    const chars = [...value]
+    for (let i = 0; i === 0 || i < chars.length; i += room) add(`${i === 0 ? first : ' '.repeat(lead.length)}${chars.slice(i, i + room).join('')}`, 'dim')
+  }
 
   if (workers.length === 0) {
     add('No workers', 'dim')
@@ -269,57 +322,100 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
     return { isEmpty: true, counts, slots, lines }
   }
 
+  // Overview.
+  const issues = [counts.failed > 0 ? `${counts.failed} failed` : '', counts.stalled > 0 ? `${counts.stalled} stalled` : ''].filter(Boolean).join(g.sep)
   const tone: Tone = counts.failed > 0 ? 'bad' : counts.stalled > 0 ? 'warn' : 'bold'
-  add(`Workers  slots ${slots.used}/${cap}${g.sep}${countText(counts, ctx.ascii)}`, tone)
+  const head = Math.min(width, 72)
+  add(spread('WORKERS', issues, head, g.ellipsis), tone)
+  add(countText(counts, ctx.ascii), 'dim')
   const usage = meters(ctx.limits)
   if (usage !== null) add(`Usage  ${usage}`, 'dim')
 
-  const tier = ctx.columns < NARROW ? 'narrow' : ctx.columns < WIDE ? 'medium' : 'wide'
-  const sorted = sortWorkers(workers)
-  const shown = sorted.slice(0, Math.max(1, ctx.maxRows))
-  // The kind tag shows once a row is not a plain status-file agent, so a pane of only those is unchanged.
-  const tagged = workers.some(w => w.kind !== 'agent')
-  const tag = (w: WorkerStatus) => (tagged ? `${pad(KIND_TAG[w.kind], 4)} ` : '')
-  const labelOf = (w: WorkerStatus) => `${w.tasks.join(',')} ${w.track}${w.note === null ? '' : `: ${w.note}`}`.trim()
-  const flex = Math.max(12, ...shown.map(w => labelOf(w).length))
-  const labelWidth = Math.min(flex, tier === 'wide' ? 40 : 28)
+  // Capacity.
+  for (const l of capacity(slots.used, cap, head, ctx.ascii, g.ellipsis)) lines.push({ ...l, key: `l${lines.length}`, text: l.text })
 
-  if (tier !== 'narrow') {
-    add(`  ${pad('STATE', 12)} ${tagged ? 'KIND ' : ''}${pad('AGENT', 16)} ${pad('ROLE', 10)} ${pad('TASKS TRACK', labelWidth)} ${pad('ELAPSED', 7)} LAST EVENT${tier === 'wide' ? '   VERDICT      WORKTREE' : ''}`, 'dim')
+  const tier = width < NARROW ? 'narrow' : width < WIDE ? 'medium' : 'wide'
+  const nowS = ctx.now / 1000
+  const sorted = sortWorkers(workers)
+  const glyphOf = (w: WorkerStatus) => STATE_GLYPH[w.state][ctx.ascii ? 1 : 0]
+  const stateOf = (w: WorkerStatus) => cap1(w.state.replace('-', ' '))
+  const isLive = (w: WorkerStatus) => w.state === 'running' || w.state === 'stalled'
+  const elapsedOf = (w: WorkerStatus) => (w.state === 'queued' ? g.none : duration((isLive(w) ? nowS : w.updated) - w.started))
+  const tasksOf = (w: WorkerStatus) => (w.tasks.length === 0 ? g.none : w.tasks.join(', '))
+  const nameOf = (w: WorkerStatus) => `${w.track}${w.note === null ? '' : `: ${w.note}`}`
+
+  // Attention: failed and stalled only, from the same workers. A press opens the worker's details.
+  const attention = sorted.filter(needsAttention)
+  if (attention.length > 0) {
+    lines.push({ key: `l${lines.length}`, text: '', tone: 'plain' })
+    add(`ATTENTION${g.sep}${attention.length} ${attention.length === 1 ? 'issue' : 'issues'}`, attention.some(w => w.state === 'failed') ? 'bad' : 'warn')
+    for (const w of attention) {
+      const isOpen = ctx.expanded[w.track] === true
+      const verdictNote = w.verdict.result === 'rejected' ? `${g.sep}verdict rejected` : ''
+      add(`${isOpen ? g.open : g.closed} ${glyphOf(w)} ${fit(w.track, 24, g.ellipsis)} ${w.state}${g.sep}${tasksOf(w)}${g.sep}${elapsedOf(w)}${verdictNote}`, STATE_TONE[w.state], w.track, `attention:${w.track}`)
+      if (isOpen) details(w)
+    }
   }
-  for (const w of shown) {
-    const glyph = STATE_GLYPH[w.state][ctx.ascii ? 1 : 0]
+
+  function details(w: WorkerStatus) {
+    detail('Track', nameOf(w))
+    if (w.tasks.length > 0) detail('Tasks', w.tasks.join(', '))
+    detail('Role', `${w.role}${g.sep}Agent: ${KIND_LABEL[w.kind]} / ${w.agent}`)
+    detail('State', `${stateOf(w)}${g.sep}Elapsed: ${elapsedOf(w)}`)
+    const reason = w.verdict.reason === null ? '' : ` (${w.verdict.reason})`
+    detail('Verdict', `${w.verdict.result}${reason}`)
+    if (w.kind !== 'subagent') detail('Last event', `${w.events} ${w.events === 1 ? 'event' : 'events'}${isLive(w) ? `, last update ${duration(nowS - w.updated)} ago` : ''}`)
+    if (w.worktree !== '') detail('Worktree', w.worktree)
+    if (w.tokens !== null) detail('Tokens', compactNumber(w.tokens))
+    const cost = costLine(w.track, snapshot?.log ?? [])
+    if (cost !== null) detail('Log', cost)
+  }
+
+  // Workers.
+  const active = sorted.filter(w => !isHistory(w))
+  const history = sorted.filter(isHistory)
+  const budget = Math.max(1, ctx.maxRows)
+  const row = (w: WorkerStatus) => {
     const isOpen = ctx.expanded[w.track] === true
-    const isLive = w.state === 'running' || w.state === 'stalled'
-    const nowS = ctx.now / 1000
-    const elapsed = w.state === 'queued' ? g.none : duration((isLive ? nowS : w.updated) - w.started)
-    const age = isLive && w.kind !== 'subagent' ? `${duration(nowS - w.updated)} ago` : g.none
-    const label = labelOf(w)
     const mark = isOpen ? g.open : g.closed
-    if (tier === 'narrow') {
-      add(`${mark} ${glyph} ${tagged ? `${KIND_TAG[w.kind]} ` : ''}${w.agent} ${w.track} ${elapsed}`, STATE_TONE[w.state], w.track)
+    const t = STATE_TONE[w.state]
+    if (tier === 'wide') {
+      const nameW = Math.min(36, Math.max(14, ...[...active, ...history].map(x => nameOf(x).length)))
+      add(`${mark} ${glyphOf(w)} ${pad(fit(nameOf(w), nameW, g.ellipsis), nameW)}  ${pad(KIND_TAG[w.kind], 4)}  ${pad(stateOf(w), 10)}  ${pad(fit(tasksOf(w), 22, g.ellipsis), 22)}  ${elapsedOf(w)}`.trimEnd(), t, w.track)
     } else {
-      const verdict = `${VERDICT_GLYPH[w.verdict.result]?.[ctx.ascii ? 1 : 0] ?? ''} ${w.verdict.result}`
-      const tail = tier === 'wide' ? `   ${pad(verdict, 12)} ${w.worktree === '' ? g.none : w.worktree}` : ''
-      add(`${mark} ${pad(`${glyph} ${w.state}`, 12)} ${tag(w)}${pad(fit(w.agent, 16, g.ellipsis), 16)} ${pad(w.role, 10)} ${pad(fit(label, labelWidth, g.ellipsis), labelWidth)} ${pad(elapsed, 7)} ${pad(age, 10)}${tail}`.trimEnd(), STATE_TONE[w.state], w.track)
+      add(`${mark} ${glyphOf(w)} ${spread(nameOf(w), stateOf(w), width - 4, g.ellipsis)}`, t, w.track)
+      const extra = tier === 'medium' ? `${g.sep}${w.role}${g.sep}${KIND_TAG[w.kind]}${g.sep}verdict ${w.verdict.result}` : ''
+      add(`    ${tasksOf(w)}${g.sep}${elapsedOf(w)}${tier === 'narrow' ? `${g.sep}${KIND_TAG[w.kind]}` : ''}${extra}`, 'dim')
     }
-    if (isOpen) {
-      const reason = w.verdict.reason === null ? '' : ` (${w.verdict.reason})`
-      add(`    verdict: ${w.verdict.result}${reason}${g.sep}${w.events} events${w.tokens !== null ? `${g.sep}${compactNumber(w.tokens)} tokens` : ''}`, 'dim')
-      add(`    ${w.role}${g.sep}${w.worktree === '' ? g.none : w.worktree}`, 'dim')
-      const cost = costLine(w.track, snapshot?.log ?? [])
-      if (cost !== null) add(`    ${cost}`, 'dim')
+    if (isOpen) details(w)
+  }
+  lines.push({ key: `l${lines.length}`, text: '', tone: 'plain' })
+  if (tier === 'wide') add(`  ${' '.repeat(2)}${pad('WORKER / TRACK', Math.min(36, Math.max(14, ...[...active, ...history].map(x => nameOf(x).length))))}  ${pad('KIND', 4)}  ${pad('STATE', 10)}  ${pad('TASKS', 22)}  TIME`, 'dim')
+  else add('WORKERS', 'dim')
+  const shownActive = active.slice(0, budget)
+  if (active.length === 0) add('No active workers', 'dim')
+  for (const w of shownActive) row(w)
+  let hidden = active.length - shownActive.length
+  if (history.length > 0) {
+    const open = ctx.expanded[HISTORY_KEY] === true
+    const kinds = [counts.done > 0 ? `${counts.done} done` : '', counts['taken-back'] > 0 ? `${counts['taken-back']} taken back` : ''].filter(Boolean).join(g.sep)
+    add(`${open ? g.open : g.closed} History${g.sep}${kinds}`, 'dim', HISTORY_KEY)
+    if (open) {
+      const room = Math.max(0, budget - shownActive.length)
+      for (const w of history.slice(0, room)) row(w)
+      hidden += Math.max(0, history.length - room)
     }
   }
-  if (sorted.length > shown.length) add(`+${sorted.length - shown.length} more`, 'dim')
+  if (hidden > 0) add(`+${hidden} more`, 'dim')
   if (snapshot !== null && snapshot.skipped > 0) add(`${snapshot.skipped} status ${snapshot.skipped === 1 ? 'file' : 'files'} unreadable`, 'warn')
   return { isEmpty: false, counts, slots, lines }
 }
 
-// What `/workers` prints: every row opened, so the text carries the detail a click would.
+// What `/workers` prints: every row opened, history included, so the text carries the detail a click would.
 export function text(snapshot: WorkersSnapshot | null, ctx: Omit<Context, 'expanded'>): string {
-  const expanded = Object.fromEntries((snapshot?.workers ?? []).map(w => [w.track, true]))
+  const expanded: Record<string, boolean> = Object.fromEntries((snapshot?.workers ?? []).map(w => [w.track, true]))
+  expanded[HISTORY_KEY] = true
   return build(snapshot, { ...ctx, expanded })
-    .lines.map(l => l.text)
+    .lines.map(l => l.text.trimEnd())
     .join('\n')
 }

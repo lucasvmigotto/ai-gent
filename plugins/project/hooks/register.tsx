@@ -113,7 +113,7 @@ function workersOptions(options: Options, columns: number, now: number, limits: 
 
 async function workersPrint($: EngineInterface, options: Options): Promise<string> {
   const snapshot = await computeWorkers($).catch(() => null)
-  return workersText(snapshot, workersOptions(options, 200, snapshot?.computedAt ?? 0, await readLimits($)))
+  return workersText(snapshot, workersOptions(options, 80, snapshot?.computedAt ?? 0, await readLimits($)))
 }
 
 // The compact line under the pipeline pane: counts and slots, never a worker (FR-018). Null with no workers.

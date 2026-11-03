@@ -56,9 +56,9 @@ test('/workers lists every worker with its state, from the status files', async 
   world(on, FILES)
   await $.session.start(START)
   const out = await run($)
-  expect(out).toContain('slots 2/3')
+  expect(out).toContain('2 / 3 slots')
   for (const name of ['feat-core', 'feat-ui', 'feat-docs', 'feat-api', 'feat-db', 'feat-old']) expect(out).toContain(name)
-  expect(out).toContain('log: 1 run, 6m wall')
+  expect(out).toContain('Log: 1 run, 6m wall')
 })
 
 test('no status files: /workers says No workers', async ($, on) => {
@@ -79,7 +79,7 @@ test('a malformed status file is counted, a file naming another track is not tru
 test('the cap comes from parallel.yaml', async ($, on) => {
   world(on, { ...FILES, '.ai-gent/parallel.yaml': 'max_parallel: 4\n' })
   await $.session.start(START)
-  expect(await run($)).toContain('slots 2/4')
+  expect(await run($)).toContain('2 / 4 slots')
 })
 
 test('only status.json, the log and the cap line are read', async ($, on) => {
@@ -95,13 +95,14 @@ test('the pane draws on terminal and desktop, and a row opens on press', async (
   await $.command.run({ command: 'workers-pane', args: '' } as never)
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect(await ui.find({ type: 'Text', text: /slots 2\/3/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /2 \/ 3 slots/ })).toBeDefined()
     expect(await ui.find({ key: 'toggle:feat-core' })).toBeDefined()
     await ui.unmount()
   }
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'toggle:#history' })
   await ui.press({ key: 'toggle:feat-db' })
-  expect(await ui.find({ type: 'Text', text: /verdict: accepted/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Verdict: accepted/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -174,8 +175,8 @@ test('all three kinds: session subagents from the API, profile and Codex tracks 
   w.agents = AGENTS.slice(0, 2)
   await $.session.start(START)
   const out = await run($)
-  expect(out).toContain('slots 3/3')
-  for (const needle of ['prof ', 'ext ', 'sub ', 'feat-prof', 'feat-cx', 'sub-e1']) expect(out).toContain(needle)
+  expect(out).toContain('3 / 3 slots')
+  for (const needle of ['prof', 'ext', 'sub', 'feat-prof', 'feat-cx', 'sub-e1']) expect(out).toContain(needle)
   expect(out).not.toContain('PROMPT-SECRET')
   expect(out).not.toContain('survey')
 })
@@ -204,4 +205,36 @@ test('an agent list that fails leaves the status-file rows', async ($, on) => {
   w.agents = null
   await $.session.start(START)
   expect(await run($)).toContain('feat-core')
+})
+
+test('an attention row opens that worker, and the open rows survive a refresh', async ($, on) => {
+  const w = world(on, FILES)
+  await $.session.start(START)
+  await $.command.run({ command: 'workers-pane', args: '' } as never)
+  let ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /ATTENTION · 2 issues/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Verdict: rejected/ })).toBeUndefined()
+  await ui.press({ key: 'attention:feat-api' })
+  expect(await ui.find({ type: 'Text', text: /Verdict: rejected \(out-of-scope-path\)/ })).toBeDefined()
+  await ui.press({ key: 'toggle:#history' })
+  await ui.unmount()
+  w.files['.ai-gent/delegate/feat-core/status.json'] = track('feat-core', 'running', { updated: 1_700_000_599 })
+  w.mtime['.ai-gent/delegate/feat-core/status.json'] = 2
+  await w.clock.advance(5_000)
+  ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Verdict: rejected \(out-of-scope-path\)/ })).toBeDefined()
+  expect(await ui.find({ key: 'toggle:feat-db' })).toBeDefined()
+  await ui.press({ key: 'toggle:feat-api' })
+  expect(await ui.find({ type: 'Text', text: /Verdict: rejected/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('the pane in a narrow body fits and keeps every worker reachable', async ($, on) => {
+  world(on, FILES)
+  await $.session.start(START)
+  await $.command.run({ command: 'workers-pane', args: '' } as never)
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 36 }, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /0\/3 slots|2\/3 slots/ })).toBeDefined()
+  for (const t of ['feat-core', 'feat-docs', 'feat-api']) expect(await ui.find({ key: `toggle:${t}` })).toBeDefined()
+  await ui.unmount()
 })
