@@ -27,16 +27,20 @@ One offer: name the agent found, the tasks it would take, and what it cannot
 do (no ai-gent guards, no network, cannot commit). Record the answer in
 `.ai-gent/delegate.yaml` (git-excluded): the agents allowed and the task
 kinds each may take. A "no" is recorded and not asked again until the user
-asks. No opt-in file, no delegation. This repository's allowlist is `[codex]`
-only; other projects choose their own. Adapters that exist today: Codex
-(`--agent codex`, the default) and a second Claude profile (`--agent claude`).
-OpenCode is specified (`specs/041-agent-delegation/contracts/opencode.md`) and
-its adapter is in review.
+asks. No opt-in file, no delegation. This repository's allowlist is Codex and
+a second Claude profile (FR-002), so OpenCode is not used for ai-gent's own work; other projects choose their own. Adapters that exist today: Codex
+(`--agent codex`, the default), a second Claude profile (`--agent claude`)
+and OpenCode (`--agent opencode`, contract in
+`specs/041-agent-delegation/contracts/opencode.md`). OpenCode has no OS
+sandbox: a deny-only permission set passed per run is the containment, weaker
+than Codex's, so its output always gets the cross-agent review. It has been
+tested only against a fake `opencode`, not a real run.
 
-Free hosted models (OpenCode, once its adapter lands): before any use, tell the user their prompts
-may be used by the provider to train models; send public content only and
-refuse private repositories, credentials, customer data and anything under
-`.ai-gent/`.
+Free hosted models (OpenCode): a model whose name ends in `free` is refused
+unless `run` or `preflight` gets `--privacy-ack`, and you give the notice
+first: the provider may use prompts to train models. Send public content
+only and refuse private repositories, credentials, customer data and anything
+under `.ai-gent/`. `--model` takes `flint-40b-free` or a full `provider/model`.
 
 ## 2. Assign
 
@@ -105,9 +109,6 @@ delegate log` prints the delegation log (`.ai-gent/delegation.log`).
 
 ## Not built yet
 
-- The OpenCode adapter (`--agent opencode`, `--model`, `--privacy-ack`) is in
-  review (branch `feat/opencode-adapter`) and is not on `dev`; `--agent` accepts
-  only `codex` and `claude` today.
 - No subcommand reads `.ai-gent/delegate.yaml`: `plan` takes `--allow-agent`,
   and Claude reads and writes the file.
 - No review runner (T021): the review is a manual step, the landing checklist
