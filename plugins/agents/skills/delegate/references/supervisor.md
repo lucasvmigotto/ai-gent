@@ -24,6 +24,20 @@ The prompt names the diff, the files to check it against and the acceptance
 criteria; the reviewer has no network, lists what it could not check, edits
 nothing. Do not use `codex exec review`.
 
+## Landing checklist (T021)
+
+No runner exists; the supervisor does these in order after the delegate stops.
+
+1. Stage by explicit path, never `git add -A` or `.`; nothing from `.ai-gent/`.
+2. `ai-gent delegate check --worktree <wt> --allow ... --track <id>`; a refusal ends the track.
+3. Rerun the tests, clippy and fmt (or `scripts/check.sh`) yourself, outside the worker's sandbox; its report is not evidence.
+4. Review by an agent that is not the builder, read-only: `codex exec -s read-only` (above) or a Claude profile in a reviewer role (`Read Grep Glob` only, no Bash, diff text in the prompt; `contracts/adapter.md`). Give it the diff, the spec and the acceptance criteria, not the builder's report.
+5. Recount every number the reviewer cites (trial 5: one of three findings was false). For a research claim, `delegate verify-sources`.
+6. Apply the verified fixes yourself; one builder fix round at most (trial 4).
+7. `ai-gent delegate commit ... -m "<Conventional Commit>"`: no marker or trailer of any kind.
+8. Push, open the PR, and merge only when every CI leg is green.
+9. Remove the worktree by name: `wt.py remove <branch>`.
+
 ## Register every dispatch
 
 A worker launched by hand (another Claude profile's `claude -p`, any other agent) is registered with `ai-gent delegate mark`, or started with `delegate run`: the workers pane and the slot count see only registered tracks.

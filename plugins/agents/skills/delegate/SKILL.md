@@ -29,10 +29,11 @@ do (no ai-gent guards, no network, cannot commit). Record the answer in
 kinds each may take. A "no" is recorded and not asked again until the user
 asks. No opt-in file, no delegation. This repository's allowlist is `[codex]`
 only; other projects choose their own. Adapters that exist today: Codex
-(`--agent codex`, the CLI's only value). OpenCode is specified
-(`specs/041-agent-delegation/contracts/opencode.md`) but has no CLI adapter yet.
+(`--agent codex`, the default) and a second Claude profile (`--agent claude`).
+OpenCode is specified (`specs/041-agent-delegation/contracts/opencode.md`) and
+its adapter is in review.
 
-Free hosted models (OpenCode): before any use, tell the user their prompts
+Free hosted models (OpenCode, once its adapter lands): before any use, tell the user their prompts
 may be used by the provider to train models; send public content only and
 refuse private repositories, credentials, customer data and anything under
 `.ai-gent/`.
@@ -42,10 +43,12 @@ refuse private repositories, credentials, customer data and anything under
 Split the tasks into tracks touching disjoint files. Delegates get simple,
 bounded work: research and surveys, doc drafts, fixtures, small scripts,
 mechanical edits, first-pass reviews. Claude keeps design judgment (Rust
-core, hooks, shared references, cross-cutting changes). Never delegate a
+core, hooks, shared references, cross-cutting changes). Claude-profile workers may
+take more, Rust work included, under supervision; Codex gets simple bounded
+tasks. Never delegate a
 task needing credentials, database or container tools, an owner decision, or
 edits to a skill, plugin, hook or shared reference. Count delegated tracks
-with Claude's against the worktree cap.
+with Claude's against the worktree cap; subagents of this session do not count.
 
 ## 3. Run
 
@@ -86,12 +89,29 @@ A delegate that stalls, exits non-zero or reports a limit is stopped with
 is the one near its limit, queued tasks move to the delegates. When a track lands or is taken back, remove its worktree by name with `wt.py remove <branch>` (label-scoped, never a prune; `../../references/containers.md` §9a). `ai-gent
 delegate log` prints the delegation log (`.ai-gent/delegation.log`).
 
+## Also built
+
+- `ai-gent delegate plan --tasks-file <json|-> [--allow-agent <id>]...
+  [--min-free-gb N]` is the scheduler: it forms tracks with disjoint paths,
+  classifies each task, assigns a worker and admits tracks against the cap and
+  the disk floor. Input `[{id, kind, paths, needs, depends}]`; JSON out.
+- `ai-gent delegate verify-sources --claim <text>|--claim-file <f>
+  --source <url|path>...` re-fetches the cited sources and compares the
+  claim's checkable terms; exit 4 unless confirmed. Run it on any research
+  claim that decides a verdict.
+- The Claude-profile adapter: `--agent claude` on `detect`, `ready`,
+  `preflight`, `run`, `status`, `stop`, `result`. It needs
+  `AI_GENT_CLAUDE_CONFIG_DIR` (a separate profile; never the current one).
+
 ## Not built yet
 
-- The scheduler (classifying tasks, assigning tracks, counting the cap) is
-  not a subcommand: Claude does it by hand from section 2.
-- Nothing reads `.ai-gent/delegate.yaml`; Claude reads and writes it.
-- A review runner (T021): the Codex reviewer is run by hand.
+- The OpenCode adapter (`--agent opencode`, `--model`, `--privacy-ack`) is in
+  review (branch `feat/opencode-adapter`) and is not on `dev`; `--agent` accepts
+  only `codex` and `claude` today.
+- No subcommand reads `.ai-gent/delegate.yaml`: `plan` takes `--allow-agent`,
+  and Claude reads and writes the file.
+- No review runner (T021): the review is a manual step, the landing checklist
+  in `references/supervisor.md`.
 - Token tagging of delegated runs is limited to what `result` reports.
 
 Say so if asked; do not invent flags.
