@@ -12,6 +12,7 @@ pub mod commit;
 pub mod diff;
 pub mod gitx;
 pub mod glob;
+pub mod opencode;
 pub mod schedule;
 pub mod sources;
 pub mod state;

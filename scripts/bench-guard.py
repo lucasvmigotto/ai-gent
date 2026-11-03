@@ -60,6 +60,7 @@ def main():
     ap.add_argument("--runs", type=int, default=100)
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--budget-ms", type=float, default=BUDGET_MS, help="p95 limit for --check (default: the FR-012 budget)")
     ap.add_argument("--bin")
     a = ap.parse_args()
     sandbox = tempfile.mkdtemp(prefix="ai-gent-bench-")
@@ -87,9 +88,9 @@ def main():
         for r in rows:
             print("%-18s %-4s %6.2f %6.2f %6.2f %6.2f" % (r["case"], r["impl"], r["p50_ms"], r["p95_ms"], r["p99_ms"], r["mean_ms"]))
     if a.check:
-        bad = [r for r in rows if r["p95_ms"] > BUDGET_MS]
+        bad = [r for r in rows if r["p95_ms"] > a.budget_ms]
         for r in bad:
-            print("bench-guard: %s p95 %.2f ms exceeds the %.0f ms budget" % (r["case"], r["p95_ms"], BUDGET_MS), file=sys.stderr)
+            print("bench-guard: %s p95 %.2f ms exceeds the %.0f ms budget" % (r["case"], r["p95_ms"], a.budget_ms), file=sys.stderr)
         return 1 if bad else 0
     return 0
 

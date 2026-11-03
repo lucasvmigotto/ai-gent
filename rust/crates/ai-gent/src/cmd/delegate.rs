@@ -9,6 +9,7 @@ use ai_gent_core::delegate::brief::{self, BriefInput};
 use ai_gent_core::delegate::checks::{self, CheckInput};
 use ai_gent_core::delegate::claude::ClaudeAdapter;
 use ai_gent_core::delegate::codex::CodexAdapter;
+use ai_gent_core::delegate::opencode::OpenCodeAdapter;
 use ai_gent_core::delegate::schedule::{self, Pool};
 use ai_gent_core::delegate::sources;
 use ai_gent_core::delegate::status::{self, Role, State, Status, Verdict, VerdictResult};
@@ -42,6 +43,7 @@ pub struct DelegateArgs {
 enum AgentId {
     Codex,
     Claude,
+    Opencode,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -79,6 +81,13 @@ enum Action {
         /// The worktree.
         #[arg(long)]
         worktree: PathBuf,
+        /// `OpenCode` only: the model, as for `run`.
+        #[arg(long)]
+        model: Option<String>,
+        /// `OpenCode` only: the privacy notice was given, as for `run`; without it the check for a free
+        /// model fails.
+        #[arg(long)]
+        privacy_ack: bool,
     },
     /// Start the agent in the background on a brief.
     Run {
@@ -103,6 +112,14 @@ enum Action {
         /// Seconds to wait for the first event before stopping the agent (0: do not wait).
         #[arg(long, default_value_t = 60)]
         first_event_wait: u64,
+        /// `OpenCode` only: the model (`flint-40b-free` or `opencode/flint-40b-free`; default
+        /// `opencode/flint-40b-free`).
+        #[arg(long)]
+        model: Option<String>,
+        /// `OpenCode` only: the privacy notice for free hosted models was given (they may use prompts
+        /// to improve the provider's models). Without it a free model run is refused.
+        #[arg(long)]
+        privacy_ack: bool,
     },
     /// Last event time, event count, running or exited.
     Status {
@@ -628,6 +645,22 @@ fn adapter_action(a: &DelegateArgs, json: bool, env: &Env) -> Result<Exit, Error
     let ad: Box<dyn Adapter> = match a.agent {
         AgentId::Codex => Box::new(CodexAdapter::new(&root, env)),
         AgentId::Claude => Box::new(ClaudeAdapter::new(&root, env)),
+        AgentId::Opencode => {
+            let mut oc = OpenCodeAdapter::new(&root, env);
+            if let Action::Run {
+                model, privacy_ack, ..
+            }
+            | Action::Preflight {
+                model, privacy_ack, ..
+            } = &a.action
+            {
+                if let Some(m) = model {
+                    oc = oc.with_model(m);
+                }
+                oc = oc.with_privacy_ack(*privacy_ack);
+            }
+            Box::new(oc)
+        }
     };
     match &a.action {
         Action::Detect => {
@@ -644,7 +677,7 @@ fn adapter_action(a: &DelegateArgs, json: bool, env: &Env) -> Result<Exit, Error
             emit(&json!({ "agent": ad.id(), "ready": true }), json);
             Ok(Exit::Success)
         }
-        Action::Preflight { worktree } => {
+        Action::Preflight { worktree, .. } => {
             let p = ad.preflight(worktree);
             emit(&p, json);
             Ok(if p.ok { Exit::Success } else { Exit::Runtime })
@@ -657,6 +690,7 @@ fn adapter_action(a: &DelegateArgs, json: bool, env: &Env) -> Result<Exit, Error
             role: r,
             stall_secs,
             first_event_wait,
+            ..
         } => {
             let h = ad.run(&RunRequest {
                 track: track.clone(),

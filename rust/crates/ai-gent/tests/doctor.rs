@@ -134,8 +134,9 @@ fn healthy_install_is_all_ok_and_fast() {
     let (code, v) = f.report(&["--strict"]);
     let took = t0.elapsed();
     eprintln!("doctor took {took:?}");
-    // 2 s is the contract for a release build; the test profile is unoptimized
-    let limit = if cfg!(debug_assertions) { 10.0 } else { 2.0 };
+    // 2 s is the contract for a release build; the test profile is unoptimized and a shared runner running
+    // the other test binaries took 10.6 s once, so the debug limit only catches a hang
+    let limit = if cfg!(debug_assertions) { 30.0 } else { 2.0 };
     assert!(took.as_secs_f32() < limit, "{took:?}");
     let s = &v["data"]["summary"];
     assert_eq!(
