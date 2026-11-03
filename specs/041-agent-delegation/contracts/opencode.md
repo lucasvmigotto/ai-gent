@@ -1,6 +1,6 @@
 # OpenCode adapter
 
-> **Status:** the second adapter of the feature (FR-003), verified in trial 3. ai-gent's own development does not use it: this repository's allowlist is Codex only (FR-002, owner, 2026-11-02).
+> **Status:** the third adapter of the feature (FR-003), built in Rust (`delegate/opencode.rs`, `--agent opencode`) after trial 3 and tested only against a fake `opencode`; no real run of the adapter itself yet. ai-gent's own development does not use it: this repository's allowlist is Codex and a second Claude profile (FR-002, owner, 2026-11-02).
 
 Observed on this machine (2026-11-02): OpenCode v2.2.5 at `~/.opencode/bin/opencode`.
 
@@ -38,6 +38,33 @@ Treat the free models as **researchers, first-pass reviewers and builders of sma
 ## Privacy caveat (unverified)
 
 Free hosted models often use prompts and completions to improve their provider's models. Whether that applies to these seven has **not been checked**. Until it is, the skill must send OpenCode free models only content that is already public (this repository is public) and must refuse tasks that include private repositories, credentials, customer data or anything under `.ai-gent/`. The opt-in screen says so.
+
+## The adapter
+
+`OpenCodeAdapter` (`rust/crates/ai-gent-core/src/delegate/opencode.rs`), on the same `Adapter` trait as Codex and the Claude profile.
+
+- `detect`: `AI_GENT_OPENCODE_BIN`, else `opencode` on `PATH`, else `~/.opencode/bin/opencode`; then `--version`. `PATH` is never assumed and no auth file is read.
+- `ready`: `opencode run --standalone --model <m> --format json --auto "Reply with exactly: READY"`, stdin closed, with the read-only permission set. Ready only when the events end in a `step_finish` with `reason: stop` and the text holds `READY` (the exit code alone is not trusted). Otherwise "opencode is not logged in"; a binary that cannot start is "not available". Nothing is worked around.
+- `run`: `opencode run --standalone --model opencode/<model> --format json --auto "<brief>"`, stdin closed, cwd the worktree, started by the watcher like the other adapters. Default model `opencode/flint-40b-free`; `--model` takes `flint-40b-free` or a full `provider/model`.
+- Permission set: passed inline in `OPENCODE_CONFIG_CONTENT` (`permissions` array, `{action, resource, effect}`); the user's own OpenCode configuration is never edited. **Every rule is a `deny`**, because `--auto` approves whatever is not denied (a rule that would ask is a rule that gets approved); a deny-only set also has no ordering to get wrong. Denied for every role: `git push|commit|add|reset|branch -D|...` (the supervisor stages and commits), `git commit --no-verify`, `git -C|-c|--git-dir|--work-tree`, network clients (`curl`, `wget`, `ssh`, `gh`, ...), database clients, container engines, `pass`/`gpg`, `webfetch` and `websearch`, reading or editing `~/.ssh`, `~/.gnupg`, `~/.password-store`, ai-gent's and OpenCode's own configuration, every home entry named like another agent's profile (names listed, contents never read), and files named like credentials. Reviewer and researcher roles also get `edit *` and `shell *` denied: read-only, no shell.
+- Git and the network clients are denied in three forms each: the command first (`git push*`), by path (`*/git push*`, `/usr/bin/git push`) and after other words (`* git push*`, `env VAR=x git push`, `sudo git push`). Shell readers of credential-named files (`cat`, `less`, `more`, `head`, `tail`, `tac`, `cp`, `base64`, `xxd`, `strings`, `od`, `hexdump`, `grep`, `sed`, `awk`, `tar`, `zip`, in the same three forms) are denied when the line names `.env`, `credentials`, `id_rsa`, `id_ed25519`, `.pem`, `.p12`, `.key`, `.netrc`, `connections.` or `.npmrc`. **This is a request OpenCode matches, not a sandbox, and a pattern list cannot cover an interpreter (`python -c`, `node -e`, `perl`), a script or program the worker wrote, a shell redirect (`< .env`) or any command not on the list**; OpenCode's own read and edit rules on the same names are the other layer. Home entries named like another agent's profile are denied as the entry itself (`~/.claude.json` can be a file) as well as `<entry>/*` and `<entry>/**`, for read and edit.
+- `result`: usage is **summed** over every `step_finish.part.tokens` (`input` plus cache read and write as the input, cache read as the cached part, `output`, `reasoning`); cost is summed too (`OpenCodeAdapter::cost`, 0 for free models). A run is judged by its final `step_finish`: exit code 1 with `reason: stop` is reported `done` (`reason: exit-code-1-but-finished`), exit 0 without a final stop is `failed` (`no-final-step-finish`). The watcher cannot read OpenCode's events (it wrote `done` for exit 0 and `failed` otherwise, with no usage), so when the verdict differs `result` **writes it back**: `status.json` (state and usage) and the track's delegation log line are corrected in place, and `status` runs the same judgement first, so all three agree once either has been called (before that, `status.json` and the log hold the watcher's version). The log line is rewritten, not appended; a line another run appended in the few milliseconds between the read and the rename could be lost. Whether the diff is right stays the supervisor's check (FR-011).
+- Binary: a relative `AI_GENT_OPENCODE_BIN` with a directory part (`./bin/opencode`) is made absolute against the supervisor's working directory once, because the watcher starts the agent from the worktree; a bare name is looked up on `PATH`.
+- Privacy: a free hosted model (name ends in `free`, case ignored, after dropping a `#variant` suffix; a `:tag` part ending in `free` counts too, the cautious reading, since the contract does not define `:tag`) is **refused** unless the caller passes `--privacy-ack`; the message says why. The adapter only enforces the gate; the supervising skill gives the notice (public content only, nothing from private repositories, credentials, customer data or `.ai-gent/`). `ready` sends fixed public text and needs no acknowledgement. `preflight` takes `--model` and `--privacy-ack` like `run` and its `privacy_acknowledged` check fails for a free model without the flag.
+- `stop` is by PID file only.
+
+### What it does not give, and the compensations
+
+- **No OS sandbox.** The permission set and the worktree are the containment. They are patterns OpenCode matches, not a sandbox: a subprocess of an allowed build (`cargo build`, a build script, a proc macro an edit introduced) can call git, the network or read files, and a shell pattern can be sidestepped (`/usr/bin/curl` is covered by extra patterns, an interpreter running a script is not). This is weaker than Codex.
+- Compensations, as in `adapter.md`, all outside the worker: the supervisor's FR-011 diff checks, verification run outside the worker, the worker never holding push credentials, and the cross-agent review of everything a free model produces (FR-010). The worker also **inherits the supervisor's environment** (the watcher does not clear it), so the supervisor must not run it with credentials in the environment.
+- Progress: `status` counts events, but `status.json` tokens stay empty while the run goes, because the watcher only knows Codex's and Claude's usage events; once finished, `result` (or `status`) reads the usage from `events.jsonl` and writes it to `status.json` and the log line. `items_started` and `items_completed` stay 0.
+
+### Unverified
+
+- No real run of this adapter yet: the `text` event is assumed to carry `part.text`, `step_finish.part` to carry `reason`, `tokens` and `cost` (from trial 3's description); the permission **action names** `shell`, `read`, `edit` come from ai-gent's own OpenCode rules (`scripts/opencode-config.py`), `webfetch` and `websearch` are assumed from the tool names and have not been confirmed to deny anything.
+- Whether `*` in a resource crosses `/`, and whether a project-level OpenCode configuration can weaken the inline one (`OPENCODE_CONFIG_PROJECT_DISABLE` exists and is not set).
+- Whether `input` already includes the cache counts (they are added to it here, as for Claude).
+- Whether the ready probe's model call is sent with the same privacy terms as a task (unchecked, as above).
 
 ## Trial plan
 
