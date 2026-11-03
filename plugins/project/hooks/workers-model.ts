@@ -42,9 +42,9 @@ function tokensOf(value: unknown): number | null {
   return input + output
 }
 
-// Kinds 2 and 3 are status-file tracks: another Claude profile (`claude-profile[:name]`) or any other
+// Kinds 2 and 3 are status-file tracks: another Claude profile (`claude` or `claude-profile[:name]`) or any other
 // code agent. Kind 1, a subagent of this session, comes from `$.agent.list()` (agentRow below).
-export const kindOfAgent = (agent: string): WorkerKind => (/^claude-profile(:|$)/.test(agent) ? 'profile' : 'agent')
+export const kindOfAgent = (agent: string): WorkerKind => (/^claude(-profile)?(:|$)/.test(agent) ? 'profile' : 'agent')
 
 const KIND_TAG: Record<WorkerKind, string> = { subagent: 'sub', profile: 'prof', agent: 'ext' }
 
