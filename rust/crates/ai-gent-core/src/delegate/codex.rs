@@ -1,7 +1,9 @@
 //! The Codex adapter (verified in trials 1 and 2, `contracts/adapter.md`).
 //!
 //! `codex exec --cd <worktree> -s workspace-write --add-dir <TMPDIR> -o <last> --json "<brief>"` with
-//! stdin closed. The sandbox keeps `.git` read-only whatever `--add-dir` says (trial 2), so the delegate
+//! stdin closed. Only a builder gets `workspace-write` and the `--add-dir`; a reviewer or researcher runs
+//! with `-s read-only` and no `--add-dir`, so it cannot write the worktree (the adapter contract). The
+//! sandbox keeps `.git` read-only whatever `--add-dir` says (trial 2), so the delegate
 //! edits the working tree and stops; the supervisor commits (`commit::commit_changes`). Progress comes
 //! from `item.started` / `item.completed`, usage from `turn.completed.usage`.
 use super::adapter::{
@@ -9,6 +11,7 @@ use super::adapter::{
     TrackStatus, launch, stop_track, track_result, track_status,
 };
 use super::state::{self, files};
+use super::status::Role;
 use super::{Error, Res, gitx, slash};
 use crate::env::Env;
 use std::path::{Path, PathBuf};
@@ -60,16 +63,20 @@ impl CodexAdapter {
     ///
     /// # Errors
     /// When `add_git_dir` is set and git cannot name the common dir.
-    pub fn exec_args(&self, worktree: &Path, last: &Path) -> Res<Vec<String>> {
+    pub fn exec_args(&self, worktree: &Path, last: &Path, role: Role) -> Res<Vec<String>> {
         let mut a: Vec<String> = ["exec", "--cd"].map(String::from).to_vec();
         a.push(slash(worktree));
-        a.extend(["-s", "workspace-write"].map(String::from));
-        if self.add_git_dir {
+        if matches!(role, Role::Builder) {
+            a.extend(["-s", "workspace-write"].map(String::from));
+            if self.add_git_dir {
+                a.push("--add-dir".into());
+                a.push(slash(&gitx::common_dir(worktree)?));
+            }
             a.push("--add-dir".into());
-            a.push(slash(&gitx::common_dir(worktree)?));
+            a.push(slash(&self.tmpdir));
+        } else {
+            a.extend(["-s", "read-only"].map(String::from));
         }
-        a.push("--add-dir".into());
-        a.push(slash(&self.tmpdir));
         a.push("-o".into());
         a.push(slash(last));
         a.push("--json".into());
@@ -188,7 +195,7 @@ impl Adapter for CodexAdapter {
         }
         let l = Launch {
             program: slash(&self.program),
-            args: self.exec_args(&req.worktree, &dir.join(files::LAST))?,
+            args: self.exec_args(&req.worktree, &dir.join(files::LAST), req.role)?,
             cwd: slash(&req.worktree),
             env: vec![("TMPDIR".into(), slash(&self.tmpdir))],
             stall_secs: req.stall_secs,
@@ -226,6 +233,7 @@ mod tests {
             .exec_args(
                 Path::new("/r/.worktrees/x"),
                 Path::new("/r/.ai-gent/delegate/x/last.txt"),
+                Role::Builder,
             )
             .unwrap();
         assert_eq!(
@@ -244,5 +252,24 @@ mod tests {
                 "{brief}"
             ]
         );
+    }
+
+    #[test]
+    fn reviewers_and_researchers_are_read_only() {
+        let a = CodexAdapter {
+            program: "codex".into(),
+            root: "/r".into(),
+            watch_exe: "ai-gent".into(),
+            tmpdir: "/home/u/tmp".into(),
+            add_git_dir: true,
+        };
+        for role in [Role::Reviewer, Role::Researcher] {
+            let args = a
+                .exec_args(Path::new("/r/w"), Path::new("/r/last.txt"), role)
+                .unwrap();
+            assert!(args.contains(&"read-only".to_string()), "{role:?}");
+            assert!(!args.contains(&"workspace-write".to_string()), "{role:?}");
+            assert!(!args.contains(&"--add-dir".to_string()), "{role:?}");
+        }
     }
 }

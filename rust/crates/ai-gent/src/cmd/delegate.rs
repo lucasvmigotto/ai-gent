@@ -10,6 +10,7 @@ use ai_gent_core::delegate::checks::{self, CheckInput};
 use ai_gent_core::delegate::claude::ClaudeAdapter;
 use ai_gent_core::delegate::codex::CodexAdapter;
 use ai_gent_core::delegate::opencode::OpenCodeAdapter;
+use ai_gent_core::delegate::review::{self, Kind, Party};
 use ai_gent_core::delegate::schedule::{self, Pool};
 use ai_gent_core::delegate::sources;
 use ai_gent_core::delegate::status::{self, Role, State, Status, Verdict, VerdictResult};
@@ -252,6 +253,53 @@ enum Action {
         /// A cited source: an http(s) URL (fetched with curl) or a local path (repeat).
         #[arg(long = "source", required = true)]
         sources: Vec<String>,
+    },
+    /// Review a builder track's worktree with a different agent, read-only (FR-010); exit 4 when the
+    /// reviewer would be the builder.
+    Review {
+        /// The builder's track id (its `status.json` names the builder's agent).
+        #[arg(long)]
+        builder_track: String,
+        /// The reviewer agent.
+        #[arg(long, value_enum)]
+        reviewer: AgentId,
+        /// The worktree (default: the builder track's).
+        #[arg(long)]
+        worktree: Option<PathBuf>,
+        /// A spec file to put in the prompt (repeat).
+        #[arg(long = "spec")]
+        specs: Vec<PathBuf>,
+        /// Where to write the review (default `.ai-gent/delegate/review-<track>/review.md`).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// The revision the work started from (default: the merge base with dev, main or master).
+        #[arg(long)]
+        base: Option<String>,
+        /// A glob from the brief's `allowed_paths` (repeat); required, the FR-011 check runs before the
+        /// review and its findings go into the prompt.
+        #[arg(long = "allow")]
+        allowed: Vec<String>,
+        /// Review without the FR-011 check (only when no `--allow` is given; the prompt says so).
+        #[arg(long)]
+        no_check: bool,
+        /// Evidence for a task mark the FR-011 check looks for, `T010=what ran and passed` (repeat).
+        #[arg(long = "evidence")]
+        evidence: Vec<String>,
+        /// Claude reviewer: its config directory (default `AI_GENT_CLAUDE_CONFIG_DIR`).
+        #[arg(long)]
+        reviewer_profile: Option<PathBuf>,
+        /// `OpenCode` reviewer: its model (default the adapter's).
+        #[arg(long)]
+        reviewer_model: Option<String>,
+        /// `OpenCode` reviewer: the privacy notice for free hosted models was given.
+        #[arg(long)]
+        privacy_ack: bool,
+        /// Seconds to wait for the reviewer before stopping it.
+        #[arg(long, default_value_t = 1800)]
+        timeout_secs: u64,
+        /// Print the prompt and the refusal decision; launch nothing, write nothing.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Print the delegation log.
     Log,
@@ -570,6 +618,7 @@ fn go(a: &DelegateArgs, json: bool) -> Result<Exit, Error> {
                 Exit::Refused
             })
         }
+        Action::Review { .. } => review_action(a, json, &env),
         Action::Log => {
             let root = resolve_root(a)?;
             let lines = status::read_log(&root)?;
@@ -638,6 +687,197 @@ fn plan_pool(root: &Path, flag: Option<f64>) -> (Pool, Value) {
         "estimate_gb": est / GB,
     });
     (pool, view)
+}
+
+/// `delegate review`: decide, build the prompt from the worktree, run the reviewer (role `reviewer`,
+/// track `review-<builder-track>`) and write its final message.
+#[allow(clippy::too_many_lines)]
+fn review_action(a: &DelegateArgs, json: bool, env: &Env) -> Result<Exit, Error> {
+    let Action::Review {
+        builder_track,
+        reviewer,
+        worktree,
+        specs,
+        out,
+        base,
+        allowed,
+        no_check,
+        evidence,
+        reviewer_profile,
+        reviewer_model,
+        privacy_ack,
+        timeout_secs,
+        dry_run,
+    } = &a.action
+    else {
+        unreachable!("handled in go");
+    };
+    if allowed.is_empty() && !*no_check {
+        // FR-011: a change is checked against the task's limits before anyone reviews it.
+        let msg = "--allow is required: the FR-011 check runs before the review (pass the brief's allowed_paths with --allow, or --no-check to review without it)";
+        if json {
+            println!("{}", output::error_json(ErrorCode::Usage, msg, None));
+        } else {
+            eprintln!("error: {msg}");
+        }
+        return Ok(Exit::Usage);
+    }
+    let root = resolve_root(a)?;
+    let bst = review::builder_status(&root, builder_track)?;
+    let supervisor = env
+        .path("CLAUDE_CONFIG_DIR")
+        .unwrap_or_else(|| env.home_dir().unwrap_or_default().join(".claude"));
+    let builder = Party::of_builder(
+        &bst.agent,
+        env.path("AI_GENT_CLAUDE_CONFIG_DIR").as_deref(),
+        &supervisor,
+    )?;
+    let claude_dir = reviewer_profile
+        .clone()
+        .or_else(|| env.path("AI_GENT_CLAUDE_CONFIG_DIR"));
+    let model = reviewer_model.clone();
+    let (party, ad): (Party, Box<dyn Adapter>) = match reviewer {
+        AgentId::Codex => (
+            Party {
+                kind: Kind::Codex,
+                profile: None,
+            },
+            Box::new(CodexAdapter::new(&root, env)),
+        ),
+        AgentId::Claude => {
+            let dir = claude_dir.ok_or_else(|| {
+                Error::Invalid(
+                    "a Claude reviewer needs its profile: pass --reviewer-profile or set AI_GENT_CLAUDE_CONFIG_DIR"
+                        .into(),
+                )
+            })?;
+            let mut c = ClaudeAdapter::new(&root, env);
+            c.config_dir = Some(dir.clone());
+            (Party::claude(&dir), Box::new(c))
+        }
+        AgentId::Opencode => {
+            let mut oc = OpenCodeAdapter::new(&root, env).with_privacy_ack(*privacy_ack);
+            if let Some(m) = &model {
+                oc = oc.with_model(m);
+            }
+            (Party::opencode(&oc.model), Box::new(oc))
+        }
+    };
+    let refused = review::refusal(&builder, &party);
+    let track = review::review_track(builder_track)?;
+
+    let wt = worktree.clone().unwrap_or_else(|| root.join(&bst.worktree));
+    let base = base.clone().unwrap_or_else(|| review::default_base(&wt));
+    let mut spec_texts = Vec::new();
+    for s in specs {
+        spec_texts.push((delegate::slash(s), review::read_spec(&root, s)?));
+    }
+    let findings = if allowed.is_empty() {
+        None
+    } else {
+        let mut ev = BTreeMap::new();
+        for e in evidence {
+            let (id, what) = e
+                .split_once('=')
+                .ok_or_else(|| Error::Invalid(format!("--evidence '{e}': want T010=text")))?;
+            ev.insert(id.trim().to_string(), what.to_string());
+        }
+        Some(review::check_lines(&wt, &base, allowed, &ev)?)
+    };
+    let blocking = findings.clone().filter(|f| !f.is_empty());
+    let prompt = review::build_prompt(&review::PromptInput {
+        builder_track: builder_track.clone(),
+        base: base.clone(),
+        diff: review::diff_text(&wt, &base)?,
+        specs: spec_texts,
+        findings,
+    })?;
+    let out_path = match out {
+        Some(o) => o.clone(),
+        None => review::default_out(&root, builder_track)?,
+    };
+    if *dry_run {
+        let ok = refused.is_none() && blocking.is_none();
+        emit(
+            &json!({
+                "dry_run": true,
+                "allowed": ok,
+                "launched": false,
+                "refusal": refused,
+                "findings": blocking.clone().unwrap_or_default(),
+                "builder": bst.agent,
+                "reviewer": reviewer_id(*reviewer),
+                "track": track,
+                "out": delegate::slash(&out_path),
+                "prompt": prompt,
+            }),
+            json,
+        );
+        return Ok(if ok { Exit::Success } else { Exit::Refused });
+    }
+    if let Some(why) = refused {
+        return Err(Error::Refused(why));
+    }
+    if let Some(f) = blocking {
+        // FR-011: the change breaks the task's limits; it is not reviewed, it is sent back.
+        emit(
+            &json!({ "clean": false, "findings": f, "launched": false }),
+            json,
+        );
+        return Ok(Exit::Refused);
+    }
+    ad.run(&RunRequest {
+        track: track.clone(),
+        worktree: std::fs::canonicalize(&wt).unwrap_or(wt),
+        brief: prompt,
+        tasks: bst.tasks.clone(),
+        role: Role::Reviewer,
+        stall_secs: 600,
+        first_event_wait: Duration::from_secs(60),
+    })?;
+    let r = review::await_result(ad.as_ref(), &track, Duration::from_secs(*timeout_secs))?;
+    // Success is the adapter's verdict (`result`), not the exit code: OpenCode may end with exit 1
+    // after a final stop and the adapter then reports `done`.
+    let text = r
+        .message
+        .clone()
+        .filter(|_| r.state == State::Done && !r.is_error);
+    let Some(text) = text else {
+        return Err(Error::Invalid(format!(
+            "the reviewer ended without a review (state {:?}, exit {:?}{}); see .ai-gent/delegate/{track}/",
+            r.state,
+            r.exit_code,
+            r.reason
+                .as_ref()
+                .map_or(String::new(), |x| format!(", {x}"))
+        )));
+    };
+    if let Some(dir) = out_path.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| Error::Invalid(format!("{}: {e}", dir.display())))?;
+    }
+    std::fs::write(&out_path, &text)
+        .map_err(|e| Error::Invalid(format!("{}: {e}", out_path.display())))?;
+    emit(
+        &json!({
+            "track": track,
+            "builder": bst.agent,
+            "reviewer": reviewer_id(*reviewer),
+            "out": delegate::slash(&out_path),
+            "usage": r.usage,
+            "wall_secs": r.wall_secs,
+        }),
+        json,
+    );
+    Ok(Exit::Success)
+}
+
+const fn reviewer_id(a: AgentId) -> &'static str {
+    match a {
+        AgentId::Codex => "codex",
+        AgentId::Claude => "claude",
+        AgentId::Opencode => "opencode",
+    }
 }
 
 fn adapter_action(a: &DelegateArgs, json: bool, env: &Env) -> Result<Exit, Error> {
