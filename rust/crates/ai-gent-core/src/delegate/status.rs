@@ -278,7 +278,10 @@ pub fn write(root: &Path, status: &Status) -> Res<()> {
     let mut text =
         serde_json::to_string_pretty(status).map_err(|e| Error::Invalid(format!("status: {e}")))?;
     text.push('\n');
-    atomic_write(&path, text.as_bytes())
+    atomic_write(&path, text.as_bytes())?;
+    // A terminal or attention state is announced once (T022); a failure here never fails the write.
+    let _ = super::events::record(root, status);
+    Ok(())
 }
 
 /// Read a track's status file.
