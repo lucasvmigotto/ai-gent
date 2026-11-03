@@ -8,6 +8,7 @@ changes.
 
 ### Added
 
+- **secrets:** a personal allowlist for `pass show` (`$AI_GENT_PASS_ALLOW`, else `~/.config/ai-gent/pass-allow`): the guard lets the agent run `pass show <entry>`, with no flags, for an entry or prefix the user lists, never under `ai-gent/db/`; it asks about any Bash command that mentions the file, and the denial says where to list the entry (the OpenCode rules and the parity test follow)
 - **project:** the pipeline pane puts attention first (features, implemented, ready, blocked; a warning line only when a clarification, a missing or a review artifact needs a decision), lists Blockers only when something blocks (clarification, dependency, missing artifact), shows why and where in Next action with a Details toggle for a long reason, and expands the current stage's readiness and a feature's source and open clarifications from the snapshot; a stale artifact now reads `Review`, a signal from commit dates
 - **agents:** `delegate` skill: offer other code agents (Codex first) bounded tasks, supervise them through `ai-gent delegate`, require a cross-agent review and take work back (spec 041 T020)
 
