@@ -8,7 +8,7 @@ import type { EngineInterface, Timer } from 'claude-code'
 
 import type { WorkerLogLine, WorkerStatus, WorkersSnapshot } from '../types'
 import { DEFAULT_CAP, MAX_STATUS_BYTES, agentRow, parseCap, parseLog, parseStatus } from './workers-model'
-import { repoRoot } from './repo'
+import { mainRoot } from './repo'
 
 export const PANE = 'workers'
 
@@ -36,7 +36,7 @@ const agentSeen = new Map<string, { first: number; changed: number; status: stri
 let intervalMs = 0
 
 export async function compute($: EngineInterface): Promise<WorkersSnapshot> {
-  const root = await repoRoot($)
+  const root = await mainRoot($)
   const base = `${root}/.ai-gent`
   const workers: WorkerStatus[] = []
   let skipped = 0

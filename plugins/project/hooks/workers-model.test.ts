@@ -98,7 +98,7 @@ Usage  5h 41% · week 12%
 ▸ ⚠ stalled    opencode:flint-… builder    T020 feat-ui        10m     8m ago       · pending    .worktrees/feat-ui
 ▸ · queued     codex            researcher T040 feat-docs      —       —            · pending    .worktrees/feat-docs
 ▸ ✕ failed     claude-subagent  reviewer   T030 feat-api       5m      —            ✕ rejected   .worktrees/feat-api
-▸ ✓ done       claude           builder    T001 feat-db        6m      —            ✓ accepted   .worktrees/feat-db
+▸ ✓ done       gemini           builder    T001 feat-db        6m      —            ✓ accepted   .worktrees/feat-db
 ▸ ↩ taken-back codex            builder    T002 feat-old       3m      —            · pending    .worktrees/feat-old`)
 })
 
@@ -109,7 +109,7 @@ test('golden: medium drops the verdict and the worktree', () => {
 ▸ ⚠ stalled    opencode:flint-… builder    T020 feat-ui        10m     8m ago
 ▸ · queued     codex            researcher T040 feat-docs      —       —
 ▸ ✕ failed     claude-subagent  reviewer   T030 feat-api       5m      —
-▸ ✓ done       claude           builder    T001 feat-db        6m      —
+▸ ✓ done       gemini           builder    T001 feat-db        6m      —
 ▸ ↩ taken-back codex            builder    T002 feat-old       3m      —`)
 })
 
@@ -119,7 +119,7 @@ test('golden: narrow is one short row per worker', () => {
 ▸ ⚠ opencode:flint-40b-free feat-ui 10m
 ▸ · codex feat-docs —
 ▸ ✕ claude-subagent feat-api 5m
-▸ ✓ claude feat-db 6m
+▸ ✓ gemini feat-db 6m
 ▸ ↩ codex feat-old 3m`)
 })
 
@@ -131,7 +131,7 @@ test('golden: ascii fallback uses no non-ASCII glyph', () => {
 > ! stalled    opencode:flin... builder    T020 feat-ui        10m     8m ago       . pending    .worktrees/feat-ui
 > . queued     codex            researcher T040 feat-docs      -       -            . pending    .worktrees/feat-docs
 > x failed     claude-subagent  reviewer   T030 feat-api       5m      -            x rejected   .worktrees/feat-api
-> + done       claude           builder    T001 feat-db        6m      -            + accepted   .worktrees/feat-db
+> + done       gemini           builder    T001 feat-db        6m      -            + accepted   .worktrees/feat-db
 > < taken-back codex            builder    T002 feat-old       3m      -            . pending    .worktrees/feat-old`)
   expect(out).toMatch(/^[\x20-\x7e\n]*$/)
 })
@@ -167,6 +167,9 @@ test('kinds: a status file is a profile or an ordinary agent by its agent id', (
   expect(parseStatus(PROFILE_AND_CODEX['feat-cx'] as string)?.kind).toBe('agent')
   expect(parseStatus(statusJson({ agent: 'claude-profile' }))?.kind).toBe('profile')
   expect(parseStatus(statusJson({ agent: 'claude-profiles' }))?.kind).toBe('agent')
+  expect(parseStatus(statusJson({ agent: 'claude' }))?.kind).toBe('profile')
+  expect(parseStatus(statusJson({ agent: 'claude:work' }))?.kind).toBe('profile')
+  expect(parseStatus(statusJson({ agent: 'claude-subagent' }))?.kind).toBe('agent')
 })
 
 test('a subagent row: agent, role from the type, state from the status, no description', () => {
