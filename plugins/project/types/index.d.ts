@@ -62,6 +62,8 @@ export type Feature = {
   waiting: string[]
   // The Spec Kit files present in specs/NNN-*/.
   files: { spec: boolean; plan: boolean; tasks: boolean }
+  // The folder name under specs/ for this number (`011-explorer-ui`); absent when none exists.
+  dir?: string
 }
 
 export type MarkerKind = 'gap' | 'clarification' | 'assumption'

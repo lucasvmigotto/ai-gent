@@ -93,7 +93,7 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
   const features = by('features')
   const items = by('items')
   const badgeTone: Tone = m.header.badge === 'LIVE' ? 'good' : 'warn'
-  const nextTone: Tone = m.next.badge === 'Needs attention' ? 'warn' : m.next.badge === 'Suggested' ? 'info' : 'good'
+  const nextTone: Tone = m.next.badge === 'Blocking' ? 'bad' : m.next.badge === 'Suggested' ? 'info' : 'good'
   const isOpen = items.rows.some(r => r.isOpen)
 
   return (
@@ -107,25 +107,36 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
       </Box>
 
       <Box key="summary" flexDirection="column">
-        {m.mode === 'full' ? (
-          <Box flexDirection="column">
-            <Box gap={4}>
-              {m.summary.metrics.filter(x => x.isLarge).map(x => (
-                <Box key={`metric:${x.key}`} flexDirection="column">
-                  <Text bold size="title" {...look(x.tone)}>{String(x.value)}</Text>
-                  <Text dimColor>{x.label}</Text>
-                </Box>
-              ))}
-            </Box>
-            <Text dimColor>{m.summary.metrics.filter(x => !x.isLarge).map(x => `${x.value} ${x.label}`).join(` ${sep} `)}</Text>
-          </Box>
-        ) : (
-          <Text>{m.summary.line}</Text>
-        )}
+        <Box gap={1} flexWrap="wrap">
+          {m.summary.counts.flatMap((x, i) => [
+            ...(i > 0 ? [<Text key={`count-sep:${x.key}`} dimColor>{sep}</Text>] : []),
+            <Text key={`count:${x.key}`} {...look(x.tone)}>{`${x.value} ${x.label}`}</Text>,
+          ])}
+        </Box>
+        {m.summary.attention ? <Text wrap="wrap" {...look(m.summary.attention.tone)}>{m.summary.attention.text}</Text> : null}
       </Box>
 
+      {m.blockers ? (
+        <Box key="blockers" flexDirection="column">
+          <Box gap={2}>
+            {title(`BLOCKERS ${sep} ${m.blockers.count}`)}
+            <Button key="button-blockers" plain label={`${GLYPH[m.blockers.isOpen ? 'open' : 'closed'][ascii ? 1 : 0]} ${m.blockers.isOpen ? 'Hide' : 'Details'}`} onPress={() => handlers.onToggle('blockers')} />
+          </Box>
+          {m.blockers.rows.map(r => (
+            <Box key={r.key} flexDirection="column">
+              <Text wrap="truncate-end" color="error">{`${GLYPH.warn[ascii ? 1 : 0]} ${r.title} ${ascii ? '-' : '—'} ${r.reason}${r.isNext ? ' (see Next action)' : ''}`}</Text>
+              {m.blockers?.isOpen ? r.detail.map((d, i) => <Text key={`${r.key}:${i}`} dimColor wrap="truncate-end">{`    ${d}`}</Text>) : null}
+            </Box>
+          ))}
+          {m.blockers.more > 0 ? <Text dimColor>{`+${m.blockers.more} more`}</Text> : null}
+        </Box>
+      ) : null}
+
       <Box key="artifacts" flexDirection="column">
-        {title('Artifacts')}
+        <Box gap={2}>
+          {title('Artifacts')}
+          <Text dimColor>{`${m.summary.artifacts} of ${m.summary.ofArtifacts} ready`}</Text>
+        </Box>
         {head(artifacts, true)}
         {artifacts.rows.map(r => row(artifacts, r, true))}
         {!m.hasGit ? <Text dimColor>Staleness needs git.</Text> : null}
@@ -135,7 +146,18 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
             ...(m.stageArrow && i > 0 ? [<Text key={`arrow:${s.key}`} dimColor>{m.stageArrow}</Text>] : []),
             <Text key={`stage:${s.key}`} {...look(s.tone)} bold={s.state === 'current'}>{`${s.glyph} ${s.label}`}</Text>,
           ])}
+          {m.stageDetail ? (
+            <Button key="button-stage" plain label={`${GLYPH[m.stageDetail.isOpen ? 'open' : 'closed'][ascii ? 1 : 0]} Readiness`} onPress={() => handlers.onToggle('stage')} />
+          ) : null}
         </Box>
+        {m.stageDetail?.isOpen ? (
+          <Box key="stage-detail" flexDirection="column">
+            <Text dimColor>{`  ${m.stageDetail.label}: what the strip reads`}</Text>
+            {m.stageDetail.checks.map((c, i) => (
+              <Text key={`check:${i}`} wrap="truncate-end" {...look(c.tone)}>{`    ${c.glyph} ${c.text}`}</Text>
+            ))}
+          </Box>
+        ) : null}
       </Box>
 
       <Box key="progress" flexDirection="column">
@@ -236,9 +258,16 @@ export function drawDashboard($: EngineInterface, e: ResolveInput, m: PipelineVi
           {title('Next action')}
           <Text bold {...look(nextTone)}>{` ${m.next.badge} `}</Text>
         </Box>
-        <Text bold>{`${GLYPH.current[ascii ? 1 : 0]} ${m.next.title}`}</Text>
+        <Text bold {...look(m.next.badge === 'Blocking' ? 'bad' : undefined)}>{`${GLYPH[m.next.badge === 'Blocking' ? 'warn' : 'current'][ascii ? 1 : 0]} ${m.next.title}`}</Text>
         {m.next.explanation ? <Text>{`  ${m.next.explanation}`}</Text> : null}
-        {m.next.ref ? <Text dimColor>{`  ${m.next.ref}`}</Text> : null}
+        {m.next.full ? (
+          <Box>
+            <Text>{'  '}</Text>
+            <Button key="button-next-details" plain label={`${GLYPH[m.next.isOpen ? 'open' : 'closed'][ascii ? 1 : 0]} ${m.next.isOpen ? 'Less' : 'Details'}`} onPress={() => handlers.onToggle('next')} />
+          </Box>
+        ) : null}
+        {m.next.where ? <Text dimColor wrap="truncate-end">{`  ${m.next.where}`}</Text> : null}
+        {!m.next.action && m.next.instruction ? <Text dimColor>{`  ${m.next.instruction}`}</Text> : null}
         {m.next.action ? (
           <Box gap={1}>
             <Text dimColor>{'  Run'}</Text>

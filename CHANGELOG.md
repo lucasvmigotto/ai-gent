@@ -8,6 +8,7 @@ changes.
 
 ### Added
 
+- **project:** the pipeline pane puts attention first (features, implemented, ready, blocked; a warning line only when a clarification, a missing or a review artifact needs a decision), lists Blockers only when something blocks (clarification, dependency, missing artifact), shows why and where in Next action with a Details toggle for a long reason, and expands the current stage's readiness and a feature's source and open clarifications from the snapshot; a stale artifact now reads `Review`, a signal from commit dates
 - **agents:** `delegate` skill: offer other code agents (Codex first) bounded tasks, supervise them through `ai-gent delegate`, require a cross-agent review and take work back (spec 041 T020)
 
 ## 2.27.0 — 2026-11-01

@@ -17,7 +17,7 @@ export const PANE = 'pipeline'
 // Change the tag when Snapshot's fields change: it declines what an earlier
 // version stored, which outlives a reload.
 export const snapshotAtom = atom({ plugin: 'project', key: 'pipelineSnapshot' } as const, null, {
-  shape: 'pipeline-1',
+  shape: 'pipeline-2',
 })
 export const isOpenAtom = atom({ plugin: 'project', key: 'pipelineIsOpen' } as const, false)
 export const expandedAtom = atom({ plugin: 'project', key: 'pipelineExpanded' } as const, {})
@@ -113,6 +113,7 @@ async function readFeatures($: EngineInterface, root: string, rows: readonly Row
       bucket: split_.done.includes(row.number) ? 'done' : split_.blocked.includes(row.number) ? 'blocked' : 'ready',
       waiting: split_.waiting[row.number] ?? [],
       files: { spec: names.has('spec.md'), plan: names.has('plan.md'), tasks: names.has('tasks.md') },
+      ...(dir ? { dir } : {}),
     })
   }
   return features
