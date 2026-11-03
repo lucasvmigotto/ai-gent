@@ -96,8 +96,10 @@ Each track runs in its own context, inside its worktree only:
 - The track runs its stage skill (`frontend:build`, `backend:build`,
   `qa:e2e`), or `agents:orchestrate` for a feature with many cards, and
   commits on its branch as tasks finish (`git:workflow`).
-- Keep the coordinator's context warm and small: wait for tracks with a
-  background watcher, not idle gaps over ~4 minutes, and checkpoint or restart
+- Keep the coordinator's context warm and small: subagent and background
+  tracks notify you when they end; watch detached delegate tracks through
+  their status files, not by polling or idle gaps over ~4 minutes
+  (`../../references/worker-continuation.md`), and checkpoint or restart
   at ~150k (`../orchestrate/references/context-discipline.md`).
 - A track that finds it needs another's output stops and reports it as an
   `[UPSTREAM GAP: …]`; it never edits across tracks.
@@ -129,6 +131,12 @@ In dependency order, then smallest first, from the main checkout on
    track's cost: `used` on the feature's task lines, its `tracker.md`, the
    ledger and `docs/product/token-history.jsonl`; report the projection
    error per track (`../../references/token-tracking.md`).
+
+When a track lands or is abandoned, its worktree slot is free: refill it
+from the next approved, dependency-ready track, after the worktree and
+ownership checks. A slot left idle gets a reason in the ledger (`dependency`,
+`approval`, `ownership conflict`, `quota`, `nothing ready`); idle capacity is
+fine with a reason and a defect without one.
 
 ## 5. Clean up
 

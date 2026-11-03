@@ -84,6 +84,14 @@ The delegate edits the working tree and stops. Then Claude:
    reviews read-only (`references/supervisor.md`). Findings go back; done
    means the acceptance criteria pass.
 5. Only Claude pushes, opens the PR, watches CI and merges (`git:workflow`).
+6. Refill: a landed or taken-back track frees a slot; start the next approved,
+   dependency-ready track or record why not.
+
+A detached worker does not notify Claude when it stops. Keep one Monitor over
+`.ai-gent/delegate/*/status.json` and run the steps above on each terminal
+state; the protocol, event id and recovery are in
+`../../references/worker-continuation.md`. Its event log and idle check are
+planned, not built.
 
 ## 5. Take back
 
