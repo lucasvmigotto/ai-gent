@@ -1,0 +1,6 @@
+{
+  "name": "redaction",
+  "derived_from": "plugins/db/scripts/dbrun.py remember_secrets() and redact(): password, host and user, in that order, whole words only",
+  "conn": {"host": "db.secret-host.internal", "port": 5432, "database": "shop", "user": "app_ro", "password": "s3cr3t!"},
+  "expected_error": "OperationalError: connection to server at <host> failed: password authentication failed for user <user> (password <password>)"
+}

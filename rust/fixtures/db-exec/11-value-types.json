@@ -1,0 +1,13 @@
+{
+  "name": "value-types",
+  "derived_from": "plugins/db/scripts/dbrun.py to_jsonable(): numbers and text as JSON, NULL as null, blobs as '<N bytes>'",
+  "kind": "exec",
+  "engines": ["sqlite"],
+  "setup": {"sqlite": ["CREATE TABLE t (n)"]},
+  "steps": [
+    {
+      "request": {"mode": "read", "statements": ["SELECT 7 AS i, 1.5 AS r, 'x' AS s, NULL AS z, x'0102' AS b"], "timeout": 5, "max_rows": 10},
+      "expected": {"ok": true, "results": [{"columns": ["i", "r", "s", "z", "b"], "rows": [[7, 1.5, "x", null, "<2 bytes>"]]}]}
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "ddl-after-dml-rowcount",
+  "derived_from": "plugins/db/scripts/dbrun.py execute(): entry rowcount is cursor.rowcount, which Python's sqlite3 reports as -1 for DDL and PRAGMA and as the change count only for INSERT, UPDATE, DELETE and REPLACE",
+  "kind": "exec",
+  "engines": ["sqlite"],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10), (2, 20)"
+    ]
+  },
+  "steps": [
+    {
+      "request": {"mode": "write", "statements": ["UPDATE t SET n = n + 1", "CREATE TABLE u (x)", "DELETE FROM t WHERE id = 99"], "timeout": 5, "max_rows": 200},
+      "expected": {"ok": true, "committed": true, "results": [{"rowcount": 2}, {"rowcount": -1}, {"rowcount": 0}]}
+    }
+  ]
+}

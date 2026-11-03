@@ -62,6 +62,11 @@ The supervisor does these in order after the delegate stops.
 7. `ai-gent delegate commit ... -m "<Conventional Commit>"`: no marker or trailer of any kind.
 8. Push, open the PR, and merge only when every CI leg is green.
 9. Remove the worktree by name: `wt.py remove <branch>`.
+10. Refill: count the free slots and start the next approved, dependency-ready track, or note the hold reason in the ledger (`../../../references/worker-continuation.md`).
+
+## Watcher
+
+Detached workers do not notify. Keep one persistent Monitor over `.ai-gent/delegate/*/status.json` printing a line per state change and when slots idle; handle each line once by its id (track + started + state). After a restart, reconcile from the status files first.
 
 ## Register every dispatch
 
