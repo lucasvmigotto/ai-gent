@@ -46,3 +46,30 @@ A second Claude Code profile works as a delegate. The profile is a config direct
 - `is_error`: a run that exits 0 with `is_error: true` is recorded as `failed`, not `done`. `exit.json` gets `is_error` and a `reason` (the `subtype` without `error_`, `max-turns` for `error_max_turns`, else `error`), and `result` answers both next to the unchanged `exit_code` (0).
 - Profile required: `run` refuses without `AI_GENT_CLAUDE_CONFIG_DIR` (or an explicit profile in the library call) with "a Claude delegate needs its own profile: set AI_GENT_CLAUDE_CONFIG_DIR", so the supervisor's own profile is never used by accident. `detect` and `ready` still work with the variable set.
 - `stop` is by PID file only, as for Codex.
+
+## Completion events (T022, built)
+
+A coordinator learns that a detached worker finished from an append-only log, not by polling `status`.
+**Built:** the log, `delegate events`, `delegate watch`, `delegate ack`, `delegate idle`. **Not built:** the
+skills do not call them yet (the protocol is `shared/worker-continuation.md`).
+
+**`.ai-gent/delegate/events.jsonl`**, one JSON line per terminal or attention transition of a track:
+
+| Field | Meaning |
+|---|---|
+| `id` | `track:started:state` (`started` from `status.json`). A later run of the same track has another `started`, so an event of an earlier run is told apart |
+| `ts` | Epoch seconds when it was recorded |
+| `track`, `agent`, `role`, `tasks` | As in `status.json` |
+| `state` | `done`, `failed`, `stalled` or `taken-back` |
+| `result` | The verdict's reason if any, else `accepted` or `rejected`, else `null` |
+
+Never a brief, a message, a path or a diff. Every `status::write` that shows one of those states appends the event; `stalled` is computed from the clock (`stall_secs`), so `watch` and `events` record it. The append takes an exclusive OS lock (`File::try_lock` on `events.lock`, released when the file closes, so a crashed writer cannot leave it held and no age heuristic exists), reads the whole log under it and refuses an id already anywhere in it (so a restart, a second writer or a scan over hundreds of finished tracks adds nothing). The log is never trimmed, since dropping an id would let its event be appended again; it is one short line per transition. `watch` and `events` build each event from a single read of `status.json`, so state, `started` and tasks belong to one run and writes the line in one `write`, so two writers never interleave. Limit: `started` has one-second resolution, so a run restarted within the same second of the same track reuses the id.
+
+**Commands** (all take `--root`):
+
+- `delegate events [--pending]`: records transitions not yet in the log, then prints the events (`--json`: an object with `events`).
+- `delegate watch [--once] [--since-ack]`: prints each unacknowledged event as one line `event id=… ts=… track=… agent=… role=… tasks=T1,T2 state=… result=…` (`--json`: the event object per line). Without `--once` it keeps running (checks every second), prints new events, and prints `idle: free_slots=N` when slots are free and no track is live (once per change). Printing does not acknowledge. `--since-ack` states what `watch` always does: acknowledged events are never replayed.
+- `delegate ack <id>… | --all`: appends `{id, ts}` to `.ai-gent/delegate/acks.jsonl`; an unknown id is refused.
+- `delegate idle --tasks-file F`: one line, exit 0, never dispatches: `free_slots=N ready_tasks=M reason=<dispatch|dependency|approval|none-ready|cap>`. `free_slots` is the pool of `delegate plan` (`max_volumes`, else `max_parallel`, default 3, minus live tracks, and the disk floor). A task is ready when no track (taken-back ones excepted) holds it, it needs no owner decision and each `depends` is in a done track. `dispatch`: a slot and a ready task, start it; `cap`: ready work, no slot; `approval`, `dependency`, `none-ready`: why nothing is ready.
+
+Tests: `delegate::events::tests` in `ai-gent-core` and `rust/crates/ai-gent/tests/delegate_events.rs`.

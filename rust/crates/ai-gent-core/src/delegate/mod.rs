@@ -10,6 +10,7 @@ pub mod claude;
 pub mod codex;
 pub mod commit;
 pub mod diff;
+pub mod events;
 pub mod gitx;
 pub mod glob;
 pub mod opencode;

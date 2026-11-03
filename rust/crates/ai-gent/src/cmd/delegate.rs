@@ -9,6 +9,7 @@ use ai_gent_core::delegate::brief::{self, BriefInput};
 use ai_gent_core::delegate::checks::{self, CheckInput};
 use ai_gent_core::delegate::claude::ClaudeAdapter;
 use ai_gent_core::delegate::codex::CodexAdapter;
+use ai_gent_core::delegate::events;
 use ai_gent_core::delegate::opencode::OpenCodeAdapter;
 use ai_gent_core::delegate::schedule::{self, Pool};
 use ai_gent_core::delegate::sources;
@@ -21,7 +22,8 @@ use ai_gent_core::wt;
 use clap::{Args, Subcommand, ValueEnum};
 use serde::Serialize;
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -255,6 +257,40 @@ enum Action {
     },
     /// Print the delegation log.
     Log,
+    /// Print the completion events (`.ai-gent/delegate/events.jsonl`), after recording any not yet in it.
+    Events {
+        /// Only the events not acknowledged.
+        #[arg(long)]
+        pending: bool,
+    },
+    /// Print the unacknowledged completion events, then (without `--once`) keep printing new ones and
+    /// an `idle:` line when worktree slots are free and no track runs. Meant for a coordinator's monitor.
+    #[command(name = "watch")]
+    Follow {
+        /// Print what is pending and exit.
+        #[arg(long)]
+        once: bool,
+        /// Replay only unacknowledged events (this is what `watch` always does; the flag states it).
+        #[arg(long)]
+        since_ack: bool,
+        /// Milliseconds between checks.
+        #[arg(long, default_value_t = 1000, hide = true)]
+        interval_ms: u64,
+    },
+    /// Acknowledge completion events by id, so `watch` does not replay them.
+    Ack {
+        /// Event ids.
+        ids: Vec<String>,
+        /// Acknowledge every event in the log.
+        #[arg(long, conflicts_with = "ids")]
+        all: bool,
+    },
+    /// One line: free worktree slots, ready tasks and why nothing is dispatched. Never dispatches.
+    Idle {
+        /// A JSON file with the task list, as for `plan`; `-` reads stdin.
+        #[arg(long)]
+        tasks_file: PathBuf,
+    },
     /// Internal: supervise one agent run (started by `run`).
     #[command(name = "_watch", hide = true)]
     Watch {
@@ -576,7 +612,145 @@ fn go(a: &DelegateArgs, json: bool) -> Result<Exit, Error> {
             emit(&json!({ "runs": lines }), json);
             Ok(Exit::Success)
         }
+        Action::Events { pending } => {
+            let root = resolve_root(a)?;
+            events::sync(&root)?;
+            let list = if *pending {
+                events::pending(&root)
+            } else {
+                events::read_all(&root)
+            };
+            emit(&json!({ "events": list }), json);
+            Ok(Exit::Success)
+        }
+        Action::Follow {
+            once, interval_ms, ..
+        } => follow(&resolve_root(a)?, *once, *interval_ms, json),
+        Action::Ack { ids, all } => {
+            let root = resolve_root(a)?;
+            if ids.is_empty() && !all {
+                return Err(Error::Invalid("give event ids or --all".into()));
+            }
+            let done = events::ack(&root, ids, *all)?;
+            emit(&json!({ "acked": done }), json);
+            Ok(Exit::Success)
+        }
+        Action::Idle { tasks_file } => {
+            let root = resolve_root(a)?;
+            let raw = if tasks_file.as_os_str() == "-" {
+                let mut b = String::new();
+                std::io::Read::read_to_string(&mut std::io::stdin(), &mut b)
+                    .map_err(|e| Error::Invalid(format!("stdin: {e}")))?;
+                b
+            } else {
+                read(tasks_file)?
+            };
+            let tasks: Vec<schedule::Task> = serde_json::from_str(&raw)
+                .map_err(|e| Error::Invalid(format!("task list: {e}")))?;
+            let (free, ready, reason) = idle_reason(&root, &tasks)?;
+            if json {
+                emit(
+                    &json!({ "free_slots": free, "ready_tasks": ready, "reason": reason }),
+                    true,
+                );
+            } else {
+                println!("free_slots={free} ready_tasks={ready} reason={reason}");
+            }
+            Ok(Exit::Success)
+        }
         _ => adapter_action(a, json, &env),
+    }
+}
+
+/// The task ids tracks already hold (any state but taken-back) and the ones that are done.
+fn claimed_and_done(root: &Path) -> (HashSet<String>, HashSet<String>) {
+    let (mut claimed, mut done) = (HashSet::new(), HashSet::new());
+    let Ok(rd) = std::fs::read_dir(root.join(".ai-gent").join("delegate")) else {
+        return (claimed, done);
+    };
+    for e in rd.flatten() {
+        let Ok(s) = status::read(root, &e.file_name().to_string_lossy()) else {
+            continue;
+        };
+        if s.state == State::TakenBack {
+            continue;
+        }
+        if s.state == State::Done {
+            done.extend(s.tasks.iter().cloned());
+        }
+        claimed.extend(s.tasks);
+    }
+    (claimed, done)
+}
+
+/// Free slots (the `plan` pool), ready tasks, and why ready work is or is not being started:
+/// `dispatch` (a slot and a ready task: the coordinator should start it), `cap` (no free slot),
+/// `approval` (what is left waits for an owner decision), `dependency` (what is left waits for an
+/// unfinished task) or `none-ready`.
+fn idle_reason(
+    root: &Path,
+    tasks: &[schedule::Task],
+) -> Result<(usize, usize, &'static str), Error> {
+    schedule::tracks(tasks)?;
+    let free = plan_pool(root, None).0.slots();
+    let (claimed, done) = claimed_and_done(root);
+    let open: Vec<&schedule::Task> = tasks.iter().filter(|t| !claimed.contains(&t.id)).collect();
+    let needs_approval = |t: &&schedule::Task| t.needs.owner_decision;
+    let waits = |t: &&schedule::Task| !t.depends.iter().all(|d| done.contains(d));
+    let ready = open
+        .iter()
+        .filter(|t| !needs_approval(t) && !waits(t))
+        .count();
+    let reason = if ready > 0 {
+        if free > 0 { "dispatch" } else { "cap" }
+    } else if open.iter().any(needs_approval) {
+        "approval"
+    } else if open.iter().any(waits) {
+        "dependency"
+    } else {
+        "none-ready"
+    };
+    Ok((free, ready, reason))
+}
+
+fn follow(root: &Path, once: bool, interval_ms: u64, json: bool) -> Result<Exit, Error> {
+    let mut out = std::io::stdout().lock();
+    let mut seen = HashSet::new();
+    let mut was_idle = false;
+    loop {
+        events::sync(root)?;
+        for e in events::pending(root) {
+            if !seen.insert(e.id.clone()) {
+                continue;
+            }
+            let line = if json {
+                serde_json::to_string(&e).unwrap_or_default()
+            } else {
+                e.line()
+            };
+            if writeln!(out, "{line}").is_err() {
+                return Ok(Exit::Success);
+            }
+        }
+        if once {
+            let _ = out.flush();
+            return Ok(Exit::Success);
+        }
+        let pool = plan_pool(root, None).0;
+        let idle = pool.live == 0 && pool.slots() > 0;
+        if idle && !was_idle {
+            let line = if json {
+                json!({ "idle": true, "free_slots": pool.slots() }).to_string()
+            } else {
+                format!("idle: free_slots={}", pool.slots())
+            };
+            if writeln!(out, "{line}").is_err() {
+                return Ok(Exit::Success);
+            }
+        }
+        was_idle = idle;
+        let _ = out.flush();
+        std::thread::sleep(Duration::from_millis(interval_ms));
     }
 }
 
