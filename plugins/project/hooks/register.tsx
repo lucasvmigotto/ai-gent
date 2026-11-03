@@ -28,7 +28,7 @@ import { lines as guardLines, clampLimit, summarize } from './guards'
 import { readGuards } from './guards-read'
 import { repoRoot } from './repo'
 import { readLimits } from './usage'
-import { close as closeWorkers, open as openWorkers, toggle as toggleWorker, readExpanded as readWorkersExpanded, readSnapshot as readWorkersSnapshot, PANE as WORKERS_PANE, compute as computeWorkers } from './workers'
+import { close as closeWorkers, open as openWorkers, toggle as toggleWorker, readExpanded as readWorkersExpanded, readSnapshot as readWorkersSnapshot, PANE as WORKERS_PANE, compute as computeWorkers, configure as configureWorkers } from './workers'
 import { drawWorkers } from './workers-draw'
 import { build as buildWorkers, compactLine, text as workersText } from './workers-model'
 import { drawWorkspace } from './workspace'
@@ -43,7 +43,7 @@ const isBandHidden = atom({ plugin: 'project', key: 'isBandHidden' } as const, f
 const isWorkspaceOpen = atom({ plugin: 'project', key: 'workspaceExpanded' } as const, false)
 const sessionModel = atom({ plugin: 'project', key: 'sessionModel' } as const, null)
 
-type Options = BandOptions & HandoffOptions & NextStageOptions & ContextOptions & { workspaceLine?: boolean; holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number; guardLogLimit?: number; guardsPane?: boolean; workersPane?: boolean; workersPollSeconds?: number; workersMaxRows?: number; workersLine?: boolean }
+type Options = BandOptions & HandoffOptions & NextStageOptions & ContextOptions & { workspaceLine?: boolean; holdsBand?: boolean; holdsGate?: boolean; pipelinePane?: boolean; pipelinePollSeconds?: number; pipelineLayout?: string; pipelineAscii?: boolean; pipelineMaxRows?: number; guardLogLimit?: number; guardsPane?: boolean; workersPane?: boolean; workersPollSeconds?: number; workersMaxRows?: number; workersLine?: boolean; workersShowDescription?: boolean }
 
 const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning', bad: 'error' }
 
@@ -101,7 +101,8 @@ async function registerGuards($: EngineInterface): Promise<void> {
 }
 
 // Declares /workers and /workers-pane (spec 041). Never opens the pane by itself.
-async function registerWorkers($: EngineInterface): Promise<void> {
+async function registerWorkers($: EngineInterface, options: Options): Promise<void> {
+  configureWorkers({ showDescription: options.workersShowDescription === true })
   await $.command.register({ name: 'workers', description: 'List the delegation workers: agent, role, task, state and the slot pool' }).catch(() => undefined)
   await $.command.register({ name: 'workers-pane', description: 'Dock the delegation workers list in a pane' }).catch(() => undefined)
 }
@@ -127,6 +128,7 @@ async function recordUsage($: EngineInterface, usage: Awaited<ReturnType<typeof 
 }
 
 export const register: Register = (on, options: Options) => {
+  configureWorkers({ showDescription: options.workersShowDescription === true })
   const showWorkspace = options.workspaceLine !== false
   const showMeter = options.contextMeter !== false
   const showUsage = options.usageMeter !== false
@@ -140,7 +142,7 @@ export const register: Register = (on, options: Options) => {
       await $.command.register({ name: 'bands', description: 'List the bands above the prompt, and which are hidden by the cap' }).catch(() => undefined)
     }
     await registerGuards($)
-    await registerWorkers($)
+    await registerWorkers($, options)
     await refresh($, showBand).catch(() => undefined)
     await declareLeader($, showWorkspace).catch(() => undefined)
     if (readsUsage) await recordUsage($, await readUsage($), showMeter).catch(() => undefined)

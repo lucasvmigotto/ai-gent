@@ -58,7 +58,9 @@ with Claude's against the worktree cap.
 3. `ai-gent delegate run --track <id> --worktree <wt> --brief-file <f>
    --tasks T001,...` starts it in the background; `status <track>` to watch,
    `result <track>` for the final message and usage. `mark <track> --as claude
-   ...` records Claude's own tracks.
+   ...` records Claude's own tracks. Every dispatch is registered with
+   `ai-gent delegate mark` or goes through `delegate run`, so the workers pane
+   counts it.
 
 ## 4. Supervise and land
 

@@ -4,7 +4,9 @@
 // Every string read from a file is validated or stripped of control characters, because
 // a file is data and a terminal escape in a track name must never reach the screen.
 
-import type { WorkerLogLine, WorkerState, WorkerStatus, WorkersSnapshot } from '../types'
+import type { AgentInfo } from 'claude-code'
+
+import type { WorkerKind, WorkerLogLine, WorkerState, WorkerStatus, WorkersSnapshot } from '../types'
 
 export type Tone = 'plain' | 'dim' | 'bold' | 'good' | 'warn' | 'bad' | 'info'
 
@@ -40,6 +42,12 @@ function tokensOf(value: unknown): number | null {
   return input + output
 }
 
+// Kinds 2 and 3 are status-file tracks: another Claude profile (`claude-profile[:name]`) or any other
+// code agent. Kind 1, a subagent of this session, comes from `$.agent.list()` (agentRow below).
+export const kindOfAgent = (agent: string): WorkerKind => (/^claude-profile(:|$)/.test(agent) ? 'profile' : 'agent')
+
+const KIND_TAG: Record<WorkerKind, string> = { subagent: 'sub', profile: 'prof', agent: 'ext' }
+
 // One status.json, or null when it is not well-formed (the pane counts those, never draws them).
 export function parseStatus(text: string): WorkerStatus | null {
   let raw: unknown
@@ -74,6 +82,46 @@ export function parseStatus(text: string): WorkerStatus | null {
     worktree: clean(worktree, 120),
     verdict: { result, reason },
     tokens: tokensOf(tokens),
+    kind: kindOfAgent(agent),
+    note: null,
+  }
+}
+
+// $.agent.list() status to a worker state: an idle agent waits for a message and is not working (queued,
+// no slot); one waiting on a tool or a child is mid-task (running).
+const AGENT_STATE: Record<AgentInfo['status'], WorkerState> = { pending: 'queued', running: 'running', waiting: 'running', idle: 'queued', completed: 'done', failed: 'failed', killed: 'taken-back' }
+
+// Control characters out, anything outside a safe id alphabet dropped.
+const slug = (value: string, max: number): string => clean(value, 200).replace(/[^A-Za-z0-9._-]/g, '').slice(0, max)
+
+function roleOfType(type: string): WorkerStatus['role'] {
+  const t = type.toLowerCase()
+  if (t.includes('review') || t.includes('audit')) return 'reviewer'
+  if (t === 'explore' || t === 'plan' || t.includes('research') || t.includes('search') || t.includes('survey')) return 'researcher'
+  return 'builder'
+}
+
+// One session subagent (kind 1) as a worker row. `first` and `changed` are epoch seconds the caller saw it
+// (the API gives no clock). The description is the Agent call's free text, which may be a prompt: it is
+// carried only when `showDescription` is set, cut and stripped of control characters (FR-017).
+export function agentRow(info: AgentInfo, seen: { first: number; changed: number }, showDescription: boolean): WorkerStatus {
+  const id = slug(String(info.id), 40) || 'agent'
+  const short = id.length > 12 ? id.slice(0, 12) : id
+  const note = showDescription ? clean(String(info.description ?? ''), 60).trim() : ''
+  return {
+    track: `sub-${short}`,
+    agent: 'claude-subagent',
+    role: roleOfType(slug(String(info.type), 40)),
+    tasks: [],
+    state: AGENT_STATE[info.status] ?? 'running',
+    started: seen.first,
+    updated: seen.changed,
+    events: 0,
+    worktree: '',
+    verdict: { result: 'pending', reason: null },
+    tokens: null,
+    kind: 'subagent',
+    note: note === '' ? null : note,
   }
 }
 
@@ -229,11 +277,15 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
   const tier = ctx.columns < NARROW ? 'narrow' : ctx.columns < WIDE ? 'medium' : 'wide'
   const sorted = sortWorkers(workers)
   const shown = sorted.slice(0, Math.max(1, ctx.maxRows))
-  const flex = Math.max(12, ...shown.map(w => `${w.tasks.join(',')} ${w.track}`.length))
+  // The kind tag shows once a row is not a plain status-file agent, so a pane of only those is unchanged.
+  const tagged = workers.some(w => w.kind !== 'agent')
+  const tag = (w: WorkerStatus) => (tagged ? `${pad(KIND_TAG[w.kind], 4)} ` : '')
+  const labelOf = (w: WorkerStatus) => `${w.tasks.join(',')} ${w.track}${w.note === null ? '' : `: ${w.note}`}`.trim()
+  const flex = Math.max(12, ...shown.map(w => labelOf(w).length))
   const labelWidth = Math.min(flex, tier === 'wide' ? 40 : 28)
 
   if (tier !== 'narrow') {
-    add(`  ${pad('STATE', 12)} ${pad('AGENT', 16)} ${pad('ROLE', 10)} ${pad('TASKS TRACK', labelWidth)} ${pad('ELAPSED', 7)} LAST EVENT${tier === 'wide' ? '   VERDICT      WORKTREE' : ''}`, 'dim')
+    add(`  ${pad('STATE', 12)} ${tagged ? 'KIND ' : ''}${pad('AGENT', 16)} ${pad('ROLE', 10)} ${pad('TASKS TRACK', labelWidth)} ${pad('ELAPSED', 7)} LAST EVENT${tier === 'wide' ? '   VERDICT      WORKTREE' : ''}`, 'dim')
   }
   for (const w of shown) {
     const glyph = STATE_GLYPH[w.state][ctx.ascii ? 1 : 0]
@@ -241,20 +293,20 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
     const isLive = w.state === 'running' || w.state === 'stalled'
     const nowS = ctx.now / 1000
     const elapsed = w.state === 'queued' ? g.none : duration((isLive ? nowS : w.updated) - w.started)
-    const age = isLive ? `${duration(nowS - w.updated)} ago` : g.none
-    const label = `${w.tasks.join(',')} ${w.track}`.trim()
+    const age = isLive && w.kind !== 'subagent' ? `${duration(nowS - w.updated)} ago` : g.none
+    const label = labelOf(w)
     const mark = isOpen ? g.open : g.closed
     if (tier === 'narrow') {
-      add(`${mark} ${glyph} ${w.agent} ${w.track} ${elapsed}`, STATE_TONE[w.state], w.track)
+      add(`${mark} ${glyph} ${tagged ? `${KIND_TAG[w.kind]} ` : ''}${w.agent} ${w.track} ${elapsed}`, STATE_TONE[w.state], w.track)
     } else {
       const verdict = `${VERDICT_GLYPH[w.verdict.result]?.[ctx.ascii ? 1 : 0] ?? ''} ${w.verdict.result}`
-      const tail = tier === 'wide' ? `   ${pad(verdict, 12)} ${w.worktree}` : ''
-      add(`${mark} ${pad(`${glyph} ${w.state}`, 12)} ${pad(fit(w.agent, 16, g.ellipsis), 16)} ${pad(w.role, 10)} ${pad(fit(label, labelWidth, g.ellipsis), labelWidth)} ${pad(elapsed, 7)} ${pad(age, 10)}${tail}`.trimEnd(), STATE_TONE[w.state], w.track)
+      const tail = tier === 'wide' ? `   ${pad(verdict, 12)} ${w.worktree === '' ? g.none : w.worktree}` : ''
+      add(`${mark} ${pad(`${glyph} ${w.state}`, 12)} ${tag(w)}${pad(fit(w.agent, 16, g.ellipsis), 16)} ${pad(w.role, 10)} ${pad(fit(label, labelWidth, g.ellipsis), labelWidth)} ${pad(elapsed, 7)} ${pad(age, 10)}${tail}`.trimEnd(), STATE_TONE[w.state], w.track)
     }
     if (isOpen) {
       const reason = w.verdict.reason === null ? '' : ` (${w.verdict.reason})`
       add(`    verdict: ${w.verdict.result}${reason}${g.sep}${w.events} events${w.tokens !== null ? `${g.sep}${compactNumber(w.tokens)} tokens` : ''}`, 'dim')
-      add(`    ${w.role}${g.sep}${w.worktree}`, 'dim')
+      add(`    ${w.role}${g.sep}${w.worktree === '' ? g.none : w.worktree}`, 'dim')
       const cost = costLine(w.track, snapshot?.log ?? [])
       if (cost !== null) add(`    ${cost}`, 'dim')
     }

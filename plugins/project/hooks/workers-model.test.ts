@@ -1,8 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { WorkersSnapshot } from '../types'
-import { ALL_STATES, LOG, NOW, statusJson, track } from './workers-fixtures'
-import { build, compactLine, duration, parseCap, parseLog, parseStatus, sortWorkers, text } from './workers-model'
+import { AGENTS, ALL_STATES, LOG, NOW, PROFILE_AND_CODEX, statusJson, track } from './workers-fixtures'
+import { agentRow, build, compactLine, duration, parseCap, parseLog, parseStatus, sortWorkers, text } from './workers-model'
 
 const snapshot = (files: Record<string, string>, over: Partial<WorkersSnapshot> = {}): WorkersSnapshot => ({
   workers: Object.values(files).flatMap(t => parseStatus(t) ?? []),
@@ -155,4 +155,72 @@ test('every line fits the width', () => {
 test('the text never carries a prompt, brief or credential word from the files', () => {
   const out = text(snapshot({ a: statusJson({ prompt: 'hunter2', brief: 'hunter2', env: { TOKEN: 'hunter2' } }) }), ctx)
   expect(out).not.toContain('hunter2')
+})
+
+// Three kinds together: two session subagents, a profile track and a Codex track.
+const SEEN = { first: 1_700_000_000, changed: 1_700_000_540 }
+const mixed = (over: Partial<WorkersSnapshot> = {}, showDescription = false): WorkersSnapshot =>
+  snapshot(PROFILE_AND_CODEX, { workers: [...Object.values(PROFILE_AND_CODEX).flatMap(t => parseStatus(t) ?? []), ...AGENTS.slice(0, 2).map(a => agentRow(a, SEEN, showDescription))], ...over })
+
+test('kinds: a status file is a profile or an ordinary agent by its agent id', () => {
+  expect(parseStatus(PROFILE_AND_CODEX['feat-prof'] as string)?.kind).toBe('profile')
+  expect(parseStatus(PROFILE_AND_CODEX['feat-cx'] as string)?.kind).toBe('agent')
+  expect(parseStatus(statusJson({ agent: 'claude-profile' }))?.kind).toBe('profile')
+  expect(parseStatus(statusJson({ agent: 'claude-profiles' }))?.kind).toBe('agent')
+})
+
+test('a subagent row: agent, role from the type, state from the status, no description', () => {
+  const rows = AGENTS.map(a => agentRow(a, SEEN, false))
+  expect(rows.map(r => [r.kind, r.agent, r.role, r.state])).toEqual([
+    ['subagent', 'claude-subagent', 'builder', 'running'],
+    ['subagent', 'claude-subagent', 'researcher', 'queued'],
+    ['subagent', 'claude-subagent', 'reviewer', 'done'],
+    ['subagent', 'claude-subagent', 'builder', 'failed'],
+  ])
+  expect(rows[0]?.track).toBe('sub-a1b2c3d4e5f6')
+  expect(JSON.stringify(rows)).not.toContain('PROMPT-SECRET')
+  expect(rows.every(r => r.note === null)).toBe(true)
+})
+
+test('every agent status maps to a state', () => {
+  const states = (['pending', 'running', 'waiting', 'idle', 'completed', 'failed', 'killed'] as const).map(status => agentRow({ ...AGENTS[0], status } as never, SEEN, false).state)
+  expect(states).toEqual(['queued', 'running', 'running', 'queued', 'done', 'failed', 'taken-back'])
+})
+
+test('the description is carried only when asked, without control characters, and cut', () => {
+  const on = agentRow(AGENTS[1] as never, SEEN, true)
+  expect(on.note).toBe('survey [31mthe repo'.replace('\u001b', ''))
+  expect(on.note).not.toMatch(/[\u0000-\u001f]/)
+  expect(agentRow({ ...AGENTS[0], description: 'y'.repeat(500) } as never, SEEN, true).note?.length).toBe(60)
+  expect(agentRow({ ...AGENTS[0], id: 'a\u001b]0;x\u0007/../b', type: 'T\u001b[1m' } as never, SEEN, false).track).toBe('sub-a0x..b')
+})
+
+test('all three kinds count together: header, slots and the pipeline line', () => {
+  const s = mixed()
+  expect(compactLine(s)).toEqual({ text: 'Workers: 3 running · 1 queued · slots 3/3', tone: 'plain' })
+  expect(lines(s).split('\n')[0]).toBe('Workers  slots 3/3 · 3 running · 1 queued')
+})
+
+test('golden: wide with the kind tag, no description', () => {
+  expect(lines(mixed())).toBe(`Workers  slots 3/3 · 3 running · 1 queued
+  STATE        KIND AGENT            ROLE       TASKS TRACK      ELAPSED LAST EVENT   VERDICT      WORKTREE
+▸ ▶ running    prof claude-profile:… builder    T060 feat-prof   10m     5s ago       · pending    .worktrees/feat-prof
+▸ ▶ running    ext  codex            builder    T061 feat-cx     10m     10s ago      · pending    .worktrees/feat-cx
+▸ ▶ running    sub  claude-subagent  builder    sub-a1b2c3d4e5f6 10m     —            · pending    —
+▸ · queued     sub  claude-subagent  researcher sub-e1           —       —            · pending    —`)
+})
+
+test('golden: the description appears only with the option', () => {
+  const out = lines(mixed({}, true))
+  expect(out).toContain('sub-e1: survey [31mthe repo'.replace('\u001b', ''))
+  expect(lines(mixed({}, false))).not.toContain('survey')
+})
+
+test('golden: narrow and ascii keep a kind tag', () => {
+  expect(lines(mixed(), { columns: 50 })).toBe(`Workers  slots 3/3 · 3 running · 1 queued
+▸ ▶ prof claude-profile:work feat-prof 10m
+▸ ▶ ext codex feat-cx 10m
+▸ ▶ sub claude-subagent sub-a1b2c3d4e5f6 10m
+▸ · sub claude-subagent sub-e1 —`)
+  expect(lines(mixed(), { ascii: true })).toMatch(/^[\x20-\x7e\n]*$/)
 })
