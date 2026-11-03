@@ -86,6 +86,17 @@ already know. Template and examples: `references/cards.md`. Every card has:
   not hand-kept — on Claude Code; elsewhere, note here whatever the agent's
   own UI reports.
 
+## 3a. Completion, verification and continuation
+
+A finished subagent notifies you by itself; a detached delegate does not, so
+keep the Monitor over its status files (`../../references/worker-continuation.md`).
+On each terminal event: verify, review (section 4), land (section 5), then
+refill free slots from approved, dependency-ready cards, or record why not.
+Execution state is not card state: a worker that exited is `review` at most;
+only a landed, reviewed card is `landed`. The ledger names the watcher and,
+for a card or slot left idle, the hold reason (`dependency`, `approval`,
+`ownership conflict`, `quota`, `nothing ready`).
+
 ## 4. Review
 
 When a card reports:

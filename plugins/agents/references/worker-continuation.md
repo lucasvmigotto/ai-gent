@@ -1,0 +1,1 @@
+../../../shared/worker-continuation.md
