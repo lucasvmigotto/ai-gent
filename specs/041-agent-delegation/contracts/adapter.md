@@ -61,8 +61,10 @@ A second Claude Code profile works as a delegate. The profile is a config direct
 ## Completion events (T022, built)
 
 A coordinator learns that a detached worker finished from an append-only log, not by polling `status`.
-**Built:** the log, `delegate events`, `delegate watch`, `delegate ack`, `delegate idle`. **Not built:** the
-skills do not call them yet (the protocol is `shared/worker-continuation.md`).
+**Built:** the log, `delegate events`, `delegate watch`, `delegate ack`, `delegate idle`, and the skills
+(`orchestrate`, `parallel`, `delegate`) point to the protocol in `shared/worker-continuation.md`. **Not built:**
+ledger columns for handled event ids and hold reasons, and any automatic dispatch (a deterministic supervisor
+never picks or briefs a task).
 
 **`.ai-gent/delegate/events.jsonl`**, one JSON line per terminal or attention transition of a track:
 

@@ -35,11 +35,16 @@ time from `status.json`), `state` and a result reference
 (`ai-gent delegate result <track>`, never the text itself).
 
 `event id = track:started:state`, as `delegate watch` prints it. After
-handling an event, run `ai-gent delegate ack <id>` (or `ack --all`); watch
-never replays an acknowledged one. The ledger may also note the ids handled. An id already handled is a duplicate; an event whose
+handling an event, run `ai-gent delegate ack <id>` with the id of that event only;
+watch never replays an acknowledged one. Do not use `ack --all` while workers
+are running: it also acknowledges events that arrived while you were busy and
+that you never handled, and a restart would not replay them. The ledger may also note the ids handled. An id already handled is a duplicate; an event whose
 `started` is older than the track's current run is stale. Both are ignored,
 and the files, not the event, say what is true now. A worker's exit is not
-proof of accepted work.
+proof of accepted work. Events of a `review-<track>` track (role `reviewer`)
+are not builder completions: they report the review the coordinator started,
+so read the review file and decide on the builder's track; never start another
+review or repeat the landing steps for them.
 
 ## 3. The sequence on every terminal event
 

@@ -90,7 +90,9 @@ The delegate edits the working tree and stops. Then Claude:
 
 A detached worker does not notify Claude when it stops. Keep one Monitor running
 `ai-gent delegate watch` (it expires after ~30 min; re-arm it) and run the
-steps above on each event, then `delegate ack <id>`. `delegate idle
+steps above on each builder event, then `delegate ack <id>` with that event's
+id only (not `--all`). An event of a `review-<track>` reviewer track is the
+review finishing: read its file and decide on the builder's track instead. `delegate idle
 --tasks-file F` gives the hold reason; the events log survives a restart. The
 protocol, event id and recovery are in `../../references/worker-continuation.md`;
 ledger columns for event ids and hold reasons are still planned.
