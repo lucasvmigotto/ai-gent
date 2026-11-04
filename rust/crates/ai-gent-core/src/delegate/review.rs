@@ -379,8 +379,9 @@ You are the reviewer of a change another agent made. You did not write it.
 - No report from the builder is provided and none is wanted: judge the diff and the spec, not claims.";
 
 /// The whole prompt is one command-line argument for the agent; Linux caps one argument near 128 KiB
-/// (`E2BIG`), so the prompt stays well under that.
-pub const MAX_PROMPT: usize = 100 * 1024;
+/// (`E2BIG`) and Windows caps the whole command line at 32,767 characters, so the prompt stays well under
+/// the smaller limit of the platform.
+pub const MAX_PROMPT: usize = if cfg!(windows) { 24 * 1024 } else { 100 * 1024 };
 /// Room kept per block for its "[truncated: N bytes left out]" note and the fences around it.
 const NOTE_RESERVE: usize = 256;
 /// The least room the spec and diff blocks need together for a review to make sense.
