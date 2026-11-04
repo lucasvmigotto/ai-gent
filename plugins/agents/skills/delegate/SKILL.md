@@ -88,11 +88,12 @@ The delegate edits the working tree and stops. Then Claude:
 6. Refill: a landed or taken-back track frees a slot; start the next approved,
    dependency-ready track or record why not.
 
-A detached worker does not notify Claude when it stops. Keep one Monitor over
-`.ai-gent/delegate/*/status.json` and run the steps above on each terminal
-state; the protocol, event id and recovery are in
-`../../references/worker-continuation.md`. Its event log and idle check are
-planned, not built.
+A detached worker does not notify Claude when it stops. Keep one Monitor running
+`ai-gent delegate watch` (it expires after ~30 min; re-arm it) and run the
+steps above on each event, then `delegate ack <id>`. `delegate idle
+--tasks-file F` gives the hold reason; the events log survives a restart. The
+protocol, event id and recovery are in `../../references/worker-continuation.md`;
+ledger columns for event ids and hold reasons are still planned.
 
 ## 5. Take back
 

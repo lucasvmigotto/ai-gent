@@ -66,7 +66,7 @@ The supervisor does these in order after the delegate stops.
 
 ## Watcher
 
-Detached workers do not notify. Keep one persistent Monitor over `.ai-gent/delegate/*/status.json` printing a line per state change and when slots idle; handle each line once by its id (track + started + state). After a restart, reconcile from the status files first.
+Detached workers do not notify. Keep one persistent Monitor running `ai-gent delegate watch` (a line per unacknowledged event `track:started:state`, and `idle: free_slots=N`); handle each once, then `ai-gent delegate ack <id>`. A Claude Code Monitor expires after about 30 minutes: re-arm it. After a restart, `delegate watch --once` replays what was missed; then reconcile from the status files. `delegate idle --tasks-file F` gives the hold reason; for the review step use `delegate review --builder-track T --reviewer <agent> --allow ...`.
 
 ## Register every dispatch
 

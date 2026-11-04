@@ -97,8 +97,8 @@ Each track runs in its own context, inside its worktree only:
   `qa:e2e`), or `agents:orchestrate` for a feature with many cards, and
   commits on its branch as tasks finish (`git:workflow`).
 - Keep the coordinator's context warm and small: subagent and background
-  tracks notify you when they end; watch detached delegate tracks through
-  their status files, not by polling or idle gaps over ~4 minutes
+  tracks notify you when they end; watch detached delegate tracks with `ai-gent delegate watch` in a
+  Monitor (re-arm it, ~30 min), not by polling or idle gaps over ~4 minutes
   (`../../references/worker-continuation.md`), and checkpoint or restart
   at ~150k (`../orchestrate/references/context-discipline.md`).
 - A track that finds it needs another's output stops and reports it as an
