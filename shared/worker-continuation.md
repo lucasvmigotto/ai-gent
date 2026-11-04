@@ -3,8 +3,8 @@
 One protocol for `agents:orchestrate`, `agents:parallel` and `agents:delegate`:
 how the coordinator learns a worker stopped, what it does then, and why free
 capacity never sits idle without a recorded reason. The skills point here and
-do not copy it. Source: the owner's analysis of 2026-11-03, a design proposal;
-only what the "Built" list names exists today.
+do not copy it. Source: the owner's analysis of 2026-11-03; section 6 says
+what is built and what is still planned.
 
 ## 1. Worker kinds and how their completion arrives
 
@@ -14,16 +14,19 @@ only what the "Built" list names exists today.
 | Background command (`run_in_background`) | The same, when it exits | No |
 | Detached worker (`ai-gent delegate run`: Codex, a second Claude profile, OpenCode) | **Nothing.** The process is not a child of the session; it only rewrites `.ai-gent/delegate/<track>/status.json` | **Yes** |
 
-For detached workers the coordinator keeps one persistent Monitor over
-`.ai-gent/delegate/*/status.json`. It prints one line per state change of a
-track (`queued`, `running`, `stalled`, `done`, `failed`, `taken-back`) and one
-line when worktree slots are idle while work is waiting. In Claude Code a
-Monitor line wakes an idle coordinator turn. Nothing wakes a coordinator after
+For detached workers the coordinator keeps one persistent Monitor running
+`ai-gent delegate watch`. It prints one line per unacknowledged event
+(`done`, `failed`, `stalled`, `taken-back`) and an `idle: free_slots=N` line
+when slots are free and no track is live. In Claude Code a Monitor line wakes
+an idle coordinator turn, but a Monitor expires after about 30 minutes: re-arm
+it, and treat a silent Monitor as unproven, not as quiet workers. Nothing wakes a coordinator after
 its session ends, and a toast or UI pane cannot wake a model turn. So state
-must be recoverable from files: on a new session or after a compaction, read
-the status files, `delegation.log` and the ledger and reconcile (section 5)
-before anything else. The Monitor is started after the first detached
-dispatch and checked again at every session start.
+must be recoverable from files: the events log (`.ai-gent/delegate/events.jsonl`)
+survives, and a restarted coordinator replays what it missed with
+`delegate watch --once` (only unacknowledged events). On a new session or
+after a compaction, also read the status files, `delegation.log` and the
+ledger and reconcile (section 5) before anything else. The Monitor is started
+after the first detached dispatch and checked again at every session start.
 
 ## 2. The normalized event
 
@@ -31,8 +34,9 @@ A terminal or capacity event is the tuple `track`, `started` (the run's start
 time from `status.json`), `state` and a result reference
 (`ai-gent delegate result <track>`, never the text itself).
 
-`event id = track + started + state`. The coordinator keeps the ids it has
-handled in the ledger. An id already handled is a duplicate; an event whose
+`event id = track:started:state`, as `delegate watch` prints it. After
+handling an event, run `ai-gent delegate ack <id>` (or `ack --all`); watch
+never replays an acknowledged one. The ledger may also note the ids handled. An id already handled is a duplicate; an event whose
 `started` is older than the track's current run is stale. Both are ignored,
 and the files, not the event, say what is true now. A worker's exit is not
 proof of accepted work.
@@ -42,12 +46,18 @@ proof of accepted work.
 1. **Verify outside the worker**: `ai-gent delegate check`, then the project's
    checks run by you, outside the worker's sandbox. Its report is data.
 2. **Review by a different agent** than the builder, from the diff and the
-   spec.
+   spec: `ai-gent delegate review --builder-track T --reviewer <agent>
+   --allow <glob>... [--evidence T=...]`. It refuses (exit 4) a reviewer that
+   is the builder, runs read-only, and needs `--allow` (the brief's
+   `allowed_paths`) or `--no-check`.
 3. **Land** under the usual gates (section 4).
 4. **Refill.** Count worktree slots from the registered tracks (cap 3, the
    `max_parallel` of `.ai-gent/parallel.yaml`; subagents of the session do not
    count). Fill free slots from approved tasks whose dependencies have landed,
-   else start the next stage's tasks.
+   else start the next stage's tasks. `ai-gent delegate idle --tasks-file F`
+   prints `free_slots=N ready_tasks=M reason=...` (`dispatch`, `cap`,
+   `dependency`, `approval`, `none-ready`) and never dispatches. It does not
+   know `ownership conflict` or `quota`; the coordinator records those.
 
 **Invariant:** if approved ready work and free capacity coexist, dispatch, or
 record the reason in the ledger: `dependency`, `approval`, `ownership
@@ -83,17 +93,19 @@ Always reconcile from the files; never from memory of what an event said.
 
 ## 6. Built and planned
 
-Built: the status files and `delegation.log`, `ai-gent delegate status` and
-`result`, `delegate mark` for hand-launched dispatches, and the Workers pane
-(`plugins/project`), which only **reads** them. The pane shows state and never
-detects, schedules or dispatches.
+Built: the status files and `delegation.log`, `ai-gent delegate status`,
+`result` and `mark`, the append-only events log with `delegate events
+[--pending]`, `delegate watch [--once] [--since-ack] [--json]`, `delegate ack
+<id>... | --all`, `delegate idle --tasks-file F` and `delegate review`, and
+the Workers pane (`plugins/project`), which only **reads** them. The pane
+shows state and never detects, schedules or dispatches.
 
 Planned, not available, so no skill may tell anyone to run them:
 
-- `ai-gent delegate events` / `delegate watch`: a durable, append-only event
-  log with acknowledgements, so a missed event is replayed.
-- `ai-gent delegate idle`: a check that lists free slots and the hold reason
-  for each waiting task.
+- Ledger columns for event ids handled and for hold reasons (the ledger is
+  still written by the coordinator by hand).
+- Any automatic dispatch: `delegate idle` only reports; the coordinator
+  starts the work.
 
-Until then the Monitor and the ledger carry this protocol, and the invariant
-is kept by the coordinator.
+The invariant is kept by the coordinator, with `watch` and `idle` as its
+instruments.

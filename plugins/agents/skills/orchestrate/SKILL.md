@@ -89,7 +89,9 @@ already know. Template and examples: `references/cards.md`. Every card has:
 ## 3a. Completion, verification and continuation
 
 A finished subagent notifies you by itself; a detached delegate does not, so
-keep the Monitor over its status files (`../../references/worker-continuation.md`).
+run `ai-gent delegate watch` in a Monitor (it expires after ~30 min; re-arm it),
+`ack` each handled event, and use `delegate idle` for the hold reason
+(`../../references/worker-continuation.md`).
 On each terminal event: verify, review (section 4), land (section 5), then
 refill free slots from approved, dependency-ready cards, or record why not.
 Execution state is not card state: a worker that exited is `review` at most;
