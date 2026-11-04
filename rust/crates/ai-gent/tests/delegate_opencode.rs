@@ -322,7 +322,7 @@ fn a_builder_run_has_stdin_closed_the_inline_permission_set_and_summed_usage() {
     // fake does not read HOME, so this checks the adapter, not the child).
     assert_eq!(listing(&home), before_home);
     let st = status::read(d.path(), "o-build").unwrap();
-    assert_eq!(st.agent, "opencode");
+    assert_eq!(st.agent, "opencode:opencode/flint-40b-free");
     assert!(
         !d.path()
             .join(".ai-gent/delegate/o-build/agent.pid")

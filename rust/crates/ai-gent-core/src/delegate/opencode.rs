@@ -124,6 +124,32 @@ const CREDENTIAL_FILES: [&str; 12] = [
     "*/.npmrc",
 ];
 
+/// Whether a file's base name looks like a credential file: the one list the OpenCode deny rules and
+/// the review prompt share (`.env*`, `.netrc`, `.npmrc`, `.pypirc`, `.git-credentials`, SSH keys,
+/// `*.pem`/`*.key`/`*.p12`/`*.pfx`, `credentials*`, `secrets*`, `connections.env|toml`). Case is ignored.
+#[must_use]
+pub fn is_credential_name(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n.starts_with(".env")
+        || [
+            "credentials",
+            "secrets",
+            "id_rsa",
+            "id_ed25519",
+            "id_ecdsa",
+            "id_dsa",
+        ]
+        .iter()
+        .any(|f| n.contains(f))
+        || [".pem", ".key", ".p12", ".pfx"]
+            .iter()
+            .any(|e| n.ends_with(e))
+        || matches!(
+            n.as_str(),
+            ".netrc" | "_netrc" | ".npmrc" | ".pypirc" | "connections.env" | "connections.toml"
+        )
+}
+
 /// The same names as fragments, for shell commands that read a file (`cat .env`): a pattern
 /// `<reader> *<fragment>*`.
 const CREDENTIAL_FRAGMENTS: [&str; 10] = [
@@ -624,7 +650,9 @@ impl Adapter for OpenCodeAdapter {
             ],
             stall_secs: req.stall_secs,
         };
-        launch(&self.root, &self.watch_exe, req, "opencode", &l)
+        // The status records the model (`opencode:<model>`): the review rule compares models (FR-010).
+        let agent = format!("opencode:{}", qualify(&self.model));
+        launch(&self.root, &self.watch_exe, req, &agent, &l)
     }
 
     /// `result` runs first, so a finished run's persisted state is the corrected one here too.
@@ -718,6 +746,33 @@ fn correct_log(root: &Path, st: &Status) -> Res<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_denied_credential_pattern_is_a_credential_name() {
+        for pat in CREDENTIAL_FILES {
+            let name = pat.trim_start_matches("*/").replace('*', "");
+            let name = if name.ends_with('.') {
+                format!("{name}x")
+            } else {
+                name
+            };
+            assert!(is_credential_name(&name), "{pat} -> {name}");
+        }
+        for n in [
+            ".netrc",
+            ".npmrc",
+            ".pypirc",
+            ".git-credentials",
+            "id_ecdsa",
+            "id_dsa",
+            "a.pfx",
+            "secrets.yml",
+            "Credentials.json",
+        ] {
+            assert!(is_credential_name(n), "{n}");
+        }
+        assert!(!is_credential_name("main.rs") && !is_credential_name("environment.md"));
+    }
 
     fn adapter() -> OpenCodeAdapter {
         OpenCodeAdapter {

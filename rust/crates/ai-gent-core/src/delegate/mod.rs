@@ -14,6 +14,7 @@ pub mod events;
 pub mod gitx;
 pub mod glob;
 pub mod opencode;
+pub mod review;
 pub mod schedule;
 pub mod sources;
 pub mod state;

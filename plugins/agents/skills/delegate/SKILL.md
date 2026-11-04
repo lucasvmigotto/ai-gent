@@ -80,8 +80,9 @@ The delegate edits the working tree and stops. Then Claude:
 3. `ai-gent delegate commit --worktree <wt> --allow ... -m "<Conventional
    Commit>"`: staged by explicit path, no trailer or marker of any kind.
 4. **Review by a different agent than the builder, always** (FR-010): the
-   reviewer reads the diff and the spec, not the builder's report. Codex
-   reviews read-only (`references/supervisor.md`). Findings go back; done
+   reviewer reads the diff and the spec, not the builder's report.
+   `ai-gent delegate review` runs it read-only and refuses a reviewer that
+   is the builder (`references/supervisor.md`). Findings go back; done
    means the acceptance criteria pass.
 5. Only Claude pushes, opens the PR, watches CI and merges (`git:workflow`).
 6. Refill: a landed or taken-back track frees a slot; start the next approved,
@@ -115,12 +116,22 @@ delegate log` prints the delegation log (`.ai-gent/delegation.log`).
   `preflight`, `run`, `status`, `stop`, `result`. It needs
   `AI_GENT_CLAUDE_CONFIG_DIR` (a separate profile; never the current one).
 
+- `ai-gent delegate review --builder-track <t> --reviewer
+  codex|claude|opencode [--worktree <wt>] [--spec <f>]... --allow <glob>...
+  [--no-check] [--out <f>] [--dry-run]` is the review step (FR-010): it
+  refuses (exit 4) when the reviewer is the builder's agent in the same
+  profile or config, builds the prompt from the worktree (diff text, specs,
+  `check` findings, never the builder's report; capped at 100 KiB, cuts are
+  noted) and runs the reviewer read-only as the track `review-<t>`. `--allow`
+  is required (exit 2 without it): the FR-011 check runs first and findings
+  stop the review; `--no-check` skips it on request and the prompt says so.
+  `--dry-run` prints the prompt and the decision.
+  Details in `references/supervisor.md`.
+
 ## Not built yet
 
 - No subcommand reads `.ai-gent/delegate.yaml`: `plan` takes `--allow-agent`,
   and Claude reads and writes the file.
-- No review runner (T021): the review is a manual step, the landing checklist
-  in `references/supervisor.md`.
 - Token tagging of delegated runs is limited to what `result` reports.
 
 Say so if asked; do not invent flags.
