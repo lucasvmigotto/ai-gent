@@ -7,4 +7,4 @@
 - [x] T005 draw tests: segments, tones, and segments concatenate to the text
 - [x] T006 mutation pass, then `claude plugin test` and `claude plugin validate` for `project`
 - [x] T007 README (project mod row) and CHANGELOG (`## Unreleased`) lines
-- [ ] T008 `scripts/check.sh`, commit by path, push the work branch (no PR)
+- [x] T008 `scripts/check.sh`, commit by path, push the work branch (no PR)
