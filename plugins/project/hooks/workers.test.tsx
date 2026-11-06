@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { AGENTS, ALL_STATES, LOG, PROFILE_AND_CODEX, track } from './workers-fixtures'
+import { segments } from './workers-draw'
 
 type Handlers = Parameters<Parameters<typeof test>[1]>[1]
 
@@ -104,6 +105,42 @@ test('the pane draws on terminal and desktop, and a row opens on press', async (
   await ui.press({ key: 'toggle:feat-db' })
   expect(await ui.find({ type: 'Text', text: /Verdict: accepted/ })).toBeDefined()
   await ui.unmount()
+})
+
+// Spec 042: slots over the cap are [!] cells in the error tone, apart from the occupied ones.
+const RUNNING = (n: number): Record<string, string> => statusFiles(Object.fromEntries(Array.from({ length: n }, (_, i) => [`w${i}`, track(`w${i}`, 'running')])))
+
+const colorOf = async (ui: { find: (q: never) => Promise<unknown> }, text: RegExp) =>
+  ((await ui.find({ type: 'Text', text } as never)) as { props?: { color?: string } } | undefined)?.props?.color
+
+test('over the cap the pane draws the extra cells and the status in the error tone', async ($, on) => {
+  world(on, { ...RUNNING(5), '.ai-gent/parallel.yaml': 'max_parallel: 3\n' })
+  await $.session.start(START)
+  await $.command.run({ command: 'workers-pane', args: '' } as never)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await colorOf(ui, /^\[!\] \[!\]$/)).toBe('error')
+  expect(await colorOf(ui, /^2 over the limit$/)).toBe('error')
+  expect(await colorOf(ui, /5 \/ 3 slots/)).toBe('error')
+  expect(await colorOf(ui, /^\[■\] \[■\] \[■\] $/)).toBe('suggestion')
+  await ui.unmount()
+})
+
+test('at or under the cap the pane draws no [!] cell and no error-toned capacity', async ($, on) => {
+  world(on, { ...RUNNING(3), '.ai-gent/parallel.yaml': 'max_parallel: 3\n' })
+  await $.session.start(START)
+  await $.command.run({ command: 'workers-pane', args: '' } as never)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /\[!\]/ })).toBeUndefined()
+  expect(await colorOf(ui, /3 \/ 3 slots/)).toBe('suggestion')
+  await ui.unmount()
+})
+
+test('a line cut at its marks is the same text again', () => {
+  const line = { key: 'k', text: '[■] [!] [!]   2 over the limit', tone: 'info' as const, marks: [{ from: 4, to: 11, tone: 'bad' as const }, { from: 14, to: 30, tone: 'bad' as const }] }
+  const parts = segments(line)
+  expect(parts.map(([t]) => t).join('')).toBe(line.text)
+  expect(parts.map(([, tone]) => tone)).toEqual(['info', 'bad', 'info', 'bad'])
+  expect(segments({ key: 'k', text: 'plain', tone: 'dim' })).toEqual([['plain', 'dim']])
 })
 
 test('the pane polls while open and redraws when a status file changes, and an idle poll reads nothing again', async ($, on) => {

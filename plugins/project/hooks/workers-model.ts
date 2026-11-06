@@ -201,7 +201,8 @@ function countText(counts: Counts, ascii: boolean): string {
 export function compactLine(snapshot: WorkersSnapshot | null, ascii = false): { text: string; tone: Tone } | null {
   if (snapshot === null || snapshot.workers.length === 0) return null
   const counts = countsOf(snapshot.workers)
-  const tone: Tone = counts.failed > 0 ? 'bad' : counts.stalled > 0 ? 'warn' : 'plain'
+  const over = Number.isInteger(snapshot.cap) && snapshot.cap >= 1 && slotsUsed(counts) > snapshot.cap
+  const tone: Tone = counts.failed > 0 || over ? 'bad' : counts.stalled > 0 ? 'warn' : 'plain'
   return { text: `Workers: ${countText(counts, ascii)}${glyphs(ascii).sep}slots ${slotsUsed(counts)}/${snapshot.cap}`, tone }
 }
 
@@ -216,7 +217,10 @@ export function duration(secs: number): string {
 
 const compactNumber = (n: number): string => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n))
 
-export type Line = { key: string; text: string; tone: Tone; toggle?: string; buttonKey?: string }
+// `marks` are ranges of `text` drawn in their own tone (the slots over the limit); the text itself is what
+// `/workers` prints, so colour is never the only carrier of the meaning.
+export type Mark = { from: number; to: number; tone: Tone }
+export type Line = { key: string; text: string; tone: Tone; toggle?: string; buttonKey?: string; marks?: Mark[] }
 export type Limit = { kind: string; percent: number }
 export type Context = {
   columns: number
@@ -279,16 +283,28 @@ function capacity(used: number, cap: number, columns: number, ascii: boolean, el
   }
   const over = used > cap
   const free = Math.max(0, cap - used)
-  const tone: Tone = over ? 'warn' : used > 0 ? 'info' : 'dim'
+  const tone: Tone = over ? 'bad' : used > 0 ? 'info' : 'dim'
   const figure = `${used} / ${cap} slots`
   const status = over ? `${used - cap} over the limit` : free === 0 ? 'full' : `${free} available`
-  if (cap > 12 || columns < NARROW) return [{ key: 'cap', text: spread('CAPACITY', `${used}/${cap} slots · ${status}`, columns, ellipsis), tone }]
+  const compact = (): Line[] => [{ key: 'cap', text: spread('CAPACITY', `${used}/${cap} slots · ${status}`, columns, ellipsis), tone }]
+  if (cap > 12 || columns < NARROW) return compact()
+  // Past the cap the meter keeps growing: the slots beyond it are [!] cells in the error tone. Used cells = used when
+  // over, so the meter must fit beside the status; otherwise the compact text, wholly in the error tone.
+  const cells = Math.max(cap, used)
+  if (cells > 12 || (over && 4 * used - 1 > columns - status.length - 1)) return compact()
   const on = ascii ? '[#]' : '[■]'
   const off = '[ ]'
-  const cells = Array.from({ length: cap }, (_, i) => (i < used ? on : off)).join(' ')
+  const meter = Array.from({ length: cells }, (_, i) => (i >= cap ? '[!]' : i < used ? on : off)).join(' ')
+  const meterLine = spread(meter, status, columns, ellipsis)
+  const marks: Mark[] = over
+    ? [
+        { from: 4 * cap, to: 4 * used - 1, tone: 'bad' },
+        { from: meterLine.length - status.length, to: meterLine.length, tone: 'bad' },
+      ]
+    : []
   return [
     { key: 'cap', text: spread('CAPACITY', figure, columns, ellipsis), tone },
-    { key: 'cap-meter', text: spread(cells, status, columns, ellipsis), tone },
+    { key: 'cap-meter', text: meterLine, tone: over ? 'info' : tone, ...(over ? { marks } : {}) },
   ]
 }
 

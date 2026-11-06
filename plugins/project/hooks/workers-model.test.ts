@@ -75,7 +75,7 @@ test('unreadable status files are counted', () => {
 })
 
 test('compact line: counts, slots, a marker for stalled or failed', () => {
-  expect(compactLine(snapshot({ a: track('a', 'running'), b: track('b', 'running'), c: track('c', 'done') }, { cap: 1 }))).toEqual({ text: 'Workers: 2 running · 1 done · slots 2/1', tone: 'plain' })
+  expect(compactLine(snapshot({ a: track('a', 'running'), b: track('b', 'running'), c: track('c', 'done') }, { cap: 1 }))).toEqual({ text: 'Workers: 2 running · 1 done · slots 2/1', tone: 'bad' })
   expect(compactLine(snapshot({ a: track('a', 'running'), c: track('c', 'done') }, { cap: 3 }))?.text).toBe('Workers: 1 running · 1 done · slots 1/3')
   expect(compactLine(snapshot(ALL_STATES))).toEqual({ text: 'Workers: 1 running · 1 queued · 1 stalled ⚠ · 1 failed ✕ · 1 done · 1 taken-back · slots 2/3', tone: 'bad' })
   expect(compactLine(snapshot({ a: track('a', 'stalled') }), true)).toEqual({ text: 'Workers: 1 stalled ! | slots 1/3', tone: 'warn' })
@@ -216,6 +216,82 @@ test('capacity: 0/3, 2/3, 3/3, over, unknown, wide cap and a narrow pane', () =>
   expect(unknown).not.toContain('[')
   expect(lines(snapshot({ a: track('a', 'running') }, { cap: 20 }))).toContain('1/20 slots · 19 available')
   expect(lines(none, { columns: 40 })).toContain('0/3 slots · 3 available')
+})
+
+// Spec 042: the slots beyond the cap are [!] cells in the error tone, and the text is what /workers prints.
+const running = (n: number): Record<string, string> => Object.fromEntries(Array.from({ length: n }, (_, i) => [`w${i}`, track(`w${i}`, 'running')]))
+// The CAPACITY line and the meter under it, when there is one (build renumbers the keys, so by text).
+const capLines = (n: number, cap: number, over: Record<string, unknown> = {}) => {
+  const all = build(snapshot(running(n), { cap }), { ...ctx, ...over } as never).lines
+  const at = all.findIndex(l => l.text.startsWith('CAPACITY'))
+  return all.slice(at, at + (all[at + 1]?.text.startsWith('[') ? 2 : 1))
+}
+const slice = (l: { text: string; marks?: { from: number; to: number }[] }) => (l.marks ?? []).map(m => l.text.slice(m.from, m.to))
+
+test('over the limit: the meter grows to the used slots, the extra cells are [!] in the error tone', () => {
+  const [figure, meter] = capLines(6, 3)
+  expect(figure?.tone).toBe('bad')
+  expect(figure?.text).toContain('6 / 3 slots')
+  expect(meter?.text).toMatch(/^\[■\] \[■\] \[■\] \[!\] \[!\] \[!\] +3 over the limit$/)
+  expect(meter?.tone).toBe('info')
+  expect(slice(meter as never)).toEqual(['[!] [!] [!]', '3 over the limit'])
+  expect(meter?.marks?.every(m => m.tone === 'bad')).toBe(true)
+})
+
+test('over the limit: one cell over, and the figure is the same as before', () => {
+  const [, meter] = capLines(4, 3)
+  expect(meter?.text).toMatch(/^\[■\] \[■\] \[■\] \[!\] +1 over the limit$/)
+  expect(slice(meter as never)).toEqual(['[!]', '1 over the limit'])
+})
+
+test('over the limit in ASCII: [#] and [!], and the text stays ASCII', () => {
+  const lines2 = capLines(5, 3, { ascii: true })
+  const meter = lines2[1]
+  expect(meter?.text).toMatch(/^\[#\] \[#\] \[#\] \[!\] \[!\] +2 over the limit$/)
+  expect(lines2.map(l => l.text).join('\n')).toMatch(/^[\x20-\x7e\n]*$/)
+})
+
+test('not over the limit: no marks, no [!], the same tones as before', () => {
+  for (const [n, tone] of [[2, 'info'], [3, 'info']] as const) {
+    const [figure, meter] = capLines(n, 3)
+    expect(figure?.tone).toBe(tone)
+    expect(meter?.marks).toBeUndefined()
+    expect(meter?.text).not.toContain('[!]')
+  }
+})
+
+test('over the limit falls back to one error-toned line: narrow pane, wide cap, too many slots, no room', () => {
+  for (const [n, cap, over] of [[5, 3, { columns: 40 }], [20, 14, {}], [14, 3, {}], [12, 3, { columns: 60 }]] as const) {
+    const out = capLines(n, cap, over)
+    expect(out).toHaveLength(1)
+    expect(out[0]?.tone).toBe('bad')
+    expect(out[0]?.marks).toBeUndefined()
+    expect(out[0]?.text).toContain('over the limit')
+  }
+  // The same slots on a pane that has room keep the meter.
+  expect(capLines(12, 3, { columns: 72 })).toHaveLength(2)
+})
+
+test('the marks always cut the line the model printed', () => {
+  for (const columns of [60, 62, 72, 100]) {
+    for (const n of [4, 6, 8]) {
+      for (const l of capLines(n, 3, { columns })) {
+        for (const m of l.marks ?? []) {
+          expect(m.from).toBeGreaterThanOrEqual(0)
+          expect(m.to).toBeLessThanOrEqual(l.text.length)
+          expect(l.text.slice(m.from, m.to).trim()).not.toBe('')
+        }
+      }
+    }
+  }
+})
+
+test('the pipeline line is error-toned over the limit, below failed and above stalled, and its text is unchanged', () => {
+  const over = compactLine(snapshot(running(4), { cap: 3 }))
+  expect(over).toEqual({ text: 'Workers: 4 running · slots 4/3', tone: 'bad' })
+  expect(compactLine(snapshot(running(3), { cap: 3 }))?.tone).toBe('plain')
+  expect(compactLine(snapshot({ ...running(4), s: track('s', 'stalled') }, { cap: 3 }))?.tone).toBe('bad')
+  expect(compactLine(snapshot(running(2), { cap: 0 }))?.tone).toBe('plain')
 })
 
 test('a queued worker with free capacity is never called blocked or waiting for a slot', () => {
