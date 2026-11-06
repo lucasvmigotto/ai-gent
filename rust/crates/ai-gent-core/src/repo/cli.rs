@@ -6,6 +6,7 @@ use super::remote::detect_repo;
 use super::{Ctx, Failed, R, note};
 use crate::env::Env;
 use crate::exec;
+use crate::guard::grant;
 use crate::passstore::redact;
 use std::io::{BufRead, Write};
 use std::process::{Command, Stdio};
@@ -172,10 +173,59 @@ pub fn prepare_cli(
             "{entry} isn't in pass; add it in your own terminal: pass insert -m {entry}"
         )));
     }
+    if cli == "gh"
+        && write
+        && positional.len() == 2
+        && positional[0] == "pr"
+        && positional[1] == "merge"
+    {
+        check_merge_base(ctx, cli, &words, &env)?;
+    }
     note(&format!("{cli} {head3} \u{b7} token from {source}"));
     let mut argv = vec![cli.to_string()];
     argv.extend(words);
     Ok(Prepared { argv, env })
+}
+
+/// With a merge grant active the repo guard no longer asks, so a PR that targets a branch the
+/// grant does not cover is refused here, where the platform can be asked: promotion stays the
+/// user's own step. Mirrors `check_merge_base` of `plugins/repo/scripts/reporun.py`.
+fn check_merge_base(ctx: &Ctx, cli: &str, words: &[String], env: &Env) -> R<()> {
+    let Some(grant) = grant::load("").filter(|g| g.has("merge")) else {
+        return Ok(());
+    };
+    let at = words.iter().position(|w| w == "merge").unwrap_or(0);
+    let mut view = vec!["pr".to_string(), "view".to_string()];
+    if let Some(sel) = words.get(at + 1).filter(|w| !w.starts_with('-')) {
+        view.push(sel.clone());
+    }
+    let repo_flag = words
+        .iter()
+        .enumerate()
+        .rfind(|(i, w)| matches!(w.as_str(), "-R" | "--repo") && i + 1 < words.len());
+    if let Some((i, w)) = repo_flag {
+        view.extend([w.clone(), words[i + 1].clone()]);
+    }
+    view.extend(["--json", "baseRefName", "-q", ".baseRefName"].map(String::from));
+    let mut argv = vec![cli.to_string()];
+    argv.extend(view);
+    let base = exec::run(command(ctx, &argv), env, None, Duration::from_secs(30))
+        .ok()
+        .filter(|o| o.code == 0)
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+    if base.is_empty() {
+        return Err(Failed::refused(
+            "the autonomy grant lets a merge run unasked only when the PR's base is known; couldn't read it, so merge this one yourself",
+        ));
+    }
+    if !grant.covers(&base) {
+        return Err(Failed::refused(format!(
+            "the autonomy grant covers merges into {}, and this PR targets {base}; promotion is the user's own step",
+            grant.branches().join(" ")
+        )));
+    }
+    Ok(())
 }
 
 fn command(ctx: &Ctx, argv: &[String]) -> Command {

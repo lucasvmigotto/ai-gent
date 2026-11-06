@@ -2,7 +2,7 @@
 use super::{any, attributed, re};
 use crate::guard::reasons::decide;
 use crate::guard::segment::View;
-use crate::guard::{Ctx, Decision};
+use crate::guard::{Ctx, Decision, Event, grant};
 use regex::Regex;
 
 const GIT_RE: &str = r"^[[:space:]]*(sudo[[:space:]]+)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+";
@@ -53,10 +53,21 @@ pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
     {
         return decide("git.force", &[]);
     }
-    if has(s, "push", None) {
+    // Nothing but the user writes the grant: a command that names it and is not a read.
+    if v.raw.contains(grant::FILE)
+        && (v.raw.contains('>')
+            || s.iter().any(|l| {
+                l.contains(grant::FILE)
+                    && !re(r"^[[:space:]]*(cat|ls|head|tail|grep|stat|wc|test|\[)[[:space:]]")
+                        .is_match(l)
+            }))
+    {
+        return decide("git.grant_file", &[]);
+    }
+    if has(s, "push", None) && !push_lifted(s, cwd, ctx) {
         return decide("git.push", &[]);
     }
-    if gh(s, "pr[[:space:]]+create") {
+    if gh(s, "pr[[:space:]]+create") && !pr_create_lifted(s, cwd, ctx) {
         return decide("git.pr_create", &[]);
     }
     if has(
@@ -87,6 +98,58 @@ pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
         }
     }
     Decision::none()
+}
+
+/// A push the active grant lifts: every push names no protected branch and no bulk or forced
+/// form, and runs from a branch that is not a protected one either.
+fn push_lifted(segments: &[String], cwd: &str, ctx: &Ctx) -> bool {
+    let dir = working_dir(segments, cwd);
+    if !grant::load(&dir).is_some_and(|g| g.has("push")) {
+        return false;
+    }
+    let branch = (ctx.branch_of)(&dir).unwrap_or_default();
+    if matches!(
+        branch.as_str(),
+        "" | "main" | "master" | "homolog" | "staging"
+    ) {
+        return false;
+    }
+    let sel = re(&format!("{GIT_RE}push([[:space:]].*)?$"));
+    let bad = re(
+        r"(^|[[:space:]])(--all|--mirror|--tags|--delete|--prune|-d)([[:space:]]|$)|(^|[[:space:]:/])(main|master|homolog|staging)([[:space:]]|$)|(^|[[:space:]])\+",
+    );
+    !segments
+        .iter()
+        .filter(|s| sel.is_match(s))
+        .any(|s| bad.is_match(s))
+}
+
+/// A `gh pr create` the active grant lifts: it names a `--base` the grant covers.
+fn pr_create_lifted(segments: &[String], cwd: &str, _ctx: &Ctx) -> bool {
+    let Some(g) = grant::load(&working_dir(segments, cwd)).filter(|g| g.has("pr")) else {
+        return false;
+    };
+    let create = re(r"^[[:space:]]*gh[[:space:]]+pr[[:space:]]+create");
+    let base = re(r"^.*[[:space:]](--base|-B)[[:space:]=]+([^[:space:]]+)");
+    segments
+        .iter()
+        .filter(|s| create.is_match(s))
+        .find_map(|s| base.captures(s).map(|c| c[2].to_string()))
+        .is_some_and(|b| g.covers(&b))
+}
+
+/// An Edit, Write or similar tool aimed at the grant file.
+#[must_use]
+pub fn grant_file_tool(ev: &Event) -> Decision {
+    let target = ["file_path", "notebook_path"]
+        .iter()
+        .find_map(|k| ev.tool_input.get(*k).and_then(|v| v.as_str()));
+    match target {
+        Some(t) if t == grant::FILE || t.ends_with(&format!("/{}", grant::FILE)) => {
+            decide("git.grant_file", &[])
+        }
+        _ => Decision::none(),
+    }
 }
 
 /// The directory whose branch counts: the `-C` argument of the first segment that has one (the

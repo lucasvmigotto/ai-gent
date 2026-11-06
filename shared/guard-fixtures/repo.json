@@ -347,6 +347,351 @@
         "new",
         "windows"
       ]
+    },
+    {
+      "id": "repo-019",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr create --base develop --title t",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr create --base develop --title t",
+        "cmd": "reporun cli github --write -- pr create --base develop --title t"
+      }
+    },
+    {
+      "id": "repo-020",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr create --base main --title t",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr create --base main --title t",
+        "cmd": "reporun cli github --write -- pr create --base main --title t"
+      }
+    },
+    {
+      "id": "repo-021",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr create --title t",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr create --title t",
+        "cmd": "reporun cli github --write -- pr create --title t"
+      }
+    },
+    {
+      "id": "repo-022",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr merge 12",
+        "cmd": "reporun cli github --write -- pr merge 12"
+      }
+    },
+    {
+      "id": "repo-023",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "python3 plugins/repo/scripts/reporun.py cli github --write -- pr merge 12 --rebase",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "python3 plugins/repo/scripts/reporun.py cli github --write -- pr merge 12 --rebase",
+        "cmd": "python3 plugins/repo/scripts/reporun.py cli github --write -- pr merge 12 --rebase"
+      }
+    },
+    {
+      "id": "repo-024",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write pr merge 12",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write pr merge 12",
+        "cmd": "reporun cli github --write pr merge 12"
+      }
+    },
+    {
+      "id": "repo-025",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- gh issue create --title t",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- gh issue create --title t",
+        "cmd": "reporun cli github --write -- gh issue create --title t"
+      }
+    },
+    {
+      "id": "repo-026",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue comment 4 --body hi",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- issue comment 4 --body hi",
+        "cmd": "reporun cli github --write -- issue comment 4 --body hi"
+      }
+    },
+    {
+      "id": "repo-027",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue edit 4 --add-label bug",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- issue edit 4 --add-label bug",
+        "cmd": "reporun cli github --write -- issue edit 4 --add-label bug"
+      }
+    },
+    {
+      "id": "repo-028",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue close 4",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- issue close 4",
+        "cmd": "reporun cli github --write -- issue close 4"
+      }
+    },
+    {
+      "id": "repo-029",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- release create 1.0.0",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- release create 1.0.0",
+        "cmd": "reporun cli github --write -- release create 1.0.0"
+      }
+    },
+    {
+      "id": "repo-030",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun api github --write POST /repos/o/r/issues",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun api github --write POST /repos/o/r/issues",
+        "cmd": "reporun api github --write POST /repos/o/r/issues"
+      }
+    },
+    {
+      "id": "repo-031",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun batch plan.json --write",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun batch plan.json --write",
+        "cmd": "reporun batch plan.json --write"
+      }
+    },
+    {
+      "id": "repo-032",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12 && reporun cli github --write -- issue close 4",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "repo-033",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue comment 4 --body \"x\\n\\nCo-Authored-By: A <a@b.c>\"",
+      "want": "deny",
+      "reason": "repo guard: this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "repo-034",
+      "tool": "Bash",
+      "cwd": "@expired",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr merge 12",
+        "cmd": "reporun cli github --write -- pr merge 12"
+      }
+    },
+    {
+      "id": "repo-035",
+      "tool": "Bash",
+      "cwd": "@partial",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr merge 12",
+        "cmd": "reporun cli github --write -- pr merge 12"
+      }
+    },
+    {
+      "id": "repo-036",
+      "tool": "Bash",
+      "cwd": "@partial",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue create --title t",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- issue create --title t",
+        "cmd": "reporun cli github --write -- issue create --title t"
+      }
+    },
+    {
+      "id": "repo-037",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr merge 12",
+        "cmd": "reporun cli github --write -- pr merge 12"
+      }
     }
   ]
 }
