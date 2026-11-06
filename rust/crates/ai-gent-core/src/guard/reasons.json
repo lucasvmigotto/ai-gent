@@ -21,6 +21,13 @@
     "text": "force pushes use --force-with-lease, and only on the user's explicit order"
   },
   {
+    "id": "git.grant_file",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "deny",
+    "text": "the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it"
+  },
+  {
     "id": "git.push",
     "guard": "git",
     "marker": "git:workflow guard:",
