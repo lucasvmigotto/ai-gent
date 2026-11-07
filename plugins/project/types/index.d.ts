@@ -137,8 +137,9 @@ export type WorkerLogLine = { ts: number; track: string; agent: string; tasks: s
 export type WorkersSnapshot = {
   workers: WorkerStatus[]
   log: WorkerLogLine[]
-  // The worktree cap (max_parallel of .ai-gent/parallel.yaml, else 3).
-  cap: number
+  // The worktree cap (max_parallel of .ai-gent/parallel.yaml, else 3 when the file has no such key);
+  // null when it cannot be known (no file, unreadable, or an invalid value).
+  cap: number | null
   // Status files that were present but not well-formed.
   skipped: number
   // $.clock.now() milliseconds of the read that made it.
