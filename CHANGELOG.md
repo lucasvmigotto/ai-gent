@@ -19,7 +19,7 @@ changes.
 
 ### Fixed
 
-- **git:** the autonomy grant now applies inside a linked worktree: the guard (shell, OpenCode and the Rust evaluator alike) uses the worktree's own grant file when it has one and otherwise the main checkout's, so a git-excluded grant no longer goes unseen from `.worktrees/` and `.claude/worktrees/`
+- **git, repo:** the autonomy grant now applies inside a linked worktree: the guards (git and repo, shell, OpenCode and the Rust evaluator alike) and `reporun` uses the worktree's own grant file when it has one and otherwise the main checkout's, so a git-excluded grant no longer goes unseen from `.worktrees/` and `.claude/worktrees/`
 
 ## 2.27.0 — 2026-11-01
 

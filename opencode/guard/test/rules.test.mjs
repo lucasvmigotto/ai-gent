@@ -145,6 +145,9 @@ console.log("    a linked worktree reads the main checkout's grant")
   const cmd = "git push origin feat/wt"
   check("mjs worktree push", "none", ocDecision("git", { tool: "Bash" }, wt, cmd))
   check("shell worktree push", "none", shellDecision(GIT_GUARD, "Bash", wt, { command: cmd }))
+  const merge = "gh pr merge 5"
+  check("shell repo guard worktree merge", "none", shellDecision(REPO_GUARD, "Bash", wt, { command: merge }))
+  check("repo guard rules worktree merge", "none", repoGuard(merge, { cwd: wt }).decision)
   check("no grant, plain repo still asks", "ask", shellDecision(GIT_GUARD, "Bash", dirs["feat/x"], { command: cmd }))
 }
 
