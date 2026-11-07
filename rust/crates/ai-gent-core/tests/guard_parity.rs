@@ -31,11 +31,29 @@ struct Sandbox {
 fn sandbox() -> Sandbox {
     let dir = tempfile::tempdir().unwrap();
     let mut paths = Vec::new();
+    // The autonomy grant (.ai-gent/autonomy) a sandbox repository carries, as the user would write it.
+    let grants = [
+        (
+            "granted",
+            "expires: 2099-12-31T23:59:59Z\nbranches: develop dev\nactions: push pr merge issues\n",
+        ),
+        (
+            "expired",
+            "expires: 2000-01-01T00:00:00Z\nbranches: develop dev\nactions: push pr merge issues\n",
+        ),
+        (
+            "partial",
+            "expires: 2099-12-31T23:59:59Z\nactions: issues\n",
+        ),
+    ];
     for (k, b) in [
         ("main", "main"),
         ("staging", "staging"),
         ("dev", "dev"),
         ("feat", "feat/x"),
+        ("granted", "feat/x"),
+        ("expired", "feat/x"),
+        ("partial", "feat/x"),
     ] {
         let p = dir.path().join(k);
         let st = Command::new("git")
@@ -44,6 +62,10 @@ fn sandbox() -> Sandbox {
             .status()
             .unwrap();
         assert!(st.success());
+        if let Some((_, text)) = grants.iter().find(|(n, _)| *n == k) {
+            std::fs::create_dir_all(p.join(".ai-gent")).unwrap();
+            std::fs::write(p.join(".ai-gent").join("autonomy"), text).unwrap();
+        }
         paths.push((k, p.to_string_lossy().into_owned()));
     }
     Sandbox { _dir: dir, paths }

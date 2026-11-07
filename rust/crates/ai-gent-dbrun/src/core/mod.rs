@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 
 pub mod mask;
+pub mod plan;
 
 macro_rules! re {
     ($p:expr) => {{

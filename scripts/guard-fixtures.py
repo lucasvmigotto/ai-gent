@@ -38,7 +38,14 @@ GUARDS = {
 }
 SHELLS = ("sh", "powershell", "cmd")
 WANTS = ("deny", "ask", "none")
-BRANCHES = {"main": "main", "staging": "staging", "dev": "dev", "feat": "feat/x"}
+BRANCHES = {"main": "main", "staging": "staging", "dev": "dev", "feat": "feat/x",
+            "granted": "feat/x", "expired": "feat/x", "partial": "feat/x"}
+# The autonomy grant (.ai-gent/autonomy) a sandbox repository carries, as the user would write it.
+GRANTS = {
+    "granted": "expires: 2099-12-31T23:59:59Z\nbranches: develop dev\nactions: push pr merge issues\n",
+    "expired": "expires: 2000-01-01T00:00:00Z\nbranches: develop dev\nactions: push pr merge issues\n",
+    "partial": "expires: 2099-12-31T23:59:59Z\nactions: issues\n",
+}
 
 
 def load(name):
@@ -145,9 +152,13 @@ class Sandbox:
             p = os.path.join(self.dir, k)
             subprocess.run(["git", "init", "-q", "-b", b, p], check=True)
             self.paths[k] = p
+            if k in GRANTS:
+                os.makedirs(os.path.join(p, ".ai-gent"))
+                with open(os.path.join(p, ".ai-gent", "autonomy"), "w", encoding="utf-8") as f:
+                    f.write(GRANTS[k])
 
     def sub(self, s):
-        return re.sub(r"\{(main|staging|dev|feat)\}", lambda m: self.paths[m.group(1)], s)
+        return re.sub(r"\{(main|staging|dev|feat|granted|expired|partial)\}", lambda m: self.paths[m.group(1)], s)
 
     def cwd(self, c):
         return self.paths[c[1:]] if c.startswith("@") else c

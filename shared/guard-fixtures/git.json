@@ -1048,6 +1048,468 @@
         "new",
         "windows"
       ]
+    },
+    {
+      "id": "git-056",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push origin feat/x",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push origin feat/x",
+        "cmd": "git push origin feat/x"
+      }
+    },
+    {
+      "id": "git-057",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push -u origin feat/x",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push -u origin feat/x",
+        "cmd": "git push -u origin feat/x"
+      }
+    },
+    {
+      "id": "git-058",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push origin develop",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push origin develop",
+        "cmd": "git push origin develop"
+      }
+    },
+    {
+      "id": "git-059",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push origin HEAD:main",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push origin HEAD:main",
+        "cmd": "git push origin HEAD:main"
+      }
+    },
+    {
+      "id": "git-060",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push origin main",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push origin main",
+        "cmd": "git push origin main"
+      }
+    },
+    {
+      "id": "git-061",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push --all",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push --all",
+        "cmd": "git push --all"
+      }
+    },
+    {
+      "id": "git-062",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push --tags",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push --tags",
+        "cmd": "git push --tags"
+      }
+    },
+    {
+      "id": "git-063",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push --delete origin old",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push --delete origin old",
+        "cmd": "git push --delete origin old"
+      }
+    },
+    {
+      "id": "git-064",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push origin +feat/x",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push origin +feat/x",
+        "cmd": "git push origin +feat/x"
+      }
+    },
+    {
+      "id": "git-065",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push --force origin feat/x",
+      "want": "deny",
+      "reason": "git:workflow guard: force pushes use --force-with-lease, and only on the user's explicit order",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push --force origin feat/x",
+        "cmd": "git push --force origin feat/x"
+      }
+    },
+    {
+      "id": "git-066",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "git push origin feat/x && git push origin main",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-067",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "gh pr create --base develop --title t",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "gh pr create --base develop --title t",
+        "cmd": "gh pr create --base develop --title t"
+      }
+    },
+    {
+      "id": "git-068",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "gh pr create --base main --title t",
+      "want": "ask",
+      "reason": "git:workflow guard: opening a PR publishes the branch; allow only on the user's explicit request",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "gh pr create --base main --title t",
+        "cmd": "gh pr create --base main --title t"
+      }
+    },
+    {
+      "id": "git-069",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "gh pr create --title t",
+      "want": "ask",
+      "reason": "git:workflow guard: opening a PR publishes the branch; allow only on the user's explicit request",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "gh pr create --title t",
+        "cmd": "gh pr create --title t"
+      }
+    },
+    {
+      "id": "git-070",
+      "tool": "Bash",
+      "cwd": "@expired",
+      "shell": "sh",
+      "command": "git push origin feat/x",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push origin feat/x",
+        "cmd": "git push origin feat/x"
+      }
+    },
+    {
+      "id": "git-071",
+      "tool": "Bash",
+      "cwd": "@expired",
+      "shell": "sh",
+      "command": "gh pr create --base develop --title t",
+      "want": "ask",
+      "reason": "git:workflow guard: opening a PR publishes the branch; allow only on the user's explicit request",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "gh pr create --base develop --title t",
+        "cmd": "gh pr create --base develop --title t"
+      }
+    },
+    {
+      "id": "git-072",
+      "tool": "Bash",
+      "cwd": "@partial",
+      "shell": "sh",
+      "command": "git push origin feat/x",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push origin feat/x",
+        "cmd": "git push origin feat/x"
+      }
+    },
+    {
+      "id": "git-073",
+      "tool": "Bash",
+      "cwd": "@partial",
+      "shell": "sh",
+      "command": "gh pr create --base develop --title t",
+      "want": "ask",
+      "reason": "git:workflow guard: opening a PR publishes the branch; allow only on the user's explicit request",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "gh pr create --base develop --title t",
+        "cmd": "gh pr create --base develop --title t"
+      }
+    },
+    {
+      "id": "git-074",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git push origin feat/x",
+      "want": "ask",
+      "reason": "git:workflow guard: git push publishes; allow only if the user explicitly asked for this push",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "git push origin feat/x",
+        "cmd": "git push origin feat/x"
+      }
+    },
+    {
+      "id": "git-075",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "echo x > .ai-gent/autonomy",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-076",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "rm .ai-gent/autonomy",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-077",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "sed -i s/a/b/ .ai-gent/autonomy",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-078",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "cat .ai-gent/autonomy",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-079",
+      "tool": "Edit",
+      "cwd": "@granted",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": ".ai-gent/autonomy"
+      },
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-080",
+      "tool": "Write",
+      "cwd": "@granted",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "/work/repo/.ai-gent/autonomy"
+      },
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-081",
+      "tool": "Edit",
+      "cwd": "@granted",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "README.md"
+      },
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
     }
   ]
 }

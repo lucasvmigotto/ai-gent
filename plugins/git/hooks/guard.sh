@@ -9,6 +9,12 @@
 #         commit on dev/develop (merging into it is the workflow), branch -D,
 #         reset --hard, clean -f, commit --amend, filter-branch/filter-repo,
 #         gh pr create
+#   deny  writing .ai-gent/autonomy, the grant only the user creates
+#   lift  while that grant is active (its expires: line is in the future), a
+#         plain git push (actions: push) and gh pr create --base <a branch the
+#         grant covers> (actions: pr) stop asking; never a push naming
+#         main/master/homolog/staging, --all/--mirror/--tags/--delete or a
+#         +refspec, and never a push from one of those branches
 #
 # Reads the hook event JSON on stdin and prints a permission decision, or
 # nothing to let the normal permission flow decide. Pattern matching on
@@ -41,7 +47,18 @@ trap shadow EXIT
 
 # The command string, still JSON-escaped (newlines stay as \n).
 cmd="$(printf '%s' "$input" | sed -nE 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
-[ -n "$cmd" ] || exit 0
+grant_reason="the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it"
+if [ -z "$cmd" ]; then
+  # Edit, Write and the like: the target path of the grant is off limits.
+  target="$(printf '%s' "$input" | sed -nE 's/.*"(file_path|notebook_path)"[[:space:]]*:[[:space:]]*"([^"]*)".*/\2/p')"
+  case "$target" in
+    */.ai-gent/autonomy | .ai-gent/autonomy)
+      sd=deny sr="git:workflow guard: $grant_reason"
+      printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"git:workflow guard: %s"}}\n' "$grant_reason"
+      ;;
+  esac
+  exit 0
+fi
 cwd="$(printf '%s' "$input" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 
 # One simple command per line, with quoted strings (commit messages) blanked
@@ -66,6 +83,45 @@ decide() { # decide deny|ask <reason>
   exit 0
 }
 
+# The directory whose repository counts: the -C argument of the first git
+# segment that has one, else the session's cwd.
+work_dir() {
+  d="$(printf '%s\n' "$segments" | sed -n 's/.*git[[:space:]]\{1,\}-C[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' | head -n1)"
+  [ -n "$d" ] || d="$cwd"
+  printf '%s' "${d:-.}"
+}
+
+# The autonomy grant: .ai-gent/autonomy at the repository root, key: value lines
+# (expires: 2026-11-06T18:00:00Z, branches: develop dev, actions: push pr merge
+# issues). Active only while expires lies in the future; anything unreadable is
+# no grant. grant_has <action> succeeds when it is active and names the action;
+# grant_covers <branch> when the branch is one of its branches (default
+# "develop dev").
+grant_value() { # grant_value <key>
+  sed -n "s/^$1:[[:space:]]*//p" "$grant_file" | head -n1 | tr -d '\r'
+}
+grant_load() {
+  grant_file=
+  top="$(git -C "$(work_dir)" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [ -f "$top/.ai-gent/autonomy" ] || return 1
+  grant_file="$top/.ai-gent/autonomy"
+  exp="$(grant_value expires)"
+  printf '%s\n' "$exp" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' || return 1
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  [ "$now" != "$exp" ] && [ "$(printf '%s\n%s\n' "$now" "$exp" | LC_ALL=C sort | head -n1)" = "$now" ]
+}
+grant_has() {
+  grant_load || return 1
+  printf ' %s ' "$(grant_value actions)" | grep -Eq "[[:space:]]$1[[:space:]]"
+}
+grant_covers() {
+  b="$(grant_value branches)"
+  printf ' %s ' "${b:-develop dev}" | grep -Eq "[[:space:]]$1[[:space:]]"
+}
+current_branch() {
+  git -C "$(work_dir)" symbolic-ref --quiet --short HEAD 2>/dev/null || true
+}
+
 if has '(commit|merge|push|am|rebase|cherry-pick|revert)' '(^|[[:space:]])--no-verify([[:space:]]|$)' ||
   has 'commit' '(^|[[:space:]])-n([[:space:]]|$)'; then
   decide deny "hooks must not be bypassed (--no-verify / -n); fix what the hook reports and try again"
@@ -83,10 +139,37 @@ if has 'push' '(^|[[:space:]])(--force|-[a-zA-Z]*f[a-zA-Z]*)([[:space:]]|$)' &&
   decide deny "force pushes use --force-with-lease, and only on the user's explicit order"
 fi
 
-if has 'push'; then
+# Nothing but the user writes the grant: a command that names it and is not a read.
+if printf '%s' "$cmd" | grep -Fq '.ai-gent/autonomy' &&
+  { printf '%s' "$cmd" | grep -q '>' ||
+    printf '%s\n' "$segments" | grep -F '.ai-gent/autonomy' |
+      grep -Evq '^[[:space:]]*(cat|ls|head|tail|grep|stat|wc|test|\[)[[:space:]]'; }; then
+  decide deny "$grant_reason"
+fi
+
+# A push the grant lifts: every push segment names no protected branch and no
+# bulk or forced form, from a branch that is not one either.
+push_lifted() {
+  grant_has push || return 1
+  br="$(current_branch)"
+  case "$br" in "" | main | master | homolog | staging) return 1 ;; esac
+  if printf '%s\n' "$segments" | grep -E "$git_re""push([[:space:]].*)?\$" |
+    grep -Eq '(^|[[:space:]])(--all|--mirror|--tags|--delete|--prune|-d)([[:space:]]|$)|(^|[[:space:]:/])(main|master|homolog|staging)([[:space:]]|$)|(^|[[:space:]])\+'; then
+    return 1
+  fi
+  return 0
+}
+pr_create_lifted() {
+  grant_has pr || return 1
+  base="$(printf '%s\n' "$segments" | grep -E '^[[:space:]]*gh[[:space:]]+pr[[:space:]]+create' |
+    sed -nE 's/.*[[:space:]](--base|-B)[[:space:]=]+([^[:space:]]+).*/\2/p' | head -n1)"
+  [ -n "$base" ] && grant_covers "$base"
+}
+
+if has 'push' && ! push_lifted; then
   decide ask "git push publishes; allow only if the user explicitly asked for this push"
 fi
-if printf '%s\n' "$segments" | grep -Eq '^[[:space:]]*gh[[:space:]]+pr[[:space:]]+create'; then
+if printf '%s\n' "$segments" | grep -Eq '^[[:space:]]*gh[[:space:]]+pr[[:space:]]+create' && ! pr_create_lifted; then
   decide ask "opening a PR publishes the branch; allow only on the user's explicit request"
 fi
 if has 'branch' '(^|[[:space:]])(-D|--delete[[:space:]]+--force|--force[[:space:]]+--delete)([[:space:]]|$)'; then

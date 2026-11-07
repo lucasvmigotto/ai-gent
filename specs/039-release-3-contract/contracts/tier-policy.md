@@ -3,7 +3,7 @@
 | Tier | Agents | Promise |
 |---|---|---|
 | 1 | Claude Code | Everything: skills, enforced guards, mods, update notice, evals, required CI |
-| 2 | Codex | Skills and the binary's tools installed and tested in required CI; guards enforced if Codex can run hook commands (unverified, T032), else advisory |
+| 2 | Codex | Skills and the binary's tools installed and tested in required CI; guards enforced if Codex can run hook commands (it can, T032; integration untested), else advisory |
 | 3 | opencode, Cursor, Antigravity, GitHub Copilot, Amp, Kiro, Windsurf | Best-effort and frozen: skills install through generated stubs; no new tier-3-only features; regressions fixed by PR when reproducible; no SLA; never a release blocker; tests run in a non-required job |
 
 ## Feature by tier
@@ -33,3 +33,7 @@
 3. CI: tier-3 install cases run in `tier3` (non-required). A red `tier3` job opens an issue, not a release block.
 4. Agent API drift: if an agent changes its skills directory or format, the entry in `AGENT_IDS` is updated by PR; if the agent cannot be supported for two consecutive minor releases, the README says "unsupported" and the next major may drop it. Nothing is dropped in 3.0.0.
 5. Honesty: the README and docs site label tier 3 as best-effort; claims of enforced guards are made only for tiers with a tested enforcement path.
+
+## Codex hooks (T032)
+
+Verified 2026-11-07 with codex-cli 0.166.0 (`codex features list`: `hooks stable true`, so not experimental): Codex runs synchronous `PreToolUse` command hooks, configured in `hooks.json` or `[[hooks.PreToolUse.hooks]]` (`type = "command"`), feature key `features.hooks`; `PermissionRequest` and `PostToolUse` also exist. A `PreToolUse` hook can deny a local tool call (`permissionDecision: "deny"` or exit code 2) or rewrite its arguments (`allow` plus `updatedInput`); it covers Bash/`exec_command`, `apply_patch`, MCP tools and other local functions, not hosted tools. Limits: non-managed hooks need a trust review, `ask` is unsupported, and an error or timeout lets the call proceed (fail-open). Sources: the installed CLI and the official Codex Hooks guide and configuration reference. Not yet tested: wiring `ai-gent guard` as a Codex hook. Whether tier 2 then means "enforced" is the owner's call.

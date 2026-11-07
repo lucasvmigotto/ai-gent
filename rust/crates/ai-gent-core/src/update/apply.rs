@@ -106,11 +106,105 @@ pub struct Verified {
     pub attestation: bool,
 }
 
-fn installer_name() -> &'static str {
-    if cfg!(windows) {
-        "install.ps1"
+/// Which installer family an install uses. Tests pick one on any host; production uses [`Platform::host`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Platform {
+    /// `sh install.sh` (Linux, macOS).
+    Unix,
+    /// `powershell -File install.ps1` (junction layout of spec 032).
+    Windows,
+}
+
+impl Platform {
+    /// The platform this binary runs on.
+    #[must_use]
+    pub const fn host() -> Self {
+        if cfg!(windows) {
+            Self::Windows
+        } else {
+            Self::Unix
+        }
+    }
+    /// The interpreter that runs the installer. Windows PowerShell 5.1 ships on every Windows and the
+    /// 032 contract runs the script under it and under PowerShell 7 alike, so `powershell` it is.
+    #[must_use]
+    pub const fn runner(self) -> &'static str {
+        match self {
+            Self::Unix => "sh",
+            Self::Windows => "powershell",
+        }
+    }
+    /// The installer asset name.
+    #[must_use]
+    pub const fn installer_name(self) -> &'static str {
+        match self {
+            Self::Unix => "install.sh",
+            Self::Windows => "install.ps1",
+        }
+    }
+    /// The interpreter's arguments that run `script` (before the installer's own flags).
+    fn script_args(self, script: &Path) -> Vec<std::ffi::OsString> {
+        match self {
+            Self::Unix => vec![script.into()],
+            Self::Windows => ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]
+                .into_iter()
+                .map(Into::into)
+                .chain([script.into()])
+                .collect(),
+        }
+    }
+}
+
+/// The command that installs `version_env` (`latest` or `X.Y.Z`) with the downloaded `installer`.
+#[must_use]
+pub fn install_command(
+    platform: Platform,
+    installer: &Path,
+    version_env: &str,
+    verify_attestation: bool,
+) -> Command {
+    let mut cmd = Command::new(platform.runner());
+    cmd.args(platform.script_args(installer));
+    match platform {
+        Platform::Windows => {
+            cmd.args(["-Version", version_env, "-SkipPrompt"]);
+            if verify_attestation {
+                cmd.arg("-VerifyAttestation");
+            }
+        }
+        Platform::Unix => {
+            cmd.arg("--skip-prompt");
+            if verify_attestation {
+                cmd.arg("--verify-attestation");
+            }
+        }
+    }
+    cmd
+}
+
+/// Check the downloaded installer against the release's `SHA256SUMS`: nothing runs unless it matches.
+///
+/// # Errors
+/// Exit 4 when the list has no entry for the installer or the hash differs.
+pub fn verify_installer(
+    platform: Platform,
+    release: &str,
+    sums_text: &str,
+    installer: &[u8],
+) -> Result<(), Failure> {
+    let name = platform.installer_name();
+    let want = sums_entry(sums_text, name).ok_or_else(|| {
+        Failure::refused(format!(
+            "SHA256SUMS of {release} lists no {name}; nothing was run"
+        ))
+    })?;
+    let got = sha256_hex(installer);
+    if want == got {
+        Ok(())
     } else {
-        "install.sh"
+        Err(Failure::refused(format!(
+            "checksum mismatch for {name} (expected {want}, got {got}); nothing was run"
+        )))
     }
 }
 
@@ -158,13 +252,27 @@ pub fn plan(
     src: &source::ReleaseSource,
     to: Option<&str>,
 ) -> Result<Plan, Failure> {
+    plan_for(Platform::host(), root, env, src, to)
+}
+
+/// [`plan`] for an explicit platform.
+///
+/// # Errors
+/// As [`plan`].
+pub fn plan_for(
+    platform: Platform,
+    root: &InstallRoot,
+    env: &Env,
+    src: &source::ReleaseSource,
+    to: Option<&str>,
+) -> Result<Plan, Failure> {
     let (Some(from), Some(home)) = (root.version.clone(), root.home.clone()) else {
         return Err(Failure::nothing(
             "this is a development build, not an install; update does not apply",
             Some("install a release: sh install.sh"),
         ));
     };
-    let runner = if cfg!(windows) { "powershell" } else { "sh" };
+    let runner = platform.runner();
     if !on_path(env, runner) {
         return Err(Failure::nothing(
             format!("`{runner}` is not on PATH, and update runs the release's installer with it"),
@@ -202,7 +310,7 @@ pub fn plan(
     if target == from && pin_after == root.pinned().is_some() {
         return Err(Failure::nothing(format!("already on {from}"), None));
     }
-    let name = installer_name();
+    let name = platform.installer_name();
     Ok(Plan {
         from,
         to: target.clone(),
@@ -355,41 +463,15 @@ pub fn apply(
     source::download(&plan.sums_url, &sums, 60).map_err(Failure::runtime)?;
     source::download(&plan.installer_url, &installer, 60).map_err(Failure::runtime)?;
     let sums_text = std::fs::read_to_string(&sums).map_err(|e| Failure::runtime(e.to_string()))?;
-    let want = sums_entry(&sums_text, plan.installer_name).ok_or_else(|| {
-        Failure::refused(format!(
-            "SHA256SUMS of {} lists no {}; nothing was run",
-            plan.to, plan.installer_name
-        ))
-    })?;
     let bytes = std::fs::read(&installer).map_err(|e| Failure::runtime(e.to_string()))?;
-    let got = sha256_hex(&bytes);
-    if want != got {
-        return Err(Failure::refused(format!(
-            "checksum mismatch for {} (expected {want}, got {got}); nothing was run",
-            plan.installer_name
-        )));
-    }
+    let platform = Platform::host();
+    verify_installer(platform, &plan.to, &sums_text, &bytes)?;
     let version_env = if plan.pin_after {
         plan.to.as_str()
     } else {
         "latest"
     };
-    let mut cmd;
-    if cfg!(windows) {
-        cmd = Command::new("powershell");
-        cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-            .arg(&installer);
-        cmd.args(["-Version", version_env, "-SkipPrompt"]);
-        if verify_attestation {
-            cmd.arg("-VerifyAttestation");
-        }
-    } else {
-        cmd = Command::new("sh");
-        cmd.arg(&installer).arg("--skip-prompt");
-        if verify_attestation {
-            cmd.arg("--verify-attestation");
-        }
-    }
+    let mut cmd = install_command(platform, &installer, version_env, verify_attestation);
     installer_env(&mut cmd, &plan.home);
     cmd.env("VERSION", version_env)
         .env("AI_GENT_RELEASE_BASE", src.download_base());
@@ -458,32 +540,33 @@ pub fn rollback(root: &InstallRoot, env: &Env, json: bool) -> Result<Applied, Fa
 
 /// `sh <home>/current/install.sh <flag> --skip-prompt` (or the PowerShell form).
 fn installer_command(home: &Path, flag: &str, env: &Env) -> Result<Command, Failure> {
-    let script = home.join("current").join(installer_name());
+    let platform = Platform::host();
+    let script = home.join("current").join(platform.installer_name());
     if !script.is_file() {
         return Err(Failure::runtime(format!(
             "{} is missing; reinstall with: sh install.sh",
             script.display()
         )));
     }
-    let runner = if cfg!(windows) { "powershell" } else { "sh" };
+    let runner = platform.runner();
     if !on_path(env, runner) {
         return Err(Failure::nothing(format!("`{runner}` is not on PATH"), None));
     }
     let mut cmd = Command::new(runner);
-    if cfg!(windows) {
-        cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
-            .arg(&script);
-        cmd.arg(match flag {
-            "--rollback" => "-Rollback",
-            _ => "-List",
-        });
-        if flag == "--rollback" {
-            cmd.arg("-SkipPrompt");
+    cmd.args(platform.script_args(&script));
+    let rollback = flag == "--rollback";
+    match platform {
+        Platform::Windows => {
+            cmd.arg(if rollback { "-Rollback" } else { "-List" });
+            if rollback {
+                cmd.arg("-SkipPrompt");
+            }
         }
-    } else {
-        cmd.arg(&script).arg(flag);
-        if flag == "--rollback" {
-            cmd.arg("--skip-prompt");
+        Platform::Unix => {
+            cmd.arg(flag);
+            if rollback {
+                cmd.arg("--skip-prompt");
+            }
         }
     }
     Ok(cmd)
@@ -630,6 +713,83 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let r = root(d.path(), "2.27.0");
         assert_eq!(rollback_plan(&r).unwrap_err().exit, Exit::NothingToDo);
+    }
+
+    fn args(c: &Command) -> Vec<String> {
+        c.get_args().map(|a| a.to_string_lossy().into()).collect()
+    }
+
+    #[test]
+    fn windows_command_line() {
+        let c = install_command(
+            Platform::Windows,
+            Path::new("C:/t/install.ps1"),
+            "9.9.1",
+            true,
+        );
+        assert_eq!(c.get_program(), "powershell");
+        assert_eq!(
+            args(&c),
+            [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "C:/t/install.ps1",
+                "-Version",
+                "9.9.1",
+                "-SkipPrompt",
+                "-VerifyAttestation"
+            ]
+        );
+        let c = install_command(Platform::Windows, Path::new("i.ps1"), "latest", false);
+        assert!(!args(&c).contains(&"-VerifyAttestation".to_string()));
+    }
+
+    #[test]
+    fn unix_command_line() {
+        let c = install_command(Platform::Unix, Path::new("/t/install.sh"), "latest", true);
+        assert_eq!(c.get_program(), "sh");
+        assert_eq!(
+            args(&c),
+            ["/t/install.sh", "--skip-prompt", "--verify-attestation"]
+        );
+    }
+
+    #[test]
+    fn windows_installer_failing_verification_is_refused() {
+        let body = b"Write-Host hi";
+        let good = format!("{}  install.ps1\n", sha256_hex(body));
+        assert!(verify_installer(Platform::Windows, "9.9.1", &good, body).is_ok());
+        let f =
+            verify_installer(Platform::Windows, "9.9.1", &good, b"Write-Host evil").unwrap_err();
+        assert_eq!(f.exit, Exit::Refused);
+        assert!(f.message.contains("checksum mismatch") && f.message.contains("nothing was run"));
+        // only the Unix installer is listed: the .ps1 is not trusted
+        let sh_only = format!("{}  install.sh\n", sha256_hex(body));
+        let f = verify_installer(Platform::Windows, "9.9.1", &sh_only, body).unwrap_err();
+        assert_eq!(f.exit, Exit::Refused);
+        assert!(f.message.contains("lists no install.ps1"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn plan_for_windows_wants_powershell_and_names_the_ps1() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        let bin = d.path().join("bin");
+        std::fs::create_dir(&bin).unwrap();
+        let r = root(d.path(), "2.27.0");
+        let src = source::ReleaseSource::Base("file:///nowhere".into());
+        let env = Env::from_pairs([("PATH", bin.to_str().unwrap())]);
+        let f = plan_for(Platform::Windows, &r, &env, &src, Some("2.30.0")).unwrap_err();
+        assert!(f.message.contains("`powershell` is not on PATH"));
+        let ps = bin.join("powershell");
+        std::fs::write(&ps, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&ps, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let p = plan_for(Platform::Windows, &r, &env, &src, Some("2.30.0")).unwrap();
+        assert_eq!(p.installer_name, "install.ps1");
+        assert!(p.installer_url.ends_with("install.ps1"));
     }
 
     #[cfg(unix)]
