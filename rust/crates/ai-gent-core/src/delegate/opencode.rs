@@ -165,6 +165,22 @@ const CREDENTIAL_FRAGMENTS: [&str; 10] = [
     ".npmrc",
 ];
 
+/// Variables the child must not inherit, because each can name a directory other than its worktree:
+/// `INIT_CWD` and `OLDPWD` (the supervisor's directories, which a Node or Bun tool may prefer to the
+/// real working directory) and git's own location variables (`GIT_DIR`, `GIT_WORK_TREE`,
+/// `GIT_COMMON_DIR`, `GIT_INDEX_FILE`, `GIT_PREFIX`). `PWD` is not removed but set to the worktree.
+/// `opencode run` has no directory option (v2.2.5, `opencode run --help`), so the working directory
+/// and these variables are all the adapter can set.
+pub const ISOLATION_ENV_REMOVE: [&str; 7] = [
+    "INIT_CWD",
+    "OLDPWD",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_PREFIX",
+];
+
 /// Commands that print, copy or encode a file's content.
 const FILE_READERS: [&str; 17] = [
     "cat", "less", "more", "head", "tail", "tac", "cp", "base64", "xxd", "strings", "od",
@@ -649,6 +665,10 @@ impl Adapter for OpenCodeAdapter {
                 ),
             ],
             stall_secs: req.stall_secs,
+            env_remove: ISOLATION_ENV_REMOVE.iter().map(|s| (*s).into()).collect(),
+            guard_root: super::gitx::repo_root(&req.worktree)
+                .ok()
+                .map(|r| slash(&r)),
         };
         // The status records the model (`opencode:<model>`): the review rule compares models (FR-010).
         let agent = format!("opencode:{}", qualify(&self.model));
@@ -680,7 +700,11 @@ impl Adapter for OpenCodeAdapter {
         if r.usage.is_none() {
             r.usage = s.usage;
         }
-        if r.finished && r.state != State::TakenBack {
+        let escaped = r
+            .reason
+            .as_deref()
+            .is_some_and(|x| x.starts_with("wrote-outside-worktree"));
+        if r.finished && r.state != State::TakenBack && !escaped {
             match r.exit_code {
                 Some(0) if !s.finished => {
                     r.state = State::Failed;

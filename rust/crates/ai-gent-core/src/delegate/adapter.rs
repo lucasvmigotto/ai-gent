@@ -176,6 +176,13 @@ pub struct Launch {
     pub env: Vec<(String, String)>,
     /// Seconds of silence after which the track counts as stalled.
     pub stall_secs: u64,
+    /// Inherited variables removed from the agent's environment (they could name another checkout).
+    #[serde(default)]
+    pub env_remove: Vec<String>,
+    /// The main checkout the watcher guards: its `git status` before and after the run is compared,
+    /// and a file that changed there fails the track (`wrote-outside-worktree`). Empty: no guard.
+    #[serde(default)]
+    pub guard_root: Option<String>,
 }
 
 /// The file holding the brief of a track (local, git-excluded).
@@ -233,6 +240,8 @@ pub fn launch(
         files::EXIT,
         files::STOPPED,
         files::STDERR,
+        files::ESCAPED,
+        files::GUARD_UNAVAILABLE,
     ] {
         let _ = std::fs::remove_file(dir.join(f));
     }
