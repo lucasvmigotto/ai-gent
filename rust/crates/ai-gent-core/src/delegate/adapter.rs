@@ -390,6 +390,13 @@ fn signal_group(pid: u32, _sig: &str) -> bool {
         .is_ok_and(|s| s.success())
 }
 
+/// Whether `stop` signals once more before waiting: only on Windows (where `taskkill` is one
+/// forced kill, with no TERM to fall back from), when the first attempt failed and the track has
+/// not ended. Unix never retries here: its escalation to KILL already covers a failed TERM.
+const fn retry_first_signal(first_ok: bool, ended: bool, windows: bool) -> bool {
+    windows && !first_ok && !ended
+}
+
 /// `stop` for any adapter: the PID file names the process; nothing is matched by pattern.
 ///
 /// # Errors
@@ -408,7 +415,13 @@ pub fn stop_track(root: &Path, track: &str) -> Res<StopOutcome> {
         });
     };
     let _ = std::fs::write(dir.join(files::STOPPED), b"");
-    let signalled = signal_group(pid, "TERM");
+    let mut signalled = signal_group(pid, "TERM");
+    if retry_first_signal(signalled, ended(), cfg!(windows)) {
+        // `taskkill` can fail on a process that is still starting or whose tree is changing, and
+        // then the process is still there: one more try before the wait.
+        std::thread::sleep(Duration::from_millis(100));
+        signalled = signal_group(pid, "TERM");
+    }
     let wait = |secs: u64| {
         let t = Instant::now();
         while t.elapsed() < Duration::from_secs(secs) {
@@ -421,7 +434,7 @@ pub fn stop_track(root: &Path, track: &str) -> Res<StopOutcome> {
     };
     let mut exited = wait(5);
     if !exited {
-        signal_group(pid, "KILL");
+        signalled |= signal_group(pid, "KILL");
         exited = wait(5);
     }
     Ok(StopOutcome {
@@ -454,4 +467,21 @@ pub fn track_result(root: &Path, track: &str) -> Res<RunResult> {
         usage: s.tokens,
         wall_secs: end.saturating_sub(s.started),
     })
+}
+
+#[cfg(test)]
+mod stop_tests {
+    use super::retry_first_signal;
+
+    #[test]
+    fn a_failed_first_kill_of_a_live_track_is_retried_on_windows_only() {
+        assert!(retry_first_signal(false, false, true));
+        assert!(!retry_first_signal(false, false, false));
+    }
+
+    #[test]
+    fn nothing_is_retried_after_a_success_or_once_the_track_ended() {
+        assert!(!retry_first_signal(true, false, true));
+        assert!(!retry_first_signal(false, true, true));
+    }
 }

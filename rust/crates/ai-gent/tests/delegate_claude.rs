@@ -347,7 +347,26 @@ fn stop_uses_the_pid_file() {
     }
     assert!(a.status("c-stall").unwrap().running);
     let s = a.stop("c-stall").unwrap();
-    assert!(s.signalled && s.exited, "stop outcome: {s:?}");
+    assert!(
+        s.signalled && s.exited,
+        "stop outcome: {s:?}; track files: {:?}",
+        track_files(d.path(), "c-stall")
+    );
     let r = wait_finished(d.path(), "c-stall");
     assert_eq!(r.state, State::TakenBack);
+}
+
+/// The track directory's files with their sizes, for a failing assertion's message.
+fn track_files(root: &Path, track: &str) -> Vec<String> {
+    std::fs::read_dir(root.join(".ai-gent/delegate").join(track))
+        .map(|d| {
+            d.flatten()
+                .map(|e| {
+                    let n = e.file_name().to_string_lossy().into_owned();
+                    let len = e.metadata().map_or(0, |m| m.len());
+                    format!("{n}={len}")
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
