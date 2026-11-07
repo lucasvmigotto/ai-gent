@@ -473,6 +473,13 @@ if [[ -n "$runtime" ]]; then
     fail "opencode guard rules on the shared fixtures"
   fi
   rm -f "${TMPDIR:-/tmp}/ai-gent-ocfixtures.out"
+  if "$runtime" opencode/guard/test/adapter.test.mjs >"${TMPDIR:-/tmp}/ai-gent-ocadapter.out" 2>&1; then
+    pass "opencode guard binary adapter ($(grep -oE '[0-9]+ checks' "${TMPDIR:-/tmp}/ai-gent-ocadapter.out" | tail -1))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-ocadapter.out"
+    fail "opencode guard binary adapter (fake ai-gent)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-ocadapter.out"
 else
   warn "neither bun nor node on PATH; skipped the opencode guard rule test"
 fi
