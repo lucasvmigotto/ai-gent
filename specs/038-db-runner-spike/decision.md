@@ -10,19 +10,19 @@ Drafted 2026-11-07 from the repository evidence on `origin/dev` (`results.md`, `
 - **Evidence**: E1 to E8 below, linked to `results.md`.
 - **User-visible requirement after the change** (one sentence): the db plugin needs nothing but the `ai-gent` binary (and a container engine only for a database that runs in a local container), with no `uv` and no Python.
 - **Command word**: `ai-gent db`.
-- **Release**: 3.0.0, held until the port is done (the owner's decision, relayed). The owner decides; this draft does not set a date.
+- **Release**: ~~3.0.0, held until the port is done (the owner's decision, relayed)~~ amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: 3.0.0 ships with `dbrun.py` still Python (spec 039 D26/D27); the port ships in the 3.x line, when spec 043's own gates pass, as the last 3.x step. The owner decides; this draft does not set a date.
 - **Not run** (carried over): see "Not run".
 - **Crate layout** (D28): confirmed as written in `spec.md` "Crate layout" (library `ai-gent-dbrun` with features `sqlite`, `postgres`, `mysql`, `mssql`, `oracle`; `ai-gent-core` depends on no driver). The crate exists (`rust/crates/ai-gent-dbrun/`, T015 and T025 done: `cargo publish --dry-run` packaged and verified 12 files). The `ai-gent-dbrun` Trusted Publishing step (T024) is the owner's and is pending (not found as done). Whether `mssql` becomes its own crate and whether `ai-gent-dbrun` depends on `ai-gent-core` (spec.md open question 6): [NEEDS CLARIFICATION: not decided in the repository or in the relayed chat].
 - **Must-not-regress checklist**: see "Must-not-regress checklist".
 - **If the answer is "not yet"**: see that section, kept as the fallback.
-- **Owner sign-off**: pending.
+- **Owner sign-off**: pending (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: the approval covers a verdict that ships after 3.0.0; status stays DRAFT until the owner approves).
 
 ## Verdict and why
 
-Proposed verdict: **N**, native drivers for all five networked engines plus SQLite, ahead of 3.0.0, which matches the owner's relayed decision. The evidence supports it with these conditions, each of which the spike left open and spec 043 turns into work:
+Proposed verdict: **N**, native drivers for all five networked engines plus SQLite, ~~ahead of 3.0.0, which matches the owner's relayed decision~~ in the 3.x line, after 3.0.0 (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun). The evidence supports it with these conditions, each of which the spike left open and spec 043 turns into work:
 
 1. Four engines ran the engines script end to end through the Rust adapter: PostgreSQL 17 (17 of 17 checks), MySQL 8.4 (17 of 17), MariaDB 11.4 (17 of 17), SQL Server 2022 (17 of 17, three runs), and Oracle 26ai Free (14 of 14, two runs). SQLite passed the 8 `SqliteEndToEndTest` journeys natively. The safety core ported with zero diffs against goldens generated from the Python (E1).
-2. The spike used no verified TLS on any engine (PostgreSQL and MySQL none; SQL Server `trust_cert()`; Oracle never handshaken). The verdict is conditional on closing that before 3.0.0 (owner decision on TLS below).
+2. The spike used no verified TLS on any engine (PostgreSQL and MySQL none; SQL Server `trust_cert()`; Oracle never handshaken). The verdict is conditional on closing that before the port's cutover (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun; was "before 3.0.0") (owner decision on TLS below).
 3. Oracle thin is narrower than python-oracledb thin (no 11G or 10G verifier path) and is a beta. The verdict is conditional on the owner's chosen answer (message pointing at thick mode, below) and on thick mode being built as an optional feature.
 4. SQL Server needs a fork-dependent crate and the count probe fixed (one batch per plan, below).
 
@@ -157,8 +157,8 @@ D7: one release, references switched, `dbrun.py` deleted only in the release tha
 - Deletions: `plugins/db/scripts/dbrun.py`, `test_dbrun.py`, `passstore.py`, the process connector, `CLIENT_IMAGE` and the driver pins.
 - Evals: `plugins/db/evals/` (the `behavior-raw-client` scaffold and any case naming the old command).
 - `ai-gent doctor` drops the db `uv` check. The bare word `dbrun` appears in 43 files and 324 lines on 2026-11-01 (prose); the cutover re-runs the grep.
-- Release: the cutover merges with the 035, 036 and 037 cutovers; `CHANGELOG.md` `## Unreleased` and one `BREAKING CHANGE:` footer. Spec 039 is amended (open question 5 there, "Is `uv` still a prerequisite in 3.0.0?", changes from "yes while `dbrun` stays Python" to "no"; G30-16 and the README sentence change with it; the roadmap line "3.x dbrun port (not a 3.0.0 gate)" changes to a 3.0.0 gate).
-- Verification: `grep -rEn 'dbrun\.py|uv run|CLIENT_IMAGE' plugins shared scripts opencode README.md AGENTS.md docs/site/src` finds only the migration guide, the changelog and specs; `python3 scripts/package.py --check`; `python3 scripts/release.py --dry-run --json` prints 3.0.0.
+- Release: the cutover is its own release in the 3.x line (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun; the 035, 036 and 037 cutovers ship with 3.0.0); `CHANGELOG.md` `## Unreleased` and one `BREAKING CHANGE:` footer. ~~Spec 039 is amended (open question 5 there changes to "no"; G30-16 and the README sentence change with it; the roadmap line becomes a 3.0.0 gate).~~ amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: spec 039 is not changed for this; `uv` stays a prerequisite for the db plugin only until the port ships, and the cutover is a release of its own in the 3.x line.
+- Verification: `grep -rEn 'dbrun\.py|uv run|CLIENT_IMAGE' plugins shared scripts opencode README.md AGENTS.md docs/site/src` finds only the migration guide, the changelog and specs; `python3 scripts/package.py --check`; `python3 scripts/release.py --dry-run --json` plans the release that carries the cutover (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun; was 3.0.0).
 
 ## If the answer is "not yet"
 
@@ -182,11 +182,11 @@ These are the owner's own words as relayed to the drafting agent, in the form `D
 - **Value contract.** Decided: Rust values are the contract (the DDL row count is 0; `NUMBER` is typed from its text) — they are what the spike's drivers produce. The differences from Python go on the accepted-differences list (043 FR-005).
 - **Profiles with no published port.** Decided: they keep the container exec path — the spike always connected over TCP to a published port; the namespace join of `dbrun.py` stays for the rest (043 FR-020).
 - **Targets.** Decided: all six release targets, with a per-target engine waiver — an engine that cannot build on a target is an owner-signed waiver, never a silent omission (043 FR-029). The target list is [NEEDS CLARIFICATION: not found in the repository].
-- **Held cutovers.** Decided: they merge to `dev` inert until one cutover PR — one breaking release.
+- **Held cutovers.** Decided: they merge to `dev` inert until one cutover PR — one breaking release (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: for 035, 036 and 037 that is 3.0.0; the `dbrun` cutover is its own later PR).
 
 Earlier decisions, marked as relayed (they reached the drafting agent through the supervisor, not from a file the owner wrote; spec 043 "Owner decisions on record" lists them):
 
-- **Relayed**: 3.0.0 is held for the `dbrun` port (reverses D26 and D27 of spec 039).
+- **Relayed, reversed 2026-11-07**: ~~3.0.0 is held for the `dbrun` port (reverses D26 and D27 of spec 039)~~ amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: the owner decided in chat "lets dont hold dbrun for 3.0.0"; D26 and D27 stand.
 - **Relayed**: all five networked engines in Rust, SQLite included; no Python left in the db plugin.
 - **Relayed**: thick Oracle is optional; thin is the default; client libraries are never shipped.
 - **Relayed**: spec 043 is the production port, one worker per engine and per shared-core task, each output reviewed by a different agent, landing by pull request into `dev`.
