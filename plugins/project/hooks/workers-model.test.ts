@@ -50,8 +50,11 @@ test('the log skips malformed lines; the cap reads max_parallel', () => {
   expect(parseLog(LOG).map(l => l.track)).toEqual(['feat-db', 'feat-old'])
   expect(parseLog('')).toEqual([])
   expect(parseCap('max_parallel: 2  # two\nx: 1')).toBe(2)
-  expect(parseCap('max_parallel: 0')).toBe(3)
-  expect(parseCap(null)).toBe(3)
+  expect(parseCap('x: 1\n')).toBe(3)
+  expect(parseCap('max_parallel: 0')).toBeNull()
+  expect(parseCap('max_parallel: 100')).toBeNull()
+  expect(parseCap('max_parallel: many')).toBeNull()
+  expect(parseCap(null)).toBeNull()
 })
 
 test('durations', () => {
@@ -376,16 +379,17 @@ test('a large list is cut at maxRows and says how many more', () => {
 test('counts in the header are the snapshot counts', () => {
   const view = build(snapshot(ALL_STATES), ctx)
   expect(view.counts).toEqual({ running: 1, queued: 1, stalled: 1, failed: 1, done: 1, 'taken-back': 1 })
-  expect(view.slots).toEqual({ used: 2, cap: 3 })
+  expect(view.slots).toEqual({ used: 2, cap: 3, subagents: 0 })
   expect(lines(snapshot(ALL_STATES)).split('\n')[1]).toBe('1 running · 1 queued · 1 stalled ⚠ · 1 failed ✕ · 1 done · 1 taken-back')
 })
 
 test('all three kinds count together and show: header, capacity, kind column and pipeline line', () => {
   const s = mixed()
-  expect(compactLine(s)).toEqual({ text: 'Workers: 3 running · 1 queued · slots 3/3', tone: 'plain' })
+  expect(compactLine(s)).toEqual({ text: 'Workers: 3 running · 1 queued · slots 2/3 · +1 subagent', tone: 'plain' })
   const out = lines(s)
   expect(out.split('\n')[1]).toBe('3 running · 1 queued')
-  expect(out).toContain('3 / 3 slots')
+  expect(out).toContain('2 / 3 slots')
+  expect(out).toContain('+1 subagent')
   expect(out).toMatch(/feat-prof\s+prof\s+Running/)
   expect(out).toMatch(/feat-cx\s+ext\s+Running/)
   expect(out).toMatch(/sub-a1b2c3d4e5f6\s+sub\s+Running/)
@@ -402,4 +406,61 @@ test('text() opens every row and the history, trimmed', () => {
   const out = text(snapshot(ALL_STATES), { columns: 80, now: NOW, ascii: false, maxRows: 30 })
   for (const name of ['feat-core', 'feat-ui', 'feat-docs', 'feat-api', 'feat-db', 'feat-old']) expect(out).toContain(`Track: ${name}`)
   expect(out.split('\n').every(l => l === l.trimEnd())).toBe(true)
+})
+
+// Decision: the meter counts delegated tracks only; session subagents get their own figure beside it.
+const withSubagents = (n: number) =>
+  Array.from({ length: n }, (_, i) => agentRow({ id: `sub${i}`, description: 'd', type: 'Explore', status: 'running' } as never, { first: 1, changed: 1 }, false))
+const delegatedAnd = (delegated: number, subagents: number, cap: number | null): WorkersSnapshot => ({
+  ...snapshot(running(delegated), { cap }),
+  workers: [...Object.values(running(delegated)).flatMap(t => parseStatus(t) ?? []), ...withSubagents(subagents)],
+})
+
+test('subagents are listed beside the meter and never counted in it', () => {
+  const snap = delegatedAnd(2, 3, 3)
+  const out = lines(snap)
+  expect(out).toContain('2 / 3 slots')
+  expect(out).toContain('+3 subagents')
+  expect(out).toContain('1 available')
+  expect(out).not.toContain('[!]')
+  expect(out).not.toContain('over the limit')
+  expect(build(snap, ctx).slots).toEqual({ used: 2, cap: 3, subagents: 3 })
+  const line = compactLine(snap)
+  expect(line?.text).toBe('Workers: 5 running · slots 2/3 · +3 subagents')
+  expect(line?.tone).toBe('plain')
+})
+
+test('delegated tracks exactly at the cap are full, not over, whatever the subagents', () => {
+  const snap = delegatedAnd(3, 4, 3)
+  const out = lines(snap)
+  expect(out).toContain('3 / 3 slots')
+  expect(out).toContain('full')
+  expect(out).not.toContain('over the limit')
+  expect(out).not.toContain('[!]')
+  expect(compactLine(snap)?.tone).toBe('plain')
+})
+
+test('over the limit is delegated tracks past the cap; subagents add nothing to it', () => {
+  for (const subs of [0, 5]) {
+    const snap = delegatedAnd(4, subs, 3)
+    const out = lines(snap)
+    expect(out).toContain('4 / 3 slots')
+    expect(out).toContain('1 over the limit')
+    expect(out.match(/\[!\]/g)?.length).toBe(1)
+    expect(compactLine(snap)).toMatchObject({ tone: 'bad' })
+    expect(compactLine(snap)?.text).toContain('slots 4/3')
+  }
+})
+
+test('an unknown cap is said once, dim, with no marks and no error tone', () => {
+  const snap = delegatedAnd(2, 1, null)
+  const view = build(snap, ctx)
+  const cap = view.lines.filter(l => l.text.includes('CAPACITY'))
+  expect(cap).toHaveLength(1)
+  expect(cap[0]?.text).toContain('2 in use (limit unknown)')
+  expect(cap[0]?.text).toContain('+1 subagent')
+  expect(cap[0]?.tone).toBe('dim')
+  expect(view.lines.some(l => l.marks !== undefined || l.tone === 'bad')).toBe(false)
+  expect(lines(snap)).not.toContain('[')
+  expect(compactLine(snap)).toEqual({ text: 'Workers: 3 running · 2 in use (limit unknown) · +1 subagent', tone: 'plain' })
 })

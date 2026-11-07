@@ -16,6 +16,8 @@ Keep the model's text as the source of truth and colour it by ranges.
 3. Tests: `workers-model.test.ts` for the text, the marks and the fall-backs; `workers.test.tsx` for the drawn segments and tones.
 4. Docs: the README row for the project mod and a CHANGELOG line; spec 041's FR-017 is not edited (this spec refines it).
 
+5. Follow-up (owner decisions): `slotsUsed(workers)` counts delegated tracks only and `subagentsLive(workers)` counts the subagents; `capacity()` takes the subagent count and shows `+N subagents` beside the label; `parseCap` returns `number | null`, `WorkersSnapshot.cap` is `number | null` and the snapshot's stored shape tag moves to `workers-3`; `workers.ts` reports null for a missing, unreadable or oversized file. `compactLine` and `build` use the same helpers, so the three places agree.
+
 ## Risks
 
 - A `Text` segment's width in a row: the segments are cut from an already padded string, so their widths add up to the line's width; a test checks that the concatenated segments equal the text.

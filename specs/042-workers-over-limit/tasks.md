@@ -8,3 +8,6 @@
 - [x] T006 mutation pass, then `claude plugin test` and `claude plugin validate` for `project`
 - [x] T007 README (project mod row) and CHANGELOG (`## Unreleased`) lines
 - [x] T008 `scripts/check.sh`, commit by path, push the work branch (no PR)
+- [x] T009 delegated-only slots and the `+N subagents` figure (FR-007): `slotsUsed`, `subagentsLive`, `capacity`, `compactLine`
+- [x] T010 unknown cap (FR-008): `parseCap` returns null, `WorkersSnapshot.cap` is nullable, `workers.ts` passes it through, shape tag `workers-3`
+- [x] T011 tests: subagents beside the meter, full not over, over by delegated only, unknown cap end to end through the snapshot builder (missing, 0, non-numeric, 100, oversized), default for a key-less file; goldens that counted a subagent or assumed a missing file means 3 are updated
