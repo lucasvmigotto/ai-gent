@@ -4,6 +4,7 @@
 //! The fixtures live in `shared/guard-fixtures/` at the repository root; a published crate has no
 //! such directory and the tests skip with a message.
 use ai_gent_core::guard::branch::git_branch;
+use ai_gent_core::guard::passallow::{Source, with_source};
 use ai_gent_core::guard::{Ctx, Event, GuardId, Level, Shell, evaluate, evaluate_all};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -99,6 +100,19 @@ fn event_for(case: &Value, sb: &Sandbox, command: Option<&str>) -> Event {
     }
 }
 
+/// The fixtures never read the machine's own `pass` allowlist (as `scripts/guard-fixtures.py`).
+const NO_ALLOWLIST: &str = "/nonexistent/ai-gent-fixtures-no-pass-allow";
+
+/// The evaluator's view of the environment: no allowlist file, whatever the machine has.
+fn no_allowlist() -> Source {
+    Source {
+        allow_var: Some(NO_ALLOWLIST.into()),
+        xdg: None,
+        home: None,
+        read: std::rc::Rc::new(|_| None),
+    }
+}
+
 fn plugin_script(guard: &str) -> String {
     let dir = if guard == "containers" {
         "devcontainer"
@@ -116,6 +130,7 @@ fn oracle(guard: &str, ev: &Event) -> (String, String) {
     let input = json!({"hook_event_name": "PreToolUse", "tool_name": ev.tool_name, "cwd": ev.cwd, "tool_input": ev.tool_input});
     let mut child = Command::new("sh")
         .arg(repo_root().join(plugin_script(guard)))
+        .env("AI_GENT_PASS_ALLOW", NO_ALLOWLIST)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -164,6 +179,10 @@ fn command_in(case: &Value, shell: Shell) -> Option<Option<String>> {
 
 /// (fixtures run in `shell`, fixtures also compared with the shell guard).
 fn run_guard(guard: &str, shell: Shell) -> (usize, usize) {
+    with_source(no_allowlist(), || run_guard_in(guard, shell))
+}
+
+fn run_guard_in(guard: &str, shell: Shell) -> (usize, usize) {
     let sb = sandbox();
     let branch = |d: &str| git_branch(d);
     let ctx = Ctx { branch_of: &branch };
@@ -279,6 +298,10 @@ fn evaluate_all_is_the_strictest_single_guard() {
     if fixtures_dir().is_none() {
         return;
     }
+    with_source(no_allowlist(), evaluate_all_is_strictest);
+}
+
+fn evaluate_all_is_strictest() {
     let sb = sandbox();
     let branch = |d: &str| git_branch(d);
     let ctx = Ctx { branch_of: &branch };

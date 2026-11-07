@@ -37,13 +37,19 @@ export function parseGrant(text, nowIso) {
 
 // The active grant of the repository that contains dir, as of now (null when there is none).
 export function grantAt(dir, now = new Date()) {
-  let top;
+  const git = (...args) =>
+    execFileSync("git", ["-C", dir || ".", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).replace(/\n$/, "");
   try {
-    top = execFileSync("git", ["-C", dir || ".", "rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).replace(/\n$/, "");
-    return parseGrant(readFileSync(join(top, GRANT_FILE), "utf8"), now.toISOString().slice(0, 19) + "Z");
+    let text;
+    try {
+      text = readFileSync(join(git("rev-parse", "--show-toplevel"), GRANT_FILE), "utf8");
+    } catch {
+      // A linked worktree has no copy of the git-excluded file: use the main checkout's
+      const common = git("rev-parse", "--path-format=absolute", "--git-common-dir");
+      if (!common.endsWith("/.git")) return null;
+      text = readFileSync(join(common.slice(0, -5), GRANT_FILE), "utf8");
+    }
+    return parseGrant(text, now.toISOString().slice(0, 19) + "Z");
   } catch {
     return null;
   }
@@ -283,8 +289,52 @@ const SECRETS_PRINTERS = new Set([
 const SECRETS_DENY = (reason) => ({ decision: "deny", reason: `secrets guard: ${reason}` });
 const SECRETS_ASK = (reason) => ({ decision: "ask", reason: `secrets guard: ${reason}` });
 
+const SECRETS_SHOW_HINT = "; list the entry in ~/.config/ai-gent/pass-allow to let the agent read it";
+
+// The user's personal allowlist of pass entries the agent may `pass show`
+// (same file and rules as plugins/secrets/hooks/guard.sh): AI_GENT_PASS_ALLOW,
+// else ${XDG_CONFIG_HOME:-~/.config}/ai-gent/pass-allow. One rule per line:
+// `entry` (exact) or `prefix/` (everything under it); blank lines and # comments
+// ignored; rules that are empty, start with / - or ~, or have a . or .. path
+// part never allow. A missing or unreadable file allows nothing.
+function secretsAllowFile(env) {
+  if (env.AI_GENT_PASS_ALLOW) return env.AI_GENT_PASS_ALLOW;
+  const base = env.XDG_CONFIG_HOME || `${env.HOME ?? ""}/.config`;
+  return `${base}/ai-gent/pass-allow`;
+}
+
+function secretsAllowed(entry, env, readFile) {
+  let text;
+  try {
+    text = readFile(secretsAllowFile(env));
+  } catch {
+    return false;
+  }
+  for (const raw of text.split("\n")) {
+    const rule = raw.replace(/\r$/, "").replace(/^[ \t]+/, "").replace(/[ \t]+$/, "");
+    if (rule === "" || rule[0] === "#" || "/-~".includes(rule[0])) continue;
+    if (rule.split("/").some((p) => p === ".." || p === ".")) continue;
+    if (rule.endsWith("/")) {
+      if (entry.startsWith(rule) && entry.length > rule.length) return true;
+    } else if (rule === entry) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function secretsShowEligible(sub, entry, flags, args, passCount, cmd) {
+  if (sub !== "show" || flags !== 0 || args !== 2 || passCount !== 1) return false;
+  if (entry === "" || /[^A-Za-z0-9._@+/-]/.test(entry)) return false;
+  if (entry.startsWith("/") || entry.endsWith("/") || entry.includes("//")) return false;
+  if (entry.split("/").some((p) => p === "." || p === "..")) return false;
+  const lower = entry.toLowerCase();
+  if (lower === "ai-gent/db" || lower.startsWith("ai-gent/db/")) return false;
+  return !/PASSWORD_STORE_|XDG_CONFIG_HOME|(^|[^A-Za-z0-9_])HOME=/.test(cmd);
+}
+
 // Secret values in pass never reach the agent (shared/secrets.md).
-export function secretsGuard(cmd) {
+export function secretsGuard(cmd, { env = process.env, readFile = (p) => readFileSync(p, "utf8") } = {}) {
   const segments = dbSegments(cmd);
 
   if (segments.some((s) => SECRETS_GPG_RE.test(s)) && /\.password-store|PASSWORD_STORE_DIR/.test(cmd)) {
@@ -304,16 +354,32 @@ export function secretsGuard(cmd) {
     }
   }
 
+  // Whatever names the allowlist file is the user's to approve: the agent must
+  // not widen its own reach through Bash. (Write/Edit are outside this hook.)
+  const allowVar = env.AI_GENT_PASS_ALLOW;
+  if (cmd.includes("pass-allow") || cmd.includes("AI_GENT_PASS_ALLOW") || (allowVar && cmd.includes(allowVar))) {
+    return SECRETS_ASK("that command mentions the pass allowlist (pass-allow); the user decides what the agent may read");
+  }
+
   const hit = segments.find((s) => SECRETS_PASS_RE.test(s));
   if (hit === undefined) return { decision: "none" };
+  const passCount = segments.filter((s) => SECRETS_PASS_RE.test(s)).length;
   const rest = hit.replace(SECRETS_PASS_RE, "");
   let sub = "";
+  let entry = "";
+  let flags = 0;
+  let args = 0;
   for (const arg of rest.split(/[ \t]+/).filter(Boolean)) {
     if (/^(-c|--clip|-c[0-9].*|--clip=.*|-q|--qrcode|-q[0-9].*|--qrcode=.*)$/.test(arg)) {
       return SECRETS_DENY("pass -c/-q exposes a secret value; the agent never reads one — the runner that needs it does");
     }
-    if (arg.startsWith("-")) continue;
+    if (arg.startsWith("-")) {
+      flags++;
+      continue;
+    }
+    args++;
     if (!sub) sub = arg;
+    else if (!entry) entry = arg;
   }
   if (["", "ls", "list", "find", "search", "help", "--help", "version", "--version"].includes(sub)) {
     return { decision: "none" };
@@ -324,8 +390,13 @@ export function secretsGuard(cmd) {
   if (["rm", "remove", "delete", "mv", "rename", "cp", "copy", "init", "git"].includes(sub)) {
     return SECRETS_ASK(`pass ${sub} changes the password store; the user decides`);
   }
+  let hint = "";
+  if (secretsShowEligible(sub, entry, flags, args, passCount, cmd)) {
+    if (secretsAllowed(entry, env, readFile)) return { decision: "none" };
+    hint = SECRETS_SHOW_HINT;
+  }
   return SECRETS_DENY(
-    "that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it",
+    `that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it${hint}`,
   );
 }
 

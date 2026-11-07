@@ -15,7 +15,7 @@ type Logs = Partial<Record<(typeof PLUGINS)[number], GuardRow[] | 'throws'>>
 
 // A plain object the test edits between steps; a plugin missing from it reads as absent.
 function world(on: Handlers, logs: Logs) {
-  const state = { logs: { ...logs }, opened: 0, placed: true }
+  const state = { logs: { ...logs }, opened: 0, placed: true, grant: null as string | null }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.cwd', () => ({ value: '/repo' }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
@@ -27,6 +27,7 @@ function world(on: Handlers, logs: Logs) {
   on('process.run', () => ({ value: { exitCode: 0, stdout: '/repo\n', stderr: '' } }))
   on('fs.stat', () => ({ deny: 'ENOENT' }))
   on('fs.exists', () => ({ value: false }))
+  on('fs.read', (_, e) => (state.grant !== null && e.path === '/repo/.ai-gent/autonomy' ? { value: state.grant } : { deny: 'ENOENT' }))
   on('state.get', async (_, e, next) => {
     if (e.plugin === 'project') return next(e)
     const held = state.logs[e.plugin as (typeof PLUGINS)[number]]
@@ -54,8 +55,9 @@ test('/guards lists the newest rows of all five plugins, newest first, with coun
   expect(out).toContain('guards — 5 decisions this session (1 deny · 4 ask)')
   const lines = out.split('\n')
   const first = lines.findIndex(l => l.includes('14:05'))
-  expect(first).toBe(1)
-  expect(lines[2]).toContain('14:02')
+  expect(first).toBe(2)
+  expect(lines[0]).toBe('autonomy: none')
+  expect(lines[3]).toContain('14:02')
   expect(out.indexOf('13:41')).toBeGreaterThan(out.indexOf('13:58'))
   expect(out).toContain('generic')
   expect(out).toContain('Most frequent')
@@ -92,7 +94,7 @@ test('none reporting: says so, and never fails', async ($, on) => {
 test('empty logs: no guard decisions this session', async ($, on) => {
   world(on, { git: [], db: [], secrets: [], repo: [], devcontainer: [] })
   await $.session.start(START)
-  expect(await run($)).toBe('no guard decisions this session')
+  expect(await run($)).toBe('autonomy: none\nno guard decisions this session')
 })
 
 test('an argument limits the rows and is clamped; the header counts every row', async ($, on) => {
@@ -156,6 +158,24 @@ test('/guards-pane opens the pane, or prints the list where nothing can dock', a
   w.placed = false
   const text = String((await $.command.run({ command: 'guards-pane', args: '' } as never)).text)
   expect(text).toContain('no pane here — /guards prints the list')
+})
+
+test('the autonomy line shows an active grant from the main checkout, in /guards and in the pane', async ($, on) => {
+  const w = world(on, ALL)
+  const expires = new Date(Date.now() + 5 * 3_600_000 + 60_000).toISOString().slice(0, 19) + 'Z'
+  w.grant = `expires: ${expires}\nactions: push pr\n`
+  await $.session.start(START)
+  expect((await run($)).split('\n')[0]).toMatch(/^autonomy: push pr on develop dev, until \d{4}-\d\d-\d\d \d\d:\d\d UTC \(in 5h\)$/)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /^autonomy: push pr on develop dev/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('an expired grant reads expired', async ($, on) => {
+  const w = world(on, ALL)
+  w.grant = 'expires: 2020-01-01T00:00:00Z\nactions: push\n'
+  await $.session.start(START)
+  expect((await run($)).split('\n')[0]).toBe('autonomy: expired')
 })
 
 test('the pane is not opened by itself', async ($, on) => {

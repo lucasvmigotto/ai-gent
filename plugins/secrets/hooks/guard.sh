@@ -11,6 +11,11 @@
 #   deny  pass-run with an ai-gent/db/ entry (only dbrun reads those), or
 #         handing a secret to a command that can print its environment
 #   none  pass ls/find, help, version
+#   none  `pass show <entry>` (no flags, one entry) when the user's own
+#         allowlist names the entry (allowed_entry below); never under
+#         ai-gent/db/, never with PASSWORD_STORE_*
+#   ask   any command that mentions the allowlist file (pass-allow): the agent
+#         doesn't widen its own reach
 #
 # Pattern matching on the raw command: it catches the commands an agent
 # writes, not every possible obfuscation.
@@ -76,24 +81,75 @@ if [ -n "$runner" ]; then
   esac
 fi
 
+# The user's personal allowlist of pass entries the agent may `pass show`:
+# $AI_GENT_PASS_ALLOW, else ${XDG_CONFIG_HOME:-~/.config}/ai-gent/pass-allow.
+# One rule per line: `entry` (exact) or `prefix/` (everything under it); blank
+# lines and # comments ignored; rules that are empty, start with / - or ~, or
+# have a . or .. path part never allow. Missing or unreadable file: no rule.
+allow_file="${AI_GENT_PASS_ALLOW:-${XDG_CONFIG_HOME:-${HOME:-}/.config}/ai-gent/pass-allow}"
+
+# shellcheck disable=SC2329 # called below
+allowed_entry() { # allowed_entry <entry>: 0 when a rule names it
+  [ -f "$allow_file" ] && [ -r "$allow_file" ] || return 1
+  awk -v e="$1" '
+    { sub(/\r$/, ""); sub(/^[ \t]+/, ""); sub(/[ \t]+$/, "") }
+    $0 == "" || substr($0, 1, 1) == "#" { next }
+    index("/-~", substr($0, 1, 1)) > 0 { next }
+    {
+      n = split($0, p, "/"); bad = 0
+      for (i = 1; i <= n; i++) if (p[i] == ".." || p[i] == ".") bad = 1
+      if (bad) next
+      if (substr($0, length($0)) == "/") {
+        if (index(e, $0) == 1 && length(e) > length($0)) { found = 1; exit }
+      } else if ($0 == e) { found = 1; exit }
+    }
+    END { exit !found }
+  ' "$allow_file" 2>/dev/null
+}
+
+# Whatever names the allowlist file is the user's to approve: the agent must
+# not widen its own reach through Bash. (Write/Edit are outside this hook.)
+if printf '%s' "$cmd" | grep -Fq -e pass-allow -e AI_GENT_PASS_ALLOW ||
+  { [ -n "${AI_GENT_PASS_ALLOW:-}" ] && printf '%s' "$cmd" | grep -Fq -e "$AI_GENT_PASS_ALLOW"; }; then
+  decide ask "that command mentions the pass allowlist (pass-allow); the user decides what the agent may read"
+fi
+
 hit="$(printf '%s\n' "$segments" | grep -E "$prefix([^[:space:]]*/)?pass([[:space:]]|\$)" | head -n1)"
 [ -n "$hit" ] || exit 0
+npass="$(printf '%s\n' "$segments" | grep -Ec "$prefix([^[:space:]]*/)?pass([[:space:]]|\$)")"
 
 rest="$(printf '%s\n' "$hit" | sed -E "s#$prefix([^[:space:]]*/)?pass([[:space:]]|\$)##")"
 set -f
 # shellcheck disable=SC2086 # split the arguments on purpose
 set -- $rest
 set +f
-sub=""
+sub="" entry="" nflags=0 nargs=0
 for arg in "$@"; do
   case "$arg" in
     -c | --clip | -c[0-9]* | --clip=* | -q | --qrcode | -q[0-9]* | --qrcode=*)
       decide deny "pass -c/-q exposes a secret value; the agent never reads one — the runner that needs it does"
       ;;
-    -*) ;;
-    *) [ -n "$sub" ] || sub="$arg" ;;
+    -*) nflags=$((nflags + 1)) ;;
+    *)
+      nargs=$((nargs + 1))
+      if [ -z "$sub" ]; then sub="$arg"; elif [ -z "$entry" ]; then entry="$arg"; fi
+      ;;
   esac
 done
+
+# Could the allowlist open this command? Only `pass show <entry>`: no flags,
+# one clean entry name, the only pass command in the line, no store or config
+# override in the text, and never an ai-gent/db/ entry (dbrun reads those).
+show_eligible() {
+  [ "$sub" = show ] && [ "$nflags" -eq 0 ] && [ "$nargs" -eq 2 ] && [ "$npass" -eq 1 ] || return 1
+  case "$entry" in
+    "" | /* | -* | */ | *//* | *[!A-Za-z0-9._@+/-]*) return 1 ;;
+    . | .. | ./* | ../* | */. | */.. | */./* | */../*) return 1 ;;
+  esac
+  lower="$(printf '%s' "$entry" | tr '[:upper:]' '[:lower:]')"
+  case "$lower" in ai-gent/db | ai-gent/db/*) return 1 ;; esac
+  ! printf '%s' "$cmd" | grep -Eq 'PASSWORD_STORE_|XDG_CONFIG_HOME|(^|[^A-Za-z0-9_])HOME='
+}
 
 case "$sub" in
   "" | ls | list | find | search | help | --help | version | --version) exit 0 ;;
@@ -104,6 +160,10 @@ case "$sub" in
     decide ask "pass $sub changes the password store; the user decides"
     ;;
   *)
+    if show_eligible; then
+      allowed_entry "$entry" && exit 0
+      decide deny "that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it; list the entry in ~/.config/ai-gent/pass-allow to let the agent read it"
+    fi
     decide deny "that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it"
     ;;
 esac
