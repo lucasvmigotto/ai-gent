@@ -134,6 +134,23 @@ for (const guard of Object.keys(GUARD_FILES)) {
   }
 }
 
+// ------------------------------------------------------------- linked worktree
+
+console.log("    a linked worktree reads the main checkout's grant")
+{
+  const base = dirs.granted
+  execFileSync("git", ["-C", base, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x"])
+  const wt = join(sandbox, "granted-wt")
+  execFileSync("git", ["-C", base, "worktree", "add", "-q", "-b", "feat/wt", wt])
+  const cmd = "git push origin feat/wt"
+  check("mjs worktree push", "none", ocDecision("git", { tool: "Bash" }, wt, cmd))
+  check("shell worktree push", "none", shellDecision(GIT_GUARD, "Bash", wt, { command: cmd }))
+  const merge = "gh pr merge 5"
+  check("shell repo guard worktree merge", "none", shellDecision(REPO_GUARD, "Bash", wt, { command: merge }))
+  check("repo guard rules worktree merge", "none", repoGuard(merge, { cwd: wt }).decision)
+  check("no grant, plain repo still asks", "ask", shellDecision(GIT_GUARD, "Bash", dirs["feat/x"], { command: cmd }))
+}
+
 // ------------------------------------------------- pass allowlist
 
 // The secrets guard's personal allowlist, through a temp file named by AI_GENT_PASS_ALLOW (never

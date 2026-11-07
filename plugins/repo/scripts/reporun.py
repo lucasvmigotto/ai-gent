@@ -335,9 +335,18 @@ def grant_branches(action: str) -> list[str] | None:
     top = git("rev-parse", "--show-toplevel")
     if not top:
         return None
-    try:
-        lines = (Path(top) / GRANT_FILE).read_text().splitlines()
-    except OSError:
+    roots = [Path(top)]
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    if common.endswith("/.git"):  # a linked worktree has no copy of the git-excluded file
+        roots.append(Path(common[:-5]))
+    lines = None
+    for root in roots:
+        try:
+            lines = (root / GRANT_FILE).read_text().splitlines()
+            break
+        except OSError:
+            continue
+    if lines is None:
         return None
 
     def value(key: str) -> str:
