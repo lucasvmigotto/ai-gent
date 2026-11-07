@@ -35,3 +35,23 @@ Linux x86_64 (i7-1165G7, 8 threads), rustc 1.98.1, gcc 14.2.0, `dbq` release pro
 | aarch64, Windows, macOS | | | | not run: no cross C compiler, linker or host | | not run |
 
 Same-machine baselines: `python3 -I -c pass` 7.4 / 8.5 ms; warm `uv run --with PyMySQL` 46.2 / 48.0 ms (the 176 ms figure above is from another machine). Median and p95 over 50 runs after 5 discarded.
+
+## E2 PostgreSQL through the adapter (T005, 2026-11-07)
+
+Same machine as E8. Method and results in `results.md` "E2". Server `postgres:17` (17.11) in podman, 512 MB cap, loopback.
+
+| Measure | Value | Marker |
+|---|---|---|
+| `scripts/test-dbrun-engines.py --runner .../adapter --engine postgresql`, whole run (start, seed, 17 checks, teardown) | 29 s wall (25 s on a second run with `--keep`) | measured |
+| Adapter, one native request (connect, identity, links, statement, rollback) | about 0.04 s wall per request (`seconds` field 0.04 to 0.07) | measured |
+| Statement timeout 1 s on `pg_sleep(5)` | refused at 1.04 s | measured |
+| Lock timeout (5 s) | refused at 5.05 s | measured |
+| Adapter, release profile, `--bin adapter` without `pg` | 388,984 bytes | measured |
+| Adapter, release profile, `--features pg` | 957,984 bytes | measured |
+| Size delta of the PostgreSQL driver | +569,000 bytes (+0.57 MB) | measured |
+| Debug build with `pg` (what the script ran) | 43,350,360 bytes; cold build 41 s including the dependency tree | measured |
+| Runtime libraries of the release `pg` adapter (`ldd`) | `libgcc_s`, `libc` | measured |
+| First attempt, compose shim without labels | 620 s (the 600 s readiness wait), failed `server ready and seeded` | measured (harness, not the adapter) |
+| Python driver (`uv run --with psycopg`) on the same checks | not run (a driver fetch needs the network) | not run |
+
+The size is the `adapter` binary alone (no safety-core CLI), so it differs from the `dbq` rows above.
