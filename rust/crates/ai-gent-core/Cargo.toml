@@ -28,3 +28,9 @@ workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+# The ai-gent crate has its own `fake_tool` example (it includes this file as a module); two examples with
+# one name collide on the same output file, and on Windows the parallel links failed with LNK1104.
+[[example]]
+name = "fake_pass_tool"
+path = "examples/fake_tool.rs"
