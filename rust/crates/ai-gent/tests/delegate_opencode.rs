@@ -551,7 +551,7 @@ fn stop_uses_the_pid_file() {
     }
     assert!(a.status("o-stall").unwrap().running);
     let s = a.stop("o-stall").unwrap();
-    assert!(s.signalled && s.exited);
+    assert!(s.signalled && s.exited, "stop outcome: {s:?}");
     let r = wait_finished(d.path(), "o-stall");
     assert_eq!(r.state, State::TakenBack);
     assert_eq!(a.result("o-stall").unwrap().state, State::TakenBack);

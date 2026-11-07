@@ -5,13 +5,13 @@ use ai_gent_core::env::Env;
 use ai_gent_core::passstore::{self, Config};
 use std::path::{Path, PathBuf};
 
-fn fake_tool() -> PathBuf {
+fn fake_pass_tool() -> PathBuf {
     let exe = std::env::current_exe().unwrap();
     let dir = exe.parent().unwrap().parent().unwrap().join("examples");
     let name = if cfg!(windows) {
-        "fake_tool.exe"
+        "fake_pass_tool.exe"
     } else {
-        "fake_tool"
+        "fake_pass_tool"
     };
     let p = dir.join(name);
     {
@@ -23,21 +23,21 @@ fn fake_tool() -> PathBuf {
                 .args([
                     "build",
                     "--example",
-                    "fake_tool",
+                    "fake_pass_tool",
                     "-p",
                     "ai-gent-core",
                     "--locked",
                 ])
                 .status()
                 .is_ok_and(|s| s.success());
-            assert!(ok, "could not build the fake_tool example");
+            assert!(ok, "could not build the fake_pass_tool example");
         });
     }
     assert!(p.is_file(), "missing {}", p.display());
     p
 }
 
-/// A private copy of `fake_tool`, made once per test process and proven runnable. Copying it per
+/// A private copy of `fake_pass_tool`, made once per test process and proven runnable. Copying it per
 /// test races with the forks of the other test threads: a child forked while the copy is open for
 /// writing holds that descriptor until its `exec`, and running the copy meanwhile fails with
 /// ETXTBSY ("text file busy", issue #360). The write handle is closed here (the copy is synced and
@@ -53,7 +53,7 @@ fn template_tool() -> &'static Path {
             "template"
         });
         {
-            let mut src = std::fs::File::open(fake_tool()).unwrap();
+            let mut src = std::fs::File::open(fake_pass_tool()).unwrap();
             let mut dst = std::fs::File::create(&t).unwrap();
             std::io::copy(&mut src, &mut dst).unwrap();
             dst.sync_all().unwrap();
@@ -291,6 +291,6 @@ fn gopass_is_used_only_without_pass() {
 }
 
 #[test]
-fn only_the_fake_tool_example_is_needed() {
-    assert!(Path::new(&fake_tool()).exists());
+fn only_the_fake_pass_tool_example_is_needed() {
+    assert!(Path::new(&fake_pass_tool()).exists());
 }
