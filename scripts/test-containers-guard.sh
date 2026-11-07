@@ -12,6 +12,8 @@ LEFTOVERS="$REPO_DIR/plugins/devcontainer/hooks/leftovers.sh"
 failures=0
 # the guard cases: shared/guard-fixtures/containers.json (spec 033)
 python3 "$REPO_DIR/scripts/guard-fixtures.py" run --guard containers --impl sh || failures=$((failures + 1))
+# the launcher head of a package install turns a missing, failing or slow binary into the ask line (spec 033 T051)
+python3 "$REPO_DIR/scripts/guard-fixtures.py" failures --guard containers || failures=$((failures + 1))
 
 # leftovers.sh: reports, removes nothing, silent with nothing to say.
 tmp="$(mktemp -d)"
