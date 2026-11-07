@@ -35,3 +35,43 @@ Linux x86_64 (i7-1165G7, 8 threads), rustc 1.98.1, gcc 14.2.0, `dbq` release pro
 | aarch64, Windows, macOS | | | | not run: no cross C compiler, linker or host | | not run |
 
 Same-machine baselines: `python3 -I -c pass` 7.4 / 8.5 ms; warm `uv run --with PyMySQL` 46.2 / 48.0 ms (the 176 ms figure above is from another machine). Median and p95 over 50 runs after 5 discarded.
+
+## E2 PostgreSQL through the adapter (T005, 2026-11-07)
+
+Same machine as E8. Method and results in `results.md` "E2". Server `postgres:17` (17.11) in podman, 512 MB cap, loopback.
+
+| Measure | Value | Marker |
+|---|---|---|
+| `scripts/test-dbrun-engines.py --runner .../adapter --engine postgresql`, whole run (start, seed, 17 checks, teardown) | 29 s wall (25 s on a second run with `--keep`) | measured |
+| Adapter, one native request (connect, identity, links, statement, rollback) | about 0.04 s wall per request (`seconds` field 0.04 to 0.07) | measured |
+| Statement timeout 1 s on `pg_sleep(5)` | refused at 1.04 s | measured |
+| Lock timeout (5 s) | refused at 5.05 s | measured |
+| Adapter, release profile, `--bin adapter` without `pg` | 388,984 bytes | measured |
+| Adapter, release profile, `--features pg` | 957,984 bytes | measured |
+| Size delta of the PostgreSQL driver | +569,000 bytes (+0.57 MB) | measured |
+| Debug build with `pg` (what the script ran) | 43,350,360 bytes; cold build 41 s including the dependency tree | measured |
+| Runtime libraries of the release `pg` adapter (`ldd`) | `libgcc_s`, `libc` | measured |
+| First attempt, compose shim without labels | 620 s (the 600 s readiness wait), failed `server ready and seeded` | measured (harness, not the adapter) |
+| Python driver (`uv run --with psycopg`) on the same checks | not run (a driver fetch needs the network) | not run |
+
+The size is the `adapter` binary alone (no safety-core CLI), so it differs from the `dbq` rows above.
+
+## E3 MySQL and MariaDB through the adapter (T006, 2026-11-07)
+
+Same machine as E8. `mysql` crate 28.0.4, `minimal` features, no TLS. Details and the full check table in `results.md` "E3".
+
+| Measure | Value | Marker |
+|---|---|---|
+| Engine script, `--engine mysql` (8.4.13) | 17 of 17 checks ok; 32 s wall (38 s in an earlier run with `--keep`) | measured |
+| Engine script, `--engine mariadb` (11.4.13) | 17 of 17 checks ok; 40 s wall | measured |
+| Server-side write refusal | ERROR 1792 (25006) on both, in read mode with no classifier in the path | measured |
+| Timeout variable | MySQL `max_execution_time` = 2000 for a 2 s request, ERROR 3024 after 1.006 s on a 1 s request; MariaDB `max_statement_time` = 2.0, ERROR 1969 after 1.007 s | measured |
+| Adapter release binary, bridge only (no native driver) | 388824 bytes | measured |
+| Adapter release binary, `--features mysql` | 2044048 bytes (2.04 MB); delta +1655224 bytes (+1.66 MB) over the bridge-only adapter | measured |
+| Runtime libraries of that binary | `libz.so.1`, `libgcc_s.so.1`, `libc` (the system zlib dependency E8 found) | measured |
+| Build, `--features mysql` | debug 35 s with dependencies, 1 s warm; release 19 s (the bridge-only release build already in the target dir) | measured |
+| One request, release adapter vs MariaDB 11.4 (process start, connect, session setup, identity, one SELECT) | median 3.8 ms, p95 4.1 ms, 50 runs after 5 discarded | measured |
+| First connect to MySQL 8.4, debug build, test mode | 0.156 s | measured (one run) |
+| Python baseline on this machine | warm `uv run --with PyMySQL` import alone 46.2 ms | from E8 |
+
+Surprises: (1) the host has no compose provider, so the engine script could not start a container until a stand-in with the compose labels was supplied (see `results.md`); (2) the text protocol reports DATE and TIME as the binary charset, so a "charset 63 means blob" rule renders a date as `<10 bytes>`, fixed by deciding on column type first; (3) the MySQL and MariaDB timeout units differ by a factor of 1000, and MariaDB reports the variable as a float.

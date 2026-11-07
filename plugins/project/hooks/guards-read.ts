@@ -7,8 +7,20 @@
 import type { EngineInterface } from 'claude-code'
 
 import type { GuardRow } from '../types'
+import { grantLine } from './grant-model'
 import { parseRows } from './guards'
 import type { PluginName } from './guards'
+import { mainRoot } from './repo'
+
+const MAX_GRANT_CHARS = 4096
+
+// The autonomy line, from the main checkout's grant file. Read only; a file that cannot be read is no grant.
+export async function readGrantLine($: EngineInterface): Promise<string> {
+  const root = await mainRoot($).catch(() => null)
+  if (root === null) return grantLine(null, new Date())
+  const text = await $.fs.read(`${root}/.ai-gent/autonomy`).then(t => String(t).slice(0, MAX_GRANT_CHARS)).catch(() => null)
+  return grantLine(text, new Date())
+}
 
 const SHAPE = 'guard-log-1'
 

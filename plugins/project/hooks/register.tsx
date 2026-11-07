@@ -25,7 +25,7 @@ import { drawDashboard } from './pipeline-draw'
 import { build, text as pipelineText, view } from './pipeline-view'
 import type { Tone } from './pipeline-view'
 import { lines as guardLines, clampLimit, summarize } from './guards'
-import { readGuards } from './guards-read'
+import { readGrantLine, readGuards } from './guards-read'
 import { repoRoot } from './repo'
 import { readLimits } from './usage'
 import { close as closeWorkers, open as openWorkers, toggle as toggleWorker, readExpanded as readWorkersExpanded, readSnapshot as readWorkersSnapshot, PANE as WORKERS_PANE, compute as computeWorkers, configure as configureWorkers } from './workers'
@@ -320,7 +320,7 @@ export const register: Register = (on, options: Options) => {
   // The guard log (spec 024): /guards and /guards-pane over the guard plugins' atoms.
   on('command.run', { command: 'guards' }, async ($, e) => {
     const { rows, missing } = await readGuards($)
-    return { text: guardLines(summarize(rows, clampLimit(e.args, clampLimit(options.guardLogLimit))), missing).join('\n') }
+    return { text: [await readGrantLine($), ...guardLines(summarize(rows, clampLimit(e.args, clampLimit(options.guardLogLimit))), missing)].join('\n') }
   })
 
   on('command.run', { command: 'guards-pane' }, async $ => {
@@ -328,15 +328,17 @@ export const register: Register = (on, options: Options) => {
     const placed = await $.ui.open({ id: GUARDS_PANE, title: 'Guards', focus: true })
     if (placed.isPlaced) return { text: 'Guards pane opened.' }
     const { rows, missing } = await readGuards($)
-    return { text: ['no pane here — /guards prints the list', ...guardLines(summarize(rows, clampLimit(options.guardLogLimit)), missing)].join('\n') }
+    return { text: ['no pane here — /guards prints the list', await readGrantLine($), ...guardLines(summarize(rows, clampLimit(options.guardLogLimit)), missing)].join('\n') }
   })
 
   on('ui.render', { component: 'Pane', requestId: 'guards' }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
     const { rows, missing } = await readGuards($)
+    const grant = await readGrantLine($)
     const width = Math.max(20, e.props.bodyColumns)
     return (
       <Box flexDirection="column">
+        <Text wrap="truncate-end">{grant}</Text>
         {guardLines(summarize(rows, clampLimit(options.guardLogLimit)), missing, width).map((line, i) => (
           <Text key={i} wrap="truncate-end">{line}</Text>
         ))}
