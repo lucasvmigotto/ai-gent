@@ -49,6 +49,73 @@ pub fn repo_root(cwd: &Path) -> Res<PathBuf> {
         .ok_or_else(|| Error::Invalid("the git common dir has no parent".into()))
 }
 
+/// The state of the main checkout `main`, path to a fingerprint (status code, size, mtime), as `git
+/// status` reports it (untracked files one by one). `.ai-gent/` and anything under `skip` (the
+/// worktrees, when they sit inside the checkout) are left out. Read-only: no index refresh.
+///
+/// # Errors
+/// When `git status` cannot run in `main`.
+pub fn snapshot(main: &Path, skip: &[PathBuf]) -> Res<std::collections::BTreeMap<String, String>> {
+    let out = io(
+        "run git status",
+        Command::new("git")
+            .args(["status", "--porcelain", "-z", "--untracked-files=all"])
+            .current_dir(main)
+            .env("GIT_OPTIONAL_LOCKS", "0")
+            .stdin(std::process::Stdio::null())
+            .output(),
+    )?;
+    if !out.status.success() {
+        return Err(Error::Git {
+            args: "status".into(),
+            message: String::from_utf8_lossy(&out.stderr)
+                .lines()
+                .next()
+                .unwrap_or("failed")
+                .to_string(),
+        });
+    }
+    let text = String::from_utf8_lossy(&out.stdout).into_owned();
+    let mut parts = text.split('\0').filter(|p| !p.is_empty());
+    let mut map = std::collections::BTreeMap::new();
+    while let Some(e) = parts.next() {
+        let (code, path) = e.split_at(3.min(e.len()));
+        if code.starts_with(['R', 'C']) {
+            parts.next();
+        }
+        let abs = main.join(path);
+        if path.starts_with(".ai-gent/") || skip.iter().any(|s| abs.starts_with(s)) {
+            continue;
+        }
+        let print = std::fs::metadata(&abs).map_or_else(
+            |_| "gone".to_string(),
+            |m| {
+                let t = m
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map_or(0, |d| d.as_nanos());
+                format!("{} {} {t}", code.trim(), m.len())
+            },
+        );
+        map.insert(path.to_string(), print);
+    }
+    Ok(map)
+}
+
+/// The paths whose state in `after` differs from `before` (new entries included).
+#[must_use]
+pub fn changed_since(
+    before: &std::collections::BTreeMap<String, String>,
+    after: &std::collections::BTreeMap<String, String>,
+) -> Vec<String> {
+    after
+        .iter()
+        .filter(|(k, v)| before.get(*k) != Some(*v))
+        .map(|(k, _)| k.clone())
+        .collect()
+}
+
 /// The common git directory of a worktree (absolute).
 ///
 /// # Errors

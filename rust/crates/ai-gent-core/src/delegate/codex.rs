@@ -199,6 +199,8 @@ impl Adapter for CodexAdapter {
             cwd: slash(&req.worktree),
             env: vec![("TMPDIR".into(), slash(&self.tmpdir))],
             stall_secs: req.stall_secs,
+            env_remove: Vec::new(),
+            guard_root: None,
         };
         launch(&self.root, &self.watch_exe, req, "codex", &l)
     }

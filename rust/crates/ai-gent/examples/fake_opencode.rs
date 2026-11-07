@@ -62,6 +62,22 @@ fn denied_by(rules: &[Value], action: &str, target: &str) -> Option<String> {
         .and_then(|r| r["resource"].as_str().map(str::to_string))
 }
 
+/// The variables the adapter must have removed that are still in the environment.
+fn env_present() -> Vec<&'static str> {
+    [
+        "INIT_CWD",
+        "OLDPWD",
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_PREFIX",
+    ]
+    .into_iter()
+    .filter(|k| std::env::var_os(k).is_some())
+    .collect()
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("--version") {
@@ -126,6 +142,7 @@ fn main() {
         );
     }
 
+    let env_present = env_present();
     println!(r#"{{"type":"step_start","part":{{}}}}"#);
     println!(
         "{}",
@@ -134,6 +151,8 @@ fn main() {
             "config": config,
             "tmpdir": std::env::var("TMPDIR").unwrap_or_default(),
             "cwd": cwd.to_string_lossy(),
+            "pwd": std::env::var("PWD").ok(),
+            "env_present": env_present,
             "brief_len": brief.len(),
             "args": args,
             "attempts": report,

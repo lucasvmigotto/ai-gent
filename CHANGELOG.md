@@ -17,6 +17,11 @@ changes.
 - **agents:** `delegate` never starts another agent's CLI by hand: every dispatch goes through `ai-gent delegate run`, and a worker started by hand anyway is named in the handoff and registered or stopped (spec 041 FR-016)
 - **agents:** `delegate` skill: offer other code agents (Codex first) bounded tasks, supervise them through `ai-gent delegate`, require a cross-agent review and take work back (spec 041 T020)
 
+### Fixed
+
+- **agents:** `ai-gent delegate run --agent opencode` no longer lets the child inherit the supervisor's `PWD` (the watcher sets it to the worktree for every agent) or `INIT_CWD`, `OLDPWD` and the `GIT_*` location variables, and a run whose main checkout shows a new or changed file in `git status` afterwards is `failed` with `wrote-outside-worktree` and the paths, instead of succeeding (spec 041, the isolation defect of the first real OpenCode run). Fixed in code and proven with a stub `opencode` only: a second real run has not been done
+
+
 ## 2.27.0 — 2026-11-01
 
 ### Added

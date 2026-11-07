@@ -54,6 +54,8 @@ pub mod files {
     pub const EXIT: &str = "exit.json";
     /// Present when the supervisor asked the agent to stop.
     pub const STOPPED: &str = "stopped";
+    /// Paths the agent changed in the main checkout instead of its worktree (one per line).
+    pub const ESCAPED: &str = "escaped.txt";
     /// The agent's standard error (local, never read by the tools).
     pub const STDERR: &str = "stderr.log";
 }

@@ -6,8 +6,9 @@ use super::adapter::{BRIEF_FILE, ExitRecord, Launch};
 use super::state::files;
 use super::status::{self, LogLine, State, Status, Usage};
 use super::{Error, Res, io, now_secs};
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 /// What one agent event adds up to.
@@ -103,6 +104,12 @@ fn run_agent(
 ) -> i32 {
     let mut cmd = Command::new(&launch.program);
     cmd.args(args).current_dir(&launch.cwd);
+    // `current_dir` does not touch `PWD`: a shell's `cd` does, and a tool that trusts `PWD` would
+    // otherwise see the supervisor's directory (the main checkout).
+    for k in &launch.env_remove {
+        cmd.env_remove(k);
+    }
+    cmd.env("PWD", &launch.cwd);
     for (k, v) in &launch.env {
         cmd.env(k, v);
     }
@@ -152,6 +159,63 @@ fn run_agent(
     }
 }
 
+/// The reason recorded when the agent changed files outside its worktree.
+#[must_use]
+pub fn escape_reason(paths: &[String]) -> String {
+    let shown: Vec<&str> = paths.iter().take(10).map(String::as_str).collect();
+    let more = paths.len().saturating_sub(shown.len());
+    format!(
+        "wrote-outside-worktree: the agent changed the main checkout instead of its worktree: {}{}",
+        shown.join(", "),
+        if more > 0 {
+            format!(" (and {more} more)")
+        } else {
+            String::new()
+        }
+    )
+}
+
+/// The directories the guard leaves out: the worktree, when it sits inside the guarded checkout.
+fn guard_skip(launch: &Launch) -> Vec<PathBuf> {
+    vec![PathBuf::from(&launch.cwd)]
+}
+
+/// The guarded checkout's state before the run, when the launch asks for the guard and the checkout
+/// is not the working directory itself.
+fn guard_before(launch: &Launch) -> Option<BTreeMap<String, String>> {
+    let main = Path::new(launch.guard_root.as_deref()?);
+    if same_dir(main, Path::new(&launch.cwd)) {
+        return None;
+    }
+    super::gitx::snapshot(main, &guard_skip(launch)).ok()
+}
+
+/// What changed in the guarded checkout since `before`; written to `escaped.txt` when not empty.
+fn guard_after(
+    dir: &Path,
+    launch: &Launch,
+    before: Option<&BTreeMap<String, String>>,
+) -> Vec<String> {
+    let (Some(before), Some(main)) = (before, launch.guard_root.as_deref()) else {
+        return Vec::new();
+    };
+    let Ok(after) = super::gitx::snapshot(Path::new(main), &guard_skip(launch)) else {
+        return Vec::new();
+    };
+    let changed = super::gitx::changed_since(before, &after);
+    if !changed.is_empty() {
+        let _ = std::fs::write(dir.join(files::ESCAPED), changed.join("\n"));
+    }
+    changed
+}
+
+fn same_dir(a: &Path, b: &Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
+}
+
 /// Run the agent of the track directory `dir` to its end.
 ///
 /// # Errors
@@ -186,8 +250,10 @@ pub fn watch(dir: &Path) -> Res<()> {
         })
         .collect();
 
+    let guard = guard_before(&launch);
     let mut tally = Tally::default();
     let code = run_agent(dir, &root, &track, &launch, &args, &mut tally);
+    let escaped = guard_after(dir, &launch, guard.as_ref());
     let ended = now_secs();
     let stopped = dir.join(files::STOPPED).exists();
     let claude = tally.result.clone();
@@ -197,16 +263,20 @@ pub fn watch(dir: &Path) -> Res<()> {
     {
         let _ = std::fs::write(dir.join(files::LAST), &r.text);
     }
-    let errored = claude.as_ref().is_some_and(|r| r.is_error);
-    let reason = claude
-        .as_ref()
-        .filter(|r| r.is_error)
-        .map(ClaudeResult::reason);
+    let errored = claude.as_ref().is_some_and(|r| r.is_error) || !escaped.is_empty();
+    let reason = if escaped.is_empty() {
+        claude
+            .as_ref()
+            .filter(|r| r.is_error)
+            .map(ClaudeResult::reason)
+    } else {
+        Some(escape_reason(&escaped))
+    };
     let _ = std::fs::remove_file(dir.join(files::PID));
     update(&root, &track, |s| {
         s.state = if stopped {
             State::TakenBack
-        } else if code == 0 && !errored {
+        } else if code == 0 && !errored && escaped.is_empty() {
             State::Done
         } else {
             State::Failed

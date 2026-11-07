@@ -620,3 +620,77 @@ fn a_relative_binary_override_still_works_from_the_worktree() {
     assert_eq!(r.exit_code, Some(0));
     assert_eq!(r.state, State::Done);
 }
+
+/// A repository with one commit and a linked worktree beside it (spec 041, isolation defect).
+fn repo_with_worktree() -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf, PathBuf) {
+    let (d, tmp, home) = repo();
+    git(d.path(), &["config", "user.email", "t@example.invalid"]);
+    git(d.path(), &["config", "user.name", "t"]);
+    std::fs::write(d.path().join("tracked.txt"), "x\n").unwrap();
+    git(d.path(), &["add", "tracked.txt"]);
+    git(d.path(), &["commit", "-q", "-m", "init"]);
+    let wt = d.path().join("wt-opencode");
+    git(
+        d.path(),
+        &["worktree", "add", "-q", "-b", "wt", wt.to_str().unwrap()],
+    );
+    let main = d.path().to_path_buf();
+    (d, tmp, home, main, wt)
+}
+
+fn worktree_request(wt: &Path, track: &str, attempts: &[String]) -> RunRequest {
+    let mut r = request_with(wt, track, Role::Builder, "edit", attempts);
+    r.worktree = wt.to_path_buf();
+    r
+}
+
+fn same(a: &str, b: &Path) -> bool {
+    Path::new(a).canonicalize().unwrap() == b.canonicalize().unwrap()
+}
+
+#[test]
+fn the_child_runs_in_the_worktree_with_pwd_set_and_writes_there_not_in_the_main_checkout() {
+    let (d, tmp, home, main, wt) = repo_with_worktree();
+    // The main checkout is already dirty before the run: that is not the agent's doing.
+    std::fs::write(main.join("preexisting.txt"), "was here\n").unwrap();
+    let a = adapter(&main, &tmp, &home);
+    a.run(&worktree_request(&wt, "o-iso", &[])).unwrap();
+    let r = wait_finished(&main, "o-iso");
+    assert_eq!(r.state, State::Done, "{r:?}");
+    let f = fake_report(&main, "o-iso");
+    assert!(same(f["cwd"].as_str().unwrap(), &wt), "{f}");
+    assert!(same(f["pwd"].as_str().unwrap(), &wt), "PWD: {f}");
+    assert_eq!(f["env_present"], serde_json::json!([]), "{f}");
+    assert!(wt.join("fake-output.txt").exists());
+    assert!(!main.join("fake-output.txt").exists());
+    let res = a.result("o-iso").unwrap();
+    assert_eq!(res.state, State::Done);
+    assert!(!main.join(".ai-gent/delegate/o-iso/escaped.txt").exists());
+    drop(d);
+}
+
+#[test]
+fn a_write_into_the_main_checkout_fails_the_track_with_a_clear_message() {
+    let (d, tmp, home, main, wt) = repo_with_worktree();
+    let leak = main.join("leaked.txt");
+    let a = adapter(&main, &tmp, &home);
+    let attempt = format!("EDIT:{}", leak.to_string_lossy());
+    a.run(&worktree_request(&wt, "o-leak", &[attempt])).unwrap();
+    let r = wait_finished(&main, "o-leak");
+    assert!(leak.exists(), "the stub did write into the main checkout");
+    assert_eq!(r.state, State::Failed, "{r:?}");
+    assert!(r.is_error);
+    let res = a.result("o-leak").unwrap();
+    assert_eq!(res.state, State::Failed);
+    let reason = res.reason.unwrap();
+    assert!(
+        reason.starts_with("wrote-outside-worktree:") && reason.contains("leaked.txt"),
+        "{reason}"
+    );
+    assert!(!reason.contains("fake-output.txt"), "{reason}");
+    assert_eq!(status::read(&main, "o-leak").unwrap().state, State::Failed);
+    let listed =
+        std::fs::read_to_string(main.join(".ai-gent/delegate/o-leak/escaped.txt")).unwrap();
+    assert_eq!(listed.trim(), "leaked.txt");
+    drop(d);
+}
