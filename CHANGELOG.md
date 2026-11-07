@@ -24,6 +24,7 @@ changes.
 
 ### Fixed
 
+- **agents:** `ai-gent delegate stop` on Windows retries a failed `taskkill` once while the track is still running, and counts a later successful kill as signalled, so a transient `taskkill` failure no longer reports `signalled: false` for a stopped track (the cause of the intermittent `stop_uses_the_pid_file` CI failure is inferred from the code, not reproduced on Windows); the stop tests print the track directory's files on failure.
 - **git, cli:** the grant is written after the git exclude and removed if git still does not ignore it; protected branches are matched case-insensitively and without `origin/` or `refs/heads/`.
 - **agents:** `ai-gent delegate run --agent opencode` no longer lets the child inherit the supervisor's `PWD` (the watcher sets it to the worktree for every agent) or `INIT_CWD`, `OLDPWD` and the `GIT_*` location variables, and a run whose main checkout shows a new or changed file in `git status` afterwards is `failed` with `wrote-outside-worktree` and the paths, instead of succeeding (the comparison covers new, changed and removed paths and `HEAD`, skips the run's own and other linked worktrees, is bounded by 30 s, fails closed when the status cannot be read after the run and says `guard-unavailable` when it could not be read before; an edit of the main checkout by the supervisor or a person during the run is reported too, so review the reported paths) (spec 041, the isolation defect of the first real OpenCode run). Fixed in code and proven with a stub `opencode` only: a second real run has not been done
 

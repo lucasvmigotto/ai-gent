@@ -551,7 +551,11 @@ fn stop_uses_the_pid_file() {
     }
     assert!(a.status("o-stall").unwrap().running);
     let s = a.stop("o-stall").unwrap();
-    assert!(s.signalled && s.exited, "stop outcome: {s:?}");
+    assert!(
+        s.signalled && s.exited,
+        "stop outcome: {s:?}; track files: {:?}",
+        track_files(d.path(), "o-stall")
+    );
     let r = wait_finished(d.path(), "o-stall");
     assert_eq!(r.state, State::TakenBack);
     assert_eq!(a.result("o-stall").unwrap().state, State::TakenBack);
@@ -763,4 +767,19 @@ fn an_unreadable_main_checkout_after_the_run_fails_the_track_closed() {
             .starts_with("wrote-outside-worktree-unknown:")
     );
     drop(d);
+}
+
+/// The track directory's files with their sizes, for a failing assertion's message.
+fn track_files(root: &Path, track: &str) -> Vec<String> {
+    std::fs::read_dir(root.join(".ai-gent/delegate").join(track))
+        .map(|d| {
+            d.flatten()
+                .map(|e| {
+                    let n = e.file_name().to_string_lossy().into_owned();
+                    let len = e.metadata().map_or(0, |m| m.len());
+                    format!("{n}={len}")
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
