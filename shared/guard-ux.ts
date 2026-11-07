@@ -1,6 +1,8 @@
 // How the guards' decisions are presented in Claude Code (specs/015-guard-ux).
 //
-// Each guard.sh decides; this only explains. A plugin's hooks module calls
+// Each guard decides (the `ai-gent guard` binary in a package install, reached
+// through the launcher head of guard.sh; the shell logic below it in a clone);
+// this only explains. A plugin's hooks module calls
 // `decorate` on what `next(e)` returned at `classic.PreToolUse`, and gets back
 // the same decision with more words around it: a deny keeps the guard's exact
 // reason and gains one line of context for the model plus a notice for the

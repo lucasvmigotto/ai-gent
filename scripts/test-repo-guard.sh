@@ -6,4 +6,6 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-exec python3 "$REPO_DIR/scripts/guard-fixtures.py" run --guard repo --impl sh
+python3 "$REPO_DIR/scripts/guard-fixtures.py" run --guard repo --impl sh
+# the launcher head of a package install turns a missing, failing or slow binary into the ask line (spec 033 T051)
+exec python3 "$REPO_DIR/scripts/guard-fixtures.py" failures --guard repo

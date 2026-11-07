@@ -27,7 +27,10 @@
      shared/hook-lines.ts) is COPIED into the plugins that use it, because the
      engine refuses an import through a symlink that leaves the plugin. The
      copies are identical (`--sync-shared-code` rewrites them), and every
-     reason a guard.sh can print has an entry in guard-ux's table.
+     reason a guard.sh can print has an entry in guard-ux's table. Each
+     plugins/*/hooks/guard.sh also begins with the launcher head of
+     shared/guard-launcher.sh (guard id and marker substituted, rewritten by
+     `--sync-shared-code` too; spec 033).
  10. The git plugin's repo-hygiene band recognizes a release by the subjects
      .github/workflows/release.yml and shared/release-platforms.md write
      (`chore(release): X.Y.Z`, `chore(release): merge X.Y.Z back into dev`).
@@ -429,6 +432,51 @@ SHARED_CODE = {
 }
 GUARD_PLUGINS = {"git": "git:workflow guard:", "db": "db guard:", "secrets": "secrets guard:", "repo": "repo guard:",
                  "devcontainer": "containers guard:"}
+# The guard id each plugin's hook passes to `ai-gent guard --guard <id>` (spec 033).
+GUARD_IDS = {"git": "git", "db": "db", "secrets": "secrets", "repo": "repo", "devcontainer": "containers"}
+LAUNCHER = "shared/guard-launcher.sh"
+LAUNCHER_BEGIN, LAUNCHER_END = "# >>> guard launcher", "# <<< guard launcher\n"
+
+
+def launcher_head(root: Path, plugin: str) -> str:
+    """shared/guard-launcher.sh with the plugin's guard id and reason marker substituted."""
+    text = (root / LAUNCHER).read_text(encoding="utf-8")
+    return text.replace("@ID@", GUARD_IDS[plugin]).replace("@MARKER@", GUARD_PLUGINS[plugin])
+
+
+def launcher_span(text: str) -> tuple[int, int] | None:
+    start = text.find(LAUNCHER_BEGIN)
+    end = text.find(LAUNCHER_END, start)
+    return None if start < 0 or end < 0 else (start, end + len(LAUNCHER_END))
+
+
+def sync_launchers(root: Path) -> None:
+    """Write each guard.sh's launcher head: replace the block, or insert it before `set -u`."""
+    for plugin in GUARD_IDS:
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        text = guard.read_text(encoding="utf-8")
+        head = launcher_head(root, plugin)
+        span = launcher_span(text)
+        if span:
+            text = text[: span[0]] + head + text[span[1] :]
+        else:
+            text = text.replace("\nset -u\n", "\n" + head + "\nset -u\n", 1)
+        guard.write_text(text, encoding="utf-8")
+
+
+def check_launchers(root: Path) -> list[str]:
+    if not (root / LAUNCHER).is_file():
+        return []
+    problems = []
+    for plugin in GUARD_IDS:
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        if not guard.is_file():
+            continue
+        text = guard.read_text(encoding="utf-8")
+        span = launcher_span(text)
+        if not span or text[span[0] : span[1]] != launcher_head(root, plugin):
+            problems.append(f"plugins/{plugin}/hooks/guard.sh: the launcher head differs from {LAUNCHER} (run python3 scripts/consistency.py --sync-shared-code)")
+    return problems
 
 
 def guard_reasons(text: str) -> list[str]:
@@ -858,13 +906,15 @@ def main(root: Path = ROOT) -> int:
         for shared, plugins in SHARED_CODE.items():
             for plugin in plugins:
                 (root / "plugins" / plugin / "hooks" / Path(shared).name).write_bytes((root / shared).read_bytes())
-        print(f"copied {len(SHARED_CODE)} shared files into the plugins that import them")
+        if (root / LAUNCHER).is_file():
+            sync_launchers(root)
+        print(f"copied {len(SHARED_CODE)} shared files into the plugins that import them, and the guard launcher head into {len(GUARD_IDS)} guard.sh")
         return 0
     if "--sync-secret-data" in sys.argv[1:]:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_compact_langs(root) + check_tiers(root) + check_readme_tiers(root) + check_naming(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_launchers(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_compact_langs(root) + check_tiers(root) + check_readme_tiers(root) + check_naming(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
