@@ -5,6 +5,7 @@
 pub mod branch;
 pub mod event;
 pub mod grant;
+pub mod grant_write;
 pub mod passallow;
 pub mod reasons;
 pub mod replay;

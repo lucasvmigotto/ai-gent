@@ -33,6 +33,12 @@ impl Grant {
         self.branches.iter().any(|b| b == branch)
     }
 
+    /// The actions the grant names, as written.
+    #[must_use]
+    pub fn actions(&self) -> &[String] {
+        &self.actions
+    }
+
     /// The branches the grant covers.
     #[must_use]
     pub fn branches(&self) -> &[String] {
