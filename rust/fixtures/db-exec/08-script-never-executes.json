@@ -2,5 +2,5 @@
   "name": "script-never-executes",
   "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_script_never_executes",
   "kind": "pending",
-  "reason": "The script command writes a reviewed .sql file and never connects; it belongs to the runner's command layer, which this crate does not own yet (spec 038 T026 cutover). The refusal of a write script is the classifier case in 03-remote-refusals."
+  "reason": "Command layer, not connector behavior: run as journey_08 in rust/crates/ai-gent-dbrun/tests/plan.rs over core::plan::write_script, which takes no connector. The refusal of a write script is the classifier case in 03-remote-refusals."
 }
