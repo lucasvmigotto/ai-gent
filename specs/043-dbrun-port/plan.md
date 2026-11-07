@@ -32,7 +32,7 @@ One worker per task group below. A task is one pull request into `dev` unless it
 
 | Group | Tasks | Needs first | Notes |
 |---|---|---|---|
-| A shared core | T001-T013 | 038 crate pieces already in `dev` | the contract, parity corpus, redaction, TLS model, plan/apply/restore/log, profiles, CLI |
+| A shared core | T001-T014 | 038 crate pieces already in `dev` | the contract, parity corpus, redaction, TLS model, plan/apply/restore/log, profiles, CLI |
 | B SQLite | T020-T023 | T002, T004 | in-process; the reference connector |
 | C PostgreSQL | T030-T034 | T002, T004, T007 | review findings 1 and 2, TLS |
 | D MySQL and MariaDB | T040-T044 | T002, T004, T007 | datetimes/TIME, timeout, TLS |
@@ -43,7 +43,7 @@ One worker per task group below. A task is one pull request into `dev` unless it
 | I Package and uv | T090-T093 | H | allowlist, doctor, uv removal, platform matrix |
 | J Docs | T095-T098 | H | references, README, docs site, migration guide |
 
-Parallelism: A's T002, T004 and T007 unblock B-F; B-F run in parallel worktrees after them (up to the slot cap), landing one at a time in dependency order (`agents:parallel`). Each engine worker needs one engine container at a time on the machine; the disk floor applies, so engine groups that need images are scheduled so no two pull at once unless disk allows. G waits for F. H starts only when every engine passes the engines script natively. Nothing in H-J lands on `dev` before the cutover branch is ready, because `dev` ships 2.x releases until the owner decides otherwise (see Sequencing).
+Parallelism: A's T002, T004 and T007 unblock B-F; B-F run in parallel worktrees after them (up to the slot cap), landing one at a time in dependency order (`agents:parallel`). Each engine worker needs one engine container at a time on the machine; the disk floor applies, so engine groups that need images are scheduled so no two pull at once unless disk allows. G waits for F. H starts only when every engine passes the engines script natively. Cutover work in H-J merges to `dev` as it is ready but stays inert for packages until the single cutover pull request (Sequencing, FR-036); T001's `decision.md` is approved by the owner before B-F start.
 
 ## Sequencing with the rest of the series (relayed 6 and 7)
 
@@ -59,42 +59,53 @@ Parallelism: A's T002, T004 and T007 unblock B-F; B-F run in parallel worktrees 
         install.ps1, git mode removed, tiers, docs v2
 ```
 
-Why: the previous plan made `dbrun` the last 3.x step so 3.0.0 could ship with Python for one plugin. The owner reversed it (relayed 1): one release that removes every Python tool, so a user migrates once and "uv and Python are not needed" is true without an exception. The cost is that 3.0.0 now waits on the slowest group (Oracle: a beta driver, an old verifier that cannot be reproduced without another server image, and an owner-run thick test). Between 2.28 and 3.0.0, `dev` and `main` keep 2.x semantics: the 035/036/037 cutover tasks and the 043 cutover wait on their own branch and are released as one. [NEEDS CLARIFICATION: where those cutover commits wait (a long-lived branch off `dev`, which the owner's `develop` rename plan may touch, or `dev` itself held back from `main` promotions); this is the owner-side plan of relayed 8, not written here.]
+Why: the previous plan made `dbrun` the last 3.x step so 3.0.0 could ship with Python for one plugin. The owner reversed it (relayed 1): one release that removes every Python tool, so a user migrates once and "uv and Python are not needed" is true without an exception. The cost is that 3.0.0 now waits on the slowest group (Oracle: a beta driver, a 10G verifier case that stays unreproduced without another server image, and an owner-run thick test). Between 2.28 and 3.0.0, `dev` and `main` keep 2.x semantics: the 035/036/037 cutover tasks and the 043 cutover merge to `dev` as ready, inert for packages, and take effect together in the single cutover pull request. Decided (chat, 2026-11-07, point 13): the cutover tasks merge to `dev` as they are ready but stay inert for packages (no Python script deleted, no packaged skill or allowlist edit applied) until the single cutover pull request; 2.28 releases from `dev` with the cutover edits not applied. No long-lived branch.
 
 ## Risks
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Oracle thin is beta (`=26.0.0-beta.5`), narrower than python-oracledb thin (12c verifier only), no total login deadline, panics possible | 3.0.0 blocked, or a crash on a credential path | FR-014 containment, FR-024 deadline, FR-025 means chosen by the owner, exact pin, thick as the documented escape for users who install Instant Client |
-| The old-verifier case cannot be reproduced on the 26ai image | an untested claim | needs an 11g/12.1 image (owner decision) or a unit test against a recorded handshake transcript; recorded as unverified otherwise |
-| `tiberius-ng` is a one-maintainer fork | supply-chain and maintenance risk on a credential path | decision in FR-021; plain `tiberius` as fallback; consider the `mssql` crate split |
-| TLS defaults break profiles that worked unencrypted | users locked out after upgrade | FR-015 default decided before T007; migration guide row; clear error naming the field |
-| Native backup/restore is less proven than `pg_dump`/`mysqldump` | data loss on restore of a local dev database | FR-018 decided first; engines script restore journey per engine; backups are of proven-local databases only |
+| Oracle thin is beta (`=26.0.0-beta.5`), narrower than python-oracledb thin (12c verifier only), no total login deadline, panics possible | 3.0.0 blocked, or a crash on a credential path | FR-014 child-process containment, FR-024 deadline, FR-025 clear refusal pointing to thick, exact pin, thick as the documented escape for users who install Instant Client |
+| The old-verifier case cannot be reproduced on the 26ai image | an untested claim | the owner chose no 11g/12.1 image now (2026-11-07): the 10G case stays recorded "unverified"; the 11G-only account tests the refusal text |
+| `tiberius-ng` is a one-maintainer fork | supply-chain and maintenance risk on a credential path | fork kept with its checksum pinned (decided 2026-11-07), plain `tiberius` as the measured fallback; the `mssql` crate split stays open |
+| TLS defaults break profiles that worked unencrypted | users locked out after upgrade | FR-015 default decided (verify, 2026-11-07); migration guide row; clear error naming the field; explicit `unverified` only on proven-local loopback profiles |
+| Native backup/restore is less proven than `pg_dump`/`mysqldump` | data loss on restore of a local dev database | FR-018 decided (the same engine tools through the container exec, 2026-11-07); engines script restore journey per engine; backups are of proven-local databases only |
 | Parity corpus covers reads only today | behaviour drift in writes and plans | T003 extends it to writes, plans, errors, CLI shapes; accepted differences reviewed |
-| musl/aarch64/Windows/macOS builds of the engines were never run | a target without `db` | T091 matrix before the cutover; waiver or blocker per FR-029 |
+| musl/aarch64/Windows/macOS builds of the engines were never run | a target without `db` | T091 matrix before the cutover; per-target waiver of the failing engine per FR-029/FR-035 |
 | Thick mode untestable in CI | silent breakage | owner-run evidence (FR-027); CI builds the feature and runs the missing-library path |
 | The slowest engine holds the whole release | 3.0.0 slips | engine groups run in parallel; the owner can later split the release by a new decision (not assumed here) |
 | 51 Python test runs have no one-to-one Rust names | missed behaviour | SC-002 mapping table in `differences.md` |
-| Local container reachability (FR-020) is open | design churn in every engine group | resolved in T010/T011 before the engine groups finish |
+| The container-exec path (profiles with no published port) diverges from the driver path | two code paths to keep equal | one parity corpus exercises both (T014); decided 2026-11-07 |
 
-## Open points (all [NEEDS CLARIFICATION] items, with what each blocks)
+## Decisions (given by the owner in chat, 2026-11-07, three rounds; the 14 open points of the first draft)
 
-| # | Point | Spec | Blocks |
-|---|---|---|---|
-| 1 | Command word `ai-gent db` | FR-001 | T011, T080 |
-| 2 | Where a native binary reaches a local container with no published port; fate of `session` | FR-020 | T010, T011, engine groups' local runs |
-| 3 | TLS: field names, default for existing profiles, local default, `unverified` refused on production | FR-015 | T007 |
-| 4 | System roots for Oracle thin (`webpki-roots` in `oracledb`) | FR-016 | T063 |
-| 5 | Meaning of "native" backup/restore; Oracle backup | FR-018 | T008, T020, T033, T043, T055, T065 |
-| 6 | SQL Server count: DONE token, upstream patch, fork or one-batch | FR-012 | T051 |
-| 7 | Panic containment: child process, unwinding build or upstream fix | FR-014 | T012, T060 |
-| 8 | `tiberius-ng` fork vs plain vs vendored; `mssql` crate split | FR-021 | T050 |
-| 9 | DDL row count and Oracle `NUMBER` contract values | FR-022 | T005, T031, T053, T061 |
-| 10 | Old-verifier means and the test image for 11g/12.1 | FR-025 | T062 |
-| 11 | Thick mode: variable name, targets, selection rule | FR-026 | T070, T071 |
-| 12 | Platform list, waiver policy, size budget | FR-029, FR-030 | T091 |
-| 13 | Where the held cutovers wait before 3.0.0 | Sequencing | owner plan |
-| 14 | Whether 038's `decision.md` is written by T001 or by the owner from the relayed decisions | spec header | T001 |
+Format as `shared/asking.md`: `Decided: <choice> — <reason>`. The eight earlier decisions stay "relayed" (spec header).
+
+| # | Point | Decided | Reason | Date | Unblocks |
+|---|---|---|---|---|---|
+| 1 | Command word | `ai-gent db`; db skills and guard call it | 038's recommendation | 2026-11-07 | T011, T080 |
+| 2 | Local container with no published port; `session` | no published port keeps the container exec path (engine client in the container); published port uses the Rust drivers; `session` stays | no client image or namespace join to rebuild | 2026-11-07 | T010, T011, T014 |
+| 3 | TLS model | verify by default (system roots or named CA file); explicit `unverified` only on a proven-local loopback profile; refused on production | safe default with a door for throwaway databases | 2026-11-07 | T007, T032, T042, T054, T063 |
+| 4 | System roots for Oracle thin | PEM wallet or CA file, no system-roots promise | `oracledb` ships webpki-roots only | 2026-11-07 | T063 |
+| 5 | "Native" backup/restore | Rust drives the same tools through the container exec; no Python, no Rust dump | proven tools, no correctness risk | 2026-11-07 | T008, T020, T033, T043, T055 (Oracle: T065 still open) |
+| 6 | SQL Server count | one batch per plan, count read once at the end or from DONE tokens if exposed | no probe between statements, no patch | 2026-11-07 | T051 |
+| 7 | Panic containment | child process of `ai-gent db` per engine call; `panic = "abort"` stays | clean failure JSON, uniform deadline | 2026-11-07 | T012, T060, T064 |
+| 8 | `tiberius-ng` | keep the fork, checksum pinned, not vendored; plain `tiberius` is the fallback | measured drop-in | 2026-11-07 | T050 (crate split: still open) |
+| 9 | DDL row count and `NUMBER` | the Rust values are the contract (DDL `0`, `NUMBER` from text), documented as intended 3.0.0 changes | simplest and server-true | 2026-11-07 | T005, T031, T053, T061, T097 |
+| 10 | Old-verifier means | clear refusal naming the cause and pointing to thick; no 11g/12.1 image now | cost not justified for a beta driver | 2026-11-07 | T062 |
+| 11 | Thick mode | `AI_GENT_ORACLE_CLIENT_LIB`; separate optional crate/feature, only where a client exists, never in the package; thin default | no client ever shipped | 2026-11-07 | T070, T071 (selection rule: still open) |
+| 12 | Platforms, waiver, size | six release targets; an engine that cannot build is waived for that target with a refusal and a matrix line; size: spec 032 budget (8 MB binary, derived from 032/038 measurements) | do not block the release on one engine | 2026-11-07 | T091 |
+| 13 | Held cutovers | merge to `dev` as ready, inert for packages until the single cutover PR; 2.28 releases from `dev` without the cutover edits | no long-lived branch | 2026-11-07 | T084 |
+| 14 | 038 `decision.md` | T001 drafts it from 038's results and these answers; owner approves in the PR before any engine group starts | owner keeps the gate | 2026-11-07 | T001, groups B-F |
+
+## Still open (genuinely; nothing else)
+
+- TLS profile field names and file keys (T007 proposes, the owner reviews in its PR).
+- Whether Oracle gets a backup (Data Pump) or `apply` stays refused there (T065; default: refused).
+- Whether `mssql` becomes its own crate (D28 candidate).
+- Oracle thick selection rule when the variable is set (assumed: thick only when set, no automatic fallback; T070).
+- Whether the full-feature `regex` is acceptable for size (answered by a measurement in T091).
+- Measured combined size per target: the 8 MB budget is derived (about 6.1 MB estimated), not yet measured together.
 
 ## Amendments to 039 (made in this change set; each carries "amended 2026-11-07 per owner decision (relayed)")
 
