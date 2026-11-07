@@ -75,3 +75,29 @@ Same machine as E8. `mysql` crate 28.0.4, `minimal` features, no TLS. Details an
 | Python baseline on this machine | warm `uv run --with PyMySQL` import alone 46.2 ms | from E8 |
 
 Surprises: (1) the host has no compose provider, so the engine script could not start a container until a stand-in with the compose labels was supplied (see `results.md`); (2) the text protocol reports DATE and TIME as the binary charset, so a "charset 63 means blob" rule renders a date as `<10 bytes>`, fixed by deciding on column type first; (3) the MySQL and MariaDB timeout units differ by a factor of 1000, and MariaDB reports the variable as a float.
+
+## E5 SQL Server through the adapter (T007, 2026-11-07)
+
+Same machine as E8. `tiberius-ng` 0.13.1 (`tds73`, `rustls`), image `mcr.microsoft.com/mssql/server:2022-latest` (SQL Server 2022 RTM-CU27-GDR), 2 GB cap, loopback, one engine at a time. Details and the 17-check list in `results.md` "E5".
+
+| Measure | Value | Marker |
+|---|---|---|
+| Engine script, `--engine sqlserver` | 17 of 17 checks ok in three runs; 70 s (first, includes the image start and first seed), 35 s, 42 s (final, no `--keep`) | measured |
+| Image pull (`mcr.microsoft.com/mssql/server:2022-latest`) | done once; disk 61 GB free before, 54 GB after the pull and the builds (floor 15 GB) | measured |
+| Adapter release binary, bridge only | 387600 bytes | measured |
+| Adapter release binary, `--features mssql` | 2599528 bytes (2.60 MB); delta +2211928 bytes (+2.21 MB) over the bridge-only adapter | measured |
+| Runtime libraries of that binary | `libgcc_s.so.1`, `libc` (no OpenSSL, no zlib) | measured (`ldd`) |
+| Build, `--features mssql` | debug cold about 40 s (`aws-lc-sys` through cmake and a C compiler), 1 s warm; release 36 s with the dependencies | measured |
+| One request, release adapter vs SQL Server 2022 (process start, TCP, TLS handshake, login, session setup, identity, links, one `SELECT 1`, rollback) | median 65.4 ms, p95 104.2 ms, 50 runs after 5 discarded | measured |
+| Python runner, same request (`uv run --offline --with pymssql`, warm cache) | median 104 ms (15 runs) | measured |
+| Statement timeout 1 s on `WAITFOR DELAY '00:00:04'` | refused at 1.04 s (a first version that tried to roll back before dropping the connection took 4.04 s) | measured |
+| Lock timeout (5 s) | refused at 5.05 s | measured |
+| 100,000-row read with `max_rows: 5` | 0.43 s, 5 rows returned | measured |
+| TLS on the session | `encrypt_option = TRUE` for the adapter; `FALSE` for pymssql | measured |
+| Plain `tiberius` 0.13.0, same source | builds, answers 6 requests identically (a scratch copy outside the repository); size and time not measured | measured (behaviour only) |
+| `sqlcmd` in a client image | not run | not run |
+| Unit tests | `cargo test --features mssql --lib` 14 passed (12 in `mssql.rs`); `--test mssql_request` 1 passed; `clippy` and `rustfmt` clean for the new files | measured |
+
+Fork-health facts (retrieved 2026-11-07 from the crate sources and `cargo info` only; no web access): `tiberius-ng` 0.13.1 released 2026-08-30 after 0.13.0 on 2026-08-29 (changelog dates), MIT OR Apache-2.0, rust-version 1.88, one active maintainer on the repository `MattJackson/tiberius-ng`, a fork of `prisma/tiberius` whose README says it is no longer maintained, changelog says "No further releases are planned in the immediate term", `src/` differs from plain `tiberius` 0.13.0 by about 14,500 diff lines. Not retrieved: GitHub issue counts, last commit date, stars, downloads.
+
+Surprises: (1) the client crate gives no row count for a streamed batch and its RPC path drops the column names of an empty result set, so the count comes from `SELECT ROWCOUNT_BIG()` in the same session; (2) pymssql returns `-1` as the row count of a `SELECT` and of DDL, the adapter the server's count; (3) `datetimeoffset` travels as UTC and pymssql shows the stored wall time; (4) the server accepts and runs a write in read mode, and only the rollback undoes it (no server-side read-only mode); (5) a timed-out statement cannot be rolled back from the client, the dropped connection does it; (6) the Rust path encrypts the session where pymssql did not.

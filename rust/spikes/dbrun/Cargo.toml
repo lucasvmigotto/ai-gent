@@ -19,8 +19,8 @@ default = []
 sqlite = ["dep:rusqlite"]
 pg = ["dep:postgres"]
 mysql = ["dep:mysql"]
-mssql = ["dep:tiberius", "dep:tokio", "dep:tokio-util"]
-all = ["sqlite", "pg", "mysql"]
+mssql = ["dep:tiberius", "dep:tokio", "dep:tokio-util", "dep:futures-util"]
+all = ["sqlite", "pg", "mysql", "mssql"]
 parser = ["dep:sqlparser"]
 
 [dependencies]
@@ -30,7 +30,8 @@ rusqlite = { version = "0.41", features = ["bundled", "hooks"], optional = true 
 postgres = { version = "0.19", optional = true }
 mysql = { version = "28", default-features = false, features = ["minimal"], optional = true }
 tiberius = { package = "tiberius-ng", version = "0.13", default-features = false, features = ["tds73", "rustls"], optional = true }
-tokio = { version = "1", features = ["rt", "net"], optional = true }
+tokio = { version = "1", features = ["rt", "net", "time"], optional = true }
+futures-util = { version = "0.3", default-features = false, optional = true }
 tokio-util = { version = "0.7", features = ["compat"], optional = true }
 sqlparser = { version = "0.63", optional = true }
 

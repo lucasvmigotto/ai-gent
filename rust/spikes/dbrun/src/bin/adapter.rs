@@ -1,7 +1,7 @@
 //! Execution-only adapter: one Python JSON request on stdin, one result line.
 //! PostgreSQL runs natively when built with the `pg` feature, MySQL and MariaDB with the `mysql`
-//! feature; every other engine (or a build without the feature) goes through the Python `_exec`
-//! bridge.
+//! feature, SQL Server with the `mssql` feature; every other engine (or a build without the feature)
+//! goes through the Python `_exec` bridge.
 use serde_json::{json, Value};
 use std::io;
 
@@ -13,6 +13,10 @@ fn execute(request: &Value) -> Value {
     #[cfg(feature = "mysql")]
     if matches!(request["engine"].as_str(), Some("mysql" | "mariadb")) {
         return dbcore::drivers::mysql::execute(request);
+    }
+    #[cfg(feature = "mssql")]
+    if request["engine"].as_str() == Some("sqlserver") {
+        return dbcore::drivers::mssql::execute(request);
     }
     dbcore::drivers::process::execute(request)
 }

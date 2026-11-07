@@ -201,3 +201,100 @@ Results after the fixes: `cargo test --offline --features mysql --lib` 7 passed 
 - MySQL 5.7, Percona, a MariaDB older than 11.4, other character sets, `TIME`, `BIT`, `JSON`, `GEOMETRY` and zero-date values (the conversion handles them by type, but only the types in the proof row ran), and results with several result sets.
 - Windows and macOS (E7), and Unix-socket connections (the adapter always uses TCP).
 - Cold start against MySQL: the only number is the first connect in a debug build, `mode: test`, 0.156 s (the adapter's `seconds`), against the report's 160 ms. The mysql container was already gone when the release binary was timed.
+
+## E5: SQL Server native (T007, 2026-11-07)
+
+Machine as E8 (Linux x86_64, Podman 5.4.2). Code: `rust/spikes/dbrun/src/drivers/mssql.rs` (about 690 lines, about 190 of them tests), wired in `src/bin/adapter.rs` behind the spike's `mssql` feature; `--features pg,mysql,mssql` builds and the one dispatcher routes `postgresql`, `mysql`/`mariadb` and `sqlserver` to their native drivers (each answers a refused port with its own `connect` failure JSON); without the feature SQL Server still goes through the Python `_exec` bridge. Server: `mcr.microsoft.com/mssql/server:2022-latest` (SQL Server 2022 RTM-CU27-GDR, 16.0), 2 GB cap, `127.0.0.1:15435`, started by `scripts/test-dbrun-engines.py` through the same stand-in `docker-compose` shim as E2 and E3 (a Python script in the session scratchpad, outside the repository). Only this engine ran, nothing else concurrently. Disk before the pull 61 GB free of 225 GB (floor 15 GB), 54 GB after the pull and the builds.
+
+### Candidates
+
+| Candidate | What was done | Result |
+|---|---|---|
+| `tiberius-ng` 0.13.1 (`default-features = false`, `tds73`, `rustls`) | built the driver, ran the engine script and the direct proofs | the choice; all below |
+| `tiberius` 0.13.0 (same features) | the same source, only the dependency line changed (a scratch copy outside the repository), built, then six requests compared with the `tiberius-ng` adapter on the live server (a type row, all 300 legacy `datetime` ticks, an `UPDATE ... OUTPUT` with `max_rows`, a syntax error, a timeout, a capped read) plus `encrypt_option` | compiles unchanged (the `Client`, `simple_query`, `Config`, `Row` and `ColumnData` surface this driver uses is the same) and every request answered byte for byte the same, TLS on. So the fallback exists and costs a dependency line. Not run through the whole engine script. |
+| `sqlcmd` in a client image | not run | judged by interface only (and my attempt to call `sqlcmd` directly was stopped by the repository's db guard, correctly). `sqlcmd` prints text tables: no column types, so dates, decimals, money and binary could not be rendered as `to_jsonable` does; the row count would be parsed from `(N rows affected)` text, which is the statement-text parsing the E2 review rejected; a client image needs the Microsoft ODBC driver and its licence; each request is a container start. Rejected without a build. |
+
+### Choice
+
+`tiberius-ng` 0.13.1, pure Rust, TDS 7.3+, rustls (no OpenSSL, no FreeTDS, no ODBC). Runtime libraries of the release binary: `libgcc_s` and `libc` only. It is async, so the driver builds a current-thread Tokio runtime per request (`tokio` features `rt`, `net`, `time`; `futures-util` and `tokio-util` for the stream and the compat layer). The whole request is one `block_on`. `rustls` brings `aws-lc-rs` (a cmake and C build of `aws-lc-sys`), as E8 found for the mssql set; no `ring`.
+
+### Fork health of `tiberius-ng` (retrieved 2026-11-07)
+
+Retrieved offline from the downloaded crate sources (`~/.cargo/registry`, the cargo index through `cargo info`); the host rule allowed no other network, so nothing on GitHub or crates.io's web pages was fetched. Facts marked "not retrieved" are the ones a person must check before a production decision.
+
+- Name and origin. `cargo info tiberius-ng`: version 0.13.1, MIT OR Apache-2.0, rust-version 1.88, repository `github.com/MattJackson/tiberius-ng`, description "actively-maintained community continuation of tiberius". The library is still imported as `tiberius`. Its `CHANGELOG.md` says it is a maintained community fork of `github.com/prisma/tiberius` and that entries up to 0.12.3 are the upstream history. Source: `tiberius-ng-0.13.1/CHANGELOG.md` and `Cargo.toml`.
+- Is it a fork of a maintained crate? Of a crate that is not maintained, by its own account: `README.md` says the original "is no longer maintained upstream". Plain `tiberius` 0.13.0 does exist (repository `prisma/tiberius`, `Changes` file starting at "Version 0.13.0", rustls and `rustls-webpki-roots` features), so the original is not absent; I could not check its recent activity. The two sources have diverged: `diff -r` of the two `src/` trees shows 77 differing entries and about 14,500 diff lines.
+- Age and releases. Changelog dates: 0.13.0 on 2026-08-29 (the first release under the new name; "0.13.0-alpha.1 was published to crates.io to claim the name") and 0.13.1 on 2026-08-30, so about 10 weeks old on the retrieval date, two releases in two days, none since in the changelog. The Unreleased section says: "0.13.1 is a stable settling point ... No further releases are planned in the immediate term; the crate is considered stable for production use." That is the maintainer's statement that the crate is done, not that it is being developed.
+- Maintainers. `Cargo.toml` authors: Matthew Jackson, Steffen Butzer, Julius de Bruijn, Eric Sheppard, Yoshua Wuyts (the last four are the upstream authors). `CODEOWNERS` and `SECURITY.md` exist; the security policy supports only the 0.13.x series. One current maintainer is the repository owner; I found no sign of a second.
+- Claims about quality, taken from the changelog and README and not checked: `cargo-deny` with zero advisories enforced in CI, about 93 percent line coverage against a live SQL Server, a mutation-testing harness with "100% mutation score". Not retrieved: GitHub open issue and pull request counts, last commit date, stars, crates.io download counts and the exact publish timestamps.
+- If it is abandoned. (1) `Cargo.lock` pins the checksum (the spike's `Cargo.lock` holds the registry checksum of `tiberius-ng` 0.13.1), so a yanked or vanished crate does not break an existing build. (2) The licence allows vendoring and the surface the connector needs is small (connect, a batch, rows, errors). (3) Plain `tiberius` 0.13.0 is a measured drop-in for this driver (candidates table), though its own maintenance is the same open question. (4) The wire protocol is Microsoft's published MS-TDS, so a fork is possible but would be work owned by the project. Risk: moderate, because the replacement for an abandoned `tiberius-ng` is another unmaintained crate, not a maintained one; the mitigation is the small surface and a pinned version.
+
+### TLS decision
+
+rustls with the crate's default encryption level `Required`, and `trust_cert()` (the certificate is not verified) for the self-signed test image only. Measured on the server: `sys.dm_exec_connections.encrypt_option` is `TRUE` for the adapter's session and `FALSE` for the Python runner's (pymssql). So the Rust path encrypts where the Python path did not (E5 improves on the Python runner for loopback, but it also fails against a server that refuses encryption, where pymssql connects). `trust_cert()` is unacceptable outside the test image: a production connector needs a profile field to trust a given CA file (`trust_cert_ca`) or to verify against the system roots (the `rustls-native-certs` feature is already enabled), and the request JSON carries neither today. A test against a server with a CA-signed certificate was not run.
+
+### Engine script, through the adapter
+
+Build: `cd rust/spikes/dbrun && cargo build --features mssql --bin adapter` (cold 40 s including `aws-lc-sys`; 1 s warm). Command, from the repo root with the shim's directory first on `PATH`: `python3 scripts/test-dbrun-engines.py --runner rust/spikes/dbrun/target/debug/adapter --engine sqlserver --port 15435`. Three runs, all `all checks passed`; the last (after formatting, no `--keep`) in 42 s, 17 of 17:
+
+`container started`, `server ready`, `local proof`, `read is masked`, `--reveal shows values`, `--explain returns the plan`, `query refuses a write`, `apply commits DDL and DML`, `the plan's table exists`, `restore runs`, `restore removes the plan's table`, `count mismatch rolls back`, `plan in system database master refused`, `published port is not local`, `remote read works`, `remote refusals (7)`, `change script written, never executed`: every one `ok`.
+
+Plan, apply and restore and the remote-declared checks all ran through the adapter, except that the `BACKUP`/`RESTORE` statements go through `sqlserver_autocommit`, which `dbrun.py` runs as its own pymssql process (they cannot run inside a transaction), so those two checks do not exercise the Rust driver.
+
+### SQL Server has no server-side read-only mode
+
+PostgreSQL has `default_transaction_read_only`, MySQL and MariaDB a `READ ONLY` transaction (E2, E3). SQL Server has neither: there is no session or transaction setting that makes the server refuse a write (`ApplicationIntent=ReadOnly` only routes to a readable secondary and the server does not enforce it on a single instance; a `db_datareader`-only login is a database-permission choice the owner makes, not something the runner can switch on). So in read mode the server does not refuse a write. Read mode is protected by two layers that are ours:
+
+1. The classifier and the statement scanner in `dbrun.py` (`classify`, `split_statements`), which decide before any connection is opened. They are what refuses `INSERT`, `UPDATE`, `DELETE`, DDL, `EXEC` and the rest. The engine script's `query refuses a write` and `remote refusals (7)` checks pass through them.
+2. A transaction that read mode never commits: the adapter opens `BEGIN TRANSACTION` and always sends `ROLLBACK TRANSACTION` (as `dbrun.py` does with `conn.rollback()`). SQL Server DDL is transactional, so a rolled-back `CREATE TABLE` also disappears.
+
+Proved directly, the classifier not in the path (the adapter fed read-mode requests, container kept up): `UPDATE customer SET name = 'HACKED'` returned `ok: true, rowcount: 3`; `INSERT`, `DELETE FROM customer`, `CREATE TABLE leak_t` and `DROP TABLE customer` all returned `ok: true`. The server executed them. Afterwards, in a fresh session, `customer` still had 3 rows, 0 rows named `HACKED` and no `leak_t` table, so nothing persisted. The Python runner gave the same results for the same requests. The consequence is stated plainly: a write that gets past the classifier runs on the server, holds locks while it runs, fires triggers, and can have effects a rollback does not undo (an `EXEC` of a procedure that calls out, `xp_cmdshell` where enabled, a sequence value consumed, a linked-server call, `WAITFOR`). The classifier is the real protection, and the account's privileges are the second one, which the profile should keep to `db_datareader` for read use. The adapter has no classifier of its own, so it is not a layer by itself; the spike's ported classifier (E1) could be called in it as a defence in depth, which this run did not do.
+
+### Behaviours proved directly against the server
+
+A scratch script in the session scratchpad (not in the repository) fed the same request to `dbrun.py _exec` (`uv run --offline --with pymssql==2.4.4`) and to the adapter, on the container kept by `--keep`; the container was then removed by name. No password is printed or stored in the repository.
+
+| Behaviour | Outcome |
+|---|---|
+| Session settings (`@@LOCK_TIMEOUT`, `APP_NAME()`, `@@TRANCOUNT`, `DB_NAME()`) | `5000`, `ai-gent-dbrun`, `1`, `shop`; identical to pymssql |
+| Statement timeout | `WAITFOR DELAY '00:00:04'` with timeout 1: `TimeoutError: statement exceeded 1 s`, stage `execute`, wall 1.04 s (pymssql: `OperationalError (20047 ...)` at 1.1 s) |
+| A write that times out persists nothing | `UPDATE customer SET name = 'T'; WAITFOR DELAY '00:00:06'` in write mode, timeout 1: stage `execute` at 1.04 s; afterwards 0 rows named `T`. The connection is dropped without a rollback (the client cannot send one while the server is still running the statement; a first version tried and waited 4 s), and the server undoes the open transaction |
+| Lock timeout | a write request holds a row lock for 9 s; a read request (timeout 20) waits: `MssqlError 1222 (state 51, class 16): Lock request time out period exceeded.` after 5.05 s |
+| Row count mismatch rolls back | `UPDATE customer SET name = 'M'` with `expect: [1]`: stage `verify`, "expected 1, got 3"; afterwards 0 rows named `M` |
+| Row count from the server | `UPDATE ... WHERE id <= 2` 2, `WHERE id = 9999` 0, `/* c */ UPDATE ...` 3, `INSERT` 1, `DELETE` 1, a `WITH ... UPDATE` 3, two statements in one request `UPDATE ...; UPDATE ... WHERE id = 1` 1: all equal to pymssql |
+| `max_rows` in both modes | write mode `UPDATE ... OUTPUT inserted.id` with `max_rows: 2`: 2 rows, `truncated: false`, `rowcount` 3; read mode `SELECT` with `max_rows: 2`: 2 rows, `truncated: true`; `TOP 100000` rows with `max_rows: 5`: 5 rows kept (only `cap + 1` are converted) in 0.43 s |
+| Errors | syntax error `MssqlError 2812 (state 62, class 16): Could not find stored procedure 'SELEC'.`; missing table `MssqlError 208 (state 1, class 16): Invalid object name 'nope'.`; refused port `Connection refused (os error 111)`; the same stages as pymssql (`execute`, `connect`) |
+| Redaction | wrong password and a wrong user: `MssqlError 18456 (state 1, class 14): Login failed for user '<user>'.`, no password in the output. The host `127.0.0.1` and `localhost` are skipped by the contract's rule, so host redaction was not shown on a real name |
+| Invalid timeout | `-6`, `"NaN"` and a bare `NaN`, `-1e-9`: `{"ok": false, "stage": "connect", "error": "ValueError: invalid timeout"}`, no panic, empty stderr (`tests/mssql_request.rs`, plus unit tests). `0` means no statement timeout, as pymssql (`timeout=0`); `1e300` and `1e999` are capped at 86400 s |
+| `--explain` | `SET SHOWPLAN_TEXT ON`, the plan is the second result set, as `dbrun.py`: the `Clustered Index Seek` plan text equal to pymssql's |
+| Login to a database that does not exist | `MssqlError 4060 ... Cannot open database "nodb"` (pymssql says 18456 for it) |
+
+### Value rendering against pymssql
+
+The adapter and pymssql were fed the same `SELECT` of every type, and the strings compared. Values rendered like Python's `isoformat()` and `str()`:
+
+- integers, `bit` (bool), `float` and `real` (`CAST(0.1 AS real)` is `0.10000000149011612` in both), `decimal` and `numeric` (`str(Decimal)`: `1.50`, `0.05`, `-3`, `12345.6789`, and `decimal(38,0)`), `char` padding, `nvarchar` Unicode, `uniqueidentifier` (lowercase hyphenated), `varbinary` and `binary` (`<N bytes>`), `xml`, `date` (including `0001-01-01` and `9999-12-31`), `time(n)` (the scale-0 value has no fraction, a fraction is always six digits, and `time(7)` is truncated to microseconds: `23:59:59.9999999` is `23:59:59.999999`), `datetime2(n)`, `smalldatetime`, `datetimeoffset` (the stored wall time and its offset: `2026-11-07T14:59:58+05:30`, `...-03:00`), `money` and `smallmoney` (four decimals: `12.3400`, `-0.5000`).
+- Legacy `datetime`: all 300 ticks of a second (`CAST(0x00000000 + CAST(k AS binary(4)) AS datetime)`, k from 0 to 299) rendered the same as pymssql, which shows pymssql's FreeTDS rounds to SQL Server's `.000 .003 .007 .010 ...` milliseconds and then pads to microseconds (`.003000`).
+- Two review-style findings, both fixed before the run above. (1) `datetimeoffset`: the first version printed the UTC time TDS carries (`09:29:58+05:30`); pymssql shows the wall time, so the offset is added back (`shift_minutes`, with the day carry). (2) `money` arrives from the client crate as a binary float, so it is rebuilt as a four-decimal `Decimal` string by column type.
+- Python-computed expectations in the unit tests: the dates (`date(2026, 11, 7)` is 739926 days after `0001-01-01`, `date(1969, 12, 31)` 719161, ...), `time(1, 2, 3, 120000).isoformat()`, `Decimal` strings, and the `datetime` tick table; `cargo test --features mssql --lib` gives 14 passed, `--test mssql_request` 1 passed (12 of the 14 are in `mssql.rs`; the other two are the process-bridge tests of the lib).
+
+### Differences from the Python driver, and what surprised
+
+- **Row count of statements that return rows.** pymssql reports `-1` for a `SELECT`, an `OUTPUT` statement, a stored procedure and `DECLARE ...; SELECT` (before the rows are fetched; `0` for an empty `SELECT`) and `-1` for DDL, `SET` and `PRINT`. The adapter reports the server's count: the rows returned for a statement with a result set, and `0` for DDL, `SET` and `PRINT` (the client crate does not say a DONE token carried no count). A plan that expected the Python `-1` for an `OUTPUT` statement would mismatch here, and the harness does not look at DDL counts. The count is read with `SELECT ROWCOUNT_BIG()` in the same session straight after the statement, from the server, never from the statement text: the client crate exposes DONE counts only through its RPC path, which drops the column names of an empty result set, and its streamed batch path does not expose them at all.
+- **`sql_variant`** columns come back typed (`1`, `"abc"`, `"2026-11-07"`); pymssql returns raw bytes (`<4 bytes>`). **`money` beyond about 9e11** loses digits through the float (`922337203685477.5807` printed as `...5808`). Neither was fixed; both are rare.
+- **Error text.** `MssqlError <number> (state, class): message` from the server's error token, without pymssql's `DB-Lib error message 20018 ...` suffix; anything that matches on `ProgrammingError:` or `OperationalError:` needs the number. The timeout error is `TimeoutError: ...` (a name of the spike's), not pymssql's 20047.
+- **No timeout from the library.** pymssql has `timeout=`; `tiberius-ng` has none, so each statement runs under `tokio::time::timeout`; login and TCP connect are each capped at 10 s, as pymssql's `login_timeout`. Rows are buffered per statement only up to `cap + 1`, but the server still sends the rest.
+- **`@@ROWCOUNT` and `SET NOCOUNT`.** The connect step does not set `NOCOUNT`, as `dbrun.py` (apply needs the counts). `ROWCOUNT_BIG()` is documented as independent of `NOCOUNT`, but a statement that sets `NOCOUNT ON` itself was not tested.
+- **TLS differs** (above): the Rust path negotiates encryption and the Python runner did not.
+- **The plain `tiberius` fork question** matters more than the crate API: the code needed nothing but a dependency line to move.
+- The compose shim was needed again (no provider on this host).
+
+### Not verified
+
+- A server with a CA-signed certificate, `trust_cert_ca`, and TDS 8.0 strict encryption.
+- Azure SQL, SQL Server 2019 or older, named instances (`sql-browser` is not enabled), Windows authentication and Azure AD tokens. Only SQL logins against 2022.
+- The two statements that need autocommit (`BACKUP DATABASE`, `RESTORE DATABASE`) through the Rust driver: the adapter always runs a transaction. They stay a Python shell-out as in the current `dbrun.py`.
+- Several statements in one request with several result sets (only the first is used, as pymssql), `sql_variant`, `hierarchyid`, spatial types and CLR types other than as text, and `NOCOUNT ON` behaviour.
+- `sqlcmd` in a client image (not built) and the plain `tiberius` crate through the whole engine script.
+- Windows and macOS (E7), cross-compilation.
+- Fork health items marked "not retrieved" above.
