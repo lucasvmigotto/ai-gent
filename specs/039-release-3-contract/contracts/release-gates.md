@@ -39,7 +39,7 @@ Each gate is a row with a **measure** that is a command, a file or a CI run, and
 | Id | Criterion | Measure | Evidence |
 |---|---|---|---|
 | G30-1 | 2.28.x in use with the binary deciding, no guard regression reported | issues query; shadow log clean until cutover; owner statement | |
-| G30-2 | All ported tools meet D10 in the package; skills switch to `ai-gent <sub>` and the replaced files are deleted together; no skill references a deleted file; `dbrun.py` is not in this gate (D26/D27) | `grep -rEn 'wt\.py|token_report\.py|reporun\.py|specsync\.py|compact\.py' plugins shared README.md AGENTS.md docs/site/src` empty except the migration guide and changelog (the exact list is whatever 035-037 delivered) | |
+| G30-2 | All ported tools meet D10 in the package; skills switch to `ai-gent <sub>` and the replaced files are deleted together; no skill references a deleted file; ~~`dbrun.py` is not in this gate (D26/D27)~~ amended 2026-11-07 per owner decision (relayed): `dbrun.py` is in this gate | `grep -rEn 'wt\.py|token_report\.py|reporun\.py|specsync\.py|compact\.py|dbrun\.py' plugins shared README.md AGENTS.md docs/site/src` empty except the migration guide and changelog (the exact list is whatever 035-037 delivered) | |
 | G30-3 | Git mode removed, installer messages updated, tests updated | `scripts/test-install.sh`, `scripts/test-package.sh`, `scripts/test-migrate.sh` | |
 | G30-4 | Tier policy in force in CI | required checks list in the repository settings equals FR-012; `tier3` job exists and is non-required | |
 | G30-5 | Windows legs required and green for the last three runs of `rust.yml` plus the 2.28 release | run URLs | |
@@ -52,9 +52,10 @@ Each gate is a row with a **measure** that is a command, a file or a CI run, and
 | G30-12 | CHANGELOG `## Unreleased` holds the breaking-changes list verbatim and the merge commit carries `BREAKING CHANGE:` | `git log -1 --format=%B` of the merge | |
 | G30-13 | Crates decision recorded: publish switch on or off, and why | note in the release PR | |
 | G30-15 | `install.ps1` passes its tests on Windows x64 and arm64 runners; owner ran the one-liner on a machine without Git Bash | `scripts/test-install-ps1.ps1` in CI; transcript (032 T058) | |
-| G30-16 | The README says plainly which tools still need `uv` and Python (the db plugin, while `dbrun` is Python) | grep for the sentence in `README.md` and the docs Install page | |
+| G30-16 | The README says plainly that no ai-gent tool needs `uv` or Python (amended 2026-11-07 per owner decision (relayed): was "which tools still need `uv` and Python (the db plugin, while `dbrun` is Python)") | grep for the sentence in `README.md` and the docs Install page | |
 | G30-17 | The 3.0.0 release notes contain the SHA256 of `install.sh`, `install.ps1` and every archive; the install page prefers the GitHub Releases URL (D25) | the draft release body; page text | |
 | G30-14 | `grep -rn 'AI_GENT_MODE' install.sh setup.sh scripts` shows only the removal message and its test | grep | |
+| G30-18 | Added 2026-11-07 per owner decision (relayed): spec 043's success criteria SC-001 to SC-008 are met, including the owner-run checks (thick Oracle, the old-verifier account); the 035, 036 and 037 cutovers and the `dbrun` cutover are in the same release | `specs/043-dbrun-port/tasks.md` evidence lines; `python3 scripts/release.py --dry-run --json` | |
 
 ## Rollback
 

@@ -35,8 +35,10 @@
 3.0.0 skills switch, old tools deleted,   (G30)         B1, B2, B5-B9, B10, B11; install.ps1 (D24); checksums in notes (D25)
       git mode removed, tiers, docs v2,
       content asset gone
-3.x   dbrun port (038 spike, D26)         (not a 3.0.0 gate)
+3.x   dbrun port (038 spike, D26)         (not a 3.0.0 gate)   <- amended 2026-11-07 per owner decision (relayed): reversed, see below
 ```
+
+**Amended 2026-11-07 per owner decision (relayed).** The last line above is superseded. Order now: 2.28 releases as soon as G28 passes, ahead of 3.0.0, carrying the update notice and the guard launcher; 3.0.0 is held until the `dbrun` port of spec 043 is done, and then ships as one breaking release with the 035 and 036 cutovers (their T060-T064) and the 037 cutovers, `dbrun.py` deleted with them. The Python-tool deletions of the diagram's 3.0.0 line therefore include `dbrun.py` (D26/D27 reversed). Where the diagram or the text says the 035-037 cutovers or the tool deletions happen "at 3.0.0", that is unchanged; what changed is that nothing is left over for 3.x.
 
 Why this order: the binary must ship and be observed (2.27) before it decides (2.28); the user-facing migration is only safe when the update path already installs a fresh installer (G28-7) and every user has had a release with the binary present; the destructive removals (git mode, content-only asset, Python files) are the last step.
 
@@ -61,7 +63,7 @@ Why this order: the binary must ship and be observed (2.27) before it decides (2
 | Risk | Impact | Mitigation |
 |---|---|---|
 | 2.26-2.27 users jump to 3.0.0 with the old updater | download error | safe failure (nothing written); 2.28 announces the major; README row; open question 2 |
-| A tool port misses its parity gate and blocks 3.0.0 | delay | G30-2 lists whatever 035-038 delivered; a tool not ready keeps its Python file and is not part of 3.0.0 (D7: no dual paths per tool, but tools are independent) |
+| A tool port misses its parity gate and blocks 3.0.0 | delay | G30-2 lists whatever 035-038 delivered; a tool not ready keeps its Python file and is not part of 3.0.0 (D7: no dual paths per tool, but tools are independent); amended 2026-11-07 per owner decision (relayed): this no longer applies to `dbrun`, whose port (spec 043) holds 3.0.0 |
 | Windows ARM or Intel macOS runner label changes | red required leg | gate waiver with owner signature, or cross-build fallback |
 | `release.py` bumps every plugin to a new major because of one breaking commit | noisy changelog | expected; notes explain; check with `--dry-run --json` (G30-10) |
 | Docs drift (the README and docs-site tier tables disagree) | credibility | one source, `contracts/tier-policy.md`, checked by a script (T031) |
