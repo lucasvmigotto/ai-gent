@@ -201,10 +201,15 @@ nothing else:
 
 - `check` (Linux: `scripts/check.sh` with `TIER3_SKIP=1`) and `macos` (installer tests on the
   system bash 3.2), both in `check.yml`;
-- `windows` (`windows-2025` and `windows-11-arm`: `install.ps1` and `setup.ps1`), in `check.yml`;
-- the six-target build in `rust.yml` (`build x86_64-unknown-linux-musl` and the other five, whose
-  Windows legs build, smoke-test and run the guard fixtures on Windows), with `package` and `crates`;
+- `windows (windows-2025)` (`install.ps1` and `setup.ps1`), in `check.yml`;
 - docs CI (`docs-ci.yml`).
+
+Reported but not required: `windows (windows-11-arm)` (`continue-on-error` until the 3.0.0 gate), and
+the jobs of `rust.yml` (the six-target build, whose Windows legs build, smoke-test and run the guard
+fixtures, with `package` and `crates`). `rust.yml` runs on a pull request only when a path it watches
+changes, and GitHub blocks a merge on a required check that never reports, so marking those required
+would stall every PR that touches none of them; the release workflow rebuilds all six targets, so a
+Rust regression still stops a release (owner decision, 2026-11-07).
 
 The tier-3 install cases (`TIER3_ONLY=1 scripts/test-install.sh`) run in the `tier3` job of
 `check.yml`, which is `continue-on-error` and not required: a red tier-3 job is reported, never a
