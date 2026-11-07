@@ -249,6 +249,45 @@ try {
     $r.Code -eq 1 -and $r.Err -match 'no previous version'
   }
 
+  # What `ai-gent update` does on Windows (spec 034 T024): take the target release's install.ps1 and its
+  # SHA256SUMS from the release base, check the hash, run it as `powershell -File ... -Version X -SkipPrompt`
+  # with AI_GENT_HOME set, and roll back with the installed release's own `current\install.ps1 -Rollback`.
+  # The stub ai-gent.exe cannot run `update` itself, so this mirrors its steps; the Rust side is covered
+  # by the unit tests in update/apply.rs.
+  Write-Host '      -- ai-gent update on Windows: fetch, verify, run install.ps1; rollback'
+  Check 'update: the release install.ps1 matches its SHA256SUMS line, installs 9.9.1 over 9.9.0 and pins it' {
+    Reset-Env
+    [void](Install @('-Version', '9.9.0', '-SkipPrompt'))
+    $fetched = Join-Path $Sandbox 'fetched-install.ps1'
+    Copy-Item -LiteralPath (Join-Path $Rel '9.9.1\install.ps1') -Destination $fetched -Force
+    $line = Get-Content -LiteralPath (Join-Path $Rel '9.9.1\SHA256SUMS') | Where-Object { $_ -match '\s\*?install\.ps1$' } | Select-Object -First 1
+    $want = ($line -split '\s+')[0]
+    if ($want -ne (Sha $fetched)) { throw 'install.ps1 does not match SHA256SUMS' }
+    $env:VERSION = '9.9.1'
+    $r = Invoke-Script $fetched @('-Version', '9.9.1', '-SkipPrompt')
+    $script:Last = $r
+    Remove-Item Env:VERSION -ErrorAction SilentlyContinue
+    $r.Code -eq 0 -and (Link-Name (Join-Path $Home_ 'current')) -eq '9.9.1' -and (Link-Name (Join-Path $Home_ 'previous')) -eq '9.9.0' -and
+    (Get-Content -LiteralPath (Join-Path $Home_ 'pinned') -Raw).Trim() -eq '9.9.1'
+  }
+  Check 'update: a tampered install.ps1 no longer matches its SHA256SUMS line (update would refuse and run nothing)' {
+    $tampered = Join-Path $Sandbox 'tampered-install.ps1'
+    [IO.File]::WriteAllText($tampered, ([IO.File]::ReadAllText((Join-Path $Rel '9.9.1\install.ps1')) + "`r`n# tampered`r`n"))
+    $line = Get-Content -LiteralPath (Join-Path $Rel '9.9.1\SHA256SUMS') | Where-Object { $_ -match '\s\*?install\.ps1$' } | Select-Object -First 1
+    ($line -split '\s+')[0] -ne (Sha $tampered)
+  }
+  Check 'update --rollback: the installed current\install.ps1 -Rollback -SkipPrompt returns to 9.9.0 through the junctions' {
+    $r = Invoke-Script (Join-Path $Home_ 'current\install.ps1') @('-Rollback', '-SkipPrompt')
+    $script:Last = $r
+    $r.Code -eq 0 -and (Link-Name (Join-Path $Home_ 'current')) -eq '9.9.0' -and (Link-Name (Join-Path $Home_ 'previous')) -eq '9.9.1' -and
+    (Test-Path -LiteralPath (Join-Path $Home_ 'current\bin\ai-gent.exe') -PathType Leaf)
+  }
+  Check 'update --list: current\install.ps1 -List marks both versions' {
+    $r = Invoke-Script (Join-Path $Home_ 'current\install.ps1') @('-List')
+    $script:Last = $r
+    $r.Code -eq 0 -and $r.Out -match '9\.9\.0 \(current\)' -and $r.Out -match '9\.9\.1 \(previous\)'
+  }
+
   Write-Host '      -- refusals write nothing'
   Check 'a bad checksum exits 4, says so on stderr and installs nothing' {
     Reset-Env
