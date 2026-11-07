@@ -101,3 +101,26 @@ Same machine as E8. `tiberius-ng` 0.13.1 (`tds73`, `rustls`), image `mcr.microso
 Fork-health facts (retrieved 2026-11-07 from the crate sources and `cargo info` only; no web access): `tiberius-ng` 0.13.1 released 2026-08-30 after 0.13.0 on 2026-08-29 (changelog dates), MIT OR Apache-2.0, rust-version 1.88, one active maintainer on the repository `MattJackson/tiberius-ng`, a fork of `prisma/tiberius` whose README says it is no longer maintained, changelog says "No further releases are planned in the immediate term", `src/` differs from plain `tiberius` 0.13.0 by about 14,500 diff lines. Not retrieved: GitHub issue counts, last commit date, stars, downloads.
 
 Surprises: (1) the client crate gives no row count for a streamed batch and its RPC path drops the column names of an empty result set, so the count comes from `SELECT ROWCOUNT_BIG()` in the same session; (2) pymssql returns `-1` as the row count of a `SELECT` and of DDL, the adapter the server's count; (3) `datetimeoffset` travels as UTC and pymssql shows the stored wall time; (4) the server accepts and runs a write in read mode, and only the rollback undoes it (no server-side read-only mode); (5) a timed-out statement cannot be rolled back from the client, the dropped connection does it; (6) the Rust path encrypts the session where pymssql did not.
+
+## E6 Oracle through the adapter (T008, T014, 2026-11-07)
+
+Same machine as E8. `oracledb` 26.0.0-beta.5 (thin), image `docker.io/gvenzl/oracle-free:23-slim` (Oracle 26ai Free), 2 GB cap, loopback. Details in `results.md` "E6".
+
+| Measure | Value | Marker |
+|---|---|---|
+| Engine script, `--engine oracle` | 14 of 14 checks ok in two runs; 58 s and 59 s including container start and seed | measured |
+| Image pull | `gvenzl/oracle-free:23-slim` 1.97 GB; disk 58 GB free before, 52 GB after the pull and builds (floor 15 GB); container memory 96.7 MB of the 2 GB cap when idle after the run (`podman stats`) | measured |
+| Adapter release binary, `--features oracle` only | 2,780,000 bytes (2.78 MB) | measured |
+| Runtime libraries | `libgcc_s.so.1`, `libc` (no Oracle client, no OpenSSL) | measured (`ldd`) |
+| Build, `--features oracle --bin adapter` | release cold 43.8 s with the dependencies, 16 s after an edit | measured |
+| One request vs Oracle Free (process start, TCP, login, identity, links, `SELECT 1`, rollback) | Rust median 39.8 ms, p95 67.5 ms (50 runs after 5 discarded); Python `uv run --offline --with oracledb` median 337.5 ms, p95 786 ms (15 runs after 2) | measured |
+| 100,000-row read, `max_rows 5` | Rust 63.6 ms, Python 482 ms (3 runs after 1 discarded; both stop at `cap + 1`) | measured |
+| Statement timeout 1 s on `DBMS_SESSION.SLEEP(8)` | refused at 2.1 s (Python 2.1 s): break plus a second wait | measured |
+| Refused port | 0.0002 s with `(RETRY_DELAY=0)`; 1.00 s with the default or an Easy Connect `retry_delay` | measured |
+| Wrong password | about 1.0 s (server-side delay; Python 1.3 s) | measured |
+| `oracle` 0.6.3 probe | builds (957 KB, C compiler only); `DPI-1047` without a client library; SIGSEGV with the server home's libclntsh on this host; no query measured | measured (failure only) |
+| 10G verifier | not reproducible on 26ai (`ORA-02153`); 11G-only account: sqlplus and Python thin log in, `oracledb` Rust gets `ORA-01017` | measured |
+| TLS | not run against a server; `tcps://` to a plain listener fails in 1.0 s | measured (negative probe only) |
+| Unit tests | `cargo test --features oracle` 8 new tests (6 in `oracle_thin.rs`, 2 in `tests/oracle_request.rs`) pass; `clippy -D warnings` and `fmt --check` clean | measured |
+
+Surprises: (1) the crate sleeps one second after any failed connect and ignores `retry_delay` in an Easy Connect string; (2) it cannot log in to an account with only an 11G verifier, which Python thin can; (3) Oracle 26ai cannot create a 10G verifier at all, so DPY-3015 needs an older server; (4) `cursor.rowcount` is read before the fetch in `dbrun.py`, so a query's count is 0 and the driver reproduces that; (5) `TIMESTAMP WITH TIME ZONE` comes back as UTC without its offset.

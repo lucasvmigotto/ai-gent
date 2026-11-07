@@ -300,3 +300,86 @@ The adapter and pymssql were fed the same `SELECT` of every type, and the string
 - `sqlcmd` in a client image (not built) and the plain `tiberius` crate through the whole engine script.
 - Windows and macOS (E7), cross-compilation.
 - Fork health items marked "not retrieved" above.
+
+## E6: Oracle (T008 E6a, T014 E6b, 2026-11-07)
+
+Machine as E8 (Linux x86_64, glibc 2.41, Podman 5.4.2). Branch `spike/dbrun-oracle`, created from `origin/spike/dbrun-mssql` (PR #419, not yet on `origin/dev`) so the dispatcher in `drivers/mod.rs` and `bin/adapter.rs` already existed. Server: `docker.io/gvenzl/oracle-free:23-slim` (Oracle 26ai Free inside, 1.97 GB image, `FREEPDB1`), 2 GB cap, `127.0.0.1:15521`, started by `scripts/test-dbrun-engines.py` through the stand-in `docker-compose` shim, one engine at a time. Disk 58 GB free before the pull, 52 GB after the builds (floor 15 GB).
+
+### E6a: `oracle` 0.6.3 (ODPI-C): NOT RUN TO A RESULT
+
+What was established, with evidence:
+
+- The crate builds with only a C compiler (`odpic-sys` compiles `odpi/embed/dpi.c` through the `cc` crate; the README says compile time needs a C compiler and run time "Oracle client 11.2 or later"). A probe binary (scratch crate outside the repository, not `drivers/oracle.rs`) built and was 957 KB.
+- Without a client library it fails at the first connect, not at build: `DPI Error: DPI-1047: Cannot locate a 64-bit Oracle Client library: "libclntsh.so: cannot open shared object file"`. So it cannot be shipped as one binary: the user must install Oracle Instant Client, and its libclntsh alone is 100 MB.
+- Instant Client was NOT fetched: it needs a network download that this task does not allow. As a substitute, `libclntsh.so.23.1`, `libclntshcore.so.23.1`, `libnnz.so`, `libmql1.so`, `libipc1.so` (174 MB with `nls/`) were copied out of the engine container by name into the scratchpad. That is the server home's client library, not a supported Instant Client. With `LD_LIBRARY_PATH` and `ORACLE_HOME` set the probe died with SIGSEGV (exit -11) at the first connect on this host; the same libraries are built for glibc 2.28, and the probe cannot run inside the container (needs GLIBC_2.38). So no login, no query, no old-verifier measurement was obtained. Those libraries were deleted afterwards.
+- T008 is therefore left open. What it expected (fails because client libraries cannot be shipped) is confirmed only for the "library absent" half.
+
+### E6b: `oracledb` 26.0.0-beta.5 (pure Rust thin)
+
+Exists on crates.io (`cargo info oracledb`: "Lightweight driver for Oracle Database", UPL-1.0 OR Apache-2.0, rust-version 1.89, repository `github.com/oracle/rust-oracledb`, maintained by Oracle per its README; it replaces the earlier thin driver by Muhammed Durakovic, now `oraclemcp-driver-cx`). Synchronous API, no async runtime. Pinned `=26.0.0-beta.5` (a beta, no stability promise).
+
+Code: `rust/spikes/dbrun/src/drivers/oracle_thin.rs`, behind the spike's `oracle` feature (also in `all`), wired in `bin/adapter.rs` for `engine: "oracle"`; tests in the module (6) and `tests/oracle_request.rs` (2). `cargo clippy --features oracle --all-targets -- -D warnings`, `cargo fmt --check` and `cargo test --features oracle` are clean.
+
+#### Engine script, through the adapter
+
+`python3 scripts/test-dbrun-engines.py --runner rust/spikes/dbrun/target/release/adapter --engine oracle --port 15521 --keep`. Two runs, both `all checks passed`, 14 of 14 (58 s and 59 s including the container start and seed): `container started`, `server ready and seeded`, `local proof`, `read is masked`, `--reveal shows values`, `--explain returns the plan`, `query refuses a write`, `apply commits DML, offers no restore`, `DDL refused without a backup`, `count mismatch rolls back`, `published port is not local`, `remote read works`, `remote refusals (6)`, `change script written, never executed`. Oracle has no `exists`/restore branch in the script and no system database, so those checks do not exist for it.
+
+#### Behaviours proved directly (the adapter and `dbrun.py _exec` fed the same request, container kept up; python-oracledb 26.0.1 from the offline uv cache)
+
+| Behaviour | Outcome |
+|---|---|
+| Read mode is read-only on the server | `SET TRANSACTION READ ONLY`: `UPDATE` returns `ORA-01456: may not perform insert, delete, update operation inside a READ ONLY transaction`, stage `execute`; same in Python. Oracle, like PostgreSQL and MySQL and unlike SQL Server, has a server-side layer. `--explain` runs without it (it writes `PLAN_TABLE`), as `dbrun.py` |
+| DDL in read mode | a read-mode `CREATE TABLE e6_nope` (Oracle commits DDL implicitly) returned ok and the table existed afterwards: the rollback does not undo DDL, so the classifier is the only barrier for DDL, as in Python (not a difference) |
+| Apply in one transaction | 5 statements (DDL, INSERT, UPDATE, DELETE, SELECT) committed with `expect` `[null,5,3,1,null]`; a second statement failing with `ORA-00001` returned stage `execute` and the first statement's change was gone afterwards |
+| Count mismatch | `UPDATE ...` expecting 1 got 4: stage `verify`, "expected 1, got 4", 0 rows changed afterwards; identical text and counts to Python |
+| `max_rows` | read: `LEVEL <= 10` with `max_rows 3` gives 3 rows, `truncated: true`; write mode gives 3 rows, `truncated: false`, `committed: true`. Read mode stops fetching at `cap + 1` rows (100,000 rows with `max_rows 5`: 63.6 ms) |
+| Timeout | `BEGIN DBMS_SESSION.SLEEP(8); END;` with timeout 1: `TimeoutError: statement exceeded 1 s (unable to recover from error: connection has been closed)` at 2.1 s. Python gives `DPY-4011 ... socket timed out while recovering from previous socket timeout` at 2.1 s too: the thin protocol sends a break, waits one more timeout, then closes. Not a difference, but the timeout is 2x |
+| Invalid timeout | `-6`, `"NaN"`, `NaN`, `-1e-9`: `ValueError: invalid timeout`, stage `connect`, no panic, empty stderr (`tests/oracle_request.rs`); `0` means no call timeout; `1e300` capped at 86400 s |
+| Redaction | statement `SELECT * FROM "<password>"` with user `SHOP`: error `ORA-00942: table or view "<user>"."<password>" does not exist`. Host redaction not shown (the contract skips `127.0.0.1` and `localhost`, and the port is bound to loopback only) |
+| Errors | syntax `ORA-00900`, missing table `ORA-00942`, wrong password `ORA-01017`, wrong service `service "NOSUCH" is not registered with the listener ... (Similar to ORA-12514)`, refused port `stream operation failed: Connection refused`; stages as Python |
+| `--explain` | `EXPLAIN PLAN FOR` then `DBMS_XPLAN.DISPLAY`: 14 plan lines, the same text as Python (the cost figure in the header differs between runs, the server's) |
+
+#### Value rendering against python-oracledb
+
+Same `SELECT` of 20 columns through both. Equal: ints, floats (`1.5`, `0.05`), `BINARY_DOUBLE`, `BINARY_FLOAT`, `VARCHAR2`, `CHAR` padding, `DATE`, `TIMESTAMP` (microsecond truncation of nanoseconds), `INTERVAL DAY TO SECOND` (`1 day, 2:03:04`, `-1 day, 23:00:00`), `RAW` (`<4 bytes>`), `CLOB` (a short one arrives as text), NULL, ROWID. NUMBER is an int when the text has no decimal point and a float otherwise, as python-oracledb. Expectations for intervals, timestamps and numbers in the unit tests were written from Python's `str(timedelta)` and `isoformat()` rules.
+
+Differences found:
+
+- `TIMESTAMP WITH TIME ZONE '2024-01-01 12:00:00 +05:30'`: Python `2024-01-01T12:00:00` (wall time, offset dropped), adapter `2024-01-01T06:30:00` (UTC; the crate's `OracleTimestamp` carries no offset). Not fixed.
+- NUMBER beyond 64 bits (`12345678901234567890123`): Python a bare JSON number, adapter a string (serde_json has no big integers without a feature).
+- LOB, JSON, VECTOR, object, XML types: the adapter prints `<TYPE>` instead of fetching them; Python the `str()` of the object.
+- `INTERVAL YEAR TO MONTH`: mimicked as `IntervalYM(years=2, months=3)`, Python's repr.
+- Row counts follow `dbrun.py` exactly, which reads `cursor.rowcount` before fetching: queries 0, PL/SQL blocks 0, DML the affected rows, DDL 0.
+- Error text has no `DatabaseError: ` prefix and no `Help: https://...` line (a matcher on the Python class name breaks); timeouts are `TimeoutError: ...`.
+
+#### The 10G verifier case (DPY-3015)
+
+Not reproducible with the engine image. The Oracle 26ai server cannot create a 10G verifier: `ALLOWED_LOGON_VERSION_SERVER=8` in `sqlnet.ora` still yields `11G 12C` for a new user, and `CREATE USER ... IDENTIFIED BY VALUES '<16 hex>'` (the 10G hash form) is refused with `ORA-02153: invalid VALUES password string`. Reproducing it needs an Oracle 11g or 12.1 server image, which was not pulled. What was measured instead is the next class down, an account with only the 11G verifier (created by `IDENTIFIED BY VALUES 'S:...'` taken from `SHOP`, `password_versions = 11G`):
+
+| Client | Result for the 11G-only account |
+|---|---|
+| `sqlplus` in the container (control) | logs in |
+| python-oracledb 26.0.1 thin (`dbrun.py _exec`) | logs in |
+| `oracledb` 26.0.0-beta.5 (adapter) | `ORA-01017: invalid credential or not authorized; logon denied` |
+
+Source reading is consistent with it: `messages/auth.rs` implements one path, the PBKDF2 (12c) verifier (`generate_verifier` uses `AUTH_PBKDF2_VGEN_COUNT`); `constants.rs` defines `_VERIFIER_TYPE_11G_1/_2` and `_12C` but nothing reads them, and there is no 10G (0x939) handling. So the thin Rust crate is narrower than Python thin: an account without a 12c verifier fails. For a 10G-only account the outcome is not measured (the crate indexes the server's verifier fields with `unwrap`, so a panic is plausible; the driver wraps login in `catch_unwind` and turns a panic into a connect error, which works only in a build with unwinding, not in the release profile's `panic = "abort"`). Python's documented fallback (thick mode through Instant Client, `AI_GENT_ORACLE_CLIENT_LIB`) has no Rust counterpart without the `oracle` crate (E6a), which cannot be shipped.
+
+#### TLS
+
+Source reading plus one negative probe; no TLS handshake against a real server was run (no Java in the image, so `orapki` cannot build the listener wallet, and Oracle's listener needs an auto-login wallet).
+
+- `oracledb` uses rustls with the `webpki-roots` bundle (no OpenSSL). TCPS comes from `tcps://` Easy Connect strings or `PROTOCOL=TCPS` descriptors; one-way TLS and mutual TLS (a PEM wallet, `ewallet.pem` in `wallet_location`; certificates without a key are added as trust roots) are supported; the Secure External Password Store and Native Network Encryption are not (`doc/appendix_a.md`). I found no option to skip certificate verification, so a self-signed test certificate would need its CA in `ewallet.pem`.
+- Probe: `tcps://` against the plain listener fails with `stream operation failed: unexpected end of file` in 1.0 s, no hang.
+- `dbrun.py` today has no TLS option for Oracle (its DSN is plain TCP), so there is no Python behaviour to match; a production connector would need profile fields for TCPS and a wallet or CA path. Unverified: DN matching, wallet formats other than PEM, Autonomous Database.
+
+### Differences from the Python driver, and what surprised
+
+- **The thin client sleeps one second after every failed connect**, even with no retry configured (`thread::sleep(retry_delay)` after the attempt loop, default 1 s). A refused port cost 1.00 s. `?retry_delay=0` in an Easy Connect string is parsed and ignored (1.00 s with `0` and with `3`); `(RETRY_DELAY=0)` in a descriptor works (0.0002 s). The driver therefore always sends a descriptor. A wrong password still takes about 1.0 s: the server's own failed-login delay, as in Python (1.3 s).
+- Everything under "Value rendering" above, and the row-count rule.
+- An 11G-only account cannot log in (above).
+- `oracledb` needs rust-version 1.89 and brings a rustls tree; the adapter with `--features oracle` is 2.78 MB (see `measurements.md`).
+- The compose shim was needed again.
+
+### Not verified
+
+- A 10G-verifier account (needs an 11g/12.1 server), thick mode, the `oracle` crate with a real Instant Client, TLS handshakes, wallets, Autonomous Database, SID connections through to a login (the descriptor reached the server, `ORA-01017` for a PDB-only user on the root SID, so only the path was exercised), RAC and DRCP, servers older than 26ai, `TIMESTAMP WITH LOCAL TIME ZONE`, DML `RETURNING` and PL/SQL OUT binds (both need bind values the request cannot carry; Python fails the same way with DPY-4010), LOB contents, Windows and macOS (E7).

@@ -1,7 +1,9 @@
-#[cfg(feature = "mysql")]
-pub mod mysql;
 #[cfg(feature = "mssql")]
 pub mod mssql;
+#[cfg(feature = "mysql")]
+pub mod mysql;
+#[cfg(feature = "oracle")]
+pub mod oracle_thin;
 #[cfg(feature = "pg")]
 pub mod pg;
 pub mod process;

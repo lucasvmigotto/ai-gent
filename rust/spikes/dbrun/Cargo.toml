@@ -20,7 +20,8 @@ sqlite = ["dep:rusqlite"]
 pg = ["dep:postgres"]
 mysql = ["dep:mysql"]
 mssql = ["dep:tiberius", "dep:tokio", "dep:tokio-util", "dep:futures-util"]
-all = ["sqlite", "pg", "mysql", "mssql"]
+oracle = ["dep:oracledb"]
+all = ["sqlite", "pg", "mysql", "mssql", "oracle"]
 parser = ["dep:sqlparser"]
 
 [dependencies]
@@ -33,6 +34,7 @@ tiberius = { package = "tiberius-ng", version = "0.13", default-features = false
 tokio = { version = "1", features = ["rt", "net", "time"], optional = true }
 futures-util = { version = "0.3", default-features = false, optional = true }
 tokio-util = { version = "0.7", features = ["compat"], optional = true }
+oracledb = { version = "=26.0.0-beta.5", optional = true }
 sqlparser = { version = "0.63", optional = true }
 
 [profile.release]
