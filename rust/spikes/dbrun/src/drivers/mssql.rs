@@ -55,7 +55,7 @@ fn text(v: &Value) -> Option<String> {
         .or_else(|| v.as_u64().map(|n| n.to_string()))
 }
 
-async fn connect(req: &Value) -> Result<Tds, String> {
+async fn connect(req: &Value, limit: Option<Duration>) -> Result<Tds, String> {
     let c = &req["conn"];
     let host = text(&c["host"]).unwrap_or_default();
     let port: u16 = text(&c["port"])
@@ -89,15 +89,32 @@ async fn connect(req: &Value) -> Result<Tds, String> {
         .map_err(|_| "login timed out".to_string())?
         .map_err(|e| describe(&e))?;
     // As connect(): lock timeout and isolation level. No NOCOUNT: apply checks the row counts.
-    batch(
+    ctl(
         &mut client,
+        limit,
         &format!(
             "SET LOCK_TIMEOUT {LOCK_TIMEOUT_MS}; SET TRANSACTION ISOLATION LEVEL READ COMMITTED"
         ),
     )
-    .await
-    .map_err(|e| describe(&e))?;
+    .await?;
     Ok(client)
+}
+
+/// A control batch (transaction, identity, showplan) under the same bound as a statement, so a server that
+/// stops answering cannot hold the adapter past the requested timeout; none when the timeout is zero.
+async fn ctl(
+    client: &mut Tds,
+    limit: Option<Duration>,
+    sql: &str,
+) -> Result<Vec<Vec<Row>>, String> {
+    let run = batch(client, sql);
+    match limit {
+        Some(l) => within(l, run)
+            .await
+            .map_err(|_| format!("TimeoutError: statement exceeded {} s", l.as_secs_f64()))?
+            .map_err(|e| describe(&e)),
+        None => run.await.map_err(|e| describe(&e)),
+    }
 }
 
 async fn batch(client: &mut Tds, sql: &str) -> Result<Vec<Vec<Row>>, TdsError> {
@@ -395,44 +412,40 @@ fn run(req: &Value) -> Value {
 }
 
 async fn session(req: &Value, timeout: f64) -> Value {
-    let mut client = match connect(req).await {
+    // pymssql's `timeout` bounds each statement; zero means none there too.
+    let limit = (timeout > 0.0).then(|| Duration::from_secs_f64(timeout));
+    let mut client = match connect(req, limit).await {
         Ok(c) => c,
         Err(e) => return json!({"ok": false, "stage": "connect", "error": e}),
     };
     let mut result = json!({"ok": true, "results": []});
     let read = req["mode"] != "write";
     let explain = req["explain"] == true;
-    // pymssql's `timeout` bounds each statement; zero means none there too.
-    let limit = (timeout > 0.0).then(|| Duration::from_secs_f64(timeout));
     let cap = req["max_rows"].as_u64().unwrap_or(200) as usize;
     let outcome: Result<(), String> = async {
         let e = |e: TdsError| describe(&e);
         // pymssql (autocommit off) works inside a transaction it opens itself; so does this.
-        batch(&mut client, "BEGIN TRANSACTION").await.map_err(e)?;
-        let ident = batch(&mut client, IDENTITY).await.map_err(e)?;
+        ctl(&mut client, limit, "BEGIN TRANSACTION").await?;
+        let ident = ctl(&mut client, limit, IDENTITY).await?;
         let first: Vec<Value> = ident
             .first()
             .and_then(|r| r.first())
             .map(|row| row.cells().map(|(_, d)| to_json(d, false)).collect())
             .unwrap_or_default();
         result["server"] = json!(first);
-        let links = batch(&mut client, LINKS).await.map_err(e)?;
+        let links = ctl(&mut client, limit, LINKS).await?;
         result["links"] = links
             .first()
             .and_then(|r| r.first())
             .and_then(|row| row.get::<i32, _>(0))
             .map_or(json!(0), |n| json!(n));
-        batch(&mut client, "ROLLBACK TRANSACTION")
-            .await
-            .map_err(e)?;
+        ctl(&mut client, limit, "ROLLBACK TRANSACTION").await?;
         if req["mode"] == "test" {
             return Ok(());
         }
-        batch(&mut client, "BEGIN TRANSACTION").await.map_err(e)?;
+        ctl(&mut client, limit, "BEGIN TRANSACTION").await?;
         if explain {
-            batch(&mut client, "SET SHOWPLAN_TEXT ON")
-                .await
-                .map_err(e)?;
+            ctl(&mut client, limit, "SET SHOWPLAN_TEXT ON").await?;
         }
         for stmt in req["statements"].as_array().into_iter().flatten() {
             let sql = stmt.as_str().unwrap_or_default();
@@ -450,14 +463,10 @@ async fn session(req: &Value, timeout: f64) -> Value {
                 .push(shape_entry(out, cap, read, explain));
         }
         if explain {
-            batch(&mut client, "SET SHOWPLAN_TEXT OFF")
-                .await
-                .map_err(e)?;
+            ctl(&mut client, limit, "SET SHOWPLAN_TEXT OFF").await?;
         }
         if read {
-            batch(&mut client, "ROLLBACK TRANSACTION")
-                .await
-                .map_err(e)?;
+            ctl(&mut client, limit, "ROLLBACK TRANSACTION").await?;
             return Ok(());
         }
         let done = result["results"].as_array().unwrap().len();
@@ -477,12 +486,10 @@ async fn session(req: &Value, timeout: f64) -> Value {
             })
             .collect();
         if mismatches.is_empty() {
-            batch(&mut client, "COMMIT TRANSACTION").await.map_err(e)?;
+            ctl(&mut client, limit, "COMMIT TRANSACTION").await?;
             result["committed"] = json!(true);
         } else {
-            batch(&mut client, "ROLLBACK TRANSACTION")
-                .await
-                .map_err(e)?;
+            ctl(&mut client, limit, "ROLLBACK TRANSACTION").await?;
             result["ok"] = json!(false);
             result["stage"] = json!("verify");
             result["error"] = json!(format!(
