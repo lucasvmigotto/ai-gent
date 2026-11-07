@@ -103,6 +103,12 @@ grant_value() { # grant_value <key>
 grant_load() {
   grant_file=
   top="$(git -C "$(work_dir)" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  if [ ! -f "$top/.ai-gent/autonomy" ]; then
+    # A linked worktree has no copy of the git-excluded file: use the main checkout's
+    common="$(git -C "$(work_dir)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+    [ "${common##*/}" = ".git" ] || return 1
+    top="${common%/.git}"
+  fi
   [ -f "$top/.ai-gent/autonomy" ] || return 1
   grant_file="$top/.ai-gent/autonomy"
   exp="$(grant_value expires)"

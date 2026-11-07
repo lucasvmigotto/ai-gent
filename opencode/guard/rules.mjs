@@ -37,13 +37,19 @@ export function parseGrant(text, nowIso) {
 
 // The active grant of the repository that contains dir, as of now (null when there is none).
 export function grantAt(dir, now = new Date()) {
-  let top;
+  const git = (...args) =>
+    execFileSync("git", ["-C", dir || ".", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).replace(/\n$/, "");
   try {
-    top = execFileSync("git", ["-C", dir || ".", "rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).replace(/\n$/, "");
-    return parseGrant(readFileSync(join(top, GRANT_FILE), "utf8"), now.toISOString().slice(0, 19) + "Z");
+    let text;
+    try {
+      text = readFileSync(join(git("rev-parse", "--show-toplevel"), GRANT_FILE), "utf8");
+    } catch {
+      // A linked worktree has no copy of the git-excluded file: use the main checkout's
+      const common = git("rev-parse", "--path-format=absolute", "--git-common-dir");
+      if (!common.endsWith("/.git")) return null;
+      text = readFileSync(join(common.slice(0, -5), GRANT_FILE), "utf8");
+    }
+    return parseGrant(text, now.toISOString().slice(0, 19) + "Z");
   } catch {
     return null;
   }
