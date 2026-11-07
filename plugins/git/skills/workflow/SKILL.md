@@ -49,9 +49,9 @@ Applies to every git repository this user works in.
   questions (pipeline rule 2). Say in the handoff what was pushed and
   merged under it. The guard hooks can't see the conversation, so they
   still ask on every push and PR unless the user wrote an **autonomy
-  grant** (`.ai-gent/autonomy`, with an expiry; only the user writes it,
-  never you): `references/autonomy.md` has what it lifts and what stays
-  asked. Without one, a hands-off run also needs pushes allowed in the
+  grant** (`.ai-gent/autonomy`, with an expiry; only the user creates it,
+  with `ai-gent autonomy grant` in a real terminal, never you: it refuses without one): `references/autonomy.md` has
+  what it lifts and what stays asked. Without one, a hands-off run also needs pushes allowed in the
   agent's permission settings.
 - Describing a flow ("then `dev` goes to `main`") is not a request to
   promote: stop at the level below, report, and ask.

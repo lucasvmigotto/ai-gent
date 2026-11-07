@@ -20,7 +20,13 @@
 // id and a setup (or effect) function.
 
 import { execFileSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
 import { evaluate } from "./rules.mjs"
+import { decideWithBinary, packageInstall } from "./binary.mjs"
+
+// A package install (VERSION at the package root) is decided by the ai-gent
+// binary; a git clone keeps deciding with rules.mjs until 3.0.0 (spec 033).
+const pkg = packageInstall(fileURLToPath(new URL("../..", import.meta.url)))
 
 function branchOf(dir: string): string {
   try {
@@ -46,7 +52,7 @@ export default {
         // Fall back to the plugin's own location.
       }
 
-      const result = evaluate(event, { cwd, branchOf })
+      const result = pkg ? decideWithBinary(event, { cwd, bin: pkg.bin }) : evaluate(event, { cwd, branchOf })
       if (result.decision === "none") return
       event.effect = result.decision
       event.message = result.reason

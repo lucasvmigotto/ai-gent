@@ -78,6 +78,20 @@ function gitHas(segments, sub, arg) {
   return matched.some((s) => argRe.test(s));
 }
 
+// `ai-gent autonomy` in any form but show/status/--help/-h, and `autonomy [flags] grant|revoke`
+// even without the word ai-gent.
+function autonomyDenied(text) {
+  const t = text.replace(/\n/g, " ");
+  const w = "(^|[^A-Za-z0-9_-])";
+  if (new RegExp(w + "autonomy(\\s+-\\S*)*\\s+(grant|revoke)([^A-Za-z0-9_-]|$)").test(t)) return true;
+  if (!new RegExp(w + "ai-gent(\\.exe)?([^A-Za-z0-9_/.-]|$)").test(t)) return false;
+  const rest = t.replace(
+    new RegExp(w + "autonomy\\s+(show|status|--help|-h)([^A-Za-z0-9_-]|$)", "g"),
+    " ",
+  );
+  return new RegExp(w + "autonomy([^A-Za-z0-9_-]|$)").test(rest);
+}
+
 // branchOf(dir) returns the current branch name ("" when unknown). The plugin
 // passes a git-backed resolver; tests do too.
 export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantAt } = {}) {
@@ -119,6 +133,16 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantA
       segments.some((s) => s.includes(GRANT_FILE) && !/^[ \t]*(cat|ls|head|tail|grep|stat|wc|test|\[)[ \t]/.test(s)))
   ) {
     return deny(GRANT_REASON);
+  }
+
+  // Nor does the agent run the grant CLI (ai-gent autonomy ...), in any spelling. The real
+  // defence is structural (grant and revoke need a real terminal); this is defence in depth.
+  // Tested on the raw command and on a copy with quotes, backslashes and $( ) stripped.
+  const plain = cmd.replace(/['"`\\]/g, "").replace(/\$\(/g, "").replace(/\)/g, "");
+  if (autonomyDenied(cmd) || autonomyDenied(plain)) {
+    return deny(
+      "the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+    );
   }
 
   const cDir = new RegExp("git[ \\t]+-C[ \\t]+([^ \\t]*)").exec(segments.join("\n"));

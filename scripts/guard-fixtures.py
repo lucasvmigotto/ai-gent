@@ -7,13 +7,17 @@ opencode parity vectors; every `want` and `reason` is what the real guard.sh pri
 
     guard-fixtures.py count
     guard-fixtures.py lint
-    guard-fixtures.py run [--guard git|db|secrets|repo|containers|all] [--impl sh|mjs|bin]
-                          [--shell sh|powershell|cmd|all] [--bin PATH]
+    guard-fixtures.py run [--guard git|db|secrets|repo|containers|all] [--impl sh|launcher|mjs|bin]
+                          [--shell sh|powershell|cmd|all] [--bin PATH] [--parity]
+    guard-fixtures.py failures [--guard git|db|secrets|repo|containers|all]
     guard-fixtures.py mutate [--guard ...] [--impl bin|mjs] [--oracle sh] [--bin PATH] [--limit N]
 
 `--impl sh` is the oracle (plugins/*/hooks/guard.sh), `mjs` is opencode/guard/rules.mjs
-and `bin` is `ai-gent guard` through a subprocess (the path hooks use). Output lines use
-the format of scripts/test-*guard.sh (`      ok    <want> <command>` or `FAIL`).
+`bin` is `ai-gent guard` through a subprocess, and `launcher` is the guard.sh of a package
+install (the launcher head of shared/guard-launcher.sh, a VERSION file and the real binary
+at bin/ai-gent: the path hooks use). `--parity` leaves out the cases tagged `new`, which only
+the binary decides, so the three counts are equal. `failures` runs the launcher against a
+renamed, failing and slow binary (T051). Output lines use the format of scripts/test-*guard.sh (`      ok    <want> <command>` or `FAIL`).
 Stdlib only.
 """
 import argparse
@@ -201,6 +205,93 @@ def run_mjs(items):
     return [(x["decision"], x["reason"]) for x in json.loads(r.stdout)]
 
 
+class Package:
+    """A package install in a temp dir: VERSION, bin/ai-gent (the real binary, or a fake) and each plugin's guard.sh."""
+
+    def __init__(self, binpath=None):
+        self.dir = tempfile.mkdtemp(prefix="ai-gent-pkg-")
+        with open(os.path.join(self.dir, "VERSION"), "w", encoding="utf-8") as f:
+            f.write("0.0.0\n")
+        os.makedirs(os.path.join(self.dir, "bin"))
+        for rel in GUARDS.values():
+            hooks = os.path.join(self.dir, os.path.dirname(rel))
+            os.makedirs(hooks, exist_ok=True)
+            shutil.copy(os.path.join(REPO, rel), hooks)
+        if binpath:
+            self.set_bin(link=os.path.abspath(binpath))
+        self.env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_ROOT"}
+
+    def set_bin(self, script=None, link=None):
+        dest = os.path.join(self.dir, "bin", "ai-gent")
+        if os.path.lexists(dest):
+            os.remove(dest)
+        if link:
+            os.symlink(link, dest)
+        elif script is not None:
+            with open(dest, "w", encoding="utf-8") as f:
+                f.write(script)
+            os.chmod(dest, 0o755)
+
+    def guard(self, g):
+        return os.path.join(self.dir, GUARDS[g])
+
+    def close(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+
+INSTALL = "curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh"
+# fake binaries for the failure policy (FR-014): none (renamed), exits 1 with no output, sleeps over the 2 s budget
+FAKES = (
+    ("binary renamed (missing)", None, "it is missing"),
+    ("binary exits 1 with no output", "#!/bin/sh\nexit 1\n", "it failed with exit 1"),
+    ("binary sleeps over the budget", "#!/bin/sh\nexec sleep 5\n", "it took over 2 s"),
+)
+
+
+def cmd_failures(a):
+    """The launcher's failure policy (T051, SC-006): every failure of the binary becomes the `ask` line with the install command."""
+    guards = list(GUARDS) if a.guard == "all" else [a.guard]
+    markers = {g: load(g)["marker"] for g in GUARDS}
+    sb = Sandbox()
+    pkg = Package()
+    nobin = tempfile.mkdtemp(prefix="ai-gent-nobin-")  # a PATH with only the tools the launcher needs, and no ai-gent
+    for t in ("sh", "timeout", "sleep"):
+        p = shutil.which(t)
+        if p:
+            os.symlink(p, os.path.join(nobin, t))
+    pkg.env["PATH"] = nobin
+    has_timeout = shutil.which("timeout") is not None
+    n = failures = 0
+    try:
+        for g in guards:
+            case = next(c for c in load(g)["cases"] if "command" in c and c["want"] != "none")
+            ev = json.dumps(event(case, case["command"], sb))
+            for name, script, why in FAKES:
+                if why.endswith("2 s") and not has_timeout:
+                    print("      skip  %s: %s (no `timeout` on PATH; the hook's own timeout is the backstop)" % (g, name))
+                    continue
+                pkg.set_bin(script)
+                r = subprocess.run(["sh", pkg.guard(g)], input=ev, capture_output=True, text=True, env=pkg.env)
+                n += 1
+                try:
+                    got, reason = parse_hook(r.stdout)
+                except (ValueError, KeyError):
+                    got, reason = "unparsable", r.stdout
+                ok = (r.returncode == 0 and got == "ask" and reason.startswith(markers[g] + " the ai-gent binary is unavailable (" + why + ")")
+                      and "run: " + INSTALL in reason)
+                if ok:
+                    print("      ok    %-10s %s: ask with the install command" % (g, name))
+                else:
+                    failures += 1
+                    print("      FAIL  %-10s %s: exit %s, %s: %s" % (g, name, r.returncode, got, reason))
+    finally:
+        sb.close()
+        pkg.close()
+        shutil.rmtree(nobin, ignore_errors=True)
+    print("guard-fixtures: %d launcher failure cases, %d failed" % (n, failures))
+    return 1 if failures else 0
+
+
 def cmd_run(a):
     guards = list(GUARDS) if a.guard == "all" else [a.guard]
     shells = list(SHELLS) if a.shell == "all" else [a.shell]
@@ -218,24 +309,35 @@ def cmd_run(a):
                 continue
             if a.impl == "sh" and (shell != "sh" or "new" in c.get("tags", [])):
                 continue
+            if a.impl == "launcher" and shell != "sh":
+                continue
+            if a.parity and "new" in c.get("tags", []):
+                continue
             if a.impl == "mjs" and ("mjs" in c.get("skip_in", []) or "new" in c.get("tags", []) or shell != "sh"):
                 continue
             items.append((g, c, event(c, command, sb), shell))
     results = []
+    pkg = None
     try:
         if a.impl == "mjs":
             results = run_mjs(items)
         else:
-            binpath = find_bin(a.bin) if a.impl == "bin" else None
+            binpath = find_bin(a.bin) if a.impl in ("bin", "launcher") else None
+            if a.impl == "launcher":
+                pkg = Package(binpath)
             for g, c, ev, shell in items:
                 if a.impl == "sh":
                     argv = ["sh", os.path.join(REPO, GUARDS[g])]
+                elif a.impl == "launcher":
+                    argv = ["sh", pkg.guard(g)]
                 else:
                     argv = [binpath, "guard", "--guard", g, "--shell", shell]
-                r = subprocess.run(argv, input=json.dumps(ev), capture_output=True, text=True)
+                r = subprocess.run(argv, input=json.dumps(ev), capture_output=True, text=True, env=pkg.env if pkg else None)
                 results.append(parse_hook(r.stdout))
     finally:
         sb.close()
+        if pkg:
+            pkg.close()
     failures = 0
     for (g, c, ev, shell), (got, reason) in zip(items, results):
         label = (ev["tool_input"].get("command") or "%s %s" % (c["tool"], json.dumps(c.get("tool_input")))).replace("\n", "⏎")
@@ -311,10 +413,14 @@ def main():
     sp.add_parser("lint").set_defaults(fn=cmd_lint)
     r = sp.add_parser("run")
     r.add_argument("--guard", default="all", choices=list(GUARDS) + ["all"])
-    r.add_argument("--impl", default="sh", choices=["sh", "mjs", "bin"])
+    r.add_argument("--impl", default="sh", choices=["sh", "launcher", "mjs", "bin"])
+    r.add_argument("--parity", action="store_true")
     r.add_argument("--shell", default="sh", choices=list(SHELLS) + ["all"])
     r.add_argument("--bin")
     r.set_defaults(fn=cmd_run)
+    f = sp.add_parser("failures")
+    f.add_argument("--guard", default="all", choices=list(GUARDS) + ["all"])
+    f.set_defaults(fn=cmd_failures)
     m = sp.add_parser("mutate")
     m.add_argument("--guard", default="all", choices=list(GUARDS) + ["all"])
     m.add_argument("--impl", default="bin", choices=["mjs", "bin"])

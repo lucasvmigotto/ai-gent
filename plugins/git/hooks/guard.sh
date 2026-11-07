@@ -9,7 +9,8 @@
 #         commit on dev/develop (merging into it is the workflow), branch -D,
 #         reset --hard, clean -f, commit --amend, filter-branch/filter-repo,
 #         gh pr create
-#   deny  writing .ai-gent/autonomy, the grant only the user creates
+#   deny  writing .ai-gent/autonomy, the grant only the user creates, and
+#         running ai-gent autonomy in any form but show/--help
 #   lift  while that grant is active (its expires: line is in the future), a
 #         plain git push (actions: push) and gh pr create --base <a branch the
 #         grant covers> (actions: pr) stop asking; never a push naming
@@ -20,6 +21,30 @@
 # nothing to let the normal permission flow decide. Pattern matching on
 # the raw command: it catches the commands an agent writes, not every
 # possible obfuscation, and it only sees the session's cwd.
+#
+# In a package install (a VERSION file two levels above the plugin) the
+# launcher below hands the event to `ai-gent guard --guard git` and turns a
+# missing, failing or slow binary into an ask (spec 033); in a clone it falls
+# through to the shell logic, which is also the oracle the binary's fixtures
+# are checked against.
+
+# >>> guard launcher (shared/guard-launcher.sh, spec 033: package installs call the binary; a clone runs the shell logic below)
+r="${CLAUDE_PLUGIN_ROOT:-${0%/*}/..}"
+if [ -f "$r/../../VERSION" ]; then
+  b="$r/../../bin/ai-gent"; [ -x "$b" ] || b="$(command -v ai-gent 2>/dev/null)" || b=
+  rc=0 out=
+  if [ -z "$b" ]; then rc=127; else
+    set -- "$b" guard --guard git --format claude
+    command -v timeout >/dev/null 2>&1 && set -- timeout 2 "$@"
+    out="$("$@" 2>/dev/null)" || rc=$?
+  fi
+  if [ "$rc" != 0 ]; then
+    case "$rc" in 127) w="it is missing" ;; 124) w="it took over 2 s" ;; *) w="it failed with exit $rc" ;; esac
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"git:workflow guard: the ai-gent binary is unavailable (%s); run: curl -fsSL https://github.com/lucasvmigotto/ai-gent/releases/latest/download/install.sh | sh. Allow only if you accept this command unguarded."}}\n' "$w"
+  elif [ -n "$out" ]; then printf '%s\n' "$out"; fi
+  exit 0
+fi
+# <<< guard launcher
 
 set -u
 
@@ -151,6 +176,24 @@ if printf '%s' "$cmd" | grep -Fq '.ai-gent/autonomy' &&
     printf '%s\n' "$segments" | grep -F '.ai-gent/autonomy' |
       grep -Evq '^[[:space:]]*(cat|ls|head|tail|grep|stat|wc|test|\[)[[:space:]]'; }; then
   decide deny "$grant_reason"
+fi
+
+# Nor does the agent run the grant CLI (ai-gent autonomy ...), in any spelling. The real
+# defence is structural (grant and revoke need a real terminal); this is defence in depth.
+# Deny a command that has the word ai-gent and an `autonomy` that is not followed by
+# show/status/--help/-h, and any `autonomy [flags] grant|revoke` even without ai-gent.
+# Tested on the raw command and on a copy with quotes, backslashes and $( ) stripped.
+autonomy_denied() { # autonomy_denied <text>
+  t="$(printf '%s' "$1" | tr '\n' ' ')"
+  w='(^|[^A-Za-z0-9_-])'
+  printf '%s' "$t" | grep -Eq "${w}autonomy([[:space:]]+-[^[:space:]]*)*[[:space:]]+(grant|revoke)([^A-Za-z0-9_-]|\$)" && return 0
+  printf '%s' "$t" | grep -Eq "${w}ai-gent(\.exe)?([^A-Za-z0-9_/.-]|\$)" || return 1
+  rest="$(printf '%s' "$t" | sed -E "s/${w}autonomy[[:space:]]+(show|status|--help|-h)([^A-Za-z0-9_-]|\$)/ /g")"
+  printf '%s' "$rest" | grep -Eq "${w}autonomy([^A-Za-z0-9_-]|\$)"
+}
+cmd_plain="$(printf '%s' "$cmd" | tr -d "'\"\\\\\`" | sed -e 's/\$(//g' -e 's/)//g')"
+if autonomy_denied "$cmd" || autonomy_denied "$cmd_plain"; then
+  decide deny "the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt"
 fi
 
 # A push the grant lifts: every push segment names no protected branch and no
