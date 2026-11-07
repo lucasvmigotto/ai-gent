@@ -212,8 +212,9 @@ definition and the words **not** to use for it
      no answer): then the decisions are yours. Make them, and record
      each as `[DECIDED: … — delegated by the user]` with its reason, so
      it reads as a decision, not a guess.
-   - `asking.md` has the question format and which stages ask even under
-     full permission to run the project unattended.
+   - `asking.md` has the question format, how to run the rounds (recap
+     the answers, strike the questions they settled) and which stages ask
+     even under full permission to run the project unattended.
    - Inside a Spec Kit step, `/speckit-clarify` has its own per-session
      cap; `spec-kit.md` has the number.
 3. **Never invent silently.** Mark every assumption `[ASSUMPTION: …]` and
