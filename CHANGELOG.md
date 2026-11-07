@@ -8,10 +8,20 @@ changes.
 
 ### Added
 
+- **git, cli:** `ai-gent autonomy grant` and `revoke` need a real terminal (stdin and stdout on a terminal and a controlling terminal) and exit 2 otherwise, `--yes` included, so an agent cannot run them; the git guards (shell, OpenCode, Rust) now deny `ai-gent autonomy` in any form but `show`, `status` and `--help`, in any quoting, as defence in depth (a text guard alone cannot be complete).
+- **git, cli:** a grant that replaces an active one prints a notice naming the old expiry, branches and actions.
+
 - **git, repo:** an autonomy grant, `.ai-gent/autonomy` (`expires`, `branches`, `actions`), written only by the user: while it lasts the guards stop asking for a push of a work branch or `develop`, `gh pr create --base <covered branch>`, a PR merge and issue create, comment and edit, and `reporun` refuses a merge into a branch the grant does not cover; nothing above `develop`, no tag or release, and none of the denies is lifted, and the `git` guard denies an agent writing the file. The shell guards, the OpenCode rules, the Rust evaluator and `ai-gent repo` decide the same (shared fixtures, three sandboxes with an active, an expired and a partial grant); `git:workflow` has the reference
+
+- **git, cli:** `ai-gent autonomy grant|show|revoke` write, show and remove the autonomy grant: `grant` takes `--for`/`--until`, `--actions` (aliases `mr`, `workitems`), `--branches` and `--yes`, asks on a terminal when run bare, writes the file atomically (mode 0600, git-excluded) in the form the guards read, has no default grant, refuses an expiry in the past or over 30 days and a covered `main`, `master`, `homolog` or `staging`, and says when an action lifts nothing on a platform (`merge` and `issues` are GitHub only); the `git` guard (shell, OpenCode, Rust, shared fixtures) denies an agent running `grant` or `revoke`, also through `sh -c`, `env` and the binary's full path
 
 - **project:** the pipeline pane puts attention first (features, implemented, ready, blocked; a warning line only when a clarification, a missing or a review artifact needs a decision), lists Blockers only when something blocks (clarification, dependency, missing artifact), shows why and where in Next action with a Details toggle for a long reason, and expands the current stage's readiness and a feature's source and open clarifications from the snapshot; a stale artifact now reads `Review`, a signal from commit dates
 - **agents:** `delegate` skill: offer other code agents (Codex first) bounded tasks, supervise them through `ai-gent delegate`, require a cross-agent review and take work back (spec 041 T020)
+
+### Fixed
+
+- **git, cli:** the grant is written after the git exclude and removed if git still does not ignore it; protected branches are matched case-insensitively and without `origin/` or `refs/heads/`.
+
 
 ## 2.27.0 — 2026-11-01
 

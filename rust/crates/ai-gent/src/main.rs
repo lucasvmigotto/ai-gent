@@ -47,6 +47,7 @@ fn real_main() -> Exit {
         Some(Command::Spec(a)) => cmd::spec::run(&a, cli.json),
         Some(Command::Delegate(a)) => cmd::delegate::run(&a, cli.json),
         Some(Command::Wt(a)) => cmd::wt::run(&a, cli.json),
+        Some(Command::Autonomy(a)) => cmd::autonomy::run(&a, cli.json),
         None => {
             eprintln!("usage: ai-gent [--json] <version|doctor|update|guard|tokens>");
             if cli.json {

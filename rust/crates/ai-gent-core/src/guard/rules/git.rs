@@ -64,6 +64,9 @@ pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
     {
         return decide("git.grant_file", &[]);
     }
+    if autonomy_command(&v.raw) {
+        return decide("git.autonomy_cmd", &[]);
+    }
     if has(s, "push", None) && !push_lifted(s, cwd, ctx) {
         return decide("git.push", &[]);
     }
@@ -98,6 +101,40 @@ pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
         }
     }
     Decision::none()
+}
+
+/// A command that runs the grant CLI in any form but show/status/--help/-h, or `autonomy
+/// [flags] grant|revoke` without the word ai-gent. Tested on the raw command and on a copy with
+/// quotes, backslashes and `$( )` stripped. The real defence is structural (the write path needs
+/// a real terminal); this is defence in depth.
+fn autonomy_command(raw: &str) -> bool {
+    let plain: String = raw
+        .chars()
+        .filter(|c| !matches!(c, '\'' | '"' | '`' | '\\'))
+        .collect::<String>()
+        .replace("$(", "")
+        .replace(')', "");
+    autonomy_denied(raw) || autonomy_denied(&plain)
+}
+
+fn autonomy_denied(text: &str) -> bool {
+    let t = text.replace('\n', " ");
+    let w = "(^|[^A-Za-z0-9_-])";
+    if re(&format!(
+        r"{w}autonomy([[:space:]]+-[^[:space:]]*)*[[:space:]]+(grant|revoke)([^A-Za-z0-9_-]|$)"
+    ))
+    .is_match(&t)
+    {
+        return true;
+    }
+    if !re(&format!(r"{w}ai-gent(\.exe)?([^A-Za-z0-9_/.-]|$)")).is_match(&t) {
+        return false;
+    }
+    let rest = re(&format!(
+        r"{w}autonomy[[:space:]]+(show|status|--help|-h)([^A-Za-z0-9_-]|$)"
+    ))
+    .replace_all(&t, " ");
+    re(&format!(r"{w}autonomy([^A-Za-z0-9_-]|$)")).is_match(&rest)
 }
 
 /// A push the active grant lifts: every push names no protected branch and no bulk or forced

@@ -37,6 +37,8 @@ pub enum Command {
     Delegate(crate::cmd::delegate::DelegateArgs),
     /// Worktrees for parallel tracks and their container leftovers (a port of `wt.py`).
     Wt(crate::cmd::wt::WtArgs),
+    /// Write, show and remove the autonomy grant that lifts the push, PR, merge and issue questions (for your own terminal).
+    Autonomy(crate::cmd::autonomy::AutonomyArgs),
 }
 
 /// Arguments of `guard`.

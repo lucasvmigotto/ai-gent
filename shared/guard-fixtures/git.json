@@ -1510,6 +1510,553 @@
       "tags": [
         "grant"
       ]
+    },
+    {
+      "id": "git-082",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy grant --for 4h --actions push",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-083",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy revoke",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-084",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "/home/u/.local/bin/ai-gent autonomy grant --yes --for 1h --actions pr",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-085",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "sh -c \"ai-gent autonomy grant --for 1h --actions push\"",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-086",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "bash -lc 'ai-gent autonomy revoke'",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-087",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "env AI_GENT_HOME=/x ai-gent autonomy grant --for 30m --actions push",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-088",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd /tmp && ai-gent --json autonomy revoke",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-089",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "eval \"ai-gent autonomy grant --for 1d --actions push\"",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-090",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cargo run -q -- autonomy revoke",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-091",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy show",
+      "want": "none",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-092",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy show --json",
+      "want": "none",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-093",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy --help",
+      "want": "none",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-094",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "git commit -m \"docs: ai-gent autonomy grant\"",
+      "want": "deny",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt"
+    },
+    {
+      "id": "git-095",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "echo \"ai-gent autonomy grant\"",
+      "want": "deny",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt"
+    },
+    {
+      "id": "git-096",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy --json grant --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-097",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy \"grant\" --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-098",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy 'grant' --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-099",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy gr\"\"ant --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-100",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy gr\\ant --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-101",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy $(echo grant) --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-102",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy `echo grant` --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-103",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "a=ai-gent; $a autonomy grant --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-104",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "a=ai-gent; $a autonomy --json revoke",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-105",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent \"autonomy\" grant --for 1h --actions push",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-106",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent au\"\"tonomy grant --for 1h --actions push",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-107",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent --json autonomy --yes grant --for 1h --actions push",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-108",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "x=grant; ai-gent autonomy $x --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-109",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "autonomy grant --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-110",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-111",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy show; ai-gent autonomy grant --for 1h --actions push --yes",
+      "want": "deny",
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-112",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy show",
+      "want": "none",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-113",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy status",
+      "want": "none",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-114",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy -h",
+      "want": "none",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-115",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy grant --help",
+      "want": "deny",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt"
+    },
+    {
+      "id": "git-116",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "ai-gent autonomy show --json",
+      "want": "none",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-117",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "grep -rn autonomy docs",
+      "want": "none",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "git-118",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "grep -rn \"autonomy grant\" docs",
+      "want": "deny",
+      "source": [
+        "new:autonomy-cli"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt"
     }
   ]
 }

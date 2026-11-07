@@ -9,7 +9,8 @@
 #         commit on dev/develop (merging into it is the workflow), branch -D,
 #         reset --hard, clean -f, commit --amend, filter-branch/filter-repo,
 #         gh pr create
-#   deny  writing .ai-gent/autonomy, the grant only the user creates
+#   deny  writing .ai-gent/autonomy, the grant only the user creates, and
+#         running ai-gent autonomy in any form but show/--help
 #   lift  while that grant is active (its expires: line is in the future), a
 #         plain git push (actions: push) and gh pr create --base <a branch the
 #         grant covers> (actions: pr) stop asking; never a push naming
@@ -145,6 +146,24 @@ if printf '%s' "$cmd" | grep -Fq '.ai-gent/autonomy' &&
     printf '%s\n' "$segments" | grep -F '.ai-gent/autonomy' |
       grep -Evq '^[[:space:]]*(cat|ls|head|tail|grep|stat|wc|test|\[)[[:space:]]'; }; then
   decide deny "$grant_reason"
+fi
+
+# Nor does the agent run the grant CLI (ai-gent autonomy ...), in any spelling. The real
+# defence is structural (grant and revoke need a real terminal); this is defence in depth.
+# Deny a command that has the word ai-gent and an `autonomy` that is not followed by
+# show/status/--help/-h, and any `autonomy [flags] grant|revoke` even without ai-gent.
+# Tested on the raw command and on a copy with quotes, backslashes and $( ) stripped.
+autonomy_denied() { # autonomy_denied <text>
+  t="$(printf '%s' "$1" | tr '\n' ' ')"
+  w='(^|[^A-Za-z0-9_-])'
+  printf '%s' "$t" | grep -Eq "${w}autonomy([[:space:]]+-[^[:space:]]*)*[[:space:]]+(grant|revoke)([^A-Za-z0-9_-]|\$)" && return 0
+  printf '%s' "$t" | grep -Eq "${w}ai-gent(\.exe)?([^A-Za-z0-9_/.-]|\$)" || return 1
+  rest="$(printf '%s' "$t" | sed -E "s/${w}autonomy[[:space:]]+(show|status|--help|-h)([^A-Za-z0-9_-]|\$)/ /g")"
+  printf '%s' "$rest" | grep -Eq "${w}autonomy([^A-Za-z0-9_-]|\$)"
+}
+cmd_plain="$(printf '%s' "$cmd" | tr -d "'\"\\\\\`" | sed -e 's/\$(//g' -e 's/)//g')"
+if autonomy_denied "$cmd" || autonomy_denied "$cmd_plain"; then
+  decide deny "the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt"
 fi
 
 # A push the grant lifts: every push segment names no protected branch and no

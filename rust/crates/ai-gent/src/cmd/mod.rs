@@ -1,4 +1,5 @@
 //! Subcommand implementations.
+pub mod autonomy;
 pub mod delegate;
 pub mod doctor;
 pub mod guard;
