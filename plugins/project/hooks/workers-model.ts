@@ -14,6 +14,8 @@ export const STATES: readonly WorkerState[] = ['queued', 'running', 'stalled', '
 const ROLES = ['builder', 'reviewer', 'researcher'] as const
 const RESULTS = ['pending', 'accepted', 'rejected'] as const
 
+// Used only for a readable parallel.yaml that has no `max_parallel` key (wt.py then runs its own default of 3).
+// Anything else (no file, unreadable, oversized, an invalid value) is an unknown cap, never a guessed 3.
 export const DEFAULT_CAP = 3
 export const MAX_STATUS_BYTES = 65_536
 export const MAX_LOG_LINES = 2000
@@ -144,11 +146,16 @@ export function parseLog(text: string): WorkerLogLine[] {
   return out
 }
 
-// `max_parallel: 3` from .ai-gent/parallel.yaml (the key wt.py reads), else the default.
-export function parseCap(text: string | null): number {
-  const m = text === null ? null : /^\s*max_parallel\s*:\s*([0-9]+)\s*(#.*)?$/m.exec(text)
-  const n = m === null ? Number.NaN : Number.parseInt(m[1] as string, 10)
-  return Number.isFinite(n) && n >= 1 && n <= 99 ? n : DEFAULT_CAP
+// `max_parallel: 3` from .ai-gent/parallel.yaml (the key wt.py reads). A readable file with no such key is
+// DEFAULT_CAP, because wt.py then applies that default; null (unknown) when the text could not be read or the
+// value is not a whole number from 1 to 99, so the pane says "limit unknown" instead of guessing and painting an error.
+export function parseCap(text: string | null): number | null {
+  if (text === null) return null
+  const m = /^\s*max_parallel\s*:\s*(.*?)\s*(#.*)?$/m.exec(text)
+  if (m === null) return DEFAULT_CAP
+  const raw = m[1] as string
+  const n = /^[0-9]+$/.test(raw) ? Number.parseInt(raw, 10) : Number.NaN
+  return n >= 1 && n <= 99 ? n : null
 }
 
 const glyphs = (ascii: boolean) => ({
@@ -180,8 +187,17 @@ export function countsOf(workers: readonly WorkerStatus[]): Counts {
   return counts
 }
 
-// A worker holds a worktree slot while it runs or has stalled (not yet stopped).
-export const slotsUsed = (counts: Counts): number => counts.running + counts.stalled
+const isLiveState = (w: WorkerStatus): boolean => w.state === 'running' || w.state === 'stalled'
+
+// A delegated track (a profile or another code agent, in its own worktree) holds a slot of the cap while it runs or
+// has stalled. The supervising session's own subagents never do (spec 041 FR-006), so they are not counted here.
+export const slotsUsed = (workers: readonly WorkerStatus[]): number => workers.filter(w => w.kind !== 'subagent' && isLiveState(w)).length
+
+// Session subagents running or stalled: shown beside the meter, never part of the used figure.
+export const subagentsLive = (workers: readonly WorkerStatus[]): number => workers.filter(w => w.kind === 'subagent' && isLiveState(w)).length
+
+const subagentText = (n: number): string => `+${n} ${n === 1 ? 'subagent' : 'subagents'}`
+const hasCap = (cap: number | null | undefined): cap is number => typeof cap === 'number' && Number.isInteger(cap) && cap >= 1
 
 const COUNT_ORDER: readonly WorkerState[] = ['running', 'queued', 'stalled', 'failed', 'done', 'taken-back']
 
@@ -201,8 +217,13 @@ function countText(counts: Counts, ascii: boolean): string {
 export function compactLine(snapshot: WorkersSnapshot | null, ascii = false): { text: string; tone: Tone } | null {
   if (snapshot === null || snapshot.workers.length === 0) return null
   const counts = countsOf(snapshot.workers)
-  const tone: Tone = counts.failed > 0 ? 'bad' : counts.stalled > 0 ? 'warn' : 'plain'
-  return { text: `Workers: ${countText(counts, ascii)}${glyphs(ascii).sep}slots ${slotsUsed(counts)}/${snapshot.cap}`, tone }
+  const used = slotsUsed(snapshot.workers)
+  const subs = subagentsLive(snapshot.workers)
+  const over = hasCap(snapshot.cap) && used > snapshot.cap
+  const tone: Tone = counts.failed > 0 || over ? 'bad' : counts.stalled > 0 ? 'warn' : 'plain'
+  const sep = glyphs(ascii).sep
+  const slots = hasCap(snapshot.cap) ? `slots ${used}/${snapshot.cap}` : `${used} in use (limit unknown)`
+  return { text: `Workers: ${countText(counts, ascii)}${sep}${slots}${subs > 0 ? `${sep}${subagentText(subs)}` : ''}`, tone }
 }
 
 // 45s, 12m, 1h 05m, 2d 3h.
@@ -216,7 +237,10 @@ export function duration(secs: number): string {
 
 const compactNumber = (n: number): string => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1000 ? `${Math.round(n / 1000)}k` : String(n))
 
-export type Line = { key: string; text: string; tone: Tone; toggle?: string; buttonKey?: string }
+// `marks` are ranges of `text` drawn in their own tone (the slots over the limit); the text itself is what
+// `/workers` prints, so colour is never the only carrier of the meaning.
+export type Mark = { from: number; to: number; tone: Tone }
+export type Line = { key: string; text: string; tone: Tone; toggle?: string; buttonKey?: string; marks?: Mark[] }
 export type Limit = { kind: string; percent: number }
 export type Context = {
   columns: number
@@ -227,7 +251,7 @@ export type Context = {
   expanded: Readonly<Record<string, boolean>>
   limits?: readonly Limit[]
 }
-export type WorkersView = { isEmpty: boolean; counts: Counts; slots: { used: number; cap: number }; lines: Line[] }
+export type WorkersView = { isEmpty: boolean; counts: Counts; slots: { used: number; cap: number | null; subagents: number }; lines: Line[] }
 
 // The expansion key of the History / Done disclosure. It cannot be a track name (TRACK has no '#').
 export const HISTORY_KEY = '#history'
@@ -272,23 +296,35 @@ const isHistory = (w: WorkerStatus) => w.state === 'done' || w.state === 'taken-
 // The slot meter: one cell per slot of a small positive cap, wider caps and narrow panes as text. The cap is the
 // worker-slot pool (running plus stalled workers hold one); this is occupancy, never task progress, and a queued
 // worker is not said to wait for a slot because nothing in the status says why it waits.
-function capacity(used: number, cap: number, columns: number, ascii: boolean, ellipsis: string): Line[] {
-  const known = Number.isInteger(cap) && cap >= 1
-  if (!known) {
-    return [{ key: 'cap', text: fit(`CAPACITY  ${used} in use (limit unknown)`, columns, ellipsis), tone: 'dim' }]
+function capacity(used: number, cap: number | null, subagents: number, columns: number, ascii: boolean, ellipsis: string): Line[] {
+  const subs = subagents > 0 ? `  ${subagentText(subagents)}` : ''
+  if (!hasCap(cap)) {
+    return [{ key: 'cap', text: fit(`CAPACITY  ${used} in use (limit unknown)${subs}`, columns, ellipsis), tone: 'dim' }]
   }
   const over = used > cap
   const free = Math.max(0, cap - used)
-  const tone: Tone = over ? 'warn' : used > 0 ? 'info' : 'dim'
+  const tone: Tone = over ? 'bad' : used > 0 ? 'info' : 'dim'
   const figure = `${used} / ${cap} slots`
   const status = over ? `${used - cap} over the limit` : free === 0 ? 'full' : `${free} available`
-  if (cap > 12 || columns < NARROW) return [{ key: 'cap', text: spread('CAPACITY', `${used}/${cap} slots · ${status}`, columns, ellipsis), tone }]
+  const compact = (): Line[] => [{ key: 'cap', text: spread(`CAPACITY${subs}`, `${used}/${cap} slots · ${status}`, columns, ellipsis), tone }]
+  if (cap > 12 || columns < NARROW) return compact()
+  // Past the cap the meter keeps growing: the slots beyond it are [!] cells in the error tone. Used cells = used when
+  // over, so the meter must fit beside the status; otherwise the compact text, wholly in the error tone.
+  const cells = Math.max(cap, used)
+  if (cells > 12 || (over && 4 * used - 1 > columns - status.length - 1)) return compact()
   const on = ascii ? '[#]' : '[■]'
   const off = '[ ]'
-  const cells = Array.from({ length: cap }, (_, i) => (i < used ? on : off)).join(' ')
+  const meter = Array.from({ length: cells }, (_, i) => (i >= cap ? '[!]' : i < used ? on : off)).join(' ')
+  const meterLine = spread(meter, status, columns, ellipsis)
+  const marks: Mark[] = over
+    ? [
+        { from: 4 * cap, to: 4 * used - 1, tone: 'bad' },
+        { from: meterLine.length - status.length, to: meterLine.length, tone: 'bad' },
+      ]
+    : []
   return [
-    { key: 'cap', text: spread('CAPACITY', figure, columns, ellipsis), tone },
-    { key: 'cap-meter', text: spread(cells, status, columns, ellipsis), tone },
+    { key: 'cap', text: spread(`CAPACITY${subs}`, figure, columns, ellipsis), tone },
+    { key: 'cap-meter', text: meterLine, tone: over ? 'info' : tone, ...(over ? { marks } : {}) },
   ]
 }
 
@@ -296,8 +332,8 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
   const g = glyphs(ctx.ascii)
   const workers = snapshot?.workers ?? []
   const counts = countsOf(workers)
-  const cap = snapshot?.cap ?? DEFAULT_CAP
-  const slots = { used: slotsUsed(counts), cap }
+  const cap = snapshot?.cap ?? null
+  const slots = { used: slotsUsed(workers), cap, subagents: subagentsLive(workers) }
   const lines: Line[] = []
   const width = Math.max(10, ctx.columns)
   const add = (text: string, tone: Tone = 'plain', toggle?: string, buttonKey?: string) =>
@@ -332,7 +368,7 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
   if (usage !== null) add(`Usage  ${usage}`, 'dim')
 
   // Capacity.
-  for (const l of capacity(slots.used, cap, head, ctx.ascii, g.ellipsis)) lines.push({ ...l, key: `l${lines.length}`, text: l.text })
+  for (const l of capacity(slots.used, cap, slots.subagents, head, ctx.ascii, g.ellipsis)) lines.push({ ...l, key: `l${lines.length}`, text: l.text })
 
   const tier = width < NARROW ? 'narrow' : width < WIDE ? 'medium' : 'wide'
   const nowS = ctx.now / 1000
