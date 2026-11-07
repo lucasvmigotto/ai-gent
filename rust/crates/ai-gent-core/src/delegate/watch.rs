@@ -180,33 +180,57 @@ fn guard_skip(launch: &Launch) -> Vec<PathBuf> {
     vec![PathBuf::from(&launch.cwd)]
 }
 
-/// The guarded checkout's state before the run, when the launch asks for the guard and the checkout
-/// is not the working directory itself.
-fn guard_before(launch: &Launch) -> Option<BTreeMap<String, String>> {
-    let main = Path::new(launch.guard_root.as_deref()?);
-    if same_dir(main, Path::new(&launch.cwd)) {
-        return None;
-    }
-    super::gitx::snapshot(main, &guard_skip(launch)).ok()
+/// The guard's state before the run.
+enum Guard {
+    /// No guard (the launch names no checkout, or it is the working directory itself).
+    Off,
+    /// The snapshot before the run failed: the run goes on, unguarded, and says so.
+    Unavailable(String),
+    /// The checkout's state before the run.
+    Ready(BTreeMap<String, String>),
 }
 
-/// What changed in the guarded checkout since `before`; written to `escaped.txt` when not empty.
-fn guard_after(
-    dir: &Path,
-    launch: &Launch,
-    before: Option<&BTreeMap<String, String>>,
-) -> Vec<String> {
-    let (Some(before), Some(main)) = (before, launch.guard_root.as_deref()) else {
-        return Vec::new();
+/// The guarded checkout's state before the run, when the launch asks for the guard. A failed snapshot
+/// is noted in `guard-unavailable.txt` (not a failure of the track).
+fn guard_before(dir: &Path, launch: &Launch) -> Guard {
+    let _ = std::fs::remove_file(dir.join(files::ESCAPED));
+    let _ = std::fs::remove_file(dir.join(files::GUARD_UNAVAILABLE));
+    let Some(main) = launch.guard_root.as_deref().map(Path::new) else {
+        return Guard::Off;
+    };
+    if same_dir(main, Path::new(&launch.cwd)) {
+        return Guard::Off;
+    }
+    match super::gitx::snapshot(main, &guard_skip(launch)) {
+        Ok(m) => Guard::Ready(m),
+        Err(e) => {
+            let note = format!(
+                "guard-unavailable: could not read the main checkout's status before the run ({e}); a write outside the worktree would not be reported"
+            );
+            let _ = std::fs::write(dir.join(files::GUARD_UNAVAILABLE), &note);
+            Guard::Unavailable(note)
+        }
+    }
+}
+
+/// The failure reason when the main checkout changed during the run (the paths are also written to
+/// `escaped.txt`), or when it could not be read afterwards (fail closed).
+fn guard_after(dir: &Path, launch: &Launch, guard: &Guard) -> Option<String> {
+    let (Guard::Ready(before), Some(main)) = (guard, launch.guard_root.as_deref()) else {
+        return None;
     };
     let Ok(after) = super::gitx::snapshot(Path::new(main), &guard_skip(launch)) else {
-        return Vec::new();
+        return Some(
+            "wrote-outside-worktree-unknown: could not read the main checkout's status after the run"
+                .into(),
+        );
     };
     let changed = super::gitx::changed_since(before, &after);
-    if !changed.is_empty() {
-        let _ = std::fs::write(dir.join(files::ESCAPED), changed.join("\n"));
+    if changed.is_empty() {
+        return None;
     }
-    changed
+    let _ = std::fs::write(dir.join(files::ESCAPED), changed.join("\n"));
+    Some(escape_reason(&changed))
 }
 
 fn same_dir(a: &Path, b: &Path) -> bool {
@@ -250,10 +274,10 @@ pub fn watch(dir: &Path) -> Res<()> {
         })
         .collect();
 
-    let guard = guard_before(&launch);
+    let guard = guard_before(dir, &launch);
     let mut tally = Tally::default();
     let code = run_agent(dir, &root, &track, &launch, &args, &mut tally);
-    let escaped = guard_after(dir, &launch, guard.as_ref());
+    let escaped = guard_after(dir, &launch, &guard);
     let ended = now_secs();
     let stopped = dir.join(files::STOPPED).exists();
     let claude = tally.result.clone();
@@ -263,20 +287,24 @@ pub fn watch(dir: &Path) -> Res<()> {
     {
         let _ = std::fs::write(dir.join(files::LAST), &r.text);
     }
-    let errored = claude.as_ref().is_some_and(|r| r.is_error) || !escaped.is_empty();
-    let reason = if escaped.is_empty() {
-        claude
-            .as_ref()
-            .filter(|r| r.is_error)
-            .map(ClaudeResult::reason)
-    } else {
-        Some(escape_reason(&escaped))
-    };
+    let errored = claude.as_ref().is_some_and(|r| r.is_error) || escaped.is_some();
+    let reason = escaped
+        .clone()
+        .or_else(|| {
+            claude
+                .as_ref()
+                .filter(|r| r.is_error)
+                .map(ClaudeResult::reason)
+        })
+        .or_else(|| match &guard {
+            Guard::Unavailable(note) => Some(note.clone()),
+            _ => None,
+        });
     let _ = std::fs::remove_file(dir.join(files::PID));
     update(&root, &track, |s| {
         s.state = if stopped {
             State::TakenBack
-        } else if code == 0 && !errored && escaped.is_empty() {
+        } else if code == 0 && !errored {
             State::Done
         } else {
             State::Failed
@@ -304,6 +332,66 @@ pub fn watch(dir: &Path) -> Res<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn launch_guarding(cwd: &Path, main: &Path) -> Launch {
+        Launch {
+            program: "x".into(),
+            args: vec![],
+            cwd: cwd.to_string_lossy().into_owned(),
+            env: vec![],
+            stall_secs: 1,
+            env_remove: vec![],
+            guard_root: Some(main.to_string_lossy().into_owned()),
+        }
+    }
+
+    fn git_ok(dir: &Path, args: &[&str]) {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+
+    #[test]
+    fn a_snapshot_that_fails_before_the_run_is_noted_and_does_not_fail_the_track() {
+        let (track, work, notgit) = (
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+        );
+        std::fs::write(track.path().join(files::ESCAPED), "stale.txt").unwrap();
+        let l = launch_guarding(work.path(), notgit.path());
+        let g = guard_before(track.path(), &l);
+        assert!(matches!(g, Guard::Unavailable(_)));
+        assert!(!track.path().join(files::ESCAPED).exists(), "stale file");
+        let note = std::fs::read_to_string(track.path().join(files::GUARD_UNAVAILABLE)).unwrap();
+        assert!(note.starts_with("guard-unavailable:"), "{note}");
+        assert_eq!(guard_after(track.path(), &l, &g), None);
+    }
+
+    #[test]
+    fn a_snapshot_that_fails_after_a_guarded_run_fails_closed() {
+        let (track, work, main) = (
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+        );
+        git_ok(main.path(), &["init", "-q"]);
+        let l = launch_guarding(work.path(), main.path());
+        let g = guard_before(track.path(), &l);
+        assert!(matches!(g, Guard::Ready(_)));
+        // The checkout stops being readable during the run.
+        std::fs::remove_dir_all(main.path().join(".git")).unwrap();
+        let reason = guard_after(track.path(), &l, &g).unwrap();
+        assert_eq!(
+            reason,
+            "wrote-outside-worktree-unknown: could not read the main checkout's status after the run"
+        );
+    }
 
     #[test]
     fn tally_reads_the_claude_result_object() {

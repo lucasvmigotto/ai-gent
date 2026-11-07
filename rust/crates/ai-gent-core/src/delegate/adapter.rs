@@ -240,6 +240,8 @@ pub fn launch(
         files::EXIT,
         files::STOPPED,
         files::STDERR,
+        files::ESCAPED,
+        files::GUARD_UNAVAILABLE,
     ] {
         let _ = std::fs::remove_file(dir.join(f));
     }

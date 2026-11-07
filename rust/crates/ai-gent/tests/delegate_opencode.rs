@@ -694,3 +694,73 @@ fn a_write_into_the_main_checkout_fails_the_track_with_a_clear_message() {
     assert_eq!(listed.trim(), "leaked.txt");
     drop(d);
 }
+
+#[test]
+fn the_supervisors_directory_variables_do_not_reach_the_child() {
+    let (d, tmp, home, main, wt) = repo_with_worktree();
+    let _ = home;
+    let brief = d.path().join("brief.txt");
+    std::fs::write(&brief, "Task: T\nallowed_paths: fake-output.txt\nMODE:edit").unwrap();
+    let out = Command::new(bin())
+        .args(["delegate", "--agent", "opencode", "--root"])
+        .arg(&main)
+        .args(["run", "--track", "o-env", "--worktree"])
+        .arg(&wt)
+        .args(["--first-event-wait", "0", "--privacy-ack", "--brief-file"])
+        .arg(&brief)
+        .env("AI_GENT_OPENCODE_BIN", fake())
+        .env("TMPDIR", &tmp)
+        .env("INIT_CWD", main.join("elsewhere"))
+        .env("OLDPWD", main.join("elsewhere"))
+        .env("GIT_DIR", main.join(".git"))
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let r = wait_finished(&main, "o-env");
+    assert_eq!(r.state, State::Done, "{r:?}");
+    let f = fake_report(&main, "o-env");
+    assert_eq!(f["env_present"], serde_json::json!([]), "{f}");
+    assert!(same(f["pwd"].as_str().unwrap(), &wt), "{f}");
+}
+
+#[test]
+fn a_reused_track_directory_drops_the_stale_escape_record() {
+    let (d, tmp, home, main, wt) = repo_with_worktree();
+    let a = adapter(&main, &tmp, &home);
+    let leak = main.join("leaked.txt");
+    let attempt = format!("EDIT:{}", leak.to_string_lossy());
+    a.run(&worktree_request(&wt, "o-reuse", &[attempt]))
+        .unwrap();
+    assert_eq!(wait_finished(&main, "o-reuse").state, State::Failed);
+    let record = main.join(".ai-gent/delegate/o-reuse/escaped.txt");
+    assert!(record.exists());
+    // The same track again, nothing outside the worktree touched this time.
+    a.run(&worktree_request(&wt, "o-reuse", &[])).unwrap();
+    let r = wait_finished(&main, "o-reuse");
+    assert_eq!(r.state, State::Done, "{r:?}");
+    assert!(!record.exists(), "stale escaped.txt");
+    drop(d);
+}
+
+#[test]
+fn an_unreadable_main_checkout_after_the_run_fails_the_track_closed() {
+    let (d, tmp, home, main, wt) = repo_with_worktree();
+    let a = adapter(&main, &tmp, &home);
+    // The stub corrupts the main checkout's index: `git status` there fails after the run.
+    let attempt = format!("EDIT:{}", main.join(".git/index").to_string_lossy());
+    a.run(&worktree_request(&wt, "o-closed", &[attempt]))
+        .unwrap();
+    let r = wait_finished(&main, "o-closed");
+    assert_eq!(r.state, State::Failed, "{r:?}");
+    let res = a.result("o-closed").unwrap();
+    assert!(
+        res.reason
+            .unwrap()
+            .starts_with("wrote-outside-worktree-unknown:")
+    );
+    drop(d);
+}
