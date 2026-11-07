@@ -148,6 +148,9 @@ jobs:
       matrix:
         os: [windows-2025, windows-11-arm]
     runs-on: ${{ matrix.os }}
+    # The arm64 runner is reported but not required until the 3.0.0 gate (owner decision, 2026-11-07):
+    # a runner hiccup there must not block a merge. Same policy as the aarch64 Windows build leg.
+    continue-on-error: ${{ matrix.os == 'windows-11-arm' }}
     timeout-minutes: 20
     concurrency:
       group: check-windows-${{ matrix.os }}-${{ github.workflow }}-${{ github.ref }}
