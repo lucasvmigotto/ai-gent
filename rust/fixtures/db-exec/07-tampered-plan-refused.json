@@ -2,5 +2,5 @@
   "name": "tampered-plan-refused",
   "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_tampered_plan_refused",
   "kind": "pending",
-  "reason": "Plan hashing and the stored plan file belong to the runner's plan layer, which this crate does not own yet (spec 038 T026 cutover). No connector behavior to test."
+  "reason": "Plan layer, not connector behavior: run as journey_07 in rust/crates/ai-gent-dbrun/tests/plan.rs over core::plan (no connector request is made)."
 }
