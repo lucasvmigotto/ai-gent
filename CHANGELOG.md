@@ -15,6 +15,10 @@ changes.
 - **agents:** `delegate` never starts another agent's CLI by hand: every dispatch goes through `ai-gent delegate run`, and a worker started by hand anyway is named in the handoff and registered or stopped (spec 041 FR-016)
 - **agents:** `delegate` skill: offer other code agents (Codex first) bounded tasks, supervise them through `ai-gent delegate`, require a cross-agent review and take work back (spec 041 T020)
 
+### Fixed
+
+- **git:** the autonomy grant now applies inside a linked worktree: the guard (shell, OpenCode and the Rust evaluator alike) uses the worktree's own grant file when it has one and otherwise the main checkout's, so a git-excluded grant no longer goes unseen from `.worktrees/` and `.claude/worktrees/`
+
 ## 2.27.0 — 2026-11-01
 
 ### Added
