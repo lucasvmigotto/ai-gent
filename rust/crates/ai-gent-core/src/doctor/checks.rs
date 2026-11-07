@@ -2,7 +2,7 @@
 //! a credential or state file (the `permissions` check looks at modes only).
 use super::{Check, Ctx, Status, selftest};
 use crate::update::{
-    apply::{is_executable, on_path},
+    apply::{Platform, is_executable, on_path},
     cache, version,
 };
 use std::path::{Path, PathBuf};
@@ -441,8 +441,34 @@ pub fn guard_selftest(_ctx: &Ctx) -> Check {
 
 /// `tools`: external programs.
 pub fn tools(ctx: &Ctx) -> Check {
-    let runner = if cfg!(windows) { "powershell" } else { "sh" };
-    let missing: Vec<&str> = ["git", "curl", runner]
+    tools_for(ctx, Platform::host(), &|| powershell_version(&ctx.env))
+}
+
+/// The tools `doctor` requires on `platform`: `git`, `curl` and the installer's interpreter.
+#[must_use]
+pub fn required_tools(platform: Platform) -> [&'static str; 3] {
+    ["git", "curl", platform.runner()]
+}
+
+/// `PowerShell`'s version, asked of the interpreter itself (it is the only tool whose version the
+/// installer contract cares about: 5.1 and 7 both work, older does not).
+fn powershell_version(env: &crate::env::Env) -> Option<String> {
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args([
+        "-NoProfile",
+        "-Command",
+        "$PSVersionTable.PSVersion.ToString()",
+    ]);
+    // Bounded: a stalled interpreter must not keep `doctor` from reporting.
+    let out = crate::exec::run(cmd, env, None, std::time::Duration::from_secs(10)).ok()?;
+    let v = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!out.timed_out && out.code == 0 && !v.is_empty()).then_some(v)
+}
+
+/// [`tools`] for an explicit platform; `version` reports the interpreter's version on Windows.
+pub fn tools_for(ctx: &Ctx, platform: Platform, version: &dyn Fn() -> Option<String>) -> Check {
+    let runner = platform.runner();
+    let missing: Vec<&str> = required_tools(platform)
         .into_iter()
         .filter(|t| !on_path(&ctx.env, t))
         .collect();
@@ -452,11 +478,14 @@ pub fn tools(ctx: &Ctx) -> Check {
         .collect();
     let detail = format!("optional: {}", optional.join(", "));
     if missing.is_empty() {
-        Check::new(
-            "tools",
-            Good,
-            format!("git, curl, {runner} found; {detail}"),
-        )
+        let shown = match platform {
+            Platform::Windows => version().map_or_else(
+                || format!("{runner} (version unknown)"),
+                |v| format!("{runner} {v}"),
+            ),
+            Platform::Unix => runner.to_string(),
+        };
+        Check::new("tools", Good, format!("git, curl, {shown} found; {detail}"))
     } else {
         Check::new(
             "tools",
@@ -678,5 +707,73 @@ pub fn permissions(ctx: &Ctx) -> Check {
     {
         let _ = ctx;
         Check::new("permissions", Skip, "Unix modes do not apply on Windows")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::env::Env;
+    use crate::install::InstallRoot;
+
+    #[test]
+    fn required_tools_per_platform() {
+        assert_eq!(required_tools(Platform::Unix), ["git", "curl", "sh"]);
+        assert_eq!(
+            required_tools(Platform::Windows),
+            ["git", "curl", "powershell"]
+        );
+    }
+
+    #[cfg(unix)]
+    fn ctx_with(tools: &[&str], dir: &Path) -> Ctx {
+        use std::os::unix::fs::PermissionsExt;
+        for t in tools {
+            let f = dir.join(t);
+            std::fs::write(&f, "#!/bin/sh\n").unwrap();
+            std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        Ctx {
+            exe: PathBuf::from("ai-gent"),
+            release: "dev".into(),
+            root: InstallRoot {
+                home: None,
+                version_dir: None,
+                version: None,
+                dev_build: true,
+            },
+            env: Env::from_pairs([("PATH", dir.to_str().unwrap())]),
+            fast: true,
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn windows_checks_powershell_not_sh() {
+        let d = tempfile::tempdir().unwrap();
+        // git, curl and sh present, powershell absent: Windows warns, Unix is fine
+        let ctx = ctx_with(&["git", "curl", "sh"], d.path());
+        let w = tools_for(&ctx, Platform::Windows, &|| None);
+        assert_eq!(w.status, Status::Warn);
+        assert!(w.detail.contains("missing powershell"), "{}", w.detail);
+        assert_eq!(tools_for(&ctx, Platform::Unix, &|| None).status, Status::Ok);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn windows_reports_the_powershell_version() {
+        let d = tempfile::tempdir().unwrap();
+        let ctx = ctx_with(&["git", "curl", "powershell"], d.path());
+        let ok = tools_for(&ctx, Platform::Windows, &|| Some("5.1.26100.1".into()));
+        assert_eq!(ok.status, Status::Ok);
+        assert!(ok.detail.contains("powershell 5.1.26100.1 found"));
+        let unknown = tools_for(&ctx, Platform::Windows, &|| None);
+        assert!(
+            unknown
+                .detail
+                .contains("powershell (version unknown) found")
+        );
+        // no `sh` needed on Windows
+        assert!(!ok.detail.contains("missing"));
     }
 }
