@@ -80,13 +80,48 @@ else — the scopes, the expiry date — is for you.
   command (`dbrun secrets migrate <profile>` or `--all`), which pipes the
   values without showing them.
 
-Never: `pass show`, a bare `pass <entry>`, `pass -c`, `pass edit`,
+Never (bar the user's own allowlist, below): `pass show`; never: a bare
+`pass <entry>`, `pass -c`, `pass edit`,
 `pass grep`, `pass generate`, `pass otp`, `pass insert`, `gpg` on the
 store, or a runner such as `pass-run` handing a secret to a command that
 can print it (`env`, a shell, `echo`). Store changes (`rm`, `mv`, `cp`,
 `init`, `git`) are the user's call. The `secrets` guard hook enforces
 this in Claude Code, and the OpenCode guard plugin does the same there;
 in other agents the rules are instructions only.
+
+### The personal allowlist
+
+Some entries are the user's to hand over, such as a token the user wants
+the agent to read. Only the user opens one, in a plain-text file the
+`secrets` guard reads on every `pass show`: `$AI_GENT_PASS_ALLOW`, else
+`${XDG_CONFIG_HOME:-~/.config}/ai-gent/pass-allow`.
+
+```text
+# one rule per line; blank lines and # comments are ignored
+work/vpn
+team/
+```
+
+- A rule ending in `/` allows everything under that prefix; any other rule
+  is one exact entry. Rules that are empty, start with `/`, `-` or `~`, or
+  have a `.` or `..` path part never allow anything.
+- It opens only `pass show <entry>` with exactly one entry and **no flags**:
+  never the bare `pass <entry>`, `-c`/`-q`, `edit`, `grep`, `generate`,
+  `otp` or `insert`; never an entry under `ai-gent/db/` (only `dbrun`
+  reads those, even if a rule names one); never a command that sets
+  `PASSWORD_STORE_*`, `XDG_CONFIG_HOME` or `HOME`; never a name with shell
+  metacharacters or substitutions; never when another `pass` command
+  shares the line.
+- A missing or unreadable file, or no matching rule, changes nothing: the
+  guard denies as before and says where to list the entry.
+- A Bash command that mentions the file (`pass-allow`, or the value of
+  `AI_GENT_PASS_ALLOW`) is asked about, so the agent cannot widen its own
+  reach through the shell. Write and Edit tool calls are outside the hook
+  and fall under Claude Code's own permission prompts; don't edit the file
+  unless the user asks.
+- In OpenCode the guard plugin applies the same rules; the static
+  `pass show*` deny rule `setup.sh` can add also applies there, so remove it
+  to use the allowlist.
 
 A request to debug or "compare" a rejected secret is still a read —
 don't run `pass show` or `gpg -d` even to help: point at length/prefix

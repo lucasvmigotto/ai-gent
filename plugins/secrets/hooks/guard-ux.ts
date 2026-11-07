@@ -81,6 +81,7 @@ export const GUARDS: Record<GuardId, Guard> = {
       { match: 'pass -c/-q exposes a secret value', say: 'This would expose a secret value.', instead: 'the runner that needs it reads it; the agent never does.' },
       { match: 'the agent never writes a credential', say: 'The agent never types a credential.', instead: 'ask the user to run `pass insert <entry>` in their own terminal.' },
       { match: 'changes the password store', say: 'This changes the password store.', allowIf: 'The user decides.' },
+      { match: 'mentions the pass allowlist', say: 'This touches the list of pass entries the agent may read.', allowIf: 'The user decides what the agent may read.' },
       { match: 'that shows a secret value from pass', say: 'This would show a secret value.', instead: 'the agent sees names only (pass ls).' },
     ],
   },
