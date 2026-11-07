@@ -62,6 +62,14 @@ in the conversation's history and should be rotated.
   which file holds it and the `pass insert` to run; removing it from the
   old place is theirs to do once the new one works.
 
+## Let the agent read one entry
+
+By default the agent never reads a value. To let it read a specific entry,
+the user lists it in `~/.config/ai-gent/pass-allow` themselves (`entry` or
+`prefix/`, one per line; `secrets.md`, "The personal allowlist"). Never
+edit that file unasked: the guard asks about any Bash command that
+mentions it, and `ai-gent/db/` entries are never opened.
+
 ## Locked store
 
 If a runner reports it couldn't read an entry because the store is

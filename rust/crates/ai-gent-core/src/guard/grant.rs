@@ -49,19 +49,35 @@ impl Grant {
 /// The active grant of the repository that contains `dir`, as of now.
 #[must_use]
 pub fn load(dir: &str) -> Option<Grant> {
-    let top = Command::new("git")
-        .args(["-C", if dir.is_empty() { "." } else { dir }])
-        .args(["rev-parse", "--show-toplevel"])
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .ok()?;
-    if !top.status.success() {
-        return None;
-    }
-    let top = String::from_utf8(top.stdout).ok()?;
-    let text = std::fs::read_to_string(Path::new(top.trim_end_matches('\n')).join(FILE)).ok()?;
-    parse(&text, &now_utc())
+    let git = |args: &[&str]| -> Option<String> {
+        let out = Command::new("git")
+            .args(["-C", if dir.is_empty() { "." } else { dir }])
+            .args(args)
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        Some(
+            String::from_utf8(out.stdout)
+                .ok()?
+                .trim_end_matches('\n')
+                .to_string(),
+        )
+    };
+    let top = git(&["rev-parse", "--show-toplevel"])?;
+    // A linked worktree has no copy of the git-excluded file: use the main checkout's
+    let text = std::fs::read_to_string(Path::new(&top).join(FILE)).or_else(|_| {
+        let common = git(&["rev-parse", "--path-format=absolute", "--git-common-dir"])
+            .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))?;
+        let main = common
+            .strip_suffix("/.git")
+            .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))?;
+        std::fs::read_to_string(Path::new(main).join(FILE))
+    });
+    parse(&text.ok()?, &now_utc())
 }
 
 /// Parse the file's text against `now` (`YYYY-MM-DDTHH:MM:SSZ`).
@@ -167,6 +183,68 @@ mod tests {
         ] {
             assert_eq!(parse(text, NOW), None, "{text:?}");
         }
+    }
+
+    #[test]
+    fn a_linked_worktree_reads_the_main_checkouts_grant() {
+        let git = |dir: &Path, args: &[&str]| {
+            let ok = Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(args)
+                .output()
+                .expect("git")
+                .status
+                .success();
+            assert!(ok, "git {args:?}");
+        };
+        let tmp = tempfile::tempdir().unwrap();
+        let main = tmp.path().join("main");
+        let wt = tmp.path().join("wt");
+        std::fs::create_dir_all(main.join(".ai-gent")).unwrap();
+        git(&main, &["init", "-q", "-b", "dev"]);
+        git(
+            &main,
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "x",
+            ],
+        );
+        git(
+            &main,
+            &[
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "feat/x",
+                wt.to_str().unwrap(),
+            ],
+        );
+        let dir = wt.to_str().unwrap();
+        assert!(load(dir).is_none(), "no grant file anywhere");
+        std::fs::write(
+            main.join(FILE),
+            "expires: 2099-01-01T00:00:00Z\nactions: push\n",
+        )
+        .unwrap();
+        assert!(load(dir).expect("main's grant").has("push"));
+        // the worktree's own file wins
+        std::fs::create_dir_all(wt.join(".ai-gent")).unwrap();
+        std::fs::write(
+            wt.join(FILE),
+            "expires: 2099-01-01T00:00:00Z\nactions: pr\n",
+        )
+        .unwrap();
+        let g = load(dir).expect("own grant");
+        assert!(g.has("pr") && !g.has("push"));
     }
 
     #[test]

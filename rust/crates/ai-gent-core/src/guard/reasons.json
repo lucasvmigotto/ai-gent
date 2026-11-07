@@ -161,6 +161,20 @@
     "text": "that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it"
   },
   {
+    "id": "secrets.show_hint",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "deny",
+    "text": "that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it; list the entry in ~/.config/ai-gent/pass-allow to let the agent read it"
+  },
+  {
+    "id": "secrets.allowlist",
+    "guard": "secrets",
+    "marker": "secrets guard:",
+    "decision": "ask",
+    "text": "that command mentions the pass allowlist (pass-allow); the user decides what the agent may read"
+  },
+  {
     "id": "repo.attrib",
     "guard": "repo",
     "marker": "repo guard:",

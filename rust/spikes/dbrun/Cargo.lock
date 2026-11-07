@@ -303,6 +303,7 @@ dependencies = [
 name = "dbrun-spike"
 version = "0.0.0"
 dependencies = [
+ "futures-util",
  "mysql",
  "postgres",
  "regex",

@@ -35,3 +35,69 @@ Linux x86_64 (i7-1165G7, 8 threads), rustc 1.98.1, gcc 14.2.0, `dbq` release pro
 | aarch64, Windows, macOS | | | | not run: no cross C compiler, linker or host | | not run |
 
 Same-machine baselines: `python3 -I -c pass` 7.4 / 8.5 ms; warm `uv run --with PyMySQL` 46.2 / 48.0 ms (the 176 ms figure above is from another machine). Median and p95 over 50 runs after 5 discarded.
+
+## E2 PostgreSQL through the adapter (T005, 2026-11-07)
+
+Same machine as E8. Method and results in `results.md` "E2". Server `postgres:17` (17.11) in podman, 512 MB cap, loopback.
+
+| Measure | Value | Marker |
+|---|---|---|
+| `scripts/test-dbrun-engines.py --runner .../adapter --engine postgresql`, whole run (start, seed, 17 checks, teardown) | 29 s wall (25 s on a second run with `--keep`) | measured |
+| Adapter, one native request (connect, identity, links, statement, rollback) | about 0.04 s wall per request (`seconds` field 0.04 to 0.07) | measured |
+| Statement timeout 1 s on `pg_sleep(5)` | refused at 1.04 s | measured |
+| Lock timeout (5 s) | refused at 5.05 s | measured |
+| Adapter, release profile, `--bin adapter` without `pg` | 388,984 bytes | measured |
+| Adapter, release profile, `--features pg` | 957,984 bytes | measured |
+| Size delta of the PostgreSQL driver | +569,000 bytes (+0.57 MB) | measured |
+| Debug build with `pg` (what the script ran) | 43,350,360 bytes; cold build 41 s including the dependency tree | measured |
+| Runtime libraries of the release `pg` adapter (`ldd`) | `libgcc_s`, `libc` | measured |
+| First attempt, compose shim without labels | 620 s (the 600 s readiness wait), failed `server ready and seeded` | measured (harness, not the adapter) |
+| Python driver (`uv run --with psycopg`) on the same checks | not run (a driver fetch needs the network) | not run |
+
+The size is the `adapter` binary alone (no safety-core CLI), so it differs from the `dbq` rows above.
+
+## E3 MySQL and MariaDB through the adapter (T006, 2026-11-07)
+
+Same machine as E8. `mysql` crate 28.0.4, `minimal` features, no TLS. Details and the full check table in `results.md` "E3".
+
+| Measure | Value | Marker |
+|---|---|---|
+| Engine script, `--engine mysql` (8.4.13) | 17 of 17 checks ok; 32 s wall (38 s in an earlier run with `--keep`) | measured |
+| Engine script, `--engine mariadb` (11.4.13) | 17 of 17 checks ok; 40 s wall | measured |
+| Server-side write refusal | ERROR 1792 (25006) on both, in read mode with no classifier in the path | measured |
+| Timeout variable | MySQL `max_execution_time` = 2000 for a 2 s request, ERROR 3024 after 1.006 s on a 1 s request; MariaDB `max_statement_time` = 2.0, ERROR 1969 after 1.007 s | measured |
+| Adapter release binary, bridge only (no native driver) | 388824 bytes | measured |
+| Adapter release binary, `--features mysql` | 2044048 bytes (2.04 MB); delta +1655224 bytes (+1.66 MB) over the bridge-only adapter | measured |
+| Runtime libraries of that binary | `libz.so.1`, `libgcc_s.so.1`, `libc` (the system zlib dependency E8 found) | measured |
+| Build, `--features mysql` | debug 35 s with dependencies, 1 s warm; release 19 s (the bridge-only release build already in the target dir) | measured |
+| One request, release adapter vs MariaDB 11.4 (process start, connect, session setup, identity, one SELECT) | median 3.8 ms, p95 4.1 ms, 50 runs after 5 discarded | measured |
+| First connect to MySQL 8.4, debug build, test mode | 0.156 s | measured (one run) |
+| Python baseline on this machine | warm `uv run --with PyMySQL` import alone 46.2 ms | from E8 |
+
+Surprises: (1) the host has no compose provider, so the engine script could not start a container until a stand-in with the compose labels was supplied (see `results.md`); (2) the text protocol reports DATE and TIME as the binary charset, so a "charset 63 means blob" rule renders a date as `<10 bytes>`, fixed by deciding on column type first; (3) the MySQL and MariaDB timeout units differ by a factor of 1000, and MariaDB reports the variable as a float.
+
+## E5 SQL Server through the adapter (T007, 2026-11-07)
+
+Same machine as E8. `tiberius-ng` 0.13.1 (`tds73`, `rustls`), image `mcr.microsoft.com/mssql/server:2022-latest` (SQL Server 2022 RTM-CU27-GDR), 2 GB cap, loopback, one engine at a time. Details and the 17-check list in `results.md` "E5".
+
+| Measure | Value | Marker |
+|---|---|---|
+| Engine script, `--engine sqlserver` | 17 of 17 checks ok in three runs; 70 s (first, includes the image start and first seed), 35 s, 42 s (final, no `--keep`) | measured |
+| Image pull (`mcr.microsoft.com/mssql/server:2022-latest`) | done once; disk 61 GB free before, 54 GB after the pull and the builds (floor 15 GB) | measured |
+| Adapter release binary, bridge only | 387600 bytes | measured |
+| Adapter release binary, `--features mssql` | 2599528 bytes (2.60 MB); delta +2211928 bytes (+2.21 MB) over the bridge-only adapter | measured |
+| Runtime libraries of that binary | `libgcc_s.so.1`, `libc` (no OpenSSL, no zlib) | measured (`ldd`) |
+| Build, `--features mssql` | debug cold about 40 s (`aws-lc-sys` through cmake and a C compiler), 1 s warm; release 36 s with the dependencies | measured |
+| One request, release adapter vs SQL Server 2022 (process start, TCP, TLS handshake, login, session setup, identity, links, one `SELECT 1`, rollback) | median 65.4 ms, p95 104.2 ms, 50 runs after 5 discarded | measured |
+| Python runner, same request (`uv run --offline --with pymssql`, warm cache) | median 104 ms (15 runs) | measured |
+| Statement timeout 1 s on `WAITFOR DELAY '00:00:04'` | refused at 1.04 s (a first version that tried to roll back before dropping the connection took 4.04 s) | measured |
+| Lock timeout (5 s) | refused at 5.05 s | measured |
+| 100,000-row read with `max_rows: 5` | 0.43 s, 5 rows returned | measured |
+| TLS on the session | `encrypt_option = TRUE` for the adapter; `FALSE` for pymssql | measured |
+| Plain `tiberius` 0.13.0, same source | builds, answers 6 requests identically (a scratch copy outside the repository); size and time not measured | measured (behaviour only) |
+| `sqlcmd` in a client image | not run | not run |
+| Unit tests | `cargo test --features mssql --lib` 14 passed (12 in `mssql.rs`); `--test mssql_request` 1 passed; `clippy` and `rustfmt` clean for the new files | measured |
+
+Fork-health facts (retrieved 2026-11-07 from the crate sources and `cargo info` only; no web access): `tiberius-ng` 0.13.1 released 2026-08-30 after 0.13.0 on 2026-08-29 (changelog dates), MIT OR Apache-2.0, rust-version 1.88, one active maintainer on the repository `MattJackson/tiberius-ng`, a fork of `prisma/tiberius` whose README says it is no longer maintained, changelog says "No further releases are planned in the immediate term", `src/` differs from plain `tiberius` 0.13.0 by about 14,500 diff lines. Not retrieved: GitHub issue counts, last commit date, stars, downloads.
+
+Surprises: (1) the client crate gives no row count for a streamed batch and its RPC path drops the column names of an empty result set, so the count comes from `SELECT ROWCOUNT_BIG()` in the same session; (2) pymssql returns `-1` as the row count of a `SELECT` and of DDL, the adapter the server's count; (3) `datetimeoffset` travels as UTC and pymssql shows the stored wall time; (4) the server accepts and runs a write in read mode, and only the rollback undoes it (no server-side read-only mode); (5) a timed-out statement cannot be rolled back from the client, the dropped connection does it; (6) the Rust path encrypts the session where pymssql did not.
