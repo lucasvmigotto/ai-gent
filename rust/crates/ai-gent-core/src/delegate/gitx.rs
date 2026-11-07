@@ -63,6 +63,19 @@ pub fn common_dir(worktree: &Path) -> Res<PathBuf> {
     ))
 }
 
+/// Whether a path names something that holds credentials or an agent profile; its content is never put
+/// in a prompt or a finding. The file names come from [`super::opencode::is_credential_name`].
+#[must_use]
+pub fn sensitive(path: &str) -> bool {
+    let comps: Vec<&str> = path.split(['/', '\\']).collect();
+    let name = comps.last().copied().unwrap_or("");
+    comps.iter().any(|c| {
+        c.starts_with(".claude")
+            || c.starts_with(".codex")
+            || matches!(*c, ".ssh" | ".gnupg" | ".password-store" | ".aws")
+    }) || super::opencode::is_credential_name(name)
+}
+
 /// The changes in `worktree` since `base` (staged, unstaged and untracked files) and the commit
 /// messages in `base..HEAD`.
 ///
@@ -82,13 +95,29 @@ pub fn collect(worktree: &Path, base: &str) -> Res<(Vec<FileChange>, Vec<String>
         ],
     )?;
     let mut changes = diff::parse(&text);
+    // A tracked credential-named file keeps its path (the path rules still see it) but none of its
+    // lines, so no finding can quote a value from it.
+    for c in &mut changes {
+        if sensitive(&c.path) || c.old_path.as_deref().is_some_and(sensitive) {
+            c.added.clear();
+            c.removed.clear();
+        }
+    }
     let untracked = git(
         worktree,
         &["ls-files", "--others", "--exclude-standard", "-z"],
     )?;
     for rel in untracked.split('\0').filter(|s| !s.is_empty()) {
-        let bytes = std::fs::read(worktree.join(rel)).unwrap_or_default();
-        let content = String::from_utf8(bytes).unwrap_or_default();
+        // The path stays in the change list (the path rules still see it); the content of a symlink
+        // or a credential-named file is never read, so no finding can print it.
+        let p = worktree.join(rel);
+        let plain =
+            !sensitive(rel) && std::fs::symlink_metadata(&p).is_ok_and(|m| m.file_type().is_file());
+        let content = if plain {
+            String::from_utf8(std::fs::read(&p).unwrap_or_default()).unwrap_or_default()
+        } else {
+            String::new()
+        };
         changes.push(FileChange::added_file(rel, &content));
     }
     let range = format!("{base}..HEAD");

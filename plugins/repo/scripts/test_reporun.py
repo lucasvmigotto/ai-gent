@@ -372,6 +372,75 @@ class CliTest(Sandbox):
         self.assertIn("token from the CLI's own login", err)  # no entry: gh's own login
 
 
+# A gh that answers `pr view --json baseRefName` with $REPORUN_TEST_BASE_REF (fails when unset)
+# and echoes anything else.
+FAKE_GH_BASE = """#!/bin/sh
+if [ "$1 $2" = "pr view" ]; then
+  [ -n "$REPORUN_TEST_BASE_REF" ] || exit 1
+  echo "$REPORUN_TEST_BASE_REF"
+  exit 0
+fi
+echo "args: $*"
+"""
+
+
+class GrantMergeTest(Sandbox):
+    """With the user's autonomy grant active the repo guard stops asking about a merge, so reporun
+    refuses a PR whose base the grant does not cover."""
+
+    def setUp(self):
+        super().setUp()
+        (self.bin_dir / "gh").write_text(FAKE_GH_BASE)
+        os.environ["REPORUN_TEST_BASE_REF"] = "develop"
+
+    def tearDown(self):
+        os.environ.pop("REPORUN_TEST_BASE_REF", None)
+        super().tearDown()
+
+    def grant(self, expires="2099-01-01T00:00:00Z", actions="merge", branches="develop dev"):
+        d = self.repo / ".ai-gent"
+        d.mkdir(exist_ok=True)
+        (d / "autonomy").write_text(f"expires: {expires}\nbranches: {branches}\nactions: {actions}\n")
+
+    def merge(self):
+        return self.run_cmd("cli", "github", "--write", "--", "pr", "merge", "3")
+
+    def test_covered_base_merges(self):
+        self.grant()
+        code, out, err = self.merge()
+        self.assertEqual(code, 0, err)
+        self.assertIn("args: pr merge 3", out)
+
+    def test_uncovered_base_is_refused(self):
+        self.grant()
+        os.environ["REPORUN_TEST_BASE_REF"] = "main"
+        code, out, err = self.merge()
+        self.assertEqual(code, reporun.EXIT_REFUSED)
+        self.assertEqual(out, "")
+        self.assertIn("targets main", err)
+
+    def test_unreadable_base_is_refused(self):
+        self.grant()
+        os.environ.pop("REPORUN_TEST_BASE_REF")
+        code, out, _ = self.merge()
+        self.assertEqual(code, reporun.EXIT_REFUSED)
+        self.assertEqual(out, "")
+
+    def test_no_active_grant_is_the_old_behavior(self):
+        # No file, an expired one, one without merge, one with a malformed expiry: the base is
+        # not looked up and the merge runs as the user confirmed it.
+        os.environ["REPORUN_TEST_BASE_REF"] = "main"
+        for label, write in (("no file", lambda: None),
+                             ("expired", lambda: self.grant(expires="2000-01-01T00:00:00Z")),
+                             ("no merge", lambda: self.grant(actions="push pr")),
+                             ("bad expiry", lambda: self.grant(expires="tomorrow"))):
+            with self.subTest(label):
+                write()
+                code, out, err = self.merge()
+                self.assertEqual(code, 0, err)
+                self.assertIn("args: pr merge 3", out)
+
+
 class ProjectStatusTest(Sandbox):
     """project-status: field lookup, the sync-state→live-option mapping, and the
     item-edit call shape — against a fake `gh`, never a real Projects v2 board."""

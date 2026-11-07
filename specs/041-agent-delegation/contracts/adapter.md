@@ -28,6 +28,17 @@ One adapter per delegate agent (first: Codex). An adapter is a small script or m
 - Trial 4: a read-only review of a 50-line survey took 28 s and about 99k input and 1.1k output tokens, and found five spec-compliance gaps neither the builder nor the supervisor had noticed.
 - The loop: builder drafts, supervisor fact-checks decisive claims, a different agent reviews against the acceptance criteria, the findings go back to the builder (or the supervisor fixes them), then a second review; the task is done only when the acceptance criteria pass, not when the builder says so.
 
+## The review step (`ai-gent delegate review`, T021)
+
+`ai-gent delegate review --builder-track <t> --reviewer <codex|claude|opencode> [--worktree <dir>] [--spec <path>]... --allow <glob>... [--no-check] [--base <rev>] [--reviewer-profile <dir>] [--reviewer-model <m>] [--out <file>] [--dry-run]` runs the reviewer through the adapter above; it adds no log format.
+
+- Refusal (FR-010, exit 4, one message): the reviewer is the builder when it is the same agent and the same profile or config. The builder's agent comes from `.ai-gent/delegate/<t>/status.json`. Codex has no profile, so Codex never reviews Codex. Claude profiles are compared as canonical config-directory paths (never read): a `claude` builder ran in `AI_GENT_CLAUDE_CONFIG_DIR`, a `claude-subagent` in the supervisor's own profile (`CLAUDE_CONFIG_DIR`, else `~/.claude`), the reviewer's profile is `--reviewer-profile` or `AI_GENT_CLAUDE_CONFIG_DIR`; a supervisor-profile reviewer of a second-profile builder is allowed because the directories differ. OpenCode is compared by qualified model: the OpenCode adapter records the builder's agent as `opencode:<qualified model>` in `status.json` (a plain `opencode` from an older status means the default model), and the same model is refused, a different one allowed.
+- Prompt, built from the worktree: the standing instructions (read-only, no network, no credentials, findings ranked by severity with file:line and a concrete failure scenario, recount every number, list what could not be checked), the FR-011 `check` findings, the named spec files and the diff text (`git diff` against `--base`, default the merge base with dev, main or master, plus untracked files; credential-like names, shared with the OpenCode deny list, are left out and symlinks are never followed, also by the check). The diff is in the prompt because a Claude reviewer has no shell. The builder's report is never read.
+- FR-011 gate: `--allow` is required. Without it the command exits 2 (usage) and launches nothing, also with `--dry-run`, unless `--no-check` is passed; the prompt then says the check was skipped on request. Findings stop the review before any launch (exit 4).
+- Size: the prompt is one argument, so it is capped at 100 KiB (24 KiB on Windows, whose whole command line is limited to about 32 KB). The spec blocks (at most half the room) and the diff are cut with a "[truncated: N bytes left out]" note; if the instructions and findings leave under 4 KiB for them, the command fails with a message.
+- Run: role `reviewer` (Codex `-s read-only`, Claude `Read Grep Glob`, OpenCode read-only permissions), track `review-<t>` with its own status file (so the Workers pane lists it), the reviewer's final message written to `--out` (default `.ai-gent/delegate/review-<t>/review.md`). Usage comes from the adapter's `result`; the delegation log line is the existing one.
+- `--dry-run` prints the prompt and the decision, launches nothing, writes nothing; exit 4 if the decision is a refusal.
+
 ## Claude profile (verified in trial 5)
 
 A second Claude Code profile works as a delegate. The profile is a config directory passed as `CLAUDE_CONFIG_DIR=<dir>`; nothing inside it is read or copied (`AI_GENT_CLAUDE_CONFIG_DIR` names it for the adapter; unset, `run` refuses, see below). `AI_GENT_CLAUDE_BIN` overrides the program.
@@ -46,3 +57,32 @@ A second Claude Code profile works as a delegate. The profile is a config direct
 - `is_error`: a run that exits 0 with `is_error: true` is recorded as `failed`, not `done`. `exit.json` gets `is_error` and a `reason` (the `subtype` without `error_`, `max-turns` for `error_max_turns`, else `error`), and `result` answers both next to the unchanged `exit_code` (0).
 - Profile required: `run` refuses without `AI_GENT_CLAUDE_CONFIG_DIR` (or an explicit profile in the library call) with "a Claude delegate needs its own profile: set AI_GENT_CLAUDE_CONFIG_DIR", so the supervisor's own profile is never used by accident. `detect` and `ready` still work with the variable set.
 - `stop` is by PID file only, as for Codex.
+
+## Completion events (T022, built)
+
+A coordinator learns that a detached worker finished from an append-only log, not by polling `status`.
+**Built:** the log, `delegate events`, `delegate watch`, `delegate ack`, `delegate idle`, and the skills
+(`orchestrate`, `parallel`, `delegate`) point to the protocol in `shared/worker-continuation.md`. **Not built:**
+ledger columns for handled event ids and hold reasons, and any automatic dispatch (a deterministic supervisor
+never picks or briefs a task).
+
+**`.ai-gent/delegate/events.jsonl`**, one JSON line per terminal or attention transition of a track:
+
+| Field | Meaning |
+|---|---|
+| `id` | `track:started:state` (`started` from `status.json`). A later run of the same track has another `started`, so an event of an earlier run is told apart |
+| `ts` | Epoch seconds when it was recorded |
+| `track`, `agent`, `role`, `tasks` | As in `status.json` |
+| `state` | `done`, `failed`, `stalled` or `taken-back` |
+| `result` | The verdict's reason if any, else `accepted` or `rejected`, else `null` |
+
+Never a brief, a message, a path or a diff. Every `status::write` that shows one of those states appends the event; `stalled` is computed from the clock (`stall_secs`), so `watch` and `events` record it. The append takes an exclusive OS lock (`File::try_lock` on `events.lock`, released when the file closes, so a crashed writer cannot leave it held and no age heuristic exists), reads the whole log under it and refuses an id already anywhere in it (so a restart, a second writer or a scan over hundreds of finished tracks adds nothing). The log is never trimmed, since dropping an id would let its event be appended again; it is one short line per transition. `watch` and `events` build each event from a single read of `status.json`, so state, `started` and tasks belong to one run and writes the line in one `write`, so two writers never interleave. Limit: `started` has one-second resolution, so a run restarted within the same second of the same track reuses the id.
+
+**Commands** (all take `--root`):
+
+- `delegate events [--pending]`: records transitions not yet in the log, then prints the events (`--json`: an object with `events`).
+- `delegate watch [--once] [--since-ack]`: prints each unacknowledged event as one line `event id=… ts=… track=… agent=… role=… tasks=T1,T2 state=… result=…` (`--json`: the event object per line). Without `--once` it keeps running (checks every second), prints new events, and prints `idle: free_slots=N` when slots are free and no track is live (once per change). Printing does not acknowledge. `--since-ack` states what `watch` always does: acknowledged events are never replayed.
+- `delegate ack <id>… | --all`: appends `{id, ts}` to `.ai-gent/delegate/acks.jsonl`; an unknown id is refused.
+- `delegate idle --tasks-file F`: one line, exit 0, never dispatches: `free_slots=N ready_tasks=M reason=<dispatch|dependency|approval|none-ready|cap>`. `free_slots` is the pool of `delegate plan` (`max_volumes`, else `max_parallel`, default 3, minus live tracks, and the disk floor). A task is ready when no track (taken-back ones excepted) holds it, it needs no owner decision and each `depends` is in a done track. `dispatch`: a slot and a ready task, start it; `cap`: ready work, no slot; `approval`, `dependency`, `none-ready`: why nothing is ready.
+
+Tests: `delegate::events::tests` in `ai-gent-core` and `rust/crates/ai-gent/tests/delegate_events.rs`.

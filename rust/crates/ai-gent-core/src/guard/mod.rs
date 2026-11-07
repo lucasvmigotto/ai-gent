@@ -4,6 +4,7 @@
 //! shadow mode beside them: the shell guards still decide.
 pub mod branch;
 pub mod event;
+pub mod grant;
 pub mod reasons;
 pub mod replay;
 pub mod rules;
@@ -27,10 +28,10 @@ pub struct Ctx<'a> {
 pub fn evaluate(guard: GuardId, ev: &Event, shell: Shell, ctx: &Ctx) -> Decision {
     if !ev.is_shell() {
         // Only the db guard looks at other tools (credentials files as targets).
-        return if guard == GuardId::Db {
-            rules::db::creds_in_tool(ev)
-        } else {
-            Decision::none()
+        return match guard {
+            GuardId::Db => rules::db::creds_in_tool(ev),
+            GuardId::Git => rules::git::grant_file_tool(ev),
+            _ => Decision::none(),
         };
     }
     let Some(cmd) = ev.command() else {
@@ -41,7 +42,7 @@ pub fn evaluate(guard: GuardId, ev: &Event, shell: Shell, ctx: &Ctx) -> Decision
         GuardId::Git => rules::git::evaluate(&v, &ev.cwd, ctx),
         GuardId::Db => rules::db::evaluate(&v),
         GuardId::Secrets => rules::secrets::evaluate(&v),
-        GuardId::Repo => rules::repo::evaluate(&v),
+        GuardId::Repo => rules::repo::evaluate(&v, &ev.cwd),
         GuardId::Containers => rules::containers::evaluate(&v),
     }
 }
@@ -52,6 +53,7 @@ pub fn evaluate(guard: GuardId, ev: &Event, shell: Shell, ctx: &Ctx) -> Decision
 pub fn evaluate_all(ev: &Event, shell: Shell, ctx: &Ctx) -> Decision {
     let mut found: Vec<Decision> = Vec::new();
     if !ev.is_shell() {
+        found.push(rules::git::grant_file_tool(ev));
         found.push(rules::db::creds_in_tool(ev));
     } else if let Some(cmd) = ev.command() {
         let plain = segment::view(shell, cmd, false);
@@ -60,7 +62,7 @@ pub fn evaluate_all(ev: &Event, shell: Shell, ctx: &Ctx) -> Decision {
         found.push(rules::db::clients(&plain));
         found.push(rules::db::creds_in_command(&plain));
         found.push(rules::secrets::evaluate(&plain));
-        found.push(rules::repo::evaluate(&plain));
+        found.push(rules::repo::evaluate(&plain, &ev.cwd));
         found.push(rules::containers::evaluate(&ctr));
     }
     for level in [Level::Deny, Level::Ask] {
@@ -98,6 +100,9 @@ pub fn evaluate_opencode(
                     tool_input: serde_json::json!({ "file_path": r }),
                 };
                 found.push(rules::db::creds_in_tool(&ev));
+                if action == "edit" {
+                    found.push(rules::git::grant_file_tool(&ev));
+                }
             }
             _ => {}
         }

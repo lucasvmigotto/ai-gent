@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate } from "../rules.mjs"
+import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
 // guards (plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh) decide for
@@ -28,6 +28,19 @@ for (const b of ["main", "staging", "dev", "feat/x"]) {
   const d = join(sandbox, b.replace("/", "-"))
   execFileSync("git", ["init", "-q", "-b", b, d])
   dirs[b] = d
+}
+// The autonomy grant a sandbox repository carries, as the user would write it.
+const GRANTS = {
+  granted: "expires: 2099-12-31T23:59:59Z\nbranches: develop dev\nactions: push pr merge issues\n",
+  expired: "expires: 2000-01-01T00:00:00Z\nbranches: develop dev\nactions: push pr merge issues\n",
+  partial: "expires: 2099-12-31T23:59:59Z\nactions: issues\n",
+}
+for (const [k, text] of Object.entries(GRANTS)) {
+  const d = join(sandbox, k)
+  execFileSync("git", ["init", "-q", "-b", "feat/x", d])
+  mkdirSync(join(d, ".ai-gent"))
+  writeFileSync(join(d, ".ai-gent", "autonomy"), text)
+  dirs[k] = d
 }
 const main = dirs["main"]
 const staging = dirs["staging"]
@@ -80,13 +93,17 @@ function shellDecision(guard, tool, cwd, toolInput, env = null) {
 // ------------------------------------------------------- fixtures
 
 const GUARD_FILES = { git: GIT_GUARD, db: DB_GUARD, secrets: SECRETS_GUARD, repo: REPO_GUARD, containers: CONTAINERS_GUARD }
-const branchDirs = { main, staging, dev, feat }
-const subst = (s) => s.replace(/\{(main|staging|dev|feat)\}/g, (_, k) => branchDirs[k])
+const branchDirs = { main, staging, dev, feat, granted: dirs.granted, expired: dirs.expired, partial: dirs.partial }
+const subst = (s) => s.replace(/\{(main|staging|dev|feat|granted|expired|partial)\}/g, (_, k) => branchDirs[k])
 const cwdOf = (c) => (c.startsWith("@") ? branchDirs[c.slice(1)] : c)
 const sample = (c) => (c.command ?? `${c.tool} ${JSON.stringify(c.tool_input)}`).replace(/\n/g, "⏎")
 
 function ocDecision(guard, c, cwd, command) {
-  if (c.tool !== "Bash") return dbCredsTool(c.tool, c.tool_input ?? {}).decision
+  if (c.tool !== "Bash") {
+    // The git guard reads an Edit or Write target (the autonomy grant is the user's to write).
+    if (guard === "git") return gitGrantPath(c.tool_input?.file_path ?? c.tool_input?.notebook_path).decision
+    return dbCredsTool(c.tool, c.tool_input ?? {}).decision
+  }
   switch (guard) {
     case "git":
       return gitGuard(command, { cwd, branchOf }).decision
@@ -97,7 +114,7 @@ function ocDecision(guard, c, cwd, command) {
     case "secrets":
       return secretsGuard(command).decision
     case "repo":
-      return repoGuard(command).decision
+      return repoGuard(command, { cwd }).decision
     case "containers":
       return containersGuard(command).decision
   }

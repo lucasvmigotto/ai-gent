@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -321,6 +322,67 @@ def cli_is_write(cli: str, words: list[str]) -> bool:
     return verb not in READ_VERBS
 
 
+GRANT_FILE = ".ai-gent/autonomy"
+
+
+def grant_branches(action: str) -> list[str] | None:
+    """The branches the user's autonomy grant covers, when it is active and names `action`.
+
+    The grant is `.ai-gent/autonomy` at the repository root, `key: value` lines written by the
+    user (`expires: 2026-11-06T18:00:00Z`, `branches: develop dev`, `actions: push pr merge
+    issues`); it counts only while `expires` lies ahead. The repo guard stops asking for the
+    forms it covers; the checks only reporun can make (a PR's base) stay here."""
+    top = git("rev-parse", "--show-toplevel")
+    if not top:
+        return None
+    try:
+        lines = (Path(top) / GRANT_FILE).read_text().splitlines()
+    except OSError:
+        return None
+
+    def value(key: str) -> str:
+        for line in lines:
+            if line.startswith(key + ":"):
+                return line[len(key) + 1:].lstrip().rstrip("\r")
+        return ""
+
+    expires = value("expires")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", expires):
+        return None
+    if time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()) >= expires:
+        return None
+    if action not in value("actions").split():
+        return None
+    return value("branches").split() or ["develop", "dev"]
+
+
+def check_merge_base(cli: str, words: list[str], env: dict) -> None:
+    """With a merge grant active the repo guard no longer asks, so a PR that targets a branch the
+    grant does not cover is refused here, where the platform can be asked: promotion stays the
+    user's own step."""
+    covered = grant_branches("merge")
+    if covered is None:
+        return
+    at = words.index("merge")
+    selector = [words[at + 1]] if at + 1 < len(words) and not words[at + 1].startswith("-") else []
+    repo_flag = []
+    for i, w in enumerate(words):
+        if w in ("-R", "--repo") and i + 1 < len(words):
+            repo_flag = [w, words[i + 1]]
+    try:
+        out = subprocess.run([cli, "pr", "view", *selector, *repo_flag, "--json", "baseRefName", "-q", ".baseRefName"],
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        out = None
+    base = out.stdout.strip() if out is not None and out.returncode == 0 else ""
+    if not base:
+        raise Refused("the autonomy grant lets a merge run unasked only when the PR's base is known; "
+                      "couldn't read it, so merge this one yourself")
+    if base not in covered:
+        raise Refused(f"the autonomy grant covers merges into {' '.join(covered)}, and this PR targets {base}; "
+                      f"promotion is the user's own step")
+
+
 def prepare_cli(platform: str, words: list[str], entry_arg: str | None, write: bool) -> tuple[list[str], dict]:
     """The checked command line and its environment (token from pass, or the CLI's own login)."""
     cli = PLATFORMS[platform]["cli"]
@@ -354,6 +416,8 @@ def prepare_cli(platform: str, words: list[str], entry_arg: str | None, write: b
         source = f"pass ({entry})"
     elif entry_arg:
         raise Failed(f"{entry} isn't in pass; add it in your own terminal: pass insert -m {entry}")
+    if cli == "gh" and write and positional[:2] == ["pr", "merge"]:
+        check_merge_base(cli, words, env)
     print(f"reporun: {cli} {' '.join(words[:3])} · token from {source}", file=sys.stderr)
     return [cli, *words], env
 

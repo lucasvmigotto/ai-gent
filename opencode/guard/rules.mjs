@@ -10,7 +10,44 @@
 // hook (not JSON-escaped, as the shell guards receive from Claude Code). Each
 // function returns { decision: "deny" | "ask" | "none", reason?: string }.
 
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+// The autonomy grant: .ai-gent/autonomy at the repository root, key: value lines the user writes
+// (expires: 2026-11-06T18:00:00Z, branches: develop dev, actions: push pr merge issues). It counts
+// only while expires lies ahead; anything unreadable or malformed is no grant. The git and repo
+// guards stop asking for the forms it covers and deny the agent writing the file.
+export const GRANT_FILE = ".ai-gent/autonomy";
+const GRANT_REASON =
+  "the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it";
+
+export function parseGrant(text, nowIso) {
+  const value = (key) => {
+    const line = text.split("\n").find((l) => l.startsWith(`${key}:`));
+    return line === undefined ? "" : line.slice(key.length + 1).replace(/^[ \t]+/, "").replace(/\r$/, "");
+  };
+  const expires = value("expires");
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/.test(expires)) return null;
+  if (nowIso >= expires) return null;
+  const words = (v) => v.split(/[ \t]+/).filter(Boolean);
+  const branches = words(value("branches"));
+  return { actions: words(value("actions")), branches: branches.length ? branches : ["develop", "dev"] };
+}
+
+// The active grant of the repository that contains dir, as of now (null when there is none).
+export function grantAt(dir, now = new Date()) {
+  let top;
+  try {
+    top = execFileSync("git", ["-C", dir || ".", "rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).replace(/\n$/, "");
+    return parseGrant(readFileSync(join(top, GRANT_FILE), "utf8"), now.toISOString().slice(0, 19) + "Z");
+  } catch {
+    return null;
+  }
+}
 
 const GIT_RE_SRC =
   "^[ \\t]*(sudo[ \\t]+)?git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t]+|--[a-z-]+(?:=[^ \\t]+)?))*[ \\t]+";
@@ -37,7 +74,7 @@ function gitHas(segments, sub, arg) {
 
 // branchOf(dir) returns the current branch name ("" when unknown). The plugin
 // passes a git-backed resolver; tests do too.
-export function gitGuard(cmd, { cwd = ".", branchOf = () => "" } = {}) {
+export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantAt } = {}) {
   const segments = gitSegments(cmd);
   const deny = (reason) => ({ decision: "deny", reason: `git:workflow guard: ${reason}` });
   const ask = (reason) => ({ decision: "ask", reason: `git:workflow guard: ${reason}` });
@@ -69,10 +106,43 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "" } = {}) {
     return deny("force pushes use --force-with-lease, and only on the user's explicit order");
   }
 
-  if (gitHas(segments, "push")) {
+  // Nothing but the user writes the grant: a command that names it and is not a read.
+  if (
+    cmd.includes(GRANT_FILE) &&
+    (cmd.includes(">") ||
+      segments.some((s) => s.includes(GRANT_FILE) && !/^[ \t]*(cat|ls|head|tail|grep|stat|wc|test|\[)[ \t]/.test(s)))
+  ) {
+    return deny(GRANT_REASON);
+  }
+
+  const cDir = new RegExp("git[ \\t]+-C[ \\t]+([^ \\t]*)").exec(segments.join("\n"));
+  const workDir = cDir ? cDir[1] : cwd;
+
+  // A push the active grant lifts: it names no protected branch and no bulk or forced form, and
+  // runs from a branch that is not a protected one either.
+  const pushLifted = () => {
+    if (!grantOf(workDir)?.actions.includes("push")) return false;
+    if (["", "main", "master", "homolog", "staging"].includes(branchOf(workDir))) return false;
+    const sel = new RegExp(GIT_RE_SRC + "push(?:[ \\t].*)?$");
+    const bad =
+      /(^|[ \t])(--all|--mirror|--tags|--delete|--prune|-d)([ \t]|$)|(^|[ \t:/])(main|master|homolog|staging)([ \t]|$)|(^|[ \t])\+/;
+    return !segments.filter((s) => sel.test(s)).some((s) => bad.test(s));
+  };
+  // A gh pr create the active grant lifts: it names a --base the grant covers.
+  const prCreateLifted = () => {
+    const g = grantOf(workDir);
+    if (!g?.actions.includes("pr")) return false;
+    const base = segments
+      .filter((s) => /^[ \t]*gh[ \t]+pr[ \t]+create/.test(s))
+      .map((s) => /^.*[ \t](--base|-B)[ \t=]+([^ \t]+)/.exec(s))
+      .find(Boolean);
+    return base !== undefined && g.branches.includes(base[2]);
+  };
+
+  if (gitHas(segments, "push") && !pushLifted()) {
     return ask("git push publishes; allow only if the user explicitly asked for this push");
   }
-  if (segments.some((s) => /^[ \t]*gh[ \t]+pr[ \t]+create/.test(s))) {
+  if (segments.some((s) => /^[ \t]*gh[ \t]+pr[ \t]+create/.test(s)) && !prCreateLifted()) {
     return ask("opening a PR publishes the branch; allow only on the user's explicit request");
   }
   if (gitHas(segments, "branch", "(^|[ \\t])(-D|--delete[ \\t]+--force|--force[ \\t]+--delete)([ \\t]|$)")) {
@@ -104,6 +174,13 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "" } = {}) {
   }
 
   return { decision: "none" };
+}
+
+// An Edit/Write target that is the grant file.
+export function gitGrantPath(path) {
+  return typeof path === "string" && (path === GRANT_FILE || path.endsWith("/" + GRANT_FILE))
+    ? { decision: "deny", reason: `git:workflow guard: ${GRANT_REASON}` }
+    : { decision: "none" };
 }
 
 // ------------------------------------------------------------------- db
@@ -325,9 +402,29 @@ const REPO_RUNNER_RE =
 // Every change reporun makes on a platform is confirmed by the user; a
 // --write call carrying agent attribution is denied outright, the same rule
 // git:workflow's guard enforces for commits and PRs/issues opened with `gh`.
-export function repoGuard(cmd) {
-  const hit = dbSegments(cmd).some((s) => REPO_RUNNER_RE.test(s) && /[ \t]--write([ \t]|$)/.test(s));
-  if (!hit) return { decision: "none" };
+// Whether the active grant lifts one reporun write segment: reporun cli github, then the gh words
+// (pr create --base <covered>, pr merge, issue create|comment|edit).
+function repoLifted(segment, grant) {
+  const head = /^.*reporun(\.py)?[ \t]+cli[ \t]+github[ \t]*/;
+  if (!head.test(segment) || !grant) return false;
+  const words = segment
+    .replace(head, "")
+    .replace(/--write([ \t]|$)/g, "")
+    .replace(/--entry[ \t]+[^ \t]+/, "")
+    .replace(/^[ \t]*(--[ \t]+)?(gh[ \t]+)?/, "");
+  const [noun, verb] = words.split(/[ \t]+/).filter(Boolean);
+  if (noun === "pr" && verb === "create") {
+    const base = /^.*[ \t](--base|-B)[ \t=]+([^ \t]+)/.exec(words);
+    return grant.actions.includes("pr") && base !== null && grant.branches.includes(base[2]);
+  }
+  if (noun === "pr" && verb === "merge") return grant.actions.includes("merge");
+  if (noun === "issue" && ["create", "comment", "edit"].includes(verb)) return grant.actions.includes("issues");
+  return false;
+}
+
+export function repoGuard(cmd, { cwd = ".", grantOf = grantAt } = {}) {
+  const writes = dbSegments(cmd).filter((s) => REPO_RUNNER_RE.test(s) && /[ \t]--write([ \t]|$)/.test(s));
+  if (!writes.length) return { decision: "none" };
   if (/co-authored-by[ \t]*:|generated[ \t]+(with|by)[ \t]{0,3}\[?claude/i.test(cmd)) {
     return {
       decision: "deny",
@@ -335,6 +432,8 @@ export function repoGuard(cmd) {
         "repo guard: this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
     };
   }
+  const grant = grantOf(cwd);
+  if (writes.every((w) => repoLifted(w, grant))) return { decision: "none" };
   return {
     decision: "ask",
     reason:
@@ -398,21 +497,24 @@ export function containersGuard(cmd) {
 
 // Map one OpenCode permission evaluation to a guard decision. The strictest
 // decision wins (deny beats ask beats none).
-export function evaluate(event, { cwd = ".", branchOf = () => "" } = {}) {
+export function evaluate(event, { cwd = ".", branchOf = () => "", grantOf = grantAt } = {}) {
   const resources = Array.isArray(event.resources) ? event.resources : [];
   const candidates = [];
 
   if (event.action === "shell") {
     for (const cmd of resources) {
-      candidates.push(gitGuard(cmd, { branchOf, cwd }));
+      candidates.push(gitGuard(cmd, { branchOf, cwd, grantOf }));
       candidates.push(dbGuard(cmd));
       candidates.push(dbCredsShell(cmd));
       candidates.push(secretsGuard(cmd));
-      candidates.push(repoGuard(cmd));
+      candidates.push(repoGuard(cmd, { cwd, grantOf }));
       candidates.push(containersGuard(cmd));
     }
   } else if (event.action === "read" || event.action === "edit") {
-    for (const r of resources) candidates.push(dbCredsPath(r));
+    for (const r of resources) {
+      candidates.push(dbCredsPath(r));
+      if (event.action === "edit") candidates.push(gitGrantPath(r));
+    }
   }
 
   if (candidates.some((c) => c.decision === "deny")) {

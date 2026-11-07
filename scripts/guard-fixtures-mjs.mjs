@@ -4,7 +4,7 @@
 // Used by scripts/guard-fixtures.py --impl mjs.
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
-import { gitGuard, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard } from "../opencode/guard/rules.mjs"
+import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard } from "../opencode/guard/rules.mjs"
 
 const branchOf = (dir) => {
   try {
@@ -15,7 +15,11 @@ const branchOf = (dir) => {
 }
 
 function run(c) {
-  if (c.tool !== "Bash") return dbCredsTool(c.tool, c.tool_input ?? {})
+  if (c.tool !== "Bash") {
+    // The git guard reads an Edit or Write target (the autonomy grant is the user's to write).
+    if (c.guard === "git") return gitGrantPath(c.tool_input?.file_path ?? c.tool_input?.notebook_path)
+    return dbCredsTool(c.tool, c.tool_input ?? {})
+  }
   switch (c.guard) {
     case "git":
       return gitGuard(c.command, { cwd: c.cwd, branchOf })
@@ -26,7 +30,7 @@ function run(c) {
     case "secrets":
       return secretsGuard(c.command)
     case "repo":
-      return repoGuard(c.command)
+      return repoGuard(c.command, { cwd: c.cwd })
     case "containers":
       return containersGuard(c.command)
     default:

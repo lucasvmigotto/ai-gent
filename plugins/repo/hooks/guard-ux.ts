@@ -51,6 +51,7 @@ export const GUARDS: Record<GuardId, Guard> = {
       { match: 'hooks must not be bypassed', say: 'Hooks are never bypassed (--no-verify, -n).', instead: 'fix what the hook reports, then commit again.' },
       { match: 'commits, issues, pull requests and comments carry no sign-off', say: 'Commits, issues, pull requests and comments carry no mention of the agent.', instead: 'remove the Co-Authored-By or "generated with" line and run the command again.' },
       { match: 'force pushes use --force-with-lease', say: 'A plain force push can overwrite other people\'s commits.', instead: 'use --force-with-lease, and only on the user\'s explicit order.' },
+      { match: 'the autonomy grant', say: 'Only you write the autonomy grant; an agent that could write it could give itself the permissions.', instead: 'create or change the grant file yourself (expires, branches and actions lines).' },
       { match: 'git push publishes', say: 'This publishes commits to the remote.', allowIf: 'Allow only if you asked for this push.' },
       { match: 'opening a PR publishes the branch', say: 'This opens a pull request, which publishes the branch.', allowIf: 'Allow only if you asked for it.' },
       { match: 'git branch -D deletes unmerged work', say: 'This deletes a branch that may hold unmerged work.', allowIf: 'Allow only if you asked for it; the workflow uses git branch -d.' },
