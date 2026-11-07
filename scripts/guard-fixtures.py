@@ -28,6 +28,8 @@ import tempfile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # the shell guards must not log these runs through a binary on PATH (shadow mode, spec 033)
 os.environ.setdefault("AI_GENT_NO_SHADOW", "1")
+# the secrets guard's personal allowlist must never come from the machine running the corpus
+os.environ["AI_GENT_PASS_ALLOW"] = os.path.join(tempfile.gettempdir(), "ai-gent-fixtures-no-pass-allow")
 FIX = os.path.join(REPO, "shared", "guard-fixtures")
 GUARDS = {
     "git": "plugins/git/hooks/guard.sh",

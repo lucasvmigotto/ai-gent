@@ -69,6 +69,12 @@ with Claude's against the worktree cap; subagents of this session do not count.
    `ai-gent delegate mark` or goes through `delegate run`, so the workers pane
    counts it.
 
+Never start another agent's CLI by hand (no `codex exec`, `claude -p` or
+`opencode run` typed into a shell): every dispatch goes through `ai-gent
+delegate run`, so the status file, the Workers pane and the worktree cap see
+it. A worker started by hand anyway is named in the handoff, then registered
+or stopped (`references/supervisor.md`, "Register every dispatch").
+
 ## 4. Supervise and land
 
 The delegate edits the working tree and stops. Then Claude:
