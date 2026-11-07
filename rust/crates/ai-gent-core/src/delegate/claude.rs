@@ -380,6 +380,8 @@ impl Adapter for ClaudeAdapter {
             cwd: slash(&req.worktree),
             env,
             stall_secs: stall_limit(req.stall_secs),
+            env_remove: Vec::new(),
+            guard_root: None,
         };
         // The only event comes when the agent ends, so waiting for a first one would stop every run.
         let req = RunRequest {
