@@ -303,7 +303,7 @@ The adapter and pymssql were fed the same `SELECT` of every type, and the string
 
 ## E6: Oracle (T008 E6a, T014 E6b, 2026-11-07)
 
-Machine as E8 (Linux x86_64, glibc 2.41, Podman 5.4.2). Branch `spike/dbrun-oracle`, created from `origin/spike/dbrun-mssql` (PR #419, not yet on `origin/dev`) so the dispatcher in `drivers/mod.rs` and `bin/adapter.rs` already existed. Server: `docker.io/gvenzl/oracle-free:23-slim` (Oracle 26ai Free inside, 1.97 GB image, `FREEPDB1`), 2 GB cap, `127.0.0.1:15521`, started by `scripts/test-dbrun-engines.py` through the stand-in `docker-compose` shim, one engine at a time. Disk 58 GB free before the pull, 52 GB after the builds (floor 15 GB).
+Machine as E8 (Linux x86_64, glibc 2.41, Podman 5.4.2). Branch `spike/dbrun-oracle`, created from `origin/spike/dbrun-mssql` (PR #419, since merged into `dev`) so the dispatcher in `drivers/mod.rs` and `bin/adapter.rs` already existed. Server: `docker.io/gvenzl/oracle-free:23-slim` (Oracle 26ai Free inside, 1.97 GB image, `FREEPDB1`), 2 GB cap, `127.0.0.1:15521`, started by `scripts/test-dbrun-engines.py` through the stand-in `docker-compose` shim, one engine at a time. Disk 58 GB free before the pull, 52 GB after the builds (floor 15 GB).
 
 ### E6a: `oracle` 0.6.3 (ODPI-C): NOT RUN TO A RESULT
 
@@ -383,3 +383,10 @@ Source reading plus one negative probe; no TLS handshake against a real server w
 ### Not verified
 
 - A 10G-verifier account (needs an 11g/12.1 server), thick mode, the `oracle` crate with a real Instant Client, TLS handshakes, wallets, Autonomous Database, SID connections through to a login (the descriptor reached the server, `ORA-01017` for a PDB-only user on the root SID, so only the path was exercised), RAC and DRCP, servers older than 26ai, `TIMESTAMP WITH LOCAL TIME ZONE`, DML `RETURNING` and PL/SQL OUT binds (both need bind values the request cannot carry; Python fails the same way with DPY-4010), LOB contents, Windows and macOS (E7).
+
+### Review of the E6b driver (independent reviewer, fixed or recorded)
+
+- **Fixed:** a numeric `password` or `user` is redacted from error text like a string one; the connection fields (`host`, `port`, `service`, `database`, `sid`) are refused when they hold a character that structures a connect descriptor (`(`, `)`, `=`, a quote, a backslash, whitespace), because the descriptor the driver builds would otherwise let a profile value add an address; the comment on the login `catch_unwind` now says it works only in an unwinding build.
+- **Not fixed, recorded:** the login has no total time bound (the call timeout is set after login and the transport timeout covers the TCP connect only; python-oracledb thin has the same gap, not measured); `NUMBER` is typed from its text (an integer-valued `NUMBER(10,2)` prints `5` where python-oracledb probably gives `5.0`, and exponent text such as `1E-130` stays a string); a panic after login is not caught even in a debug build.
+- **T014 is partial:** the 10G-verifier case was not reproduced (no 10G verifier can be created on this server) and TLS was read from source and probed negatively only, never handshaken. What T014 did answer: the thin driver runs the engine journeys, and it cannot log in to an account that has only an 11G verifier.
+- The figures above (14 of 14, timings, sizes) are the builder's own run; there is no raw log in the repository.

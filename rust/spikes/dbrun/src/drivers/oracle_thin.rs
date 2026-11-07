@@ -272,8 +272,24 @@ fn shape_entry(out: Outcome, cap: usize, read: bool) -> Value {
     }
 }
 
+/// The connection fields go into a connect descriptor, so a character that structures one (parentheses,
+/// `=`, whitespace, a quote) would let a profile value add an address and send the credentials elsewhere.
+/// Python builds an Easy Connect string for service names, which has no such structure.
+fn check_fields(c: &Value) -> Result<(), String> {
+    for key in ["host", "port", "service", "database", "sid"] {
+        let v = text(&c[key]).unwrap_or_default();
+        if v.chars()
+            .any(|ch| matches!(ch, '(' | ')' | '=' | '\'' | '"' | '\\') || ch.is_whitespace())
+        {
+            return Err(format!("invalid character in the connection field {key}"));
+        }
+    }
+    Ok(())
+}
+
 fn connect(req: &Value, limit: Option<Duration>) -> Result<Connection, String> {
     let c = &req["conn"];
+    check_fields(c)?;
     let config = Config::default()
         .set_credentials(
             &text(&c["user"]).unwrap_or_default(),
@@ -283,7 +299,9 @@ fn connect(req: &Value, limit: Option<Duration>) -> Result<Connection, String> {
         .map_err(|e| describe(&e))?
         .set_transport_connect_timeout(Some(Duration::from_secs(10))); // tcp_connect_timeout=10
                                                                        // The thin client indexes the server's verifier fields with `unwrap`, so a server that offers only an
-                                                                       // old verifier ends in a panic rather than an error; turn it into the connect failure it is.
+                                                                       // old verifier ends in a panic rather than an error. The catch below turns it into a connect failure
+                                                                       // ONLY in a build that unwinds (the tests, debug); the release profile has `panic = "abort"`, where
+                                                                       // this adapter would die without a JSON line. Not measured either way (results.md, E6).
     let conn = catch_unwind(AssertUnwindSafe(|| oracledb::connect(config)))
         .map_err(|_| {
             "the thin driver panicked while logging in (the account's password verifier is probably older than 12c)"
@@ -299,7 +317,7 @@ pub fn execute(req: &Value) -> Value {
     // The contract's redaction: password, host and user, whatever the server quoted back.
     if let Some(error) = result["error"].as_str() {
         let c = &req["conn"];
-        let get = |k: &str| c[k].as_str().unwrap_or_default().to_owned();
+        let get = |k: &str| text(&c[k]).unwrap_or_default();
         let (password, host, user) = (get("password"), get("host"), get("user"));
         result["error"] = json!(redact(
             error,
