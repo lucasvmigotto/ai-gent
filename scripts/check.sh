@@ -430,6 +430,14 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-release.out"
 
+if scripts/test-rehearse-rollback.sh >"${TMPDIR:-/tmp}/ai-gent-rehearse.out" 2>&1; then
+  pass "rollback rehearsal script ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-rehearse.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-rehearse.out"
+  fail "rollback rehearsal script"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-rehearse.out"
+
 if scripts/test-release-single.sh >"${TMPDIR:-/tmp}/ai-gent-release-single.out" 2>&1; then
   pass "single-version release template ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-release-single.out") cases)"
 else
