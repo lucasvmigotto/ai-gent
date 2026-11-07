@@ -72,6 +72,8 @@ Detached workers do not notify. Keep one persistent Monitor running `ai-gent del
 
 A worker launched by hand (another Claude profile's `claude -p`, any other agent) is registered with `ai-gent delegate mark`, or started with `delegate run`: the workers pane and the slot count see only registered tracks.
 
+Typing `codex exec`, `claude -p` or `opencode run` in a shell is not a dispatch the supervisor can see: no status file, no Workers pane row, no slot counted against the cap, no `watch` event. Use `delegate run`. If a worker was started by hand anyway, say so in the handoff and either register it with `delegate mark` (the track, its worktree and agent) or stop it by its PID; never leave it unregistered.
+
 ## Failure modes
 
 A single `apply_patch` error is not a stall. No first event within the wait

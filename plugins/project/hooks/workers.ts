@@ -7,7 +7,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Timer } from 'claude-code'
 
 import type { WorkerLogLine, WorkerStatus, WorkersSnapshot } from '../types'
-import { DEFAULT_CAP, MAX_STATUS_BYTES, agentRow, parseCap, parseLog, parseStatus } from './workers-model'
+import { MAX_STATUS_BYTES, agentRow, parseCap, parseLog, parseStatus } from './workers-model'
 import { mainRoot } from './repo'
 
 export const PANE = 'workers'
@@ -16,14 +16,14 @@ const MAX_TRACKS = 100
 const MAX_LOG_BYTES = 2_000_000
 
 // Change the tag when WorkersSnapshot's fields change: it declines what an earlier version stored.
-export const snapshotAtom = atom({ plugin: 'project', key: 'workersSnapshot' } as const, null, { shape: 'workers-2' })
+export const snapshotAtom = atom({ plugin: 'project', key: 'workersSnapshot' } as const, null, { shape: 'workers-3' })
 export const isOpenAtom = atom({ plugin: 'project', key: 'workersIsOpen' } as const, false)
 export const expandedAtom = atom({ plugin: 'project', key: 'workersExpanded' } as const, {})
 export const pollMsAtom = atom({ plugin: 'project', key: 'workersPollMs' } as const, 0)
 
 // Read by modification time: an idle poll lists and stats, and reads only what changed.
 const statusByTrack = new Map<string, { mtimeMs: number; status: WorkerStatus | null }>()
-let capCache: { mtimeMs: number; cap: number } | null = null
+let capCache: { mtimeMs: number; cap: number | null } | null = null
 let logCache: { mtimeMs: number; lines: WorkerLogLine[] } | null = null
 let ticker: Timer | null = null
 // Set by register.tsx from the workersShowDescription option (default off, FR-017).
@@ -85,12 +85,12 @@ export async function compute($: EngineInterface): Promise<WorkersSnapshot> {
   if (capStat?.kind !== 'file') capCache = null
   else if (capCache?.mtimeMs !== capStat.mtimeMs) {
     const yaml = capStat.size > MAX_STATUS_BYTES ? null : await $.fs.read(`${base}/parallel.yaml`).catch(() => null)
-    capCache = { mtimeMs: capStat.mtimeMs, cap: yaml === null ? DEFAULT_CAP : parseCap(String(yaml)) }
+    capCache = { mtimeMs: capStat.mtimeMs, cap: yaml === null ? null : parseCap(String(yaml)) }
   }
   return {
     workers,
     log: logCache?.lines ?? [],
-    cap: capCache?.cap ?? DEFAULT_CAP,
+    cap: capCache?.cap ?? null,
     skipped,
     computedAt: await $.clock.now(),
   }
