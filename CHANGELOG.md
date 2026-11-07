@@ -21,6 +21,7 @@ changes.
 
 - **agents:** `ai-gent delegate run --agent opencode` no longer lets the child inherit the supervisor's `PWD` (the watcher sets it to the worktree for every agent) or `INIT_CWD`, `OLDPWD` and the `GIT_*` location variables, and a run whose main checkout shows a new or changed file in `git status` afterwards is `failed` with `wrote-outside-worktree` and the paths, instead of succeeding (the comparison covers new, changed and removed paths and `HEAD`, skips the run's own and other linked worktrees, is bounded by 30 s, fails closed when the status cannot be read after the run and says `guard-unavailable` when it could not be read before; an edit of the main checkout by the supervisor or a person during the run is reported too, so review the reported paths) (spec 041, the isolation defect of the first real OpenCode run). Fixed in code and proven with a stub `opencode` only: a second real run has not been done
 
+- **git, repo:** the autonomy grant now applies inside a linked worktree: the guards (git and repo, shell, OpenCode and the Rust evaluator alike) and `reporun` uses the worktree's own grant file when it has one and otherwise the main checkout's, so a git-excluded grant no longer goes unseen from `.worktrees/` and `.claude/worktrees/`
 
 ## 2.27.0 — 2026-11-01
 
