@@ -58,9 +58,15 @@ file covers changing things.
 - Refer to other skills as `plugin:skill` and to files with backticked
   relative paths (`../../references/pipeline.md`); `scripts/check.sh`
   verifies both resolve.
-- The OpenCode guard rules (`opencode/guard/rules.mjs`) and the shell guards
-  (`plugins/*/hooks/guard.sh`) must decide the same; `scripts/check.sh` runs
-  their parity test. Change one, change the other.
+- The guards run as `ai-gent guard` (Rust, `rust/crates/ai-gent-core/src/guard/`)
+  in a package install: each `plugins/*/hooks/guard.sh` begins with the launcher
+  head of `shared/guard-launcher.sh` (kept equal by `scripts/consistency.py`,
+  rewritten by `--sync-shared-code`), which calls the binary and turns a missing,
+  failing or slow one into an `ask`. A clone, and the OpenCode plugin until it
+  calls the binary too (spec 033 T060), still use the shell logic below the
+  launcher and `opencode/guard/rules.mjs`; those must decide the same as the
+  binary, and `scripts/check.sh` runs the shared fixtures against all of them
+  (`shared/guard-fixtures/`) plus the parity test. Change one, change the others.
 - `shared/pipeline.md` is the product pipeline's contract (artifact paths,
   owners, statuses). Change it deliberately and update every stage that
   depends on what changed.

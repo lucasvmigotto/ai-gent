@@ -268,6 +268,29 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-fixtures.out"
 
+# The same fixtures through the package path (spec 033 T052): the launcher head of each guard.sh with
+# the real binary, and the binary directly, with as many cases as the shell guards ran (--parity leaves
+# out the `new` cases only the binary decides). Needs a built binary (cargo build in rust/ or AI_GENT_BIN).
+if [[ -x "${AI_GENT_BIN:-rust/target/release/ai-gent}" || -x "${AI_GENT_BIN:-rust/target/debug/ai-gent}" ]]; then
+  fx="${TMPDIR:-/tmp}/ai-gent-fixtures3.out"
+  : >"$fx"
+  fx_ok=1
+  fx_counts=
+  for impl in sh launcher bin; do
+    python3 scripts/guard-fixtures.py run --impl "$impl" --parity >>"$fx" 2>&1 || fx_ok=0
+    fx_counts="$fx_counts $(grep "(impl $impl)" "$fx" | grep -oE '[0-9]+ run' | tail -1 | cut -d' ' -f1)"
+  done
+  if ((fx_ok)) && [[ "$(printf '%s\n' "$fx_counts" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l)" = 1 ]]; then
+    pass "guard fixtures through the launcher and the binary (equal counts:$fx_counts)"
+  else
+    cat "$fx"
+    fail "guard fixtures through the launcher and the binary (counts:$fx_counts)"
+  fi
+  rm -f "$fx"
+else
+  warn "no built ai-gent binary (cargo build in rust/); skipped the guard fixtures through the launcher and the binary"
+fi
+
 if python3 -m unittest plugins/repo/scripts/test_reporun.py plugins/repo/scripts/test_specsync.py \
   </dev/null >"${TMPDIR:-/tmp}/ai-gent-reporun.out" 2>&1; then
   pass "reporun, specsync ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-reporun.out"))"
