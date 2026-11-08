@@ -1,0 +1,284 @@
+{
+  "contract_version": 1,
+  "name": "bad-timeouts",
+  "derived_from": "spec 043 FR-011: a timeout that is not a number from 0.001 to 3600 is a connect-stage failure and nothing runs; max_rows above 1000000 likewise. dbrun.py accepts these (a zero timeout cancels at once, a string raises mid-connect, no cap), so the steps run for the port only",
+  "kind": "exec",
+  "engines": [
+    "sqlite"
+  ],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30)"
+    ]
+  },
+  "steps": [
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": 0,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": -1,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": "5",
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": null,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": 1000000000,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": 4000,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": 0.0001,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": true,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": [
+          5
+        ],
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM t"
+        ],
+        "timeout": {
+          "a": 1
+        },
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid timeout"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    },
+    {
+      "only": "port",
+      "difference": "D-004",
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1"
+        ],
+        "timeout": 5,
+        "max_rows": 1000001
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid max_rows"
+      },
+      "absent": [
+        "results",
+        "seconds"
+      ]
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT COUNT(*) FROM t"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rows": [
+              [
+                3
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

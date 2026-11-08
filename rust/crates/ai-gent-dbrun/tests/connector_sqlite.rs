@@ -10,23 +10,28 @@ use rusqlite::Connection;
 fn connector_sqlite_passes_the_contract() {
     let mut dirs = Vec::new(); // keeps each case's database alive until the end
     let connector: &dyn Connector = &SqliteConnector;
-    let ran = contract::run_exec_cases(connector, "sqlite", |case, setup| {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(format!("{}.db", case.file));
-        Connection::open(&path)
-            .unwrap()
-            .execute_batch(&setup.join(";\n"))
-            .unwrap();
-        let facts = ConnFacts {
-            path: Some(path.to_string_lossy().into_owned()),
-            ..ConnFacts::default()
-        };
-        dirs.push(dir);
-        facts
-    });
-    // 5 of the 8 SqliteEndToEndTest cases act at the connector (01, 02, 04, 05, 06) plus 6 added
-    // (09-14); 03 is policy and 07, 08 are pending.
-    assert_eq!(ran, 11, "exec cases run");
+    let ran = contract::run_exec_cases(
+        connector,
+        "sqlite",
+        contract::Profile::Port,
+        |case, setup| {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(format!("{}.db", case.file));
+            Connection::open(&path)
+                .unwrap()
+                .execute_batch(&setup.join(";\n"))
+                .unwrap();
+            let facts = ConnFacts {
+                path: Some(path.to_string_lossy().into_owned()),
+                ..ConnFacts::default()
+            };
+            dirs.push(dir);
+            facts
+        },
+    );
+    // 5 of the 8 SqliteEndToEndTest cases act at the connector (01, 02, 04, 05, 06), 6 more come from the
+    // reviews (09-14) and 6 from the T002 contract freeze (15-20); 03 is policy, 07 and 08 are pending.
+    assert_eq!(ran, 17, "exec cases run");
 }
 
 #[test]

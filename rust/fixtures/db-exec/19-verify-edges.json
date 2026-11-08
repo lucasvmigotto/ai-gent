@@ -1,0 +1,152 @@
+{
+  "contract_version": 1,
+  "name": "verify-edges",
+  "derived_from": "plugins/db/scripts/dbrun.py execute(): verify compares only non-null expect entries that have a statement; every mismatch is listed, numbered from 1; a mismatch rolls back and reports no committed",
+  "kind": "exec",
+  "engines": [
+    "sqlite"
+  ],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30)"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "UPDATE t SET n = n + 1 WHERE id = 1",
+          "UPDATE t SET n = n + 1 WHERE id = 2"
+        ],
+        "timeout": 5,
+        "max_rows": 200,
+        "expect": [
+          null,
+          5
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "stage": "verify",
+        "error_contains": "row counts differ from the plan: statement 2: expected 5, got 1",
+        "results": [
+          {
+            "rowcount": 1
+          },
+          {
+            "rowcount": 1
+          }
+        ]
+      },
+      "absent": [
+        "committed"
+      ]
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT n FROM t ORDER BY id"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rows": [
+              [
+                10
+              ],
+              [
+                20
+              ],
+              [
+                30
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "UPDATE t SET n = 0",
+          "UPDATE t SET n = 1 WHERE id = 1"
+        ],
+        "timeout": 5,
+        "max_rows": 200,
+        "expect": [
+          1,
+          2
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "stage": "verify",
+        "error_contains": "statement 1: expected 1, got 3, statement 2: expected 2, got 1"
+      },
+      "absent": [
+        "committed"
+      ]
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "UPDATE t SET n = 11 WHERE id = 1"
+        ],
+        "timeout": 5,
+        "max_rows": 200,
+        "expect": [
+          1,
+          1,
+          1
+        ]
+      },
+      "difference": "Q-001",
+      "expected": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rowcount": 1
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT n FROM t ORDER BY id"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rows": [
+              [
+                11
+              ],
+              [
+                20
+              ],
+              [
+                30
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

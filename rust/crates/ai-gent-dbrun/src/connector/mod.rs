@@ -15,6 +15,7 @@
 //! the connector, whatever the driver quoted back.
 //!
 //! [`contract`] holds the cases every connector must pass (`rust/fixtures/db-exec/`).
+use crate::core::redact::Redactor;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -22,6 +23,7 @@ use std::fmt;
 
 pub mod contract;
 pub mod process;
+pub mod request;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
 
@@ -103,7 +105,17 @@ where
 }
 
 const fn default_timeout() -> f64 {
-    30.0
+    request::DEFAULT_TIMEOUT_SECS
+}
+
+/// A JSON number as itself; anything else (a string, `null`, a list) as NaN, which
+/// [`request::validate`] refuses as a `connect`-stage failure (FR-011) instead of the line being
+/// rejected as a malformed request.
+fn lenient_timeout<'de, D: Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    Ok(match Value::deserialize(d)? {
+        Value::Number(n) => n.as_f64().unwrap_or(f64::NAN),
+        _ => f64::NAN,
+    })
 }
 const fn default_max_rows() -> usize {
     200
@@ -123,7 +135,7 @@ pub struct Request {
     #[serde(default)]
     pub statements: Vec<String>,
     /// Statement and lock timeout in seconds.
-    #[serde(default = "default_timeout")]
+    #[serde(default = "default_timeout", deserialize_with = "lenient_timeout")]
     pub timeout: f64,
     /// Rows returned per statement in read mode.
     #[serde(default = "default_max_rows")]
@@ -253,16 +265,12 @@ impl ExecResult {
 
     fn redact(&mut self, conn: &ConnFacts) {
         let Some(error) = &self.error else { return };
-        let value = |v: &Option<String>| v.clone().unwrap_or_default();
-        let (password, host, user) = (value(&conn.password), value(&conn.host), value(&conn.user));
-        self.error = Some(crate::core::redact(
-            error,
-            &[
-                (&password, "<password>"),
-                (&host, "<host>"),
-                (&user, "<user>"),
-            ],
-        ));
+        let redactor = Redactor::from_parts(
+            conn.password.as_deref(),
+            conn.host.as_deref(),
+            conn.user.as_deref(),
+        );
+        self.error = Some(redactor.redact(error));
     }
 }
 
@@ -281,7 +289,10 @@ pub trait Connector {
     /// [`Connector::execute`] behind the engine check, with the error redacted.
     fn run(&self, req: &Request) -> ExecResult {
         let mut result = if self.engines().contains(&req.engine.as_str()) {
-            self.execute(req)
+            match request::validate(req) {
+                Ok(()) => self.execute(req),
+                Err(message) => request::refusal(message),
+            }
         } else if KNOWN_ENGINES.contains(&req.engine.as_str()) {
             ExecResult::failure(Stage::Connect, format!("unsupported engine {}", req.engine))
         } else {
@@ -296,6 +307,9 @@ pub trait Connector {
     ///
     /// A malformed request is answered with the name of the offending field only, never its value.
     fn run_line(&self, line: &str) -> String {
+        if line.len() > request::MAX_REQUEST_LINE {
+            return ExecResult::failure(Stage::Request, "invalid request: too large").to_line();
+        }
         match parse_request(line) {
             Ok(req) => self.run(&req).to_line(),
             Err(field) => {
@@ -341,9 +355,6 @@ fn parse_request(line: &str) -> Result<Request, &'static str> {
     }
     if !ok::<Vec<String>>(object, "statements") {
         return Err("statements");
-    }
-    if !ok::<f64>(object, "timeout") {
-        return Err("timeout");
     }
     if !ok::<usize>(object, "max_rows") {
         return Err("max_rows");
@@ -429,6 +440,18 @@ mod tests {
         let out = Quoting.run_line(&bad_engine);
         assert!(!out.contains(secret), "{out}");
         assert!(out.contains("unsupported engine"), "{out}");
+    }
+
+    #[test]
+    fn an_oversized_request_line_is_refused_without_parsing_it() {
+        let huge = format!(
+            r#"{{"engine":"postgresql","mode":"test","conn":{{"password":"{}"}}}}"#,
+            "x".repeat(request::MAX_REQUEST_LINE)
+        );
+        let out = Quoting.run_line(&huge);
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["stage"], "request");
+        assert!(out.len() < 200, "{}", out.len());
     }
 
     #[test]

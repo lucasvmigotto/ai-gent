@@ -3,7 +3,7 @@
 //! A read opens the file with `mode=ro` and sets `query_only`: the server itself refuses a write the
 //! classifier missed (`mode=ro` blocks the main file, `query_only` blocks TEMP). A write runs one
 //! transaction and commits it only when the row counts match `expect`.
-use super::{Connector, ExecResult, Mode, Request, Stage, StatementResult};
+use super::{Connector, ExecResult, Mode, Request, Stage, StatementResult, request};
 use crate::core::explain_sql;
 use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
 use rusqlite::types::ValueRef;
@@ -224,13 +224,13 @@ fn run_statement(
     let dml = is_dml(sql);
     if statement.column_count() == 0 {
         let n = statement.execute([])?;
-        // Like Python: DML reports its changes, anything else (DDL, PRAGMA, ...) -1; `changes()` of
-        // an earlier statement is never carried over.
+        // DML reports its changes; DDL, PRAGMA and the rest report 0 (the contract; Python reports
+        // -1, listed in differences.md). `changes()` of an earlier statement is never carried over.
         return Ok(StatementResult {
             rowcount: if dml {
                 i64::try_from(n).unwrap_or(i64::MAX)
             } else {
-                -1
+                request::DDL_ROWCOUNT
             },
             columns: None,
             rows: None,

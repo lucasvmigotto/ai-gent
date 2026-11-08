@@ -188,19 +188,24 @@ fn process_connector_passes_the_sqlite_contract_through_dbrun_py() {
     assert!(script.is_file(), "{}", script.display());
     let connector = ProcessConnector::host_python(script);
     let mut dirs = Vec::new();
-    let ran = contract::run_exec_cases(&connector, "sqlite", |case, setup| {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(format!("{}.db", case.file));
-        rusqlite::Connection::open(&path)
-            .unwrap()
-            .execute_batch(&setup.join(";\n"))
-            .unwrap();
-        dirs.push(dir);
-        ConnFacts {
-            path: Some(path.to_string_lossy().into_owned()),
-            ..ConnFacts::default()
-        }
-    });
-    assert_eq!(ran, 11, "exec cases run");
+    let ran = contract::run_exec_cases(
+        &connector,
+        "sqlite",
+        contract::Profile::Original,
+        |case, setup| {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(format!("{}.db", case.file));
+            rusqlite::Connection::open(&path)
+                .unwrap()
+                .execute_batch(&setup.join(";\n"))
+                .unwrap();
+            dirs.push(dir);
+            ConnFacts {
+                path: Some(path.to_string_lossy().into_owned()),
+                ..ConnFacts::default()
+            }
+        },
+    );
+    assert_eq!(ran, 17, "exec cases run");
     eprintln!("ran {ran} sqlite contract cases through python3 dbrun.py _exec");
 }
