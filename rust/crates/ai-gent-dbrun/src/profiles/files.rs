@@ -29,7 +29,7 @@ pub const SUFFIXES: [&str; 15] = [
 ];
 
 /// What a profiles file says about one profile, before classification and secrets.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RawProfile {
     /// The profile name (`[A-Z][A-Z0-9_]*`).
     pub name: String,
@@ -41,41 +41,70 @@ pub struct RawProfile {
     pub family: Option<String>,
 }
 
+impl std::fmt::Debug for RawProfile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Every value is shown except the ones a secret can sit in.
+        let shown: BTreeMap<&str, &str> = self
+            .fields
+            .iter()
+            .map(|(k, v)| {
+                let secret = k.contains("password") || k.contains("secret") || k.contains("token");
+                (k.as_str(), if secret { "<redacted>" } else { v.as_str() })
+            })
+            .collect();
+        f.debug_struct("RawProfile")
+            .field("name", &self.name)
+            .field("source", &self.source)
+            .field("fields", &shown)
+            .field("family", &self.family)
+            .finish()
+    }
+}
+
 /// The lower-case profile keys.
 #[must_use]
 pub fn profile_keys() -> Vec<String> {
     SUFFIXES.iter().map(|s| s.to_lowercase()).collect()
 }
 
-/// Python's `str.splitlines()` for the separators that matter: `\r\n` counts once.
-fn splitlines(text: &str) -> Vec<&str> {
+/// Whether `c` ends a line for Python's `str.splitlines()`.
+#[must_use]
+pub fn is_line_break(c: char) -> bool {
+    matches!(
+        c,
+        '\n' | '\r'
+            | '\x0b'
+            | '\x0c'
+            | '\x1c'
+            | '\x1d'
+            | '\x1e'
+            | '\u{85}'
+            | '\u{2028}'
+            | '\u{2029}'
+    )
+}
+
+/// Python's `str.splitlines(keepends=True)` as `(content, terminator)` pairs: `\r\n` is one terminator.
+/// The single splitter of this module: parsing and every rewrite of a profiles file use it, so they
+/// always agree on what a line is.
+#[must_use]
+pub fn split_lines(text: &str) -> Vec<(&str, &str)> {
     let mut out = Vec::new();
     let mut start = 0;
     let mut iter = text.char_indices().peekable();
     while let Some((i, c)) = iter.next() {
-        if matches!(
-            c,
-            '\n' | '\r'
-                | '\x0b'
-                | '\x0c'
-                | '\x1c'
-                | '\x1d'
-                | '\x1e'
-                | '\u{85}'
-                | '\u{2028}'
-                | '\u{2029}'
-        ) {
-            out.push(&text[start..i]);
+        if is_line_break(c) {
             let mut end = i + c.len_utf8();
             if c == '\r' && matches!(iter.peek(), Some((_, '\n'))) {
                 iter.next();
                 end += 1;
             }
+            out.push((&text[start..i], &text[i..end]));
             start = end;
         }
     }
     if start < text.len() {
-        out.push(&text[start..]);
+        out.push((&text[start..], ""));
     }
     out
 }
@@ -101,7 +130,7 @@ pub fn is_profile_name(n: &str) -> bool {
 /// A line that is not `KEY=VALUE`, named by file and line number.
 pub fn parse_env_text(text: &str, file: &str) -> Result<BTreeMap<String, String>, ProfileError> {
     let mut values = BTreeMap::new();
-    for (idx, raw) in splitlines(text).into_iter().enumerate() {
+    for (idx, (raw, _)) in split_lines(text).into_iter().enumerate() {
         let lineno = idx + 1;
         let mut line = raw.trim();
         if line.is_empty() || line.starts_with('#') {

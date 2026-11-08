@@ -178,6 +178,13 @@ impl TlsSettings {
     /// [`TlsError`] naming `tls_mode`.
     pub fn authorize(&self, ctx: &TlsContext<'_>) -> Result<Authorized, TlsError> {
         if self.mode == TlsMode::Unverified {
+            // The fields are public: repeat the check `from_fields` makes.
+            if self.ca_file.is_some() {
+                return Err(TlsError::new(
+                    "tls_ca_file",
+                    "cannot be set with tls_mode = unverified (it would be ignored); remove one of them",
+                ));
+            }
             if ctx.declared == ClassKind::Production || ctx.proven == ClassKind::Production {
                 return Err(TlsError::new(
                     "tls_mode",
@@ -197,19 +204,31 @@ impl TlsSettings {
                 ));
             }
         }
-        Ok(Authorized(self.clone()))
+        Ok(Authorized {
+            settings: self.clone(),
+            host: ctx.host.to_string(),
+        })
     }
 }
 
 /// Settings that passed [`TlsSettings::authorize`].
 #[derive(Debug, Clone)]
-pub struct Authorized(TlsSettings);
+pub struct Authorized {
+    settings: TlsSettings,
+    host: String,
+}
 
 impl Authorized {
     /// The settings.
     #[must_use]
     pub fn settings(&self) -> &TlsSettings {
-        &self.0
+        &self.settings
+    }
+
+    /// The host the policy was checked against: the driver must connect to this one.
+    #[must_use]
+    pub fn host(&self) -> &str {
+        &self.host
     }
 }
 
@@ -217,11 +236,11 @@ fn expand_ca_path(raw: &str, home: Option<&Path>) -> Result<PathBuf, TlsError> {
     if raw.contains('\0') {
         return Err(TlsError::new("tls_ca_file", "holds a NUL character"));
     }
-    if let Some(rest) = raw.strip_prefix("~/") {
+    if let Some(rest) = raw.strip_prefix("~/").or_else(|| raw.strip_prefix("~\\")) {
         let Some(home) = home else {
             return Err(TlsError::new(
                 "tls_ca_file",
-                "starts with ~/ but the home directory is unknown; use an absolute path",
+                "starts with ~/ (or ~\\) but the home directory is unknown; use an absolute path",
             ));
         };
         return Ok(home.join(rest));

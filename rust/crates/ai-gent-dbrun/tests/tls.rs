@@ -421,3 +421,55 @@ fn tls_test_ca_issues_distinct_authorities() {
     assert_ne!(a.ca_pem(), b.ca_pem());
     assert!(a.ca_pem().starts_with("-----BEGIN CERTIFICATE-----"));
 }
+
+#[test]
+fn tls_authorized_carries_the_host_it_was_checked_against() {
+    let auth = unverified()
+        .authorize(&ctx("local", "local", "127.0.0.1"))
+        .unwrap();
+    assert_eq!(auth.host(), "127.0.0.1");
+    let auth = TlsSettings::default()
+        .authorize(&ctx("production", "production", "db.internal"))
+        .unwrap();
+    assert_eq!(auth.host(), "db.internal");
+}
+
+#[test]
+fn tls_authorize_refuses_unverified_with_a_ca_file_even_when_built_by_hand() {
+    // The fields are public, so from_fields' check can be bypassed; authorize repeats it.
+    let s = TlsSettings {
+        mode: TlsMode::Unverified,
+        ca_file: Some("/etc/ca.pem".into()),
+        server_name: None,
+    };
+    let e = s
+        .authorize(&ctx("local", "local", "127.0.0.1"))
+        .unwrap_err();
+    assert_eq!(e.field(), "tls_ca_file");
+    assert!(!e.to_string().contains("/etc/ca.pem"));
+}
+
+#[test]
+fn tls_ca_file_accepts_a_windows_style_home_prefix() {
+    let ok =
+        TlsSettings::from_fields(None, Some("~\\ca.pem"), None, Some(Path::new("/h"))).unwrap();
+    assert_eq!(ok.ca_file.unwrap(), Path::new("/h").join("ca.pem"));
+}
+
+#[test]
+#[cfg(unix)]
+fn tls_a_fifo_as_the_ca_file_is_refused_without_blocking() {
+    let dir = tempfile::tempdir().unwrap();
+    let fifo = dir.path().join("ca.pem");
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let auth = verified_with(&fifo);
+    let e = client_config(&auth).unwrap_err();
+    assert_eq!(e.field(), "tls_ca_file");
+    assert!(e.to_string().contains("not a regular file"), "{e}");
+}

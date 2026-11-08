@@ -29,16 +29,26 @@ fn check_entry(entry: &str) -> Result<&str, ProfileError> {
 
 /// Records where the password comes from; never reads it. Without a value, the family's entry
 /// (`db/<family>`) comes before the profile's (`db/<profile>`).
-pub fn secret_source(cfg: &Config, p: &mut Profile) {
+///
+/// # Errors
+/// An explicit `pass:<entry>` whose entry is not a valid pass entry name (checked here, at load, so a
+/// reference can never carry a line break or other text into a listing, an export or a command line).
+pub fn secret_source(cfg: &Config, p: &mut Profile) -> Result<(), ProfileError> {
     if let Some(pw) = p.password.as_ref() {
         if let Some(rest) = pw.expose().strip_prefix("pass:") {
             let entry = rest.trim().to_string();
+            if passstore::check(&entry).is_err() {
+                return Err(ProfileError::new(format!(
+                    "profile {}: the pass: reference isn't a pass entry name (letters, digits, . _ @ + - and /; no leading - or /, no ..)",
+                    p.name
+                )));
+            }
             p.password = None;
             p.secret = SecretSource::Pass(entry);
-            return;
+            return Ok(());
         }
         p.secret = SecretSource::File;
-        return;
+        return Ok(());
     }
     let mut candidates = vec![];
     if let Some(f) = &p.family {
@@ -48,10 +58,11 @@ pub fn secret_source(cfg: &Config, p: &mut Profile) {
     for entry in candidates {
         if pass_has(cfg, &entry) {
             p.secret = SecretSource::Pass(entry);
-            return;
+            return Ok(());
         }
     }
     p.secret = SecretSource::None;
+    Ok(())
 }
 
 /// The entry's first line (pass's convention), registered for redaction and never printed.
@@ -106,36 +117,97 @@ fn rewrite(path: &Path, new_text: &str, before: &std::fs::Metadata) -> Result<()
     })
 }
 
+/// Reads the file for a rewrite: refuses a symbolic link, returns the text and the metadata snapshot
+/// [`rewrite`] compares against.
 fn read_with_meta(path: &Path) -> Result<(String, std::fs::Metadata), ProfileError> {
-    let meta = std::fs::symlink_metadata(path).map_err(|e| {
-        ProfileError::new(format!(
-            "cannot read {}: {}",
-            files::file_name(path),
-            e.kind()
-        ))
-    })?;
+    let shown = files::file_name(path);
+    let meta = std::fs::symlink_metadata(path)
+        .map_err(|e| ProfileError::new(format!("cannot read {shown}: {}", e.kind())))?;
+    if meta.file_type().is_symlink() {
+        return Err(ProfileError::new(format!(
+            "{shown} is a symbolic link; dbrun doesn't rewrite through one — edit the real file yourself"
+        )));
+    }
     let text = crate::fsutil::read_text_bounded(path, files::MAX_PROFILES_FILE_BYTES)
         .map_err(ProfileError::new)?;
     Ok((text, meta))
 }
 
-/// `NAME_PASSWORD=<value>` becomes `NAME_PASSWORD=pass:<entry>` for each name in `refs`.
-fn replace_password_lines(text: &str, refs: &std::collections::BTreeMap<String, String>) -> String {
-    let re = Regex::new(r"^(\s*(?:export\s+)?)([A-Z][A-Z0-9_]*)_PASSWORD(\s*=)").unwrap();
+/// What to do with the `NAME_PASSWORD` line of a profile: `Some(entry)` replaces its value with
+/// `pass:<entry>`, `None` removes the line.
+type Targets = std::collections::BTreeMap<String, Option<String>>;
+
+fn password_line(content: &str) -> Option<regex::Captures<'_>> {
+    Regex::new(r"^(\s*(?:export\s+)?)([A-Z][A-Z0-9_]*)_PASSWORD(\s*=)")
+        .unwrap()
+        .captures(content)
+}
+
+/// Applies `targets` line by line, with the same line splitter as the parser. Each replaced line keeps
+/// its own terminator; every other line is copied byte for byte.
+fn rewrite_lines(text: &str, targets: &Targets) -> String {
     let mut out = String::new();
-    for ln in text.split_inclusive('\n') {
-        match re.captures(ln) {
-            Some(m) if refs.contains_key(&m[2]) => {
-                let _ = writeln!(
+    for (content, term) in files::split_lines(text) {
+        match password_line(content).and_then(|m| targets.get(&m[2]).map(|t| (m, t))) {
+            Some((_, None)) => {}
+            Some((m, Some(entry))) => {
+                let _ = write!(
                     out,
-                    "{}{}_PASSWORD{}pass:{}",
-                    &m[1], &m[2], &m[3], refs[&m[2]]
+                    "{}{}_PASSWORD{}pass:{entry}{term}",
+                    &m[1], &m[2], &m[3]
                 );
             }
-            _ => out.push_str(ln),
+            None => {
+                out.push_str(content);
+                out.push_str(term);
+            }
         }
     }
     out
+}
+
+/// Fails closed: the rewritten text must hold no old plaintext for a target, the new reference (or no line)
+/// for each target, and every other line unchanged, in order, and still parse. Anything else refuses
+/// the whole migration before a pass entry or a file is touched.
+fn verify_rewrite(old: &str, new: &str, targets: &Targets, file: &str) -> Result<(), ProfileError> {
+    let bad = |why: &str| {
+        ProfileError::new(format!(
+            "{file}: the rewrite would not be safe ({why}); nothing was changed — edit the file yourself"
+        ))
+    };
+    let old_map = files::parse_env_text(old, file)?;
+    let new_map = files::parse_env_text(new, file).map_err(|_| bad("the result does not parse"))?;
+    for (name, want) in targets {
+        let key = format!("{name}_PASSWORD");
+        let got = new_map.get(&key);
+        match want {
+            None if got.is_some() => return Err(bad("the old password line is still there")),
+            Some(e) if got.map(String::as_str) != Some(format!("pass:{e}").as_str()) => {
+                return Err(bad("the old password is still there"));
+            }
+            _ => {}
+        }
+    }
+    let others = |m: &std::collections::BTreeMap<String, String>| {
+        m.iter()
+            .filter(|(k, _)| !targets.keys().any(|n| **k == format!("{n}_PASSWORD")))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<Vec<_>>()
+    };
+    if others(&old_map) != others(&new_map) {
+        return Err(bad("another value would change"));
+    }
+    let keep = |t: &str| -> Vec<String> {
+        files::split_lines(t)
+            .into_iter()
+            .filter(|(c, _)| !password_line(c).is_some_and(|m| targets.contains_key(&m[2])))
+            .map(|(c, e)| format!("{c}{e}"))
+            .collect()
+    };
+    if keep(old) != keep(new) {
+        return Err(bad("another line would change"));
+    }
+    Ok(())
 }
 
 /// What `secrets migrate --all` did: names and counts only.
@@ -245,7 +317,9 @@ pub fn migrate_all(ctx: &Ctx) -> Result<MigrateReport, ProfileError> {
         }
     }
     let users: Vec<&str> = groups.iter().map(|((u, _), _)| u.as_str()).collect();
+    // Phase 1, no writes: which entry each group goes to, and which already exist.
     let mut refs: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    let mut to_write: Vec<(String, &str)> = vec![];
     for ((user, pw), names) in &groups {
         let shared = names.len() > 1
             && !user.is_empty()
@@ -256,27 +330,37 @@ pub fn migrate_all(ctx: &Ctx) -> Result<MigrateReport, ProfileError> {
             report.kept.push(entry);
             continue;
         }
-        store_write(&cfg, &entry, pw)?;
-        report.written.push(entry.clone());
+        to_write.push((entry.clone(), pw));
         for n in names {
             refs.insert((*n).to_string(), entry.clone());
         }
     }
-    let mut by_path: std::collections::BTreeMap<
-        PathBuf,
-        std::collections::BTreeMap<String, String>,
-    > = std::collections::BTreeMap::new();
+    // Phase 2, no writes: snapshot every file (a symbolic link is refused here), build and verify the
+    // rewritten text.
+    let mut by_path: std::collections::BTreeMap<PathBuf, Targets> =
+        std::collections::BTreeMap::new();
     for p in &plain {
         if let (Some(entry), Some(f)) = (refs.get(&p.name), file_of(p)) {
             by_path
                 .entry(f)
                 .or_default()
-                .insert(p.name.clone(), entry.clone());
+                .insert(p.name.clone(), Some(entry.clone()));
         }
     }
-    for (path, part) in by_path {
+    let mut plans = vec![];
+    for (path, targets) in by_path {
         let (text, meta) = read_with_meta(&path)?;
-        rewrite(&path, &replace_password_lines(&text, &part), &meta)?;
+        let new = rewrite_lines(&text, &targets);
+        verify_rewrite(&text, &new, &targets, &files::file_name(&path))?;
+        plans.push((path, new, meta));
+    }
+    // Phase 3: the pass entries, then the files (each re-checked against its snapshot).
+    for (entry, pw) in &to_write {
+        store_write(&cfg, entry, pw)?;
+        report.written.push(entry.clone());
+    }
+    for (path, new, meta) in plans {
+        rewrite(&path, &new, &meta)?;
     }
     let mut accounts: Vec<(String, Vec<(String, String)>)> = vec![];
     for ((user, pw), names) in &groups {
@@ -361,19 +445,50 @@ pub fn migrate_one(ctx: &Ctx, name: &str) -> Result<String, ProfileError> {
             files::file_name(&path)
         )));
     }
+    let targets: Targets = std::iter::once((p.name.clone(), None)).collect();
+    let kept = rewrite_lines(&text, &targets);
+    // Verified before anything is written: a rewrite that would leave the password or touch another line
+    // refuses the migration.
+    verify_rewrite(&text, &kept, &targets, &files::file_name(&path))?;
     store_write(&cfg, &entry, &value)?;
-    let key = Regex::new(&format!(
-        r"^\s*(export\s+)?{}_PASSWORD\s*=",
-        regex::escape(&p.name)
-    ))
-    .unwrap();
-    let kept: String = text
-        .split_inclusive('\n')
-        .filter(|ln| !key.is_match(ln))
-        .collect();
     rewrite(&path, &kept, &meta)?;
     Ok(format!(
         "{}: password moved to pass ({entry}); its line is gone from the profiles file",
         p.name
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn targets(name: &str, entry: Option<&str>) -> Targets {
+        std::iter::once((name.to_string(), entry.map(str::to_string))).collect()
+    }
+
+    #[test]
+    fn verify_rewrite_refuses_a_result_that_keeps_the_password_or_changes_another_line() {
+        let old = "A_ENGINE=x\nA_PASSWORD=s3cr3t\nB_HOST=keep\n";
+        let t = targets("A", None);
+        let good = rewrite_lines(old, &t);
+        assert!(verify_rewrite(old, &good, &t, "f.env").is_ok());
+        // the password line is still there
+        let e = verify_rewrite(old, old, &t, "f.env").unwrap_err();
+        assert!(e.to_string().contains("nothing was changed"), "{e}");
+        assert!(!e.to_string().contains("s3cr3t"));
+        // another line dropped, another value changed, a line added
+        for bad in [
+            "A_ENGINE=x\n",
+            "A_ENGINE=y\nB_HOST=keep\n",
+            "A_ENGINE=x\nB_HOST=keep\nC_HOST=new\n",
+            "A_ENGINE=x\n\nB_HOST=keep\n",
+        ] {
+            assert!(verify_rewrite(old, bad, &t, "f.env").is_err(), "{bad:?}");
+        }
+        // replacement: the reference must be there
+        let t = targets("A", Some("ai-gent/db/a"));
+        let new = rewrite_lines(old, &t);
+        assert!(verify_rewrite(old, &new, &t, "f.env").is_ok());
+        assert!(verify_rewrite(old, old, &t, "f.env").is_err());
+    }
 }

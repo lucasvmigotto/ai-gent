@@ -471,14 +471,11 @@ mod pass {
                 .expose(),
             "from-explicit-entry"
         );
-        // The value read is now redacted from any message of this process.
-        assert_eq!(
-            ai_gent_core::passstore::redact("auth failed (from-default-entry)"),
-            "auth failed (<redacted>)".replace(
-                "<redacted>",
-                &ai_gent_core::passstore::redact("from-default-entry")
-            )
+        // The value read is now redacted from any message of this process (host and user as well).
+        let shown = ai_gent_core::passstore::redact(
+            "auth failed (from-default-entry) at db.internal as app",
         );
+        assert_clean(&shown, &["from-default-entry"]);
     }
 
     #[test]
@@ -507,20 +504,141 @@ mod pass {
 
     #[test]
     fn pass_bad_or_unreadable_entry() {
+        // Each input alone in its file: a bad reference refuses the load, naming the profile, never the input.
+        for bad in [
+            "../escape",
+            "-evil",
+            "/abs/path",
+            "a b",
+            "ai-gent/db/a\nPROD_HOST=attacker.example",
+        ] {
+            let s = Sandbox::new();
+            s.write_profiles("");
+            let esc = bad.replace('\n', "\\n");
+            s.write_toml(&format!(
+                "[profiles.A]\nengine=\"postgresql\"\nhost=\"db\"\nuser=\"app\"\npassword=\"pass:{esc}\"\n"
+            ));
+            let ctx = s.ctx();
+            for call in [
+                user_profiles(&ctx).map(|_| ()),
+                get_profile(&ctx, "A", true).map(|_| ()),
+            ] {
+                let e = call.unwrap_err();
+                assert!(e.to_string().contains("isn't a pass entry"), "{bad:?}: {e}");
+                assert!(e.to_string().contains("profile A"), "{e}");
+                assert_clean(&e.to_string(), &["attacker.example", "escape", "evil"]);
+            }
+        }
         let s = Sandbox::new();
-        s.write_profiles("A_ENGINE=postgresql\nA_HOST=db\nA_USER=app\nA_PASSWORD=pass:../escape\nB_ENGINE=postgresql\nB_HOST=db\nB_USER=app\nB_PASSWORD=pass:ai-gent/db/missing\nC_ENGINE=postgresql\nC_HOST=db\nC_USER=app\nC_PASSWORD=pass:-evil\nD_ENGINE=postgresql\nD_HOST=db\nD_USER=app\nD_PASSWORD=pass:/abs/path\n");
-        let ctx = s.ctx();
-        let e = get_profile(&ctx, "A", true).unwrap_err();
-        assert!(e.to_string().contains("isn't a pass entry"), "{e}");
-        let e = get_profile(&ctx, "B", true).unwrap_err();
+        s.write_profiles(
+            "B_ENGINE=postgresql\nB_HOST=db\nB_USER=app\nB_PASSWORD=pass:ai-gent/db/missing\n",
+        );
+        let e = get_profile(&s.ctx(), "B", true).unwrap_err();
         assert!(
             e.to_string().contains("couldn't read ai-gent/db/missing"),
             "{e}"
         );
-        for bad in ["C", "D"] {
-            let e = get_profile(&ctx, bad, true).unwrap_err();
-            assert!(e.to_string().contains("isn't a pass entry"), "{bad}: {e}");
+    }
+
+    const BREAKS: [&str; 10] = [
+        "\r", "\r\n", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\u{85}", "\u{2028}", "\u{2029}",
+    ];
+
+    #[test]
+    fn pass_migrate_single_with_every_line_break_python_knows() {
+        for br in BREAKS {
+            let s = Sandbox::new();
+            let text = [
+                "A_ENGINE=postgresql",
+                "A_PASSWORD=s3cr3t-a",
+                "B_ENGINE=postgresql",
+                "B_HOST=keep-me",
+                "",
+            ]
+            .join(br);
+            s.write_profiles(&text);
+            let msg = secrets::migrate_one(&s.ctx(), "A").unwrap_or_else(|e| panic!("{br:?}: {e}"));
+            assert_clean(&msg, &["s3cr3t-a"]);
+            let after = s.env_text();
+            assert_clean(&after, &["s3cr3t-a", "A_PASSWORD"]);
+            assert_eq!(
+                after,
+                [
+                    "A_ENGINE=postgresql",
+                    "B_ENGINE=postgresql",
+                    "B_HOST=keep-me",
+                    ""
+                ]
+                .join(br),
+                "{br:?}: other profiles survive"
+            );
+            assert_eq!(
+                std::fs::read_to_string(s.store.join("ai-gent/db/a.gpg")).unwrap(),
+                "s3cr3t-a\n"
+            );
         }
+    }
+
+    #[test]
+    fn pass_migrate_all_with_every_line_break_python_knows() {
+        for br in BREAKS {
+            let s = Sandbox::new();
+            let text = [
+                "A_ENGINE=postgresql",
+                "A_USER=u1",
+                "A_PASSWORD=s3cr3t-a",
+                "B_ENGINE=postgresql",
+                "B_PASSWORD=s3cr3t-b",
+                "C_HOST=keep-me",
+                "",
+            ]
+            .join(br);
+            s.write_profiles(&text);
+            let r = secrets::migrate_all(&s.ctx()).unwrap_or_else(|e| panic!("{br:?}: {e}"));
+            assert_clean(&r.render(), &["s3cr3t"]);
+            let after = s.env_text();
+            assert_clean(&after, &["s3cr3t-a", "s3cr3t-b"]);
+            assert_eq!(
+                after,
+                [
+                    "A_ENGINE=postgresql",
+                    "A_USER=u1",
+                    "A_PASSWORD=pass:ai-gent/db/a",
+                    "B_ENGINE=postgresql",
+                    "B_PASSWORD=pass:ai-gent/db/b",
+                    "C_HOST=keep-me",
+                    ""
+                ]
+                .join(br),
+                "{br:?}: only the two password lines change, terminators kept"
+            );
+        }
+    }
+
+    #[test]
+    fn pass_migrate_refuses_a_symbolic_link_before_writing_any_entry() {
+        let s = Sandbox::new();
+        let real = s.base.join("real-profiles");
+        std::fs::write(
+            &real,
+            "A_ENGINE=postgresql\nA_USER=u\nA_PASSWORD=s3cr3t-l\n",
+        )
+        .unwrap();
+        std::fs::remove_file(s.env_path()).unwrap();
+        std::os::unix::fs::symlink(&real, s.env_path()).unwrap();
+        for r in [
+            secrets::migrate_one(&s.ctx(), "A").map(|_| ()),
+            secrets::migrate_all(&s.ctx()).map(|_| ()),
+        ] {
+            let e = r.unwrap_err();
+            assert!(e.to_string().contains("symbolic link"), "{e}");
+            assert_clean(&e.to_string(), &["s3cr3t-l"]);
+        }
+        assert!(
+            !s.store.join("ai-gent/db/a.gpg").exists(),
+            "no entry was written before the refusal"
+        );
+        assert!(std::fs::read_to_string(&real).unwrap().contains("s3cr3t-l"));
     }
 
     #[test]
@@ -955,6 +1073,21 @@ fn export_env_refusals() {
     assert!(e.to_string().contains("line break"), "{e}");
     assert!(!o.exists(), "no half-written file");
     assert_clean(&e.to_string(), &["injected"]);
+    // Every other line break Python's splitlines knows, and control characters, are refused too.
+    for bad in [
+        "\\r", "\\u000b", "\\u000c", "\\u001c", "\\u0085", "\\u2028", "\\u2029", "\\u0007",
+    ] {
+        s.write_toml(&format!(
+            "[profiles.A]\nengine=\"postgresql\"\nhost=\"a{bad}A_PASSWORD=injected\"\n"
+        ));
+        let e = export_env(&s.ctx(), Some(&o)).unwrap_err();
+        assert!(
+            e.to_string().contains("line break or control"),
+            "{bad}: {e}"
+        );
+        assert!(!o.exists(), "{bad}: nothing written");
+        assert_clean(&e.to_string(), &["injected"]);
+    }
     // Both quote characters and whitespace cannot be quoted back.
     s.write_toml("[profiles.A]\nengine=\"postgresql\"\nhost=\"a 'b\\\" c\"\n");
     assert!(
@@ -1721,4 +1854,50 @@ fn config_dir_resolution() {
         PathBuf::from("/h/.config/ai-gent/db"),
         "empty means unset"
     );
+}
+
+#[test]
+fn raw_profile_debug_hides_every_secret_named_field() {
+    let s = Sandbox::new();
+    s.write_profiles("R_ENGINE=postgresql\nR_HOST=db.internal\nR_PASSWORD=s3cr3t-value\n");
+    let path = s.env_path();
+    let raw = files::env_profiles(&files::read_env_file(&path).unwrap(), &path);
+    let shown = format!("{:?} {:#?}", raw["R"], raw);
+    assert_clean(&shown, &["s3cr3t-value"]);
+    assert!(shown.contains("<redacted>") && shown.contains("postgresql"));
+    let toml = files::toml_profiles("[profiles.T]\npassword = \"s3cr3t-toml\"\n", &path).unwrap();
+    assert_clean(&format!("{toml:?}"), &["s3cr3t-toml"]);
+}
+
+#[test]
+fn get_profile_registers_host_and_user_with_the_redactor() {
+    let s = Sandbox::new();
+    s.write_profiles("H_ENGINE=postgresql\nH_HOST=private-host.internal\nH_USER=svc_reader\nH_PASSWORD=plain-pw-value\n");
+    get_profile(&s.ctx(), "H", true).unwrap();
+    let shown = ai_gent_core::passstore::redact(
+        "could not connect to private-host.internal as svc_reader with plain-pw-value",
+    );
+    assert_clean(
+        &shown,
+        &["private-host.internal", "svc_reader", "plain-pw-value"],
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn a_fifo_in_place_of_a_profiles_file_is_refused_without_blocking() {
+    let s = Sandbox::new();
+    let fifo = s.base.join("team.toml");
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let ctx = s.ctx();
+    let mut env = ctx.env.clone();
+    env.set("AI_GENT_DB_CONNECTIONS", fifo.to_str().unwrap());
+    let e = user_profiles(&Ctx::new(env, ctx.root, None)).unwrap_err();
+    assert!(e.to_string().contains("not a regular file"), "{e}");
 }

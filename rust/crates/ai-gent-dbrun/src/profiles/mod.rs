@@ -588,7 +588,7 @@ pub fn user_profiles(ctx: &Ctx) -> Result<Loaded, ProfileError> {
     }
     let cfg = ctx.pass_config();
     for p in out.profiles.values_mut() {
-        secrets::secret_source(&cfg, p);
+        secrets::secret_source(&cfg, p)?;
     }
     Ok(out)
 }
@@ -653,6 +653,15 @@ pub fn get_profile(ctx: &Ctx, name: &str, secret: bool) -> Result<Profile, Profi
     }
     if let Some(pw) = &p.password {
         pw.register();
+    }
+    // Host and user are redacted from every message as well (FR-008): driver errors quote them. The
+    // process-wide redactor ignores values under four characters; `redaction_pairs` covers those for
+    // callers that redact with labels.
+    for v in [p.host.as_deref(), p.user.as_deref()].into_iter().flatten() {
+        let v = v.trim();
+        if v != "127.0.0.1" && v != "localhost" {
+            ai_gent_core::passstore::redact::register(v);
+        }
     }
     if !ENGINES.contains(&p.engine.as_str()) {
         return Err(ProfileError::new(format!(
@@ -762,7 +771,14 @@ pub fn export_env_text(
             ));
         }
         match &p.secret {
-            SecretSource::Pass(e) => lines.push(format!("{name}_PASSWORD=pass:{e}")),
+            SecretSource::Pass(e) => {
+                if passstore_check(e).is_err() || refused_in_env_value(e) {
+                    return Err(ProfileError::new(format!(
+                        "profile {name}: the pass entry isn't a valid entry name and can't be exported"
+                    )));
+                }
+                lines.push(format!("{name}_PASSWORD=pass:{e}"));
+            }
             SecretSource::File => {
                 skipped.push(name.clone());
                 lines.push(format!(
@@ -775,10 +791,21 @@ pub fn export_env_text(
     Ok((lines.join("\n") + "\n", skipped))
 }
 
+fn passstore_check(e: &str) -> Result<&str, ai_gent_core::passstore::StoreError> {
+    ai_gent_core::passstore::check(e)
+}
+
+/// A line break (every one Python's `splitlines` knows, so a reader of the file sees the same lines) or a
+/// control character other than tab.
+fn refused_in_env_value(v: &str) -> bool {
+    v.chars()
+        .any(|c| files::is_line_break(c) || (c.is_control() && c != '\t'))
+}
+
 fn quote_env_value(name: &str, key: &str, v: &str) -> Result<String, ProfileError> {
-    if v.contains(['\n', '\r', '\0']) {
+    if refused_in_env_value(v) {
         return Err(ProfileError::new(format!(
-            "profile {name}: {key} holds a line break or NUL and can't be exported"
+            "profile {name}: {key} holds a line break or control character and can't be exported"
         )));
     }
     if !v.contains(char::is_whitespace) && !v.contains('#') {

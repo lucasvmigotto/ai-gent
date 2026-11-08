@@ -43,6 +43,9 @@ rustls-native-certs = { version = "0.8", optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }
 rusqlite = { version = "0.41", features = ["bundled", "hooks"], optional = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile.workspace = true
 # Turns `tls` and `test-ca` on for this crate's own tests, so `cargo test -p ai-gent-dbrun` covers the TLS builder.

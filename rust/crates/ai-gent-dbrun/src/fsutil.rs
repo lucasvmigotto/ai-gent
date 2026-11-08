@@ -32,15 +32,18 @@ pub(crate) fn read_bytes_bounded(path: &Path, cap: u64) -> Result<Vec<u8>, Strin
         || "the file".to_string(),
         |n| n.to_string_lossy().into_owned(),
     );
-    let meta = std::fs::metadata(path).map_err(|e| format!("cannot read {name}: {}", e.kind()))?;
+    // Open first (without blocking on a FIFO that someone swapped in), then ask the open file: the check
+    // and the read are about the same file.
+    let file = open_nonblocking(path).map_err(|e| format!("cannot read {name}: {}", e.kind()))?;
+    let meta = file
+        .metadata()
+        .map_err(|e| format!("cannot read {name}: {}", e.kind()))?;
     if !meta.is_file() {
         return Err(format!("{name} is not a regular file"));
     }
     if meta.len() > cap {
         return Err(format!("{name} is larger than {cap} bytes"));
     }
-    let file =
-        std::fs::File::open(path).map_err(|e| format!("cannot read {name}: {}", e.kind()))?;
     let mut buf = Vec::new();
     file.take(cap + 1)
         .read_to_end(&mut buf)
@@ -49,4 +52,18 @@ pub(crate) fn read_bytes_bounded(path: &Path, cap: u64) -> Result<Vec<u8>, Strin
         return Err(format!("{name} is larger than {cap} bytes"));
     }
     Ok(buf)
+}
+
+#[cfg(unix)]
+fn open_nonblocking(path: &Path) -> std::io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(path)
+}
+
+#[cfg(not(unix))]
+fn open_nonblocking(path: &Path) -> std::io::Result<std::fs::File> {
+    std::fs::File::open(path)
 }
