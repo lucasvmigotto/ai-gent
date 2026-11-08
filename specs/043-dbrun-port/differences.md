@@ -182,3 +182,28 @@ Behaviors of `dbrun.py` listed before the tests, one test each (all in `rust/cra
 
 - Found by this corpus and fixed (a parity bug, not a difference): `require_user_database` treated an EMPTY database name as a named one, so a SQL Server profile with `DATABASE=` (which connects to `master`) passed. Python uses `p.get("database") or "master"`; Rust now does the same.
 - D-A3-01. Not copied from Python: the refusal text uses `'name'` quoting like Python's `{db!r}` only for names without a quote; a system name never has one, so the text is equal in every case that can be refused.
+
+### T008: backup and restore interface (decision and parity list)
+
+Decision recorded (plan decision 5, FR-018): `Backup` is a trait in `core/backup.rs` (re-exported as `connector::Backup`), with `take` and `restore` and a `supported(engine)` default equal to `BACKUP_SUPPORT`. The one real implementation, `EngineBackup`, runs the same shell scripts as `dbrun.py` through an `Exec` trait (the container exec; the real `ContainerExec` runs `<engine> exec -i <container> sh -c <script> sh <user> <database>`, T014 builds the profile-driven selection on it). SQLite uses the backup API on the file. No Python, no Rust logical dump.
+
+| Behavior of `dbrun.py` | Test (`tests/backup.rs`) |
+|---|---|
+| PostgreSQL: `pg_dump -Fc -h 127.0.0.1 -U $1 -d $2`, password on the first stdin line, dump to `<id>.pgdump` mode 600 | `postgres_backup_drives_pg_dump_with_the_password_on_stdin_only`, `real_exec::arguments_carry_no_password_and_stdin_reaches_the_tool` |
+| MySQL/MariaDB: `mysqldump` or `mariadb-dump` with `--single-transaction --routines --triggers --events --add-drop-database --databases $2`; no database is an error | `mysql_and_mariadb_use_their_dump_tool_and_need_a_database` |
+| Restore: `pg_restore --clean --create --if-exists --no-owner ... -d template1`, the `mysql`/`mariadb` client for SQL dumps, the file after the password line | `restore_streams_the_recorded_file_and_refuses_any_other_location` |
+| SQLite backup and restore through the backup API, file mode 600 | `sqlite::sqlite_roundtrip_through_the_backup_api` |
+| A failing tool: `backup/restore command failed: <last 400 characters of stderr>`, redacted | `a_failed_tool_is_an_error_without_secrets_and_leaves_no_backup_file` |
+| System databases refused (`require_user_database`) | `a_system_database_is_refused_for_backup_and_restore_and_nothing_runs` |
+| Oracle has no backup; `apply` stays refused there | `engines_without_a_method_are_refused_not_guessed` |
+| 1800 s deadline of `container_shell` | `real_exec::a_hang_is_killed_at_the_deadline_and_leaves_no_file` |
+
+Differences (Python did none of these):
+
+- D-A3-02. `take` and `restore` refuse a system database themselves (Python checked it in `cmd_plan` and `cmd_apply` only; `cmd_restore` never did, so a plan file with a system profile could restore over `master`).
+- D-A3-03. `restore` recomputes the backup location from the plan id and refuses a recorded `backup_location` that differs. Python read whatever path the (editable) plan file named and fed it to `pg_restore` or `mysql`.
+- D-A3-04. User, database and container name are matched against an allowlist (letters, digits, `_ - . $ #`, no leading `-`) before they become arguments; Python passed any string (`postgresql://...` as the database made `pg_dump -d` connect to another host). A password with a line break is refused (it would put a second line on the tool's stdin). Question: a user such as `app@host` is refused by the allowlist; is that acceptable for local container profiles?
+- D-A3-05. Every exec has a deadline and a size cap (64 GiB, a bound chosen here; Q-003 style), stdout streams to the file instead of memory, restore streams the file instead of `read_bytes()`, a failed or capped dump is deleted, and the readers get a 2 s grace after the engine client is killed (a grandchild holding the pipes cannot hang the runner).
+- D-A3-06. SQL Server: refused until its connector offers the autocommit path (FR-019); Python used a one-off `pymssql` script. `BackupError::Refused` says so; no backup is attempted, so `apply` on SQL Server stops before writing.
+- D-A3-07. SQLite restore checks the 16-byte SQLite header of the backup file first and refuses anything else.
+- Windows: the kill is by child handle, never by name; the removal of a partial dump after a kill can fail while a leaked grandchild still holds the file open (the file is then left, with the plan not recorded as backed up).

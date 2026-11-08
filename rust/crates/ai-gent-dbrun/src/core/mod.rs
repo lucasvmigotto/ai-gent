@@ -6,6 +6,7 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
+pub mod backup;
 pub mod fields;
 pub mod mask;
 pub mod plan;

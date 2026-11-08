@@ -21,6 +21,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::fmt;
 
+pub use crate::core::backup::Backup;
 pub mod contract;
 pub mod process;
 pub mod request;
