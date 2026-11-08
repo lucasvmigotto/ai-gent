@@ -32,7 +32,7 @@ Format: `- [ ] Tnnn [P] [USn] description. Files. Verify. Requirement.` Run comm
 
 - [x] T030 [US5] Owner decision on `contracts/hosting-decision.md`; record the sign-off in the file. Files: that file. Verify: sign-off fields filled. Requirement: FR-012. Done 2026-11-07: option A (stay on R2), see the file's sign-off.
 - [x] T031 [US5] If Pages: new deploy job (Pages actions, OIDC), remove the R2 steps and the prefix guard, keep the no-surprise checks (build only after release); custom domain. Files: `.github/workflows/docs-ci.yml`, `docs/site/README.md`. Verify: a dry deploy to a branch environment; `scripts/check.sh`. Requirement: FR-019. Only after T030. Not done: depends on T030. Not applicable: the owner kept R2 (T030).
-- [ ] T032 [US5] If R2: add the install.sh checksum to the release notes flow (`scripts/release.py` notes) and document key rotation. Files: `scripts/release.py` (propose first), `docs/site/README.md`. Verify: `scripts/release.py --dry-run`. Requirement: mitigations 1 and 4. Not done: depends on T030 and proposes changes to `scripts/release.py`.
+- [x] T032 [US5] If R2: add the install.sh checksum to the release notes flow (`scripts/release.py` notes) and document key rotation. Done without a change: `scripts/package-release.sh` already writes `install.sh` into the `## Checksums` block of the release notes (from `SHA256SUMS`), so `scripts/release.py` stays as it is. The owner decided not to document key rotation in `docs/site/README.md`: it is an internal project matter and publishing it would advertise the setup. Requirement: mitigations 1 and 4.
 
 ## Phase 5: Router spike (US4, gated on T030)
 

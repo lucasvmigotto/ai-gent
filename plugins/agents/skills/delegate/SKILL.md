@@ -54,6 +54,10 @@ task needing credentials, database or container tools, an owner decision, or
 edits to a skill, plugin, hook or shared reference. Count delegated tracks
 with Claude's against the worktree cap; subagents of this session do not count.
 
+Before assigning or briefing, read `references/rules.md`: what not to
+delegate (security-shaped work), what every brief must carry, the one-fix-round
+limit and what to record per run.
+
 ## 3. Run
 
 1. `wt.py add <branch>` for the worktree; `ai-gent delegate ready` and
