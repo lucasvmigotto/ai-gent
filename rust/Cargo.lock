@@ -71,6 +71,7 @@ dependencies = [
  "ai-gent-dbrun",
  "libc",
  "mysql",
+ "mysql_common",
  "rcgen",
  "regex",
  "rusqlite",

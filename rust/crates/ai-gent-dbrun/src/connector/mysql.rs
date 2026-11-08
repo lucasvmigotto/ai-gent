@@ -21,24 +21,33 @@
 //!
 //! What it adds, all fail-closed:
 //! - the crate always sets `CLIENT_MULTI_STATEMENTS` and `CLIENT_LOCAL_FILES` (`PyMySQL` sets neither), so
-//!   the connector itself refuses, before connecting, a request item that holds more than one statement
-//!   and one that names `LOCAL INFILE`;
-//! - the request timeout is validated before any socket opens; reading a result is bounded by the same
-//!   timeout (the whole result is counted, never buffered past `max_rows`);
+//!   the connector itself reads every item with a lexer that follows the server's rules ([`server_view`])
+//!   and refuses, before connecting, an item with a `;` outside text and comments (one trailing is
+//!   fine), an executable comment (`/*! */`, `/*M! */`), a backslash outside text, `DELIMITER`,
+//!   `LOCAL INFILE`, an unterminated quote or comment, and anything that changes how the server reads
+//!   text (`sql_mode`, the connection character set). The session also drops `NO_BACKSLASH_ESCAPES` and
+//!   `ANSI_QUOTES`. In read mode the session is checked to be read only after every statement;
+//! - the request timeout is validated before any socket opens. The socket reads and writes are bounded
+//!   by `timeout + 5` s each, and reading rows stops at the request timeout; but dropping a result set
+//!   makes the crate read the remaining rows and sets, so the bound on a whole call is the child
+//!   deadline of T012 (not built yet), not this module;
 //! - TLS is on for every connection and goes through [`crate::core::tls`]: the policy (verify by default;
 //!   `unverified` only for a proven-local loopback profile, never production), the CA file checks (bounded
 //!   read, no private key) and the warning. See [`MysqlConnector::new`] for what the crate cannot do.
 use super::{Connector, ExecResult, Mode, Request, Stage, StatementResult, request};
+use crate::core::explain_sql;
+use crate::core::redact::Redactor;
 use crate::core::tls::{
     self, Authorized, ClassKind, TlsContext, TlsMode, TlsSettings, UNVERIFIED_WARNING,
 };
-use crate::core::{explain_sql, split_statements};
 use mysql::consts::ColumnType;
-use mysql::prelude::Queryable;
+use mysql::prelude::{FromRow, Queryable};
 use mysql::{Column, Conn, OptsBuilder, SslOpts, Value as My};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt::Write as _;
+use std::io::Write as _;
+use std::sync::Once;
 use std::time::{Duration, Instant};
 
 /// Lock wait in seconds, as `LOCK_TIMEOUT_MS // 1000` in `dbrun.py`.
@@ -107,7 +116,7 @@ impl Connector for MysqlConnector {
             Err(m) => return request::refusal(m.to_string()),
         };
         for sql in &req.statements {
-            if let Err(m) = single_statement(sql) {
+            if let Err(m) = server_view(sql) {
                 return ExecResult::failure(Stage::Execute, m);
             }
         }
@@ -128,30 +137,178 @@ impl Connector for MysqlConnector {
             result.error = Some(e.message);
         }
         result.seconds = Some((started.elapsed().as_secs_f64() * 1000.0).round() / 1000.0);
+        if let Some(error) = &result.error {
+            result.error = Some(redact_error(&req.conn, error));
+        }
         result
     }
 }
 
-/// Refuses an item the server would take as several statements, or that asks the client for a local
-/// file. The crate sets `CLIENT_MULTI_STATEMENTS` and `CLIENT_LOCAL_FILES` and offers no way to unset
-/// them, so a string with a second statement would otherwise run as one request item (and be counted as
-/// one). The message is fixed text: no part of the statement is echoed.
-fn single_statement(sql: &str) -> Result<(), &'static str> {
-    let parts = split_statements(sql, "mysql").map_err(
-        |_| "refused: the statement splits differently with and without backslash escaping",
-    )?;
-    if parts.len() > 1 {
-        return Err("refused: an item holds more than one statement; send one statement per item");
+/// Redacts an error with the profile's secrets, plus the bracket-less form of an IPv6 host: the crate
+/// prints `2001:db8::5:3306` for the host `[2001:db8::5]`. (`Connector::run` redacts again.)
+fn redact_error(conn: &super::ConnFacts, message: &str) -> String {
+    let mut r = Redactor::from_parts(
+        conn.password.as_deref(),
+        conn.host.as_deref(),
+        conn.user.as_deref(),
+    );
+    if let Some(h) = conn.host.as_deref() {
+        r.add_host(h.trim().trim_start_matches('[').trim_end_matches(']'));
     }
-    let blanked = crate::core::blank_literals(sql, "mysql").to_ascii_lowercase();
-    let words: Vec<&str> = blanked
+    r.redact(message)
+}
+
+const MORE: &str = "refused: an item holds more than one statement; send one statement per item";
+
+/// What the server reads of one request item.
+struct Lexed {
+    /// The code: comments become a space, text stays as it is, a trailing `;` is gone.
+    view: String,
+    /// The same with every quoted text and identifier emptied, for word checks.
+    bare: String,
+}
+
+/// Reads `sql` the way MySQL and MariaDB do, and refuses what it cannot be sure of. The shared scanner
+/// of [`crate::core`] follows the Python runner and differs from the server (`SELECT 1--1` has no
+/// comment in MySQL, `#` starts one), and this connection allows several statements per item, so a
+/// difference here would let a second statement through a read.
+///
+/// Rules: `'` and `"` text end at a matching quote, a doubled quote is an escaped one, a backslash
+/// escapes the next character; `` ` `` identifiers double the backtick; `#` and `-- ` (dash dash and a
+/// whitespace, control character or the end) run to the end of the line; `/* */` does not nest.
+/// Refused, with a fixed message that holds no part of the text: a `;` in code other than one trailing,
+/// code after it, an executable comment (`/*!`, `/*M!`: it is code on the server, so it is not
+/// accepted), a backslash or NUL outside text, an unterminated quote or comment.
+fn lex(sql: &str) -> Result<Lexed, &'static str> {
+    let b: Vec<char> = sql.chars().collect();
+    if b.contains(&'\0') {
+        return Err("refused: the statement holds a NUL character");
+    }
+    let (mut view, mut bare) = (String::new(), String::new());
+    let (mut i, mut ended) = (0, false);
+    while i < b.len() {
+        let c = b[i];
+        let at = |k: usize| b.get(i + k).copied();
+        let dash_comment = c == '-'
+            && at(1) == Some('-')
+            && at(2).is_none_or(|x| x.is_whitespace() || x.is_control());
+        if c == '#' || dash_comment {
+            while i < b.len() && b[i] != '\n' {
+                i += 1;
+            }
+            view.push(' ');
+            bare.push(' ');
+            continue;
+        }
+        if c == '/' && at(1) == Some('*') {
+            if at(2) == Some('!') || (at(2) == Some('M') && at(3) == Some('!')) {
+                return Err(
+                    "refused: an executable comment (/*! */) is code on the server and is not accepted",
+                );
+            }
+            let mut j = i + 2;
+            while j + 1 < b.len() && !(b[j] == '*' && b[j + 1] == '/') {
+                j += 1;
+            }
+            if j + 1 >= b.len() {
+                return Err("refused: an unterminated comment");
+            }
+            i = j + 2;
+            view.push(' ');
+            bare.push(' ');
+            continue;
+        }
+        if c.is_whitespace() {
+            view.push(c);
+            bare.push(' ');
+            i += 1;
+            continue;
+        }
+        if ended {
+            return Err(MORE);
+        }
+        match c {
+            ';' => {
+                ended = true;
+                i += 1;
+            }
+            '\\' => {
+                return Err(
+                    "refused: a backslash outside text is not valid SQL and may be a client command (\\G)",
+                );
+            }
+            '\'' | '"' | '`' => {
+                let mut j = i + 1;
+                loop {
+                    let Some(&ch) = b.get(j) else {
+                        return Err("refused: an unterminated quote");
+                    };
+                    if ch == '\\' && c != '`' {
+                        j += 2;
+                    } else if ch == c {
+                        if b.get(j + 1) == Some(&c) {
+                            j += 2;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        j += 1;
+                    }
+                }
+                view.extend(&b[i..=j]);
+                bare.push(c);
+                bare.push(c);
+                i = j + 1;
+            }
+            _ => {
+                view.push(c);
+                bare.push(c);
+                i += 1;
+            }
+        }
+    }
+    Ok(Lexed {
+        view: view.trim().to_string(),
+        bare: bare.to_ascii_lowercase(),
+    })
+}
+
+/// The SQL as the server reads it, or the refusal. A caller that classifies a statement (read or
+/// write) must classify this text and not the item as given, so the classifier and the server agree on
+/// what the statement is. The message is fixed text: no part of the statement is echoed.
+///
+/// # Errors
+/// The fixed refusal message, see [`lex`] and the words below. Refused as well: `DELIMITER` (a client
+/// command), `LOCAL INFILE` (the crate offers the file-reading capability to the server), and any
+/// mention of `sql_mode`, `character_set_client` or `character_set_connection`, `SET NAMES`, `SET
+/// CHARACTER SET` and `SET CHARSET`, which would change how the next items are read.
+pub fn server_view(sql: &str) -> Result<String, &'static str> {
+    let l = lex(sql)?;
+    let words: Vec<&str> = l
+        .bare
         .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
         .filter(|w| !w.is_empty())
         .collect();
+    if words.first() == Some(&"delimiter") {
+        return Err("refused: DELIMITER is a client command");
+    }
     if words.windows(2).any(|w| w == ["local", "infile"]) {
         return Err("refused: LOCAL INFILE would read a file of this machine");
     }
-    Ok(())
+    let rereads = words.iter().any(|w| {
+        matches!(
+            *w,
+            "sql_mode" | "character_set_client" | "character_set_connection"
+        )
+    }) || words
+        .windows(2)
+        .any(|w| w[0] == "set" && matches!(w[1], "names" | "character" | "charset"));
+    if rereads {
+        return Err(
+            "refused: the statement changes how the server reads SQL text (sql_mode or the connection character set)",
+        );
+    }
+    Ok(l.view)
 }
 
 /// The session setup after `SELECT VERSION()`, in `dbrun.py`'s order (after `autocommit = 0`).
@@ -167,10 +324,29 @@ fn session_statements(maria: bool, timeout: Duration, read: bool) -> Vec<String>
         "SET SESSION innodb_lock_wait_timeout = {LOCK_WAIT_SECS}"
     ));
     sql.push(format!("SET SESSION lock_wait_timeout = {LOCK_WAIT_SECS}"));
+    // The lexer reads text the default way: no `NO_BACKSLASH_ESCAPES`, no `ANSI_QUOTES`, and a known charset.
+    sql.push(
+        "SET SESSION sql_mode = REPLACE(REPLACE(@@sql_mode, 'NO_BACKSLASH_ESCAPES', ''), 'ANSI_QUOTES', '')"
+            .to_string(),
+    );
+    sql.push("SET NAMES utf8mb4".to_string());
     if read {
         sql.push("SET SESSION TRANSACTION READ ONLY".to_string());
     }
     sql
+}
+
+/// Runs a query that gives one value or row; a value that cannot be read is a failure that says so
+/// and holds none of it (`query_first` would panic with the row in the message).
+fn first<T: FromRow>(conn: &mut Conn, sql: &str) -> Result<Option<T>, Failed> {
+    match conn.query_first_opt::<T, _>(sql).map_err(Failed::from)? {
+        None => Ok(None),
+        Some(Ok(v)) => Ok(Some(v)),
+        Some(Err(_)) => Err(Failed {
+            message: "the server returned a value this runner cannot read".into(),
+            connection_lost: false,
+        }),
+    }
 }
 
 fn text(v: Option<&str>) -> Option<&str> {
@@ -184,7 +360,8 @@ fn connect(req: &Request, timeout: Duration, policy: &TlsPolicy) -> Result<Conn,
         None => 3306,
         Some(p) => p.parse().ok().filter(|p| *p != 0).ok_or("invalid port")?,
     };
-    let ssl = ssl_opts(policy, host)?;
+    install_crypto_provider();
+    let tls = ssl_opts(policy, host)?;
     let bare_host = host.trim_start_matches('[').trim_end_matches(']');
     let attrs = HashMap::from([("program_name", "ai-gent-dbrun")]);
     let socket_timeout = timeout.saturating_add(SOCKET_SLACK);
@@ -195,50 +372,86 @@ fn connect(req: &Request, timeout: Duration, policy: &TlsPolicy) -> Result<Conn,
         .pass(Some(c.password.as_deref().unwrap_or("")))
         .db_name(text(c.database.as_deref()))
         .prefer_socket(false)
-        .ssl_opts(Some(ssl))
+        .ssl_opts(Some(tls.ssl.clone()))
         .connect_attrs(Some(attrs))
         .tcp_connect_timeout(Some(CONNECT_TIMEOUT))
         .read_timeout(Some(socket_timeout))
         .write_timeout(Some(socket_timeout));
     let mut conn = Conn::new(opts).map_err(|e| describe_connect(&e))?;
-    let setup = |conn: &mut Conn| -> mysql::Result<()> {
+    let setup = |conn: &mut Conn| -> Result<(), Failed> {
         conn.query_drop("SET autocommit = 0")?;
-        let version: Option<String> = conn.query_first("SELECT VERSION()")?;
+        let version: Option<String> = first(conn, "SELECT VERSION()")?;
         let maria = version.is_some_and(|v| v.to_lowercase().contains("mariadb"));
         for sql in session_statements(maria, timeout, req.mode != Mode::Write) {
             conn.query_drop(sql)?;
         }
         Ok(())
     };
-    setup(&mut conn).map_err(|e| describe(&e))?;
+    setup(&mut conn).map_err(|e| e.message)?;
+    // `tls` (and the private copy of the CA file in it) lives until here: the handshake is over.
+    drop(tls);
     Ok(conn)
+}
+
+/// Installs the rustls `ring` provider once, so a second provider in the build (a future `aws-lc`
+/// dependency) cannot make every connect panic on "no default provider". An error means another
+/// provider is already installed: that one is used.
+fn install_crypto_provider() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
+/// The TLS options of one connection, and the private copy of the CA file they point at.
+struct Tls {
+    ssl: SslOpts,
+    /// Held so the file lives while the client reads it.
+    #[allow(dead_code)]
+    ca_copy: Option<tempfile::NamedTempFile>,
 }
 
 /// The TLS options for one connection, after the policy and the CA file are checked through
 /// [`crate::core::tls`].
-fn ssl_opts(policy: &TlsPolicy, host: &str) -> Result<SslOpts, String> {
-    let auth: Authorized = policy
-        .settings
-        .authorize(&TlsContext {
-            declared: policy.declared,
-            proven: policy.proven,
-            host,
-        })
-        .map_err(|e| e.to_string())?;
+///
+/// The CA file is read once, bounded, and the validated bytes go to a private temporary file whose path
+/// the crate gets: the crate reads that file (not a path that could change, and without a size limit of
+/// its own). Verify mode with no CA file builds no configuration here: the crate uses its own roots.
+fn ssl_opts(policy: &TlsPolicy, host: &str) -> Result<Tls, String> {
+    let ctx = TlsContext {
+        declared: policy.declared,
+        proven: policy.proven,
+        host,
+    };
+    let auth: Authorized = policy.settings.authorize(&ctx).map_err(|e| e.to_string())?;
     let bare = host.trim_start_matches('[').trim_end_matches(']');
     if let Some(name) = &auth.settings().server_name
         && !name.eq_ignore_ascii_case(bare)
     {
         return Err("tls_server_name: MySQL and MariaDB check the certificate against the host the connection goes to; set host to the name in the certificate (a different tls_server_name is not supported)".into());
     }
-    // Builds the shared configuration only to run its checks: the CA file is read bounded and refused
-    // when it holds a private key or no certificate; verify mode with no CA file needs system roots.
-    tls::client_config(&auth).map_err(|e| e.to_string())?;
     let mut ssl = SslOpts::default();
+    let mut copy = None;
     match auth.settings().mode {
         TlsMode::Verify => {
             if let Some(ca) = &auth.settings().ca_file {
-                ssl = ssl.with_root_cert_path(Some(ca.clone()));
+                let bytes = crate::fsutil::read_bytes_bounded(ca, tls::MAX_CA_FILE_BYTES)
+                    .map_err(|why| format!("tls_ca_file: {why}"))?;
+                let mut file = tempfile::NamedTempFile::new()
+                    .map_err(|_| "tls_ca_file: cannot make a private copy for the client")?;
+                file.write_all(&bytes)
+                    .and_then(|()| file.flush())
+                    .map_err(|_| "tls_ca_file: cannot make a private copy for the client")?;
+                // The shared checks run on the copy the client will read: no private key, at least
+                // one certificate, at most the allowed number.
+                let checked = TlsSettings {
+                    ca_file: Some(file.path().to_path_buf()),
+                    ..auth.settings().clone()
+                };
+                let auth = checked.authorize(&ctx).map_err(|e| e.to_string())?;
+                tls::client_config(&auth).map_err(|e| e.to_string())?;
+                ssl = ssl.with_root_cert_path(Some(file.path().to_path_buf()));
+                copy = Some(file);
             }
         }
         TlsMode::Unverified => {
@@ -248,7 +461,7 @@ fn ssl_opts(policy: &TlsPolicy, host: &str) -> Result<SslOpts, String> {
                 .with_danger_skip_domain_validation(true);
         }
     }
-    Ok(ssl)
+    Ok(Tls { ssl, ca_copy: copy })
 }
 
 /// Names the profile fields that fix a TLS failure.
@@ -264,8 +477,11 @@ fn describe_connect(e: &mysql::Error) -> String {
             "{text} (the server does not offer TLS, which every connection requires: enable it on the server)"
         );
     }
-    // A failed handshake surfaces as a TLS error or, once the crate wraps it, as a codec or I/O error.
-    if matches!(e, mysql::Error::TlsError(_)) || looks_like_tls(&text) {
+    // A server answer (error 1043 "Bad handshake" among them) is not a certificate failure. A failed
+    // handshake is a TLS error or, once the crate wraps it, a codec or I/O error.
+    if !matches!(e, mysql::Error::MySqlError(_))
+        && (matches!(e, mysql::Error::TlsError(_)) || looks_like_tls(&text))
+    {
         return format!("{text} ({TLS_HINT})");
     }
     text
@@ -296,16 +512,26 @@ fn describe(e: &mysql::Error) -> String {
         mysql::Error::TlsError(_) => format!("TlsError: {e}"),
         _ => format!("Error: {e}"),
     };
-    if looks_like_timeout(&text) {
+    if is_timeout(e) {
         return format!("{text} (the server did not answer within the request timeout plus 5 s)");
     }
     text
 }
 
-/// Whether an I/O error text is a socket read or write timeout (`EAGAIN` on Unix, `ETIMEDOUT`).
-fn looks_like_timeout(text: &str) -> bool {
-    let t = text.to_ascii_lowercase();
-    t.contains("os error 11)") || t.contains("timed out") || t.contains("would block")
+/// Whether the error is a socket read or write timeout: by the I/O error kind, so it holds on every
+/// platform (`EAGAIN` on Unix, `WSAETIMEDOUT` on Windows).
+fn is_timeout(e: &mysql::Error) -> bool {
+    use std::io::ErrorKind::{TimedOut, WouldBlock};
+    match e {
+        mysql::Error::IoError(io)
+        | mysql::Error::CodecError(mysql_common::proto::codec::error::PacketCodecError::Io(io)) => {
+            matches!(io.kind(), TimedOut | WouldBlock)
+        }
+        mysql::Error::DriverError(
+            mysql::DriverError::Timeout | mysql::DriverError::ConnectTimeout,
+        ) => true,
+        _ => false,
+    }
 }
 
 /// A failed statement: the message, and whether the connection can no longer be trusted to be in step.
@@ -330,10 +556,8 @@ fn run(
     result: &mut ExecResult,
 ) -> Result<(), Failed> {
     let sql_err = Failed::from;
-    let (version, host, database): (Option<String>, Option<String>, Option<String>) = conn
-        .query_first("SELECT VERSION(), @@hostname, DATABASE()")
-        .map_err(sql_err)?
-        .unwrap_or_default();
+    let (version, host, database): (Option<String>, Option<String>, Option<String>) =
+        first(conn, "SELECT VERSION(), @@hostname, DATABASE()")?.unwrap_or_default();
     let maria = version
         .as_deref()
         .is_some_and(|v| v.to_lowercase().contains("mariadb"));
@@ -347,11 +571,7 @@ fn run(
     } else {
         "SELECT COUNT(*) FROM information_schema.TABLES WHERE ENGINE = 'FEDERATED'"
     };
-    result.links = Some(
-        conn.query_first::<i64, _>(links)
-            .map_err(sql_err)?
-            .unwrap_or(0),
-    );
+    result.links = Some(first::<i64>(conn, links)?.unwrap_or(0));
     conn.query_drop("ROLLBACK").map_err(sql_err)?;
     if req.mode == Mode::Test {
         return Ok(());
@@ -370,6 +590,21 @@ fn run(
         };
         let one = run_statement(conn, &sql, read, req.max_rows, timeout)?;
         result.results.get_or_insert_with(Vec::new).push(one);
+        if read {
+            // Defense in depth: whatever the statement was, the session must still be read only.
+            let var = if maria {
+                "SELECT @@session.tx_read_only"
+            } else {
+                "SELECT @@session.transaction_read_only"
+            };
+            if first::<i64>(conn, var)? != Some(1) {
+                return Err(Failed {
+                    message: "the session is no longer read only after a statement; stopped and rolled back"
+                        .into(),
+                    connection_lost: false,
+                });
+            }
+        }
     }
     if read {
         conn.query_drop("ROLLBACK").map_err(sql_err)?;
@@ -707,6 +942,7 @@ mod tests {
 
     #[test]
     fn the_timeout_variable_follows_the_server_family() {
+        const SQL_MODE: &str = "SET SESSION sql_mode = REPLACE(REPLACE(@@sql_mode, 'NO_BACKSLASH_ESCAPES', ''), 'ANSI_QUOTES', '')";
         let t = Duration::from_millis(2500);
         assert_eq!(
             session_statements(true, t, false),
@@ -714,6 +950,8 @@ mod tests {
                 "SET SESSION max_statement_time = 2.5",
                 "SET SESSION innodb_lock_wait_timeout = 5",
                 "SET SESSION lock_wait_timeout = 5",
+                SQL_MODE,
+                "SET NAMES utf8mb4",
             ]
         );
         assert_eq!(
@@ -722,6 +960,8 @@ mod tests {
                 "SET SESSION MAX_EXECUTION_TIME = 2500",
                 "SET SESSION innodb_lock_wait_timeout = 5",
                 "SET SESSION lock_wait_timeout = 5",
+                SQL_MODE,
+                "SET NAMES utf8mb4",
             ]
         );
         // whole seconds print without a fraction on MariaDB, as Python's int does
@@ -749,7 +989,9 @@ mod tests {
 
     // ---- refusals that need no server (and prove no connection is tried) ----
 
-    /// The unroutable test address would hold a connect for 10 s: a refusal must come first.
+    /// Runs the request as given (a refusal must come before any DNS or connect: bounded in time, no
+    /// secret in the line), then again pointed at a local listener that must never be connected to.
+    /// The second run only happens for a request that has the test host and the default port.
     fn refused_fast(req: &Request, connector: &MysqlConnector) -> serde_json::Value {
         let started = Instant::now();
         let line = connector.run(req).to_line();
@@ -758,6 +1000,27 @@ mod tests {
             "no connection may be tried: {line}"
         );
         assert_no_secret(&line);
+        // A refusal that depends on the host itself (`tls_mode` on a non-loopback host) would not hold
+        // for the listener's loopback address, so those are covered by the time bound only.
+        let host_bound = line.contains("\"error\":\"tls_mode:");
+        if !host_bound
+            && req.conn.host.as_deref() == Some(HOST)
+            && req.conn.port.as_deref() == Some("3306")
+        {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let mut redirected = req.clone();
+            redirected.conn.host = Some("127.0.0.1".into());
+            redirected.conn.port = Some(listener.local_addr().unwrap().port().to_string());
+            let again = connector.run(&redirected).to_line();
+            let first: serde_json::Value = serde_json::from_str(&line).unwrap();
+            let second: serde_json::Value = serde_json::from_str(&again).unwrap();
+            assert_eq!(first["stage"], second["stage"], "{again}");
+            assert!(
+                matches!(listener.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock),
+                "the refused request connected to the listener: {again}"
+            );
+        }
         serde_json::from_str(&line).unwrap()
     }
 
@@ -781,64 +1044,110 @@ mod tests {
         assert_eq!(out.stage, Some(Stage::Connect));
     }
 
+    /// Items the server would run as more than one statement, or that are code the connector cannot
+    /// classify. Each must be refused before any connection. The first two are the inputs the shared
+    /// scanner read as one statement (`--1` is not a comment in MySQL, `#` is).
+    const ADVERSARIAL: &[&str] = &[
+        "SELECT 1--1; SET SESSION TRANSACTION READ WRITE; COMMIT; DELETE FROM t; COMMIT",
+        "SELECT 1 #'\n; SET SESSION transaction_read_only = 0; COMMIT; DELETE FROM t; COMMIT; #'",
+        "SELECT 1 /*!50000 FOR UPDATE */",
+        "SELECT 1 /*! INTO OUTFILE '/tmp/x' */",
+        "SELECT 1 /*M!100000 FOR UPDATE */",
+        "SELECT 1 /*! ; DELETE FROM t */",
+        "SELECT 1\\G",
+        "SELECT 1 \\g",
+        "DELIMITER //",
+        "SELECT 1; SELECT 2",
+        "SELECT 1;;",
+        "SELECT 1 /* x */; DELETE FROM customer",
+        "SELECT 'it''s'; DELETE FROM t",
+        "SELECT 1 -- x\n; DELETE FROM t",
+        "SELECT `a``b`; DELETE FROM t",
+        "SELECT 1; /*! */",
+        "SELECT 1 /* never closed",
+        "SELECT 'never closed",
+        "SELECT \"never closed",
+        "SELECT `never closed",
+        "SELECT 1\0; SELECT 2",
+        "SET SESSION sql_mode = 'NO_BACKSLASH_ESCAPES'",
+        "SET @@sql_mode = ''",
+        "SET NAMES gbk",
+        "SET character_set_client = gbk",
+        "SET CHARACTER SET gbk",
+        "LOAD DATA LOCAL INFILE '/etc/passwd' INTO TABLE t",
+        "load data   local\n infile '/etc/hostname' into table t",
+        "LOAD DATA/**/LOCAL/**/INFILE '/x' INTO TABLE t",
+    ];
+
     #[test]
-    fn a_statement_item_with_a_second_statement_is_refused_before_connecting() {
-        for tricks in [
-            "SELECT 1; UPDATE customer SET status = 'x'",
-            "SELECT 1;DROP TABLE customer",
-            "SELECT 1 /* x */; DELETE FROM customer",
-            "UPDATE customer SET a = 1; UPDATE customer SET a = 2",
-            "SELECT 'x'; SELECT 'y'",
+    fn every_adversarial_item_is_refused_before_connecting_and_leaks_nothing() {
+        for sql in ADVERSARIAL {
+            // the pure refusal
+            let refusal = server_view(sql).expect_err(sql);
+            assert!(refusal.starts_with("refused:"), "{refusal}");
+            for secret in [PASSWORD, HOST, USER, "DELETE", "customer"] {
+                assert!(!refusal.contains(secret), "{secret} in {refusal}");
+            }
+            // through the connector, in write mode after a harmless first statement: nothing runs
+            for mode in [Mode::Read, Mode::Write] {
+                let req = request(mode, &["SELECT 0", sql]);
+                let out = refused_fast(&req, &MysqlConnector::default());
+                assert_eq!(out["ok"], false, "{sql:?}");
+                assert_eq!(out["stage"], "execute", "{sql:?}");
+                assert!(out.get("results").is_none(), "nothing may have run: {out}");
+                assert!(out.get("server").is_none(), "no connection was made: {out}");
+                assert!(
+                    out["error"].as_str().unwrap().starts_with("refused:"),
+                    "{out}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn text_comments_and_one_trailing_semicolon_are_one_statement() {
+        for (ok, view) in [
+            ("SELECT 'a;b'", "SELECT 'a;b'"),
+            ("SELECT \"a;b\"", "SELECT \"a;b\""),
+            ("SELECT `a;b` FROM t", "SELECT `a;b` FROM t"),
+            ("SELECT 'it''s;'", "SELECT 'it''s;'"),
+            ("SELECT 'a\\'; b'", "SELECT 'a\\'; b'"),
+            ("SELECT 1 -- ; DROP TABLE t", "SELECT 1"),
+            ("SELECT 1 # ; DROP TABLE t", "SELECT 1"),
+            ("SELECT 1 /* ; DROP TABLE t */", "SELECT 1"),
+            ("SELECT 1 /*+ MAX_EXECUTION_TIME(10) */", "SELECT 1"),
+            ("SELECT 1;", "SELECT 1"),
+            ("SELECT 1 ; ", "SELECT 1"),
+            ("SELECT 1; -- done", "SELECT 1"),
+            ("SELECT 1; /* done */", "SELECT 1"),
+            ("SELECT 1 - -1", "SELECT 1 - -1"),
+            (
+                "SELECT 'local infile', local_x FROM t",
+                "SELECT 'local infile', local_x FROM t",
+            ),
+            (
+                "SELECT infile FROM t WHERE local = 1",
+                "SELECT infile FROM t WHERE local = 1",
+            ),
+            (
+                "SELECT 'sql_mode', `sql_mode` FROM t",
+                "SELECT 'sql_mode', `sql_mode` FROM t",
+            ),
         ] {
-            let req = request(Mode::Write, &["SELECT 0", tricks]);
-            let out = refused_fast(&req, &MysqlConnector::default());
-            assert_eq!(out["ok"], false, "{tricks}");
-            assert_eq!(out["stage"], "execute", "{tricks}");
-            let error = out["error"].as_str().unwrap();
-            assert!(error.contains("more than one statement"), "{error}");
-            assert!(
-                !error.contains("DROP") && !error.contains("customer"),
-                "{error}"
+            let got = server_view(ok).unwrap_or_else(|e| panic!("{ok}: {e}"));
+            assert_eq!(
+                got.split_whitespace().collect::<Vec<_>>().join(" "),
+                view,
+                "{ok}"
             );
-            assert!(out.get("results").is_none(), "nothing may have run: {out}");
         }
-    }
-
-    #[test]
-    fn semicolons_inside_text_and_a_trailing_one_are_one_statement() {
-        for ok in [
-            "SELECT 'a;b'",
-            "SELECT \"a;b\"",
-            "SELECT `a;b` FROM t",
-            "SELECT 1 -- ; DROP TABLE t",
-            "SELECT 1 /* ; DROP TABLE t */",
-            "SELECT 1;",
-            "SELECT 1 ; ",
-        ] {
-            assert_eq!(single_statement(ok), Ok(()), "{ok}");
-        }
-    }
-
-    #[test]
-    fn a_local_infile_is_refused_before_connecting() {
-        for sql in [
-            "LOAD DATA LOCAL INFILE '/etc/passwd' INTO TABLE t",
-            "load data   local\n infile '/etc/hostname' into table t",
-            "LOAD DATA/**/LOCAL/**/INFILE '/x' INTO TABLE t",
-        ] {
-            let req = request(Mode::Write, &[sql]);
-            let out = refused_fast(&req, &MysqlConnector::default());
-            assert_eq!(out["stage"], "execute", "{sql}");
-            assert!(out["error"].as_str().unwrap().contains("LOCAL INFILE"));
-        }
-        // text and an unrelated column named like the words stay allowed
-        assert_eq!(
-            single_statement("SELECT 'local infile', local_x FROM t"),
-            Ok(())
-        );
-        assert_eq!(
-            single_statement("SELECT infile FROM t WHERE local = 1"),
-            Ok(())
+        // `--1` is code in MySQL, so the view keeps it: the classifier sees what the server sees
+        assert_eq!(server_view("SELECT 1--1").unwrap(), "SELECT 1--1");
+        // `#` and `-- ` hide the rest of the line from the classifier, as they hide it from the server
+        assert!(
+            !server_view("SELECT 1 # UPDATE t SET a = 1")
+                .unwrap()
+                .contains("UPDATE")
         );
     }
 
@@ -1003,17 +1312,87 @@ mod tests {
     }
 
     #[test]
-    fn a_socket_timeout_is_told_apart_from_other_failures() {
-        assert!(looks_like_timeout(
-            "Error: CodecError { IO error: `Resource temporarily unavailable (os error 11)' }"
-        ));
-        assert!(looks_like_timeout("IoError: IoError { timed out }"));
-        assert!(!looks_like_timeout(
-            "MysqlError: ERROR 1205 (HY000): Lock wait timeout exceeded"
-        ));
-        assert!(!looks_like_timeout(
-            "IoError: Connection refused (os error 111)"
-        ));
+    fn a_socket_timeout_is_told_apart_by_the_io_error_kind() {
+        use mysql_common::proto::codec::error::PacketCodecError;
+        use std::io::{Error, ErrorKind};
+        for kind in [ErrorKind::WouldBlock, ErrorKind::TimedOut] {
+            assert!(
+                is_timeout(&mysql::Error::IoError(Error::from(kind))),
+                "{kind:?}"
+            );
+            assert!(
+                is_timeout(&mysql::Error::CodecError(PacketCodecError::Io(
+                    Error::from(kind)
+                ))),
+                "{kind:?}"
+            );
+        }
+        assert!(is_timeout(&mysql::Error::DriverError(
+            mysql::DriverError::Timeout
+        )));
+        for kind in [
+            ErrorKind::ConnectionRefused,
+            ErrorKind::BrokenPipe,
+            ErrorKind::UnexpectedEof,
+        ] {
+            assert!(
+                !is_timeout(&mysql::Error::IoError(Error::from(kind))),
+                "{kind:?}"
+            );
+        }
+        // the text alone proves nothing: a message that says "timed out" but is not an I/O timeout
+        let other = mysql::Error::IoError(Error::other("os error 11) timed out"));
+        assert!(!is_timeout(&other));
+    }
+
+    #[test]
+    fn a_server_answer_is_not_given_the_certificate_hint() {
+        // error 1043 "Bad handshake" is the server speaking: no TLS hint
+        let bad = mysql::Error::MySqlError(mysql::MySqlError {
+            state: "08S01".into(),
+            message: "Bad handshake".into(),
+            code: 1043,
+        });
+        let text = describe_connect(&bad);
+        assert!(
+            text.contains("1043") && !text.contains("tls_ca_file"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn an_ipv6_host_is_redacted_in_the_form_the_crate_prints() {
+        let conn = ConnFacts {
+            host: Some("[2001:db8::5]".into()),
+            user: Some(USER.into()),
+            password: Some(PASSWORD.into()),
+            ..ConnFacts::default()
+        };
+        let crate_text =
+            "DriverError { Could not connect to address `2001:db8::5:3306': timed out }";
+        let out = redact_error(&conn, crate_text);
+        assert!(!out.contains("2001:db8::5"), "{out}");
+        assert!(out.contains("<host>"), "{out}");
+    }
+
+    #[test]
+    fn the_ca_copy_handed_to_the_client_is_the_validated_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let ca = crate::core::tls::testca::TestCa::new("copy").write_ca(dir.path());
+        let policy = TlsPolicy {
+            settings: TlsSettings::from_fields(None, ca.to_str(), None, None).unwrap(),
+            ..TlsPolicy::default()
+        };
+        let tls = ssl_opts(&policy, "db.example").unwrap();
+        let copy = tls.ca_copy.as_ref().expect("a private copy");
+        assert_ne!(copy.path(), ca.as_path());
+        assert_eq!(
+            std::fs::read(copy.path()).unwrap(),
+            std::fs::read(&ca).unwrap()
+        );
+        // no CA file: nothing is copied and no system roots are asked for
+        let none = ssl_opts(&TlsPolicy::default(), "db.example").unwrap();
+        assert!(none.ca_copy.is_none());
     }
 
     #[test]

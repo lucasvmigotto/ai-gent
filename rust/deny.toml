@@ -28,6 +28,9 @@ allow = [
     "Zlib",
     "MPL-2.0",
     "CC0-1.0",
+    # webpki-roots (the Mozilla CA list, a dependency of the `mysql` client, feature `mysql`): a permissive
+    # license like the others here (use and redistribution with a notice, no copyleft condition).
+    "CDLA-Permissive-2.0",
     "GPL-3.0-or-later",
 ]
 

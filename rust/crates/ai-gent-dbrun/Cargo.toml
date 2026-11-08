@@ -23,7 +23,7 @@ default = []
 sqlite = ["dep:rusqlite"]
 postgres = []
 # One client for MySQL and MariaDB (spec 043 T040); TLS through core::tls (rustls, ring).
-mysql = ["dep:mysql", "tls"]
+mysql = ["dep:mysql", "dep:mysql_common", "dep:tempfile", "tls"]
 mssql = []
 oracle = []
 # rustls configuration builder of the TLS profile model (spec 043 T007); off by default so the binary pays for it only with an engine.
@@ -44,6 +44,8 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 rustls-native-certs = { version = "0.8", optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }
 mysql = { version = "28", default-features = false, features = ["minimal-rust", "rustls-tls-ring"], optional = true }
+mysql_common = { version = "0.37", default-features = false, optional = true }
+tempfile = { workspace = true, optional = true }
 rusqlite = { version = "0.41", features = ["bundled", "hooks"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
