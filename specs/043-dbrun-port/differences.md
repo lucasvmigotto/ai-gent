@@ -16,6 +16,7 @@ Every behavior of `plugins/db/scripts/dbrun.py` that the port changes, or may ch
 | D-008 | A plan recorded by the Python runner with `expect -1` for a DDL statement | commits (`-1` equals `-1`) | refused at `verify` with `statement N: expected -1, got 0`, rolled back, nothing created; the user plans again. Refusing is deliberate: accepting `-1` for DDL would also accept `-1` from a statement whose count is unknown | fixture `22-ddl-expect-minus-one` |
 | D-009 | A request without `timeout` (FR-011) | `req["timeout"]` raises `KeyError` (a traceback); the CLI always sends one (default 30) | 30 s | `request` tests |
 | D-010 | A request without `max_rows` | `req["max_rows"]` raises `KeyError`; the CLI sends 100 (`query`, default `--max-rows 100`), 1000 (`apply`), 1 (identity probe) | 200 (the crate's existing default; Q-008 asks whether it should be the CLI's 100) | `Request::new` |
+| D-011 | PostgreSQL: DDL, `EXPLAIN` and `SHOW` row counts (T031, FR-022) | psycopg `cursor.rowcount`: `-1` for DDL, the rows received for `EXPLAIN` and `SHOW` | `0` for every statement whose `CommandComplete` tag carries no number (the client crate keeps only the number); a `SELECT` and a DML keep the server's number, as psycopg | `connector::postgres` tests `ddl_explain_and_show_count_zero_the_contract_value`, `rowcount_is_the_servers_count_whatever_the_statement_text`; `real_server_counts_come_from_the_server` (needs a server) |
 
 ## Questions for the owner (the Python behavior is what runs today)
 
@@ -27,6 +28,7 @@ Every behavior of `plugins/db/scripts/dbrun.py` that the port changes, or may ch
 | Q-004 | A timeout that is out of the range of a JSON number (`1e999`) | Python reads it as `inf` and fails in the connect | the JSON parser rejects the line, so it is a `request`-stage error, not `connect` (FR-011 says `connect`) | same outcome (a refusal with no secret), different stage name; fixing it needs a hand-written number scanner |
 | Q-005 | Redaction strictness | see D-003 | a one-character password or user is redacted wherever it occurs, which can make an error unreadable; host and user also match in any ASCII case, so a user `a`, `user`, `select` or `sa`, or a host `db`, turns "A table named a is a problem" into "<user> table named <user> is <user> problem" | safe over readable on a credential path; say if a minimum length is wanted |
 | Q-006 | Host names in the field allowlist | any text | ASCII only (an internationalized name is given as punycode); IPv6 without brackets | a profile with a Unicode host is refused, with the field named |
+| Q-007 | PostgreSQL: a `SELECT`'s `rowcount` | psycopg: the number of rows the server sent (`SELECT 3` gives `3`) | the same (the server's number); the contract's `-1` for a statement that returns rows comes from SQLite and is not applied, because `CommandComplete` cannot tell `SELECT 3` from `UPDATE ... RETURNING` with 3 rows without reading the statement text | a fixture for PostgreSQL would need to say which of the two the contract wants |
 
 ## Original behavior pinned by the contract (T002, T005)
 
@@ -66,7 +68,6 @@ A future `_exec` reader (the process-side entry point that reads the request fro
 | ID | Item | Why it matters |
 |---|---|---|
 | Q-007 | `CountKind::Rows` is `-1` for every engine | that matches `sqlite3` and pymssql only. psycopg3 and PyMySQL report the number of rows for a SELECT and the affected count for `UPDATE ... RETURNING`. The engine groups must decide per engine (their fixtures pin it) and record the choice here; the shared helper only fixes `-1` for the SQLite and SQL Server style |
-| Q-008 | Default `max_rows` 200 | the CLI default is 100 |
 
 ## Worker A2 entries (T007, T010)
 
