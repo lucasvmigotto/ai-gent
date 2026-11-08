@@ -30,6 +30,10 @@ changes.
 
 - **git, repo:** the autonomy grant now applies inside a linked worktree: the guards (git and repo, shell, OpenCode and the Rust evaluator alike) and `reporun` uses the worktree's own grant file when it has one and otherwise the main checkout's, so a git-excluded grant no longer goes unseen from `.worktrees/` and `.claude/worktrees/`
 
+### Changed
+
+- **project:** the Pipeline pane lists a feature under Blockers, and counts it as blocked, only when it is still Planned (no side In progress or beyond) and a dependency is unbuilt; a started feature that waits on a dependency shows a dim `waiting` note (`waiting on 032`), is counted as `N waiting` apart from `blocked`, and never raises a blocker or an attention line. `ai-gent wt plan` and Next action are unchanged
+
 ## 2.27.0 — 2026-11-01
 
 ### Added

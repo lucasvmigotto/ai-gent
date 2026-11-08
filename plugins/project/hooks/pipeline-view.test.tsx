@@ -532,7 +532,7 @@ test('blockers come from clarifications, dependencies and missing artifacts, and
 
 test('a blocked feature without a recorded wait says the reason is unknown, and the list is capped', () => {
   const s = snapshotOf()
-  const f = { ...s.features[0], bucket: 'blocked' as const, waiting: [] } as Snapshot['features'][number]
+  const f = { ...s.features[0], sides: { frontend: 'Planned' }, bucket: 'blocked' as const, waiting: [] } as Snapshot['features'][number]
   expect(build({ ...s, features: [f] }, ctx()).blockers?.rows.find(r => r.key === 'blocker:feature:001')?.reason).toBe('reason not recorded')
   const many = Array.from({ length: 8 }, (_, i) => ({ ...f, number: `0${i}0`, waiting: ['999'] }))
   const m = build({ ...s, features: many }, ctx())
@@ -557,6 +557,60 @@ test('a long reason is cut to two lines, whole behind Details, with the actionab
   expect(closed.explanation?.startsWith('an open [NEEDS CLARIFICATION] blocks plan')).toBe(true)
   expect(build({ ...s, next }, ctx({ columns: 60, expanded: { next: true } })).next).toMatchObject({ explanation: long, isOpen: true })
   expect(build(s, ctx({ columns: 60 })).next.full).toBeUndefined()
+})
+
+// ---- Blockers rule: blocked only if not started
+
+type F = Snapshot['features'][number]
+const waitingOn = (f: F, sides: Record<string, string>): F => ({ ...f, sides, bucket: 'blocked' as const, waiting: ['032'], depends: ['032'] })
+
+test('a Planned feature with an unbuilt dependency is a blocker and counts as blocked', () => {
+  const s = quiet()
+  const f = waitingOn(s.features[0] as F, { frontend: 'Planned', backend: 'Planned' })
+  const m = build({ ...s, features: [f] }, ctx())
+  expect(m.blockers?.rows.map(r => `${r.title} | ${r.reason}`)).toEqual([`${f.number} ${f.name} | dependency 032 not implemented`])
+  expect(m.summary.counts.find(c => c.key === 'blocked')).toMatchObject({ value: 1, tone: 'bad' })
+  expect(m.summary.counts.some(c => c.key === 'waiting')).toBe(false)
+})
+
+test('an In progress or Implemented feature waiting on a dependency is not a blocker; it is counted as waiting, dim, never attention', () => {
+  const s = quiet()
+  const base = s.features[0] as F
+  for (const sides of [{ frontend: 'In progress', backend: 'Planned' }, { frontend: 'Implemented', backend: 'Planned' }, { frontend: 'Planned', backend: 'Partial' }]) {
+    const f = waitingOn(base, sides)
+    const snap = { ...s, features: [f] }
+    const m = build(snap, ctx())
+    expect(m.blockers).toBeNull()
+    expect(m.summary.counts.find(c => c.key === 'blocked')).toMatchObject({ value: 0, tone: 'dim' })
+    expect(m.summary.counts.find(c => c.key === 'waiting')).toMatchObject({ value: 1, tone: 'dim' })
+    expect(m.summary.line).toContain('1 waiting')
+    expect(m.summary.line).toContain('0 blocked')
+    expect(m.summary.attention).toBeNull()
+    expect(m.filter.counts).toMatchObject({ all: 1, blocked: 0 })
+    const row = section(snap, 'features').rows[0]
+    expect(row?.cells).toContainEqual({ text: 'waiting', tone: 'dim' })
+    expect(build(snap, ctx({ filter: 'blocked' })).sections.find(x => x.id === 'features')?.rows).toEqual([])
+    expect(dashboardText(snap, ctx()).join('\n')).not.toMatch(/Blockers/)
+  }
+})
+
+test('summary counts split a mix: only the unstarted waiting feature is blocked, the started one is waiting', () => {
+  const s = quiet()
+  const base = s.features[0] as F
+  const features = [waitingOn({ ...base, number: '101' }, { frontend: 'Planned' }), waitingOn({ ...base, number: '102' }, { frontend: 'In progress' })]
+  const m = build({ ...s, features }, ctx())
+  expect(m.summary.counts.map(c => `${c.value} ${c.label}`)).toEqual(['2 features', '2 implemented', '0 ready', '1 blocked', '1 waiting'])
+  expect(m.blockers?.count).toBe(1)
+  expect(m.blockers?.rows.map(r => r.key)).toEqual(['blocker:feature:101'])
+})
+
+test('Next action ignores waiting features: they are not ready and not blockers', () => {
+  const s = quiet()
+  const base = s.features[0] as F
+  const waiting = waitingOn({ ...base, number: '102' }, { frontend: 'In progress' })
+  const ready = { ...base, number: '103', bucket: 'ready' as const, waiting: [], sides: { frontend: 'Planned' } }
+  expect(recommend(s.artifacts, [waiting, ready], []).ref).toBe('103')
+  expect(recommend(s.artifacts, [waiting], [])).toEqual(recommend(s.artifacts, [], []))
 })
 
 test('Next action locates a feature number and a spec file; an unavailable path stays plain', () => {
