@@ -6,8 +6,10 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
+pub mod fields;
 pub mod mask;
 pub mod plan;
+pub mod redact;
 pub mod tls;
 
 macro_rules! re {

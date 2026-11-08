@@ -18,6 +18,10 @@
 //! }
 //! ```
 //!
+//! A step may also carry `absent` (result keys that must not be there; `absent_port` for the port only), `conn_patch` (connection
+//! fields to override, `$dir` being the database's directory), `only: "port"`, `expected_port` and
+//! `difference` (an id of `specs/043-dbrun-port/differences.md`); see [`Profile`].
+//!
 //! `exec` cases run their `steps` in order against one fresh database; `expected` is a subset match on
 //! the result line (`"$number"` and `"$string"` match by type, `error_contains` is a substring of the
 //! error). `policy` cases check the classifier and cost rules and need no connector. `pending` cases
@@ -27,6 +31,25 @@ use crate::core::{classify_statement, cost_rules, mask};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+
+/// The version of the request/result contract; every fixture and `contract.schema.json` carry it. A
+/// change that alters what a connector must answer raises it and re-records the fixtures.
+pub const CONTRACT_VERSION: u32 = 1;
+
+/// Whose behavior a run checks.
+///
+/// - [`Profile::Original`]: what `dbrun.py _exec` does. Run through the process connector against the
+///   real script, it proves the fixtures describe the original.
+/// - [`Profile::Port`]: the contract of the Rust runner: the same, except for the listed intended
+///   differences (a step with `expected_port`, or `only: "port"`, each naming a `difference` id of
+///   `specs/043-dbrun-port/differences.md`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Profile {
+    /// The Python runner.
+    Original,
+    /// The Rust runner.
+    Port,
+}
 
 /// The directory of the contract fixtures.
 #[must_use]
@@ -87,7 +110,10 @@ pub fn load_cases() -> Vec<Case> {
         .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "json"))
-        .filter(|p| p.file_stem().is_some_and(|s| s != "redaction"))
+        .filter(|p| {
+            p.file_stem()
+                .is_some_and(|s| s != "redaction" && s != "contract.schema")
+        })
         .collect();
     files.sort();
     files
@@ -158,6 +184,7 @@ fn matches(expected: &Value, actual: &Value, path: &str) -> Result<(), String> {
 pub fn run_exec_cases<C: Connector + ?Sized>(
     connector: &C,
     engine: &str,
+    profile: Profile,
     mut provision: impl FnMut(&Case, &[String]) -> ConnFacts,
 ) -> usize {
     let mut ran = 0;
@@ -172,9 +199,29 @@ pub fn run_exec_cases<C: Connector + ?Sized>(
             .iter()
             .enumerate()
         {
+            if step["only"] == "port" && profile == Profile::Original {
+                continue;
+            }
             let mut request = step["request"].clone();
             request["engine"] = json!(engine);
             request["conn"] = serde_json::to_value(&conn).unwrap();
+            if let Some(patch) = step.get("conn_patch").and_then(Value::as_object) {
+                let dir = Path::new(conn.path.as_deref().unwrap_or(".")).parent();
+                for (k, v) in patch {
+                    let text = v.as_str().unwrap_or("").replace(
+                        "$dir",
+                        &dir.map_or_else(String::new, |d| d.to_string_lossy().into_owned()),
+                    );
+                    request["conn"][k] = json!(text);
+                }
+            }
+            if let Err(e) = check_schema("request", &schema()["request"], &request) {
+                panic!(
+                    "{} step {}: request breaks the schema: {e}",
+                    case.name(),
+                    i + 1
+                );
+            }
             let line = connector.run_line(&request.to_string());
             assert!(
                 !line.contains('\n'),
@@ -183,8 +230,41 @@ pub fn run_exec_cases<C: Connector + ?Sized>(
             );
             let actual: Value = serde_json::from_str(&line).unwrap();
             let at = format!("{} step {}", case.name(), i + 1);
-            if let Err(e) = matches(&step["expected"], &actual, &at) {
+            if let Err(e) = check_schema("result", &schema()["result"], &actual) {
+                panic!("{at}: result breaks the schema: {e}\nresult: {line}");
+            }
+            let expected = match step.get("expected_port") {
+                Some(e) if profile == Profile::Port => e,
+                _ => &step["expected"],
+            };
+            if let Err(e) = matches(expected, &actual, &at) {
                 panic!("{e}\nresult: {line}");
+            }
+            for key in step
+                .get("absent")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let key = key.as_str().unwrap_or("");
+                assert!(
+                    actual.get(key).is_none(),
+                    "{at}: `{key}` must be absent: {line}"
+                );
+            }
+            if profile == Profile::Port {
+                for key in step
+                    .get("absent_port")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let key = key.as_str().unwrap_or("");
+                    assert!(
+                        actual.get(key).is_none(),
+                        "{at}: `{key}` must be absent on the port: {line}"
+                    );
+                }
             }
             if let Some(m) = step.get("masked") {
                 check_masked(&at, m, &actual);
@@ -270,4 +350,102 @@ pub fn pending_cases() -> Vec<(String, String)> {
             )
         })
         .collect()
+}
+
+/// `contract.schema.json`: JSON Schema (a small subset) for the request and for the result line.
+///
+/// # Panics
+/// When the file cannot be read or parsed.
+#[must_use]
+pub fn schema() -> Value {
+    let p = fixtures_dir().join("contract.schema.json");
+    serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap()
+}
+
+/// Validates `value` against the subset of JSON Schema the contract schema uses: `type` (one name or a
+/// list), `enum`, `required`, `properties`, `additionalProperties: false`, `items`, `minimum`. An
+/// unknown schema keyword is an error, so the schema cannot silently stop checking.
+///
+/// # Errors
+/// The path and the reason of the first violation.
+pub fn check_schema(path: &str, schema: &Value, value: &Value) -> Result<(), String> {
+    const KNOWN: &[&str] = &[
+        "type",
+        "enum",
+        "required",
+        "properties",
+        "additionalProperties",
+        "items",
+        "minimum",
+        "description",
+        "$comment",
+        "default",
+    ];
+    let obj = schema
+        .as_object()
+        .ok_or_else(|| format!("{path}: schema is not an object"))?;
+    if let Some(k) = obj.keys().find(|k| !KNOWN.contains(&k.as_str())) {
+        return Err(format!("{path}: unsupported schema keyword {k}"));
+    }
+    if let Some(t) = obj.get("type") {
+        let names: Vec<&str> = match t {
+            Value::String(s) => vec![s.as_str()],
+            Value::Array(a) => a.iter().filter_map(Value::as_str).collect(),
+            _ => return Err(format!("{path}: bad type in schema")),
+        };
+        let kind = match value {
+            Value::Null => "null",
+            Value::Bool(_) => "boolean",
+            Value::Number(n) if n.is_i64() || n.is_u64() => "integer",
+            Value::Number(_) => "number",
+            Value::String(_) => "string",
+            Value::Array(_) => "array",
+            Value::Object(_) => "object",
+        };
+        let fits = names
+            .iter()
+            .any(|n| *n == kind || (*n == "number" && kind == "integer"));
+        if !fits {
+            return Err(format!("{path}: expected {names:?}, got {kind}"));
+        }
+    }
+    if let Some(Value::Array(options)) = obj.get("enum")
+        && !options.contains(value)
+    {
+        return Err(format!("{path}: not one of the allowed values"));
+    }
+    if let (Some(min), Some(n)) = (obj.get("minimum").and_then(Value::as_f64), value.as_f64())
+        && n < min
+    {
+        return Err(format!("{path}: below the minimum"));
+    }
+    if let Some(map) = value.as_object() {
+        for key in obj
+            .get("required")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let key = key.as_str().unwrap_or("");
+            if !map.contains_key(key) {
+                return Err(format!("{path}: missing {key}"));
+            }
+        }
+        let props = obj.get("properties").and_then(Value::as_object);
+        for (k, v) in map {
+            match props.and_then(|p| p.get(k)) {
+                Some(sub) => check_schema(&format!("{path}.{k}"), sub, v)?,
+                None if obj.get("additionalProperties") == Some(&Value::Bool(false)) => {
+                    return Err(format!("{path}: unexpected field {k}"));
+                }
+                None => {}
+            }
+        }
+    }
+    if let (Some(items), Some(list)) = (obj.get("items"), value.as_array()) {
+        for (i, v) in list.iter().enumerate() {
+            check_schema(&format!("{path}[{i}]"), items, v)?;
+        }
+    }
+    Ok(())
 }

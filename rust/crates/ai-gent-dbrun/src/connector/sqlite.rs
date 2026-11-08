@@ -3,7 +3,7 @@
 //! A read opens the file with `mode=ro` and sets `query_only`: the server itself refuses a write the
 //! classifier missed (`mode=ro` blocks the main file, `query_only` blocks TEMP). A write runs one
 //! transaction and commits it only when the row counts match `expect`.
-use super::{Connector, ExecResult, Mode, Request, Stage, StatementResult};
+use super::{Connector, ExecResult, Mode, Request, Stage, StatementResult, request};
 use crate::core::explain_sql;
 use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
 use rusqlite::types::ValueRef;
@@ -131,28 +131,6 @@ fn strip_quoted_sql(message: &str) -> String {
     message.to_string()
 }
 
-/// Python's `sqlite3` counts changes only for statements that begin with INSERT, UPDATE, DELETE or
-/// REPLACE (after whitespace and comments).
-fn is_dml(sql: &str) -> bool {
-    let mut rest = sql;
-    loop {
-        rest = rest.trim_start();
-        if let Some(r) = rest.strip_prefix("--") {
-            rest = r.split_once('\n').map_or("", |(_, tail)| tail);
-        } else if let Some(r) = rest.strip_prefix("/*") {
-            rest = r.split_once("*/").map_or("", |(_, tail)| tail);
-        } else {
-            break;
-        }
-    }
-    let word: String = rest
-        .chars()
-        .take_while(char::is_ascii_alphabetic)
-        .collect::<String>()
-        .to_ascii_uppercase();
-    matches!(word.as_str(), "INSERT" | "UPDATE" | "DELETE" | "REPLACE")
-}
-
 fn run(conn: &Connection, req: &Request, result: &mut ExecResult) -> rusqlite::Result<()> {
     let version: String = conn.query_row("SELECT sqlite_version()", [], |r| r.get(0))?;
     result.server = Some(vec![
@@ -189,31 +167,30 @@ fn run(conn: &Connection, req: &Request, result: &mut ExecResult) -> rusqlite::R
     if read {
         return Ok(());
     }
-    let results = result.results.as_deref().unwrap_or_default();
-    let mismatches: Vec<String> = req
-        .expect
+    let counts: Vec<i64> = result
+        .results
         .iter()
-        .enumerate()
-        .filter_map(|(i, want)| {
-            let (want, got) = ((*want)?, results.get(i)?.rowcount);
-            (want != got).then(|| format!("statement {}: expected {want}, got {got}", i + 1))
-        })
+        .flatten()
+        .map(|r| r.rowcount)
         .collect();
-    if mismatches.is_empty() {
-        conn.execute_batch("COMMIT")?;
-        result.committed = Some(true);
-    } else {
+    if let Some(error) = request::verify_counts(&req.expect, &counts) {
         conn.execute_batch("ROLLBACK")?;
         result.ok = false;
         result.stage = Some(Stage::Verify);
-        result.error = Some(format!(
-            "row counts differ from the plan: {}",
-            mismatches.join(", ")
-        ));
+        result.error = Some(error);
+    } else {
+        conn.execute_batch("COMMIT")?;
+        result.committed = Some(true);
     }
     Ok(())
 }
 
+/// Runs one statement. The row count is the connection's own change counter before and after the
+/// statement (never the statement text): a statement that changed rows reports `changes()` (its own
+/// rows, triggers excluded), one that changed nothing reports `0` (DDL, or DML that matched nothing)
+/// when it returns no rows, and `-1` when it is a read-only statement that returns rows (a SELECT); a
+/// `RETURNING` that matched nothing is a write and reports `0`. A fresh `changes()` above the
+/// total-changes difference is impossible, so it is refused rather than reported.
 fn run_statement(
     conn: &Connection,
     sql: &str,
@@ -221,53 +198,82 @@ fn run_statement(
     cap: usize,
 ) -> rusqlite::Result<StatementResult> {
     let mut statement = conn.prepare(sql)?;
-    let dml = is_dml(sql);
-    if statement.column_count() == 0 {
-        let n = statement.execute([])?;
-        // Like Python: DML reports its changes, anything else (DDL, PRAGMA, ...) -1; `changes()` of
-        // an earlier statement is never carried over.
-        return Ok(StatementResult {
-            rowcount: if dml {
-                i64::try_from(n).unwrap_or(i64::MAX)
-            } else {
-                -1
+    let before = conn.total_changes();
+    let readonly = statement.readonly();
+    let columns: Vec<String> = statement.column_names().map(String::from).collect();
+    let returns_rows = !columns.is_empty();
+    let (rows, truncated) = if returns_rows {
+        let mut query = statement.query([])?;
+        let mut failure = None;
+        let ncols = columns.len();
+        let source = std::iter::from_fn(|| match query.next() {
+            Ok(Some(row)) => match read_row(row, ncols) {
+                Ok(values) => Some(values),
+                Err(e) => {
+                    failure = Some(e);
+                    None
+                }
             },
-            columns: None,
-            rows: None,
-            truncated: None,
+            Ok(None) => None,
+            Err(e) => {
+                failure = Some(e);
+                None
+            }
+        });
+        // A read stops at `cap + 1`; a write drains the statement so its changes are all made.
+        let kept = request::cap_rows(source, read, cap);
+        if let Some(e) = failure {
+            return Err(e);
+        }
+        kept
+    } else {
+        statement.execute([])?;
+        (Vec::new(), false)
+    };
+    let changed = conn.total_changes() != before;
+    let server_count = changed.then(|| i64::try_from(conn.changes()).unwrap_or(i64::MAX));
+    if let Some(n) = server_count {
+        let total = i64::try_from(conn.total_changes() - before).unwrap_or(i64::MAX);
+        if n > total {
+            return Err(rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_ERROR),
+                Some("the change counter is inconsistent; refusing to report a row count".into()),
+            ));
+        }
+    }
+    let kind = match (changed, returns_rows) {
+        (true, _) => request::CountKind::Dml,
+        // A row-returning statement that changed nothing: a read reports `-1`, a write that matched
+        // no row (`UPDATE ... RETURNING` with no match) reports `0`, as Python does.
+        (false, true) if readonly => request::CountKind::Rows,
+        (false, _) => request::CountKind::Ddl,
+    };
+    let rowcount = request::rowcount(kind, server_count).map_err(|m| {
+        rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_ERROR),
+            Some(m.to_string()),
+        )
+    })?;
+    Ok(StatementResult {
+        rowcount,
+        columns: returns_rows.then_some(columns),
+        rows: returns_rows.then_some(rows),
+        truncated: returns_rows.then_some(truncated),
+    })
+}
+
+fn read_row(row: &rusqlite::Row<'_>, ncols: usize) -> rusqlite::Result<Vec<Value>> {
+    let mut values = Vec::with_capacity(ncols);
+    for i in 0..ncols {
+        values.push(match row.get_ref(i)? {
+            ValueRef::Null => Value::Null,
+            ValueRef::Integer(v) => Value::from(v),
+            ValueRef::Real(v) => Value::from(v),
+            ValueRef::Text(v) => Value::from(String::from_utf8_lossy(v).into_owned()),
+            ValueRef::Blob(v) => Value::from(format!("<{} bytes>", v.len())),
         });
     }
-    let columns: Vec<String> = statement.column_names().map(String::from).collect();
-    let mut query = statement.query([])?;
-    let mut rows: Vec<Vec<Value>> = Vec::new();
-    let mut truncated = false;
-    while let Some(row) = query.next()? {
-        if read && rows.len() == cap {
-            truncated = true;
-            break;
-        }
-        let mut values = Vec::with_capacity(columns.len());
-        for i in 0..columns.len() {
-            values.push(match row.get_ref(i)? {
-                ValueRef::Null => Value::Null,
-                ValueRef::Integer(v) => Value::from(v),
-                ValueRef::Real(v) => Value::from(v),
-                ValueRef::Text(v) => Value::from(String::from_utf8_lossy(v).into_owned()),
-                ValueRef::Blob(v) => Value::from(format!("<{} bytes>", v.len())),
-            });
-        }
-        rows.push(values);
-    }
-    // Only a read is capped; a write returns everything its statement produced, like the Python runner
-    // (which slices to `max_rows` in both cases).
-    rows.truncate(cap);
-    // Python reads `rowcount` before fetching: a row-producing DML (RETURNING) is still 0 then.
-    Ok(StatementResult {
-        rowcount: if dml { 0 } else { -1 },
-        columns: Some(columns),
-        rows: Some(rows),
-        truncated: Some(truncated),
-    })
+    Ok(values)
 }
 
 #[cfg(test)]

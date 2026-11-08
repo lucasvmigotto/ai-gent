@@ -1,0 +1,39 @@
+{
+  "contract_version": 1,
+  "name": "returning-matches-nothing-counts-zero",
+  "derived_from": "spec 043 FR-010 and review of D-007: an UPDATE ... RETURNING that matches no row is a write that changed nothing; dbrun.py reports rowcount 0 and a plan expecting 0 commits, so the port reports 0 too (a SELECT stays -1)",
+  "kind": "exec",
+  "engines": [
+    "sqlite"
+  ],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10)"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "UPDATE t SET n = 5 WHERE id = 99 RETURNING id"
+        ],
+        "timeout": 5,
+        "max_rows": 200,
+        "expect": [
+          0
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rowcount": 0
+          }
+        ]
+      }
+    }
+  ]
+}

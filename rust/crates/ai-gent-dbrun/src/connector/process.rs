@@ -181,15 +181,14 @@ fn kill(child: &mut Child) {
     let _ = child.wait();
 }
 
-/// Plain replacement of the secrets, then the contract's word-aware redaction.
+/// The shared redactor over the profile's password, host and user.
 fn scrub(text: &str, conn: &ConnFacts) -> String {
-    let value = |v: &Option<String>| v.clone().unwrap_or_default();
-    let (password, host, user) = (value(&conn.password), value(&conn.host), value(&conn.user));
-    let mut out = text.to_string();
-    if !password.is_empty() {
-        out = out.replace(&password, "<password>");
-    }
-    crate::core::redact(&out, &[(&host, "<host>"), (&user, "<user>")])
+    crate::core::redact::Redactor::from_parts(
+        conn.password.as_deref(),
+        conn.host.as_deref(),
+        conn.user.as_deref(),
+    )
+    .redact(text)
 }
 
 /// `cut` says the capture stopped early: a secret may straddle the end, so the tail that long

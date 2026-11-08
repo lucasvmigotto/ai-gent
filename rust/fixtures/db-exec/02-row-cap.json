@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "name": "row-cap",
   "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_row_cap",
   "kind": "exec",

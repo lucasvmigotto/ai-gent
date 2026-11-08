@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "name": "read-masks-and-reveals",
   "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_read_masks_and_logs (the connector returns raw rows; masking is core::mask; the log never holding results is the runner's, not the connector's)",
   "kind": "exec",

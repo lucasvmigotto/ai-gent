@@ -1,0 +1,104 @@
+{
+  "contract_version": 1,
+  "name": "max-rows-edges",
+  "derived_from": "plugins/db/scripts/dbrun.py execute(): fetchmany(max_rows + 1) in read mode, so max_rows 0 on a non-empty result is truncated with no rows, and an empty result is never truncated",
+  "kind": "exec",
+  "engines": [
+    "sqlite"
+  ],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30)"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT id FROM t"
+        ],
+        "timeout": 5,
+        "max_rows": 0
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "columns": [
+              "id"
+            ],
+            "rows": [],
+            "truncated": true
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT id FROM t WHERE id > 99"
+        ],
+        "timeout": 5,
+        "max_rows": 0
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "columns": [
+              "id"
+            ],
+            "rows": [],
+            "truncated": false
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT id FROM t ORDER BY id"
+        ],
+        "timeout": 5,
+        "max_rows": 1
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rows": [
+              [
+                1
+              ]
+            ],
+            "truncated": true
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "SELECT id FROM t"
+        ],
+        "timeout": 5,
+        "max_rows": 0
+      },
+      "expected": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rows": [],
+            "truncated": false
+          }
+        ]
+      }
+    }
+  ]
+}

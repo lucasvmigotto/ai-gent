@@ -1,0 +1,62 @@
+{
+  "contract_version": 1,
+  "name": "connect-failure-shape",
+  "derived_from": "plugins/db/scripts/dbrun.py execute(): a connection that cannot open is {ok:false, stage:connect, error} with no results, no seconds and no committed",
+  "kind": "exec",
+  "engines": [
+    "sqlite"
+  ],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30)"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "conn_patch": {
+        "path": "$dir/absent.db"
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "unable to open"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed",
+        "server",
+        "links"
+      ]
+    },
+    {
+      "request": {
+        "mode": "test",
+        "statements": [],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "conn_patch": {
+        "path": "$dir/absent.db"
+      },
+      "expected": {
+        "ok": false,
+        "stage": "connect"
+      },
+      "absent": [
+        "results",
+        "seconds",
+        "committed"
+      ]
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 {
+  "contract_version": 1,
   "name": "plan-apply-restore",
   "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_plan_apply_restore (the connector half: a write commits when its count matches; plans, the confirmation and the backup file are the runner's, so the restore is replayed as a second write)",
   "kind": "exec",
