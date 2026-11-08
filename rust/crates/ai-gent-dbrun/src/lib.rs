@@ -19,3 +19,4 @@
 pub mod connector;
 pub mod core;
 pub(crate) mod fsutil;
+pub mod profiles;
