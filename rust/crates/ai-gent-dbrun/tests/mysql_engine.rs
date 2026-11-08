@@ -7,8 +7,9 @@
 //! cargo test -p ai-gent-dbrun --features mysql --test mysql_engine -- --ignored --test-threads=1
 //! ```
 //!
-//! One container per engine and test, published on a random loopback port, with a memory cap and a
-//! label; it is removed by its ID when the test ends (a guard), never by a prune. The server certificate
+//! One container per engine and test, published on a random loopback port, with a memory cap and the
+//! project's ownership label (`shared/containers.md` 9a); it is removed by its ID when the test ends (a
+//! guard), never by a prune. Images are pinned by tag; TODO pin them by digest as well. The server certificate
 //! is signed by a throwaway CA made in the test, so every connection here is TLS and verified.
 //! Passwords are throwaway values of these containers only.
 #![cfg(feature = "mysql")]
@@ -71,7 +72,7 @@ fn start(family: &'static str) -> Container {
             "--memory",
             "1g",
             "--label",
-            "ai-gent-test=dbrun-mysql",
+            "me.lucasvmigotto.ai-gent.project=ai-gent",
         ])
         .args([
             "-p",
@@ -80,7 +81,11 @@ fn start(family: &'static str) -> Container {
             &format!("{env}={PASSWORD}"),
             "-v",
         ])
-        .arg(format!("{}:/certs:ro", certs.path().display()))
+        .arg(format!(
+            "{}:/certs:{}",
+            certs.path().display(),
+            mount_options()
+        ))
         .arg(image)
         .args([
             "--ssl-ca=/certs/ca.pem",
@@ -115,6 +120,17 @@ fn start(family: &'static str) -> Container {
         .expect("published port");
     wait_ready(&c);
     c
+}
+
+/// `ro`, and `Z` (a private `SELinux` label) only where the runner is Podman on a host with `SELinux`
+/// enforcing; elsewhere (other Linux hosts, macOS, Docker Desktop) the option would be refused or wrong.
+fn mount_options() -> &'static str {
+    let selinux = std::fs::read_to_string("/sys/fs/selinux/enforce").is_ok_and(|v| v.trim() == "1");
+    if selinux && runner().contains("podman") {
+        "ro,Z"
+    } else {
+        "ro"
+    }
 }
 
 #[cfg(unix)]
@@ -444,7 +460,8 @@ fn the_timeout_variable_is_set_after_the_version(c: &Container) {
 }
 
 fn guards(c: &Container) {
-    // Multi-statement trick and LOCAL INFILE never reach the server; the table is untouched.
+    // Multi-statement tricks, LOCAL INFILE and the server's own comment rules: none reaches the server,
+    // and the table is untouched.
     let mut s = raw(c, None).unwrap();
     s.query_drop("CREATE DATABASE guarddb").unwrap();
     s.query_drop("USE guarddb").unwrap();
@@ -452,18 +469,84 @@ fn guards(c: &Container) {
     s.query_drop("INSERT INTO g VALUES (1)").unwrap();
     for sql in [
         "SELECT 1; DELETE FROM g",
+        "SELECT 1--1; SET SESSION TRANSACTION READ WRITE; COMMIT; DELETE FROM g; COMMIT",
+        "SELECT 1 #'\n; SET SESSION transaction_read_only = 0; COMMIT; DELETE FROM g; COMMIT; #'",
+        "SELECT 1 /*!50000 FOR UPDATE */",
+        "SELECT 1\\G",
         "LOAD DATA LOCAL INFILE '/etc/hostname' INTO TABLE g",
     ] {
-        let (out, line) = run(
-            &verified(c),
-            &request(c, Mode::Write, Some("guarddb"), &["SELECT 0", sql], 10.0),
-        );
-        assert_eq!(out["ok"], false, "{sql}: {line}");
-        assert_eq!(out["stage"], "execute", "{sql}: {line}");
-        no_secret(&line);
+        for mode in [Mode::Read, Mode::Write] {
+            let (out, line) = run(
+                &verified(c),
+                &request(c, mode, Some("guarddb"), &["SELECT 0", sql], 10.0),
+            );
+            assert_eq!(out["ok"], false, "{sql}: {line}");
+            assert_eq!(out["stage"], "execute", "{sql}: {line}");
+            assert!(
+                out.get("server").is_none(),
+                "{sql}: reached the server: {line}"
+            );
+            no_secret(&line);
+        }
     }
     let n: Option<i64> = s.query_first("SELECT COUNT(*) FROM g").unwrap();
     assert_eq!(n, Some(1));
+}
+
+/// In read mode a statement that turns the session read-write is caught by the check after it, and
+/// the request stops. The table stays as it was.
+fn read_only_is_checked_after_every_statement(c: &Container) {
+    let mut s = raw(c, None).unwrap();
+    s.query_drop("CREATE DATABASE rodb").unwrap();
+    s.query_drop("USE rodb").unwrap();
+    s.query_drop("CREATE TABLE r (n INT)").unwrap();
+    s.query_drop("INSERT INTO r VALUES (1)").unwrap();
+    let (out, line) = run(
+        &verified(c),
+        &request(
+            c,
+            Mode::Read,
+            Some("rodb"),
+            &[
+                "SET SESSION TRANSACTION READ WRITE",
+                "COMMIT",
+                "DELETE FROM r",
+            ],
+            10.0,
+        ),
+    );
+    assert_eq!(out["ok"], false, "{line}");
+    assert_eq!(out["stage"], "execute", "{line}");
+    assert!(
+        out["error"]
+            .as_str()
+            .unwrap()
+            .contains("no longer read only"),
+        "{line}"
+    );
+    let n: Option<i64> = s.query_first("SELECT COUNT(*) FROM r").unwrap();
+    assert_eq!(n, Some(1), "the read deleted a row");
+}
+
+/// The session reads text the way the lexer assumes: `"abc"` is a string (no `ANSI_QUOTES`), a
+/// backslash escapes a quote (no `NO_BACKSLASH_ESCAPES`), and the connection character set is utf8mb4.
+fn the_session_reads_text_as_the_lexer_assumes(c: &Container) {
+    let (out, line) = run(
+        &verified(c),
+        &request(
+            c,
+            Mode::Read,
+            None,
+            &["SELECT \"abc\" AS a, 'x\\'y' AS b, CHARSET('z') AS c"],
+            10.0,
+        ),
+    );
+    assert_eq!(out["ok"], true, "{line}");
+    assert_eq!(
+        out["results"][0]["rows"][0],
+        serde_json::json!(["abc", "x'y", "utf8mb4"]),
+        "{line}"
+    );
 }
 
 fn whole_family(family: &'static str) {
@@ -476,6 +559,8 @@ fn whole_family(family: &'static str) {
     write_waits_on_a_lock(&c);
     slow_write_is_bounded(&c);
     guards(&c);
+    read_only_is_checked_after_every_statement(&c);
+    the_session_reads_text_as_the_lexer_assumes(&c);
 }
 
 #[test]
