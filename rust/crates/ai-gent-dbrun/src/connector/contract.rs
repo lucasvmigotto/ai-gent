@@ -18,7 +18,7 @@
 //! }
 //! ```
 //!
-//! A step may also carry `absent` (result keys that must not be there), `conn_patch` (connection
+//! A step may also carry `absent` (result keys that must not be there; `absent_port` for the port only), `conn_patch` (connection
 //! fields to override, `$dir` being the database's directory), `only: "port"`, `expected_port` and
 //! `difference` (an id of `specs/043-dbrun-port/differences.md`); see [`Profile`].
 //!
@@ -251,6 +251,20 @@ pub fn run_exec_cases<C: Connector + ?Sized>(
                     actual.get(key).is_none(),
                     "{at}: `{key}` must be absent: {line}"
                 );
+            }
+            if profile == Profile::Port {
+                for key in step
+                    .get("absent_port")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    let key = key.as_str().unwrap_or("");
+                    assert!(
+                        actual.get(key).is_none(),
+                        "{at}: `{key}` must be absent on the port: {line}"
+                    );
+                }
             }
             if let Some(m) = step.get("masked") {
                 check_masked(&at, m, &actual);

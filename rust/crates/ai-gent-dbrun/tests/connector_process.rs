@@ -206,6 +206,6 @@ fn process_connector_passes_the_sqlite_contract_through_dbrun_py() {
             }
         },
     );
-    assert_eq!(ran, 19, "exec cases run");
+    assert_eq!(ran, 20, "exec cases run");
     eprintln!("ran {ran} sqlite contract cases through python3 dbrun.py _exec");
 }

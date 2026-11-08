@@ -188,8 +188,9 @@ fn run(conn: &Connection, req: &Request, result: &mut ExecResult) -> rusqlite::R
 /// Runs one statement. The row count is the connection's own change counter before and after the
 /// statement (never the statement text): a statement that changed rows reports `changes()` (its own
 /// rows, triggers excluded), one that changed nothing reports `0` (DDL, or DML that matched nothing)
-/// when it returns no rows, and `-1` when it returns rows without changing any (a SELECT, or a
-/// `RETURNING` that matched nothing: the count is not known to be zero).
+/// when it returns no rows, and `-1` when it is a read-only statement that returns rows (a SELECT); a
+/// `RETURNING` that matched nothing is a write and reports `0`. A fresh `changes()` above the
+/// total-changes difference is impossible, so it is refused rather than reported.
 fn run_statement(
     conn: &Connection,
     sql: &str,
@@ -198,6 +199,7 @@ fn run_statement(
 ) -> rusqlite::Result<StatementResult> {
     let mut statement = conn.prepare(sql)?;
     let before = conn.total_changes();
+    let readonly = statement.readonly();
     let columns: Vec<String> = statement.column_names().map(String::from).collect();
     let returns_rows = !columns.is_empty();
     let (rows, truncated) = if returns_rows {
@@ -230,10 +232,21 @@ fn run_statement(
     };
     let changed = conn.total_changes() != before;
     let server_count = changed.then(|| i64::try_from(conn.changes()).unwrap_or(i64::MAX));
+    if let Some(n) = server_count {
+        let total = i64::try_from(conn.total_changes() - before).unwrap_or(i64::MAX);
+        if n > total {
+            return Err(rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_ERROR),
+                Some("the change counter is inconsistent; refusing to report a row count".into()),
+            ));
+        }
+    }
     let kind = match (changed, returns_rows) {
         (true, _) => request::CountKind::Dml,
-        (false, true) => request::CountKind::Rows,
-        (false, false) => request::CountKind::Ddl,
+        // A row-returning statement that changed nothing: a read reports `-1`, a write that matched
+        // no row (`UPDATE ... RETURNING` with no match) reports `0`, as Python does.
+        (false, true) if readonly => request::CountKind::Rows,
+        (false, _) => request::CountKind::Ddl,
     };
     let rowcount = request::rowcount(kind, server_count).map_err(|m| {
         rusqlite::Error::SqliteFailure(

@@ -30,6 +30,7 @@ oracle = []
 # Default features on purpose: the classifier's golden cases need Unicode-aware `\w`, `\b` and `(?i)`,
 # which the workspace's trimmed `regex` entry (ASCII guard patterns) leaves out.
 regex = "1"
+aho-corasick = "1"
 serde.workspace = true
 serde_json.workspace = true
 rusqlite = { version = "0.41", features = ["bundled", "hooks"], optional = true }

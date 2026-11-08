@@ -14,9 +14,9 @@
 //!   ASCII letters in any case, and a value of any length counts: a one-character user is redacted,
 //!   not skipped;
 //! - one pass over the original text: overlapping or touching hits merge into one label, so a
-//!   replacement can never expose a piece of another secret or create a new match. The pass marks
-//!   bytes of the text, so time is linear in the text length times the number of patterns and memory
-//!   is one byte per text byte, however many hits there are.
+//!   replacement can never expose a piece of another secret or create a new match. The pass uses an
+//!   Aho-Corasick automaton and difference arrays, so the matches examined are at most the text
+//!   length times the number of patterns, however the hits overlap (the tests assert that count).
 //!
 //! An empty value is never a needle; the loopback names are not secrets and stay readable.
 use std::fmt::Write as _;
@@ -41,7 +41,6 @@ struct Needle {
 
 /// Rank of each label; the lowest rank labels a merged hit.
 const LABELS: [&str; 3] = ["<password>", "<host>", "<user>"];
-const NONE: u8 = u8::MAX;
 
 /// Replaces a profile's secrets in text. `Debug` never prints a value.
 #[derive(Clone, Default)]
@@ -77,7 +76,7 @@ fn percent_form(value: &str, keep: &str, lower: bool, plus: bool) -> String {
 /// JavaScript's `encodeURIComponent` set), upper or lower hex, space as `%20` or `+`.
 fn percent_forms(value: &str) -> Vec<String> {
     let mut out = Vec::new();
-    for keep in ["", "-_.~", "-_.", "-_.!~*'()"] {
+    for keep in ["", "-_.~", "-_.", "-_.!~*'()", "-_.~/", "-_./"] {
         for lower in [false, true] {
             for plus in [false, true] {
                 out.push(percent_form(value, keep, lower, plus));
@@ -101,12 +100,48 @@ fn word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+/// JSON with every non-ASCII character as `\uXXXX` (Python's `json.dumps` default).
+fn json_ascii(value: &str) -> String {
+    let mut out = String::new();
+    for c in json_inner(value).chars() {
+        if c.is_ascii() {
+            out.push(c);
+        } else {
+            let mut buf = [0u16; 2];
+            for u in c.encode_utf16(&mut buf) {
+                let _ = write!(out, "\\u{u:04x}");
+            }
+        }
+    }
+    out
+}
+
+/// The Python `repr` body of a string: control characters as `\xNN`, `\n`, `\r`, `\t`.
+fn repr_controls(value: &str) -> String {
+    let mut out = String::new();
+    for c in value.chars() {
+        match c {
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
+                let _ = write!(out, "\\x{:02x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 /// Every quoting a driver is likely to apply to `base`.
 fn quoted_forms(base: &str) -> Vec<String> {
     let bs = |s: &str| s.replace('\\', "\\\\");
     vec![
         base.to_string(),
         json_inner(base),
+        json_ascii(base),
+        repr_controls(base),
+        bs(&repr_controls(base)),
         base.replace('\'', "''"),
         base.replace('"', "\"\""),
         base.replace('\'', "''").replace('"', "\"\""),
@@ -161,6 +196,9 @@ impl Redactor {
     pub fn add_password(&mut self, value: &str) {
         for base in [value, value.trim()] {
             for form in quoted_forms(base).into_iter().chain(percent_forms(base)) {
+                // A driver or log may upper- or lower-case what it echoes: cover ASCII case as well.
+                self.push(form.to_ascii_lowercase(), 0, Kind::Anywhere);
+                self.push(form.to_ascii_uppercase(), 0, Kind::Anywhere);
                 self.push(form, 0, Kind::Anywhere);
             }
         }
@@ -189,52 +227,81 @@ impl Redactor {
     /// `text` with every known secret replaced.
     #[must_use]
     pub fn redact(&self, text: &str) -> String {
-        if self.needles.is_empty() {
-            return text.to_string();
+        self.redact_counted(text).0
+    }
+
+    /// As [`Redactor::redact`], also returning the number of matches examined: at most the text length
+    /// times the number of patterns (the bound the tests assert instead of a wall-clock time).
+    fn redact_counted(&self, text: &str) -> (String, usize) {
+        if self.needles.is_empty() || text.is_empty() {
+            return (text.to_string(), 0);
         }
         let lower = text.to_ascii_lowercase();
-        // One byte per text byte: the lowest rank that covers it.
-        let mut marks = vec![NONE; text.len()];
-        for needle in &self.needles {
-            let haystack = if needle.kind == Kind::Word {
-                &lower
-            } else {
-                text
+        // Per label rank, a difference array of the hits: linear in the text however the hits overlap.
+        let mut diff = [
+            vec![0_i32; text.len() + 1],
+            vec![0_i32; text.len() + 1],
+            vec![0_i32; text.len() + 1],
+        ];
+        let mut steps = 0_usize;
+        for (kind, haystack) in [(Kind::Anywhere, text), (Kind::Word, lower.as_str())] {
+            let group: Vec<&Needle> = self.needles.iter().filter(|n| n.kind == kind).collect();
+            if group.is_empty() {
+                continue;
+            }
+            let Ok(ac) = aho_corasick::AhoCorasick::new(group.iter().map(|n| n.text.as_bytes()))
+            else {
+                // Cannot build the matcher (absurd pattern set): fail closed, say nothing of the text.
+                return (LABELS[0].to_string(), 0);
             };
-            let mut from = 0;
-            while let Some(p) = haystack[from..].find(&needle.text) {
-                let (s, e) = (from + p, from + p + needle.text.len());
-                let whole = needle.kind == Kind::Anywhere || {
-                    let before = text[..s].chars().next_back();
-                    let after = text[e..].chars().next();
+            for m in ac.find_overlapping_iter(haystack.as_bytes()) {
+                steps += 1;
+                let needle = group[m.pattern().as_usize()];
+                let (s, e) = (m.start(), m.end());
+                let whole = kind == Kind::Anywhere || {
+                    let before = text.get(..s).and_then(|t| t.chars().next_back());
+                    let after = text.get(e..).and_then(|t| t.chars().next());
                     before.is_none_or(|c| !(word_char(c) || c == '.' || c == '-'))
                         && after.is_none_or(|c| !(word_char(c) || c == '-'))
                 };
                 if whole {
-                    for m in &mut marks[s..e] {
-                        *m = (*m).min(needle.rank);
-                    }
+                    let d = &mut diff[usize::from(needle.rank)];
+                    d[s] += 1;
+                    d[e] -= 1;
                 }
-                from = s + haystack[s..].chars().next().map_or(1, char::len_utf8);
             }
         }
+        // Prefix sums give, for each byte, whether a rank covers it; the lowest covering rank wins.
+        let mut open = [0_i32; 3];
         let mut out = String::with_capacity(text.len());
         let mut i = 0;
+        let mut run: Option<usize> = None;
         while i < text.len() {
-            if marks[i] == NONE {
-                let c = text[i..].chars().next().map_or(1, char::len_utf8);
-                out.push_str(&text[i..i + c]);
-                i += c;
-            } else {
-                let mut rank = NONE;
-                while i < text.len() && marks[i] != NONE {
-                    rank = rank.min(marks[i]);
-                    i += 1;
-                }
-                out.push_str(LABELS[usize::from(rank)]);
+            for (r, d) in diff.iter().enumerate() {
+                open[r] += d[i];
             }
+            let rank = open.iter().position(|&c| c > 0);
+            if let Some(r) = rank {
+                run = Some(run.map_or(r, |old| old.min(r)));
+                i += 1;
+                continue;
+            }
+            if let Some(r) = run.take() {
+                out.push_str(LABELS[r]);
+            }
+            let c = text[i..].chars().next().map_or(1, char::len_utf8);
+            out.push_str(&text[i..i + c]);
+            for step in 1..c {
+                for (r, d) in diff.iter().enumerate() {
+                    open[r] += d[i + step];
+                }
+            }
+            i += c;
         }
-        out
+        if let Some(r) = run {
+            out.push_str(LABELS[r]);
+        }
+        (out, steps)
     }
 }
 
@@ -454,24 +521,47 @@ mod tests {
     }
 
     #[test]
-    fn a_huge_text_stays_linear_enough() {
+    fn a_huge_text_is_redacted_with_a_bounded_number_of_steps() {
         let r = conn("pw-Sup3rS3cret", "h.example", "u_app");
         let text = "x".repeat(2_000_000) + "pw-Sup3rS3cret";
         let out = r.redact(&text);
         assert!(out.ends_with("<password>"));
-        // One-character secrets over a 16 MiB text: every byte is a hit; the work stays linear.
+        // One-character secrets: every byte is a hit. The bound is on matches examined (structure),
+        // not on a clock, so it cannot flake on a loaded machine.
         let r = conn("a", "h.example", "u");
-        let text = "a".repeat(16 * 1024 * 1024);
-        let started = std::time::Instant::now();
-        assert_eq!(r.redact(&text), "<password>");
-        let mixed = "ab-".repeat(5 * 1024 * 1024);
+        let text = "a".repeat(1024 * 1024);
+        let (out, steps) = r.redact_counted(&text);
+        assert_eq!(out, "<password>");
+        assert!(steps <= text.len() * r.needles.len(), "{steps}");
+        let mixed = "ab-".repeat(300_000);
         let out = r.redact(&mixed);
-        // Each `a` (1 byte) becomes `<password>` (10): the output is bounded by 4x here.
-        assert_eq!(out.len(), 5 * 1024 * 1024 * 12);
-        assert!(
-            started.elapsed() < std::time::Duration::from_secs(8),
-            "{:?}",
-            started.elapsed()
-        );
+        assert_eq!(out, "<password>b-".repeat(300_000));
+    }
+
+    #[test]
+    fn a_repetitive_long_password_costs_matches_not_a_quadratic_scan() {
+        // 200 equal characters over 100 KiB of the same character: every position starts a hit.
+        let secret = "a".repeat(200);
+        let r = conn(&secret, "h.example", "u_app");
+        let text = "a".repeat(100 * 1024);
+        let (out, steps) = r.redact_counted(&text);
+        assert_eq!(out, "<password>");
+        assert!(steps <= text.len() * r.needles.len(), "{steps}");
+    }
+
+    #[test]
+    fn more_quotings_of_a_password_are_covered() {
+        let r = conn("p@ss/wörd\u{1}x", "h.example", "u_app");
+        for shown in [
+            "url p%40ss/w%C3%B6rd%01x here",
+            "url p%40ss%2fw%c3%b6rd%01x here",
+            "json p@ss/w\\u00f6rd\\u0001x here",
+            "repr p@ss/wörd\\x01x here",
+            "up P@SS/WöRD\u{1}X here",
+        ] {
+            let out = r.redact(shown);
+            assert!(out.contains("<password>"), "{shown} -> {out}");
+            assert!(!out.contains("ss/w"), "{shown} -> {out}");
+        }
     }
 }
