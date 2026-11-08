@@ -1,0 +1,25 @@
+{
+  "comment": "Policy cases of core::tls (spec 043 T007): which tls_mode values are authorized for which profile. `declared` is the class the profile file says, `proven` the class after classification, `host` what the driver connects to. `field` is the profile field the refusal names. Engine groups' TLS tests reuse these.",
+  "authorize": [
+    {"name": "verify on production is fine", "mode": "verify", "declared": "production", "proven": "production", "host": "db.internal", "expect": "ok"},
+    {"name": "default mode on staging is fine", "mode": null, "declared": "staging", "proven": "staging", "host": "db.internal", "expect": "ok"},
+    {"name": "unverified on proven-local loopback", "mode": "unverified", "declared": "local", "proven": "local", "host": "127.0.0.1", "expect": "ok"},
+    {"name": "unverified on proven-local ::1", "mode": "unverified", "declared": "local", "proven": "local", "host": "::1", "expect": "ok"},
+    {"name": "unverified on proven-local bracketed ::1", "mode": "unverified", "declared": "local", "proven": "local", "host": "[::1]", "expect": "ok"},
+    {"name": "unverified on proven-local localhost", "mode": "unverified", "declared": "local", "proven": "local", "host": "localhost", "expect": "ok"},
+    {"name": "unverified on proven-local 127.5.5.5", "mode": "unverified", "declared": "local", "proven": "local", "host": "127.5.5.5", "expect": "ok"},
+    {"name": "unverified on proven-local ipv4-mapped loopback", "mode": "unverified", "declared": "local", "proven": "local", "host": "::ffff:127.0.0.1", "expect": "ok"},
+    {"name": "unverified on development declared, proven local", "mode": "unverified", "declared": "development", "proven": "local", "host": "127.0.0.1", "expect": "ok"},
+    {"name": "unverified on production declared and classed", "mode": "unverified", "declared": "production", "proven": "production", "host": "127.0.0.1", "expect": "refused", "field": "tls_mode", "says": "production"},
+    {"name": "unverified on an unclassified profile (default production) even when proven local", "mode": "unverified", "declared": "production", "proven": "local", "host": "127.0.0.1", "expect": "refused", "field": "tls_mode", "says": "production"},
+    {"name": "unverified, declared local but not proven (classed production)", "mode": "unverified", "declared": "local", "proven": "production", "host": "127.0.0.1", "expect": "refused", "field": "tls_mode", "says": "production"},
+    {"name": "unverified on staging", "mode": "unverified", "declared": "staging", "proven": "staging", "host": "127.0.0.1", "expect": "refused", "field": "tls_mode", "says": "proven local"},
+    {"name": "unverified on development, not proven", "mode": "unverified", "declared": "development", "proven": "development", "host": "127.0.0.1", "expect": "refused", "field": "tls_mode", "says": "proven local"},
+    {"name": "unverified, proven local, remote host", "mode": "unverified", "declared": "local", "proven": "local", "host": "db.internal", "expect": "refused", "field": "tls_mode", "says": "loopback"},
+    {"name": "unverified, proven local, empty host", "mode": "unverified", "declared": "local", "proven": "local", "host": "", "expect": "refused", "field": "tls_mode", "says": "loopback"},
+    {"name": "unverified, proven local, lookalike host 127.0.0.1.evil.com", "mode": "unverified", "declared": "local", "proven": "local", "host": "127.0.0.1.evil.com", "expect": "refused", "field": "tls_mode", "says": "loopback"},
+    {"name": "unverified, proven local, lookalike host localhost.evil.com", "mode": "unverified", "declared": "local", "proven": "local", "host": "localhost.evil.com", "expect": "refused", "field": "tls_mode", "says": "loopback"},
+    {"name": "unverified, proven local, private address", "mode": "unverified", "declared": "local", "proven": "local", "host": "10.0.0.5", "expect": "refused", "field": "tls_mode", "says": "loopback"},
+    {"name": "unverified, proven local, 0.0.0.0", "mode": "unverified", "declared": "local", "proven": "local", "host": "0.0.0.0", "expect": "refused", "field": "tls_mode", "says": "loopback"}
+  ]
+}

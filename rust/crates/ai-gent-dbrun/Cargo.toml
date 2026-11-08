@@ -25,6 +25,10 @@ postgres = []
 mysql = []
 mssql = []
 oracle = []
+# rustls configuration builder of the TLS profile model (spec 043 T007); off by default so the binary pays for it only with an engine.
+tls = ["dep:rustls", "dep:rustls-native-certs"]
+# The throwaway-CA generator the engine groups' TLS tests use (never in a release build).
+test-ca = ["tls", "dep:rcgen"]
 
 [dependencies]
 # Default features on purpose: the classifier's golden cases need Unicode-aware `\w`, `\b` and `(?i)`,
@@ -32,10 +36,17 @@ oracle = []
 regex = "1"
 serde.workspace = true
 serde_json.workspace = true
+ai-gent-core = { path = "../ai-gent-core", version = "0.1.0" }
+toml = { version = "1", default-features = false, features = ["parse", "serde"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }
 rusqlite = { version = "0.41", features = ["bundled", "hooks"], optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true
+# Turns `tls` and `test-ca` on for this crate's own tests, so `cargo test -p ai-gent-dbrun` covers the TLS builder.
+ai-gent-dbrun = { path = ".", features = ["test-ca"] }
 
 [lints]
 workspace = true
