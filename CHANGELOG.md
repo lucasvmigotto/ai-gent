@@ -34,6 +34,8 @@ changes.
 
 - **project:** the Pipeline pane lists a feature under Blockers, and counts it as blocked, only when it is still Planned (no side In progress or beyond) and a dependency is unbuilt; a started feature that waits on a dependency shows a dim `waiting` note (`waiting on 032`), is counted as `N waiting` apart from `blocked`, and never raises a blocker or an attention line. `ai-gent wt plan` and Next action are unchanged
 
+- **agents:** `agents:delegate` gains `references/rules.md`, eleven rules from the recorded delegated units: security-shaped work stays with the supervisor, briefs carry the defect-class lines and a per-item parity list, every unit is reviewed by another agent, one builder fix round, `cargo test` plus a Windows-aware check before the PR, and a per-run record (spec 041 T030)
+
 ## 2.27.0 — 2026-11-01
 
 ### Added
