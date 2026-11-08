@@ -163,3 +163,22 @@ A future `_exec` reader (the process-side entry point that reads the request fro
    exec path: acceptable, or inspect the pod's infra container? (D-A2-11)
 6. A bad `pass:` reference blocks loading all profiles (D-A2-21): keep, or list with an error marker?
 7. Windows owner-only files (D-A2-23): enforce an ACL, or document?
+
+## Worker A3 entries (T006, T009, T008, T012)
+
+### T006: classifier, scanner, cost rules, system databases (parity list)
+
+Behaviors of `dbrun.py` listed before the tests, one test each (all in `rust/crates/ai-gent-dbrun/tests/golden.rs`, data made by the committed generators `rust/spikes/dbrun/gen_golden.py` and `rust/fixtures/db-core/gen_writes.py`):
+
+| Behavior of `dbrun.py` | Test |
+|---|---|
+| The 16 driver-free tests of `test_dbrun.py`, every call and refusal text recorded from the original | `core_original_sixteen_tests_match_python` |
+| Verdict and reason text of `classify_statement`, 6 engines, 1026 read-heavy strings | `classify_matches_python` |
+| `split_statements` (including the backslash refusal), `is_ddl`, `cost_rules` on the same corpus | `split_ddl_cost_match_python` |
+| Write side: 203 write and look-alike statements (comment-split keywords, mixed case, hidden literals, locks, sequences, side-effect functions, PRAGMA, EXPLAIN ANALYZE, DO/CALL/COPY/ATTACH, statements after a quote trick, empty) x 6 engines: verdict, reason, split result and refusal text, `is_ddl`, `cost_rules` for production, staging, local and with `--allow-full-count`, `explain_sql` | `core_writes_classify_split_ddl_cost_match_python` |
+| `require_user_database` matrix (36 cases: system names in any case, unset and empty database on SQL Server, names with surrounding spaces, other engines) with the refusal text | `core_writes_system_databases_match_python` |
+| Masking, redaction labels, `network_args` | `mask_redact_network_match_python` |
+| Refusals name the rule and never echo the input | `core_refusals_name_the_rule_and_never_echo_the_input` |
+
+- Found by this corpus and fixed (a parity bug, not a difference): `require_user_database` treated an EMPTY database name as a named one, so a SQL Server profile with `DATABASE=` (which connects to `master`) passed. Python uses `p.get("database") or "master"`; Rust now does the same.
+- D-A3-01. Not copied from Python: the refusal text uses `'name'` quoting like Python's `{db!r}` only for names without a quote; a system name never has one, so the text is equal in every case that can be refused.
