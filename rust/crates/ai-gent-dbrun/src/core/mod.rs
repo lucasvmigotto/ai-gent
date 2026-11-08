@@ -10,6 +10,7 @@ pub mod fields;
 pub mod mask;
 pub mod plan;
 pub mod redact;
+pub mod tls;
 
 macro_rules! re {
     ($p:expr) => {{
