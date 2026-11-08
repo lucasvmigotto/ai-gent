@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 
 pub mod mask;
 pub mod plan;
+pub mod tls;
 
 macro_rules! re {
     ($p:expr) => {{
