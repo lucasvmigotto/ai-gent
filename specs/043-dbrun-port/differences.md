@@ -163,3 +163,22 @@ A future `_exec` reader (the process-side entry point that reads the request fro
    exec path: acceptable, or inspect the pod's infra container? (D-A2-11)
 6. A bad `pass:` reference blocks loading all profiles (D-A2-21): keep, or list with an error marker?
 7. Windows owner-only files (D-A2-23): enforce an ACL, or document?
+
+## MySQL and MariaDB (worker D, T040-T042)
+
+Ids carry `MY` so they cannot clash with the other groups' rows. `D` rows are intended and pinned by a test; `Q` rows keep the Python behavior or the builder's choice until the owner answers.
+
+| ID | Item | Python (PyMySQL) | Rust | Pinned by |
+|---|---|---|---|---|
+| D-MY-01 | An item that holds more than one statement, or names `LOCAL INFILE` | PyMySQL sets neither `CLIENT_MULTI_STATEMENTS` nor `CLIENT_LOCAL_FILES`: the server answers a syntax error (stage `execute`) | refused by the connector before it connects, stage `execute`, fixed text with no part of the statement. The `mysql` crate sets both capabilities and cannot unset them, so without this a second statement would run as one counted item | fixture `24` (`only: port`), `connector::mysql` tests `a_statement_item_with_a_second_statement_is_refused_before_connecting`, `a_local_infile_is_refused_before_connecting` |
+| D-MY-02 | TLS on every MySQL and MariaDB connection (FR-015) | no `ssl` argument: unencrypted | verify by default (the CA file or the crate's roots); `unverified` only on a proven-local loopback profile; a server that offers no TLS fails naming the cause | `tests/mysql_engine.rs` (`#[ignore]`, needs Podman), `connector::mysql` tests |
+| Q-MY-01 | Row count of a SELECT (Q-007 for MySQL) | rows returned (the result is buffered) | kept: the number of rows the SELECT returned, counted past `max_rows` without storing them | fixture `24` |
+| Q-MY-02 | Reading a result past the request timeout | PyMySQL buffers everything with no bound but the socket timeout per read | reading rows stops with an `execute` error at the request timeout, so a huge result cannot hold the runner (the count in Q-MY-01 needs the whole result) | `run_statement` (live test only) |
+| Q-MY-03 | Error text | `OperationalError: (1792, 'Cannot execute ...')` | `MysqlError: ERROR 1792 (25006): Cannot execute ...` (the spike's format, kept by the engines script); I/O, driver and TLS errors are `IoError:`, `DriverError:`, `TlsError:` | fixture `24` (`error_contains` the code) |
+| Q-MY-04 | TLS trust (FR-016) | n/a | the `mysql` crate builds its own rustls configuration: a certificate that chains to its bundled Mozilla roots is also accepted when `tls_ca_file` is set, and with no CA file the bundled roots are used, not the operating system's. `core::tls` still checks the CA file (bounded, no private key, at least one certificate) and the policy before the crate sees the path | `connector::mysql` CA file tests; no test can show the roots, so this is a recorded limit |
+| Q-MY-05 | `tls_server_name` | n/a | refused unless it equals `host` (the crate verifies against the host it connects to) | `a_tls_server_name_that_differs_from_the_host_is_refused` |
+| Q-MY-06 | A request with no `conn.host` | `host=None`: PyMySQL connects to `localhost` | `connect` failure `missing conn.host` | `missing_host_and_bad_ports_are_refused_before_connecting` |
+| Q-MY-07 | A port that is not 1 to 65535 | `int()` of the text, any number accepted by the OS call | refused before connecting (`invalid port`) | same test |
+| Q-MY-08 | A TIME or datetime the text cannot parse, invalid UTF-8 in a text column | PyMySQL returns the text as is, or raises on a bad byte | the text as is; invalid bytes become U+FFFD | `time_matches_python_str_of_timedelta` (unparsable TIME); the UTF-8 case has no test |
+| Q-MY-09 | DNS resolution of the host | no bound of its own | no bound of its own (the crate resolves with the system call; the 10 s limit covers the TCP connect only) | none: recorded limit |
+| Q-MY-10 | Login as an account the server does not have | `1045 Access denied` (PyMySQL speaks `sha256_password`) | MySQL 8.4 answers an unknown user with an `sha256_password` auth switch the `mysql` crate does not implement: `DriverError: Unknown authentication protocol` (stage `connect`, redacted); a wrong password for a real account is still `1045` | `wrong_password` in `tests/mysql_engine.rs` |

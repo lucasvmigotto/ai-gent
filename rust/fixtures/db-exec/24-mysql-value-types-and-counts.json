@@ -1,0 +1,353 @@
+{
+  "contract_version": 1,
+  "name": "mysql-value-types-and-counts",
+  "derived_from": "PyMySQL's decoders and dbrun.py to_jsonable() read from their source (not run against PyMySQL here): TIME as str(timedelta), BIT/GEOMETRY/BLOB/BINARY as '<N bytes>', zero and impossible dates left as the server's text, DATETIME as isoformat() with six-digit microseconds, DECIMAL as text; row count of a SELECT is the number of rows returned (PyMySQL buffers), DDL 0, DML the changed rows (no CLIENT_FOUND_ROWS); a CALL reports its first result set only and the connection stays in step; a write in read mode fails at the server with ERROR 1792",
+  "kind": "exec",
+  "engines": [
+    "mysql",
+    "mariadb"
+  ],
+  "setup": {
+    "mysql": [
+      "SET SESSION sql_mode=''",
+      "CREATE TABLE v (id INT PRIMARY KEY, t TIME(6), b BIT(8), g GEOMETRY, dt DATETIME(6), d DATE, dec1 DECIMAL(10,2), u BIGINT UNSIGNED, f DOUBLE, y YEAR, bl BLOB, vb VARBINARY(4), txt VARCHAR(10) CHARACTER SET utf8mb4)",
+      "INSERT INTO v VALUES (1, '01:02:03.12', b'10101010', ST_GeomFromText('POINT(1 2)'), '2026-11-07 14:59:58.12', '2026-11-07', 1.50, 18446744073709551615, 2.5, 2026, x'0102', 'ab', 'héllo')",
+      "INSERT INTO v VALUES (2, '-01:02:03', b'1', ST_GeomFromText('POINT(0 0)'), '0000-00-00 00:00:00', '0000-00-00', -3.10, 0, 1.0, 2000, x'', NULL, '')",
+      "INSERT INTO v VALUES (3, '838:59:59', NULL, NULL, '2026-02-00 01:02:03', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+      "CREATE TABLE w (id INT PRIMARY KEY, n INT)",
+      "INSERT INTO w VALUES (1, 10), (2, 20), (3, 30)",
+      "CREATE PROCEDURE two_sets() BEGIN SELECT 1 AS a; SELECT 2 AS b, 3 AS c; END"
+    ],
+    "mariadb": [
+      "SET SESSION sql_mode=''",
+      "CREATE TABLE v (id INT PRIMARY KEY, t TIME(6), b BIT(8), g GEOMETRY, dt DATETIME(6), d DATE, dec1 DECIMAL(10,2), u BIGINT UNSIGNED, f DOUBLE, y YEAR, bl BLOB, vb VARBINARY(4), txt VARCHAR(10) CHARACTER SET utf8mb4)",
+      "INSERT INTO v VALUES (1, '01:02:03.12', b'10101010', ST_GeomFromText('POINT(1 2)'), '2026-11-07 14:59:58.12', '2026-11-07', 1.50, 18446744073709551615, 2.5, 2026, x'0102', 'ab', 'héllo')",
+      "INSERT INTO v VALUES (2, '-01:02:03', b'1', ST_GeomFromText('POINT(0 0)'), '0000-00-00 00:00:00', '0000-00-00', -3.10, 0, 1.0, 2000, x'', NULL, '')",
+      "INSERT INTO v VALUES (3, '838:59:59', NULL, NULL, '2026-02-00 01:02:03', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+      "CREATE TABLE w (id INT PRIMARY KEY, n INT)",
+      "INSERT INTO w VALUES (1, 10), (2, 20), (3, 30)",
+      "CREATE PROCEDURE two_sets() BEGIN SELECT 1 AS a; SELECT 2 AS b, 3 AS c; END"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT t,b,dt,d,dec1,u,f,y,bl,vb,txt FROM v ORDER BY id"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 3,
+            "columns": [
+              "t",
+              "b",
+              "dt",
+              "d",
+              "dec1",
+              "u",
+              "f",
+              "y",
+              "bl",
+              "vb",
+              "txt"
+            ],
+            "truncated": false,
+            "rows": [
+              [
+                "1:02:03.120000",
+                "<1 bytes>",
+                "2026-11-07T14:59:58.120000",
+                "2026-11-07",
+                "1.50",
+                18446744073709551615,
+                2.5,
+                2026,
+                "<2 bytes>",
+                "<2 bytes>",
+                "héllo"
+              ],
+              [
+                "-1 day, 22:57:57",
+                "<1 bytes>",
+                "0000-00-00 00:00:00.000000",
+                "0000-00-00",
+                "-3.10",
+                0,
+                1.0,
+                2000,
+                "<0 bytes>",
+                null,
+                ""
+              ],
+              [
+                "34 days, 22:59:59",
+                null,
+                "2026-02-00 01:02:03.000000",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT g FROM v WHERE id = 1"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "columns": [
+              "g"
+            ],
+            "rows": [
+              [
+                "<25 bytes>"
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT id FROM v ORDER BY id"
+        ],
+        "timeout": 10,
+        "max_rows": 2
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 3,
+            "truncated": true,
+            "rows": [
+              [
+                1
+              ],
+              [
+                2
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "CALL two_sets()",
+          "SELECT 42 AS n"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "columns": [
+              "a"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          },
+          {
+            "rowcount": 1,
+            "columns": [
+              "n"
+            ],
+            "rows": [
+              [
+                42
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "UPDATE w SET n = 99 WHERE id = 1"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "ERROR 1792"
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT n FROM w WHERE id = 1"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "rows": [
+              [
+                10
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "UPDATE w SET n = n + 1 WHERE id < 3",
+          "UPDATE w SET n = 30 WHERE id = 3",
+          "CREATE TABLE scratch (n INT)",
+          "INSERT INTO scratch VALUES (1), (2)"
+        ],
+        "expect": [
+          2,
+          0,
+          0,
+          2
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rowcount": 2
+          },
+          {
+            "rowcount": 0
+          },
+          {
+            "rowcount": 0
+          },
+          {
+            "rowcount": 2
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "DELETE FROM w WHERE id = 3"
+        ],
+        "expect": [
+          5
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": false,
+        "stage": "verify",
+        "error_contains": "statement 1: expected 5, got 1"
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT COUNT(*) AS c FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rows": [
+              [
+                3
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1",
+          "SELECT 2; UPDATE w SET n = 0"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "more than one statement"
+      },
+      "absent": [
+        "results"
+      ]
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1 AS one"
+        ],
+        "timeout": 10,
+        "max_rows": 10,
+        "explain": true
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1
+          }
+        ]
+      }
+    }
+  ]
+}
