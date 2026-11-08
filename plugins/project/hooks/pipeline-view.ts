@@ -2,7 +2,7 @@
 // Pure, so the layout (wide, narrow, headless text) is tested without a surface.
 
 import type { Feature, MarkerKind, Snapshot } from '../types'
-import { STAGE_NAME, letter, progress, stageChecks, stageStrip, word } from './pipeline-model'
+import { STAGE_NAME, isBlocked, isWaiting, letter, progress, stageChecks, stageStrip, word } from './pipeline-model'
 import type { StageCheck, StageStep } from './pipeline-model'
 
 // 013's six, plus `info` (an active state) for the dashboard.
@@ -56,13 +56,13 @@ export function view(snapshot: Snapshot, columns: number, expanded: Readonly<Rec
   }
   for (const f of snapshot.features) {
     const mark = f.bucket === 'done' ? '✓' : f.bucket === 'ready' ? '▶' : '⏸'
-    const tone: Tone = f.bucket === 'done' ? 'dim' : f.bucket === 'ready' ? 'bold' : 'plain'
+    const tone: Tone = f.bucket === 'done' || isWaiting(f) ? 'dim' : f.bucket === 'ready' ? 'bold' : 'plain'
     const sides = Object.entries(f.sides)
     if (narrow) {
       add(`${mark} ${f.number} ${f.name} ${sides.map(([, v]) => letter(v)).join('/')}`, tone)
     } else {
       const cells = sides.map(([k, v]) => `${SIDE_LABEL[k] ?? k}:${v || '—'}`).join(' ')
-      const waits = f.waiting.length > 0 ? ` · waits for ${f.waiting.join(', ')}` : ''
+      const waits = f.waiting.length > 0 ? ` · ${isWaiting(f) ? 'waiting on' : 'waits for'} ${f.waiting.join(', ')}` : ''
       add(`${mark} ${f.number} ${f.name}  ${f.priority}  ${cells}${waits}`, tone)
     }
   }
@@ -149,7 +149,7 @@ export type PipelineView = {
     attention: { text: string; tone: Tone } | null
     line: string
   }
-  // Present only when something blocks: clarifications, features waiting on a dependency, missing artifacts.
+  // Present only when something blocks: clarifications, features not started and waiting on a dependency, missing artifacts.
   blockers: { count: number; rows: BlockerRow[]; more: number; isOpen: boolean } | null
   // The current step of the strip with the facts behind it; null when none is current or none is known.
   stageDetail: { label: string; checks: (StageCheck & { glyph: string; tone: Tone })[]; isOpen: boolean } | null
@@ -383,7 +383,8 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   const ready = snapshot.artifacts.filter(a => a.isPresent && !a.staleSince).length
   const tally = {
     ready: snapshot.features.filter(f => f.bucket === 'ready').length,
-    blocked: snapshot.features.filter(f => f.bucket === 'blocked').length,
+    blocked: snapshot.features.filter(isBlocked).length,
+    waiting: snapshot.features.filter(isWaiting).length,
   }
   const implemented = progress(snapshot.features).implemented
   const summaryCounts: Metric[] = [
@@ -391,6 +392,8 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     { key: 'implemented', value: implemented, label: 'implemented', tone: implemented > 0 ? 'good' : 'dim' },
     { key: 'ready', value: tally.ready, label: 'ready', tone: tally.ready > 0 ? 'info' : 'dim' },
     { key: 'blocked', value: tally.blocked, label: 'blocked', tone: tally.blocked > 0 ? 'bad' : 'dim' },
+    // Started features that wait on an unbuilt dependency: a quiet note, shown only when there are some.
+    ...(tally.waiting > 0 ? [{ key: 'waiting', value: tally.waiting, label: 'waiting', tone: 'dim' as Tone }] : []),
   ]
   const missing = snapshot.artifacts.filter(a => !a.isPresent && a.isProblem && a.notApplicable === undefined).length
   const review = snapshot.artifacts.filter(a => a.isPresent && a.staleSince).length
@@ -450,7 +453,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
   const filterCounts: Record<Filter, number> = {
     all: snapshot.features.length,
     ready: snapshot.features.filter(f => f.bucket === 'ready').length,
-    blocked: snapshot.features.filter(f => f.bucket === 'blocked').length,
+    blocked: snapshot.features.filter(isBlocked).length,
     done: snapshot.features.filter(f => f.bucket === 'done').length,
   }
   const present = SIDE_ORDER.filter(side => snapshot.features.some(f => side in f.sides))
@@ -475,7 +478,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
         { key: 'ready', label: 'READY', width: 7 },
         ...sides.map((side, i) => ({ key: side, label: words ? (SIDE_HEAD[side] ?? side.toUpperCase()) : (side[0] ?? '').toUpperCase(), width: featureWidths[4 + i] ?? 0 })),
       ]
-  const shown = snapshot.features.filter(f => active === 'all' || f.bucket === active)
+  const shown = snapshot.features.filter(f => active === 'all' || (active === 'blocked' ? isBlocked(f) : f.bucket === active))
   const byNumber = new Map(snapshot.features.map(f => [f.number, f]))
   const featureRows: Row[] = shown.slice(0, Math.max(0, ctx.maxRows)).map(f => {
     const isRetired = f.state === 'retired'
@@ -489,7 +492,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
     const spoken = !narrow && words ? sides : []
     const detail: Cell[][] = [
       ...(cut(f.name, nameWidth, ascii, true) !== f.name ? [[{ text: f.name }]] : []),
-      ...(narrow ? [pair('Readiness', f.bucket)] : []),
+      ...(narrow ? [pair('Readiness', isWaiting(f) ? 'waiting' : f.bucket)] : []),
       ...Object.entries(f.sides).filter(([side]) => !spoken.includes(side)).map(([side, value]) => pair(SIDE_HEAD[side] ?? side, value || glyph('none', ascii))),
       ...(f.depends.length > 0
         ? [
@@ -515,7 +518,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
           ? [overall]
           : [
               { text: f.priority, tone: rowTone, align: 'right' as const },
-              { text: f.bucket, tone: READY_TONE[f.bucket] },
+              isWaiting(f) ? { text: 'waiting', tone: 'dim' as Tone } : { text: f.bucket, tone: READY_TONE[f.bucket] },
               ...sides.map(side => {
                 const cell = statusCell(f.sides[side] ?? '', ascii)
                 // Where words do not fit: the glyph alone, under a legend.
@@ -572,8 +575,9 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
 
   // ---- blockers
   // Only what the snapshot already says blocks: an open clarification (the
-  // recommendation's own rule 1), a feature waiting for a dependency (wt.py's
-  // blocked) and an artifact missing although a later stage ran. The reason of
+  // recommendation's own rule 1), a feature not started that waits for a
+  // dependency (wt.py's blocked, and still Planned; a started one only waits,
+  // see isWaiting) and an artifact missing although a later stage ran. The reason of
   // a row is one of those three; none is guessed.
   const nextRef = snapshot.next?.ref
   const blockerRows: BlockerRow[] = [
@@ -591,7 +595,7 @@ export function build(snapshot: Snapshot, ctx: Context): PipelineView {
         }
       }),
     ...snapshot.features
-      .filter(f => f.bucket === 'blocked')
+      .filter(isBlocked)
       .map(f => ({
         key: `blocker:feature:${f.number}`,
         title: `${f.number} ${f.name}`,

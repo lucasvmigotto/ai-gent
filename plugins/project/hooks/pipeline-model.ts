@@ -142,6 +142,23 @@ export function level(value: string): number | null {
   return w in LEVELS ? (LEVELS[w] as number) : null
 }
 
+// A feature has started once any side it builds is In progress or beyond (the
+// README row's status cells). Planned on every side, or no recognized status,
+// is not started.
+export function isStarted(sides: Readonly<Record<string, string>>): boolean {
+  return Object.values(sides).some(v => (level(v) ?? 0) >= 1)
+}
+
+// The pane's blocked: wt.py's blocked (a dependency is not built) AND the
+// feature is not started. A started one that waits on a dependency is only
+// waiting, a quiet note, never a blocker. `bucket` itself stays wt.py's.
+export function isBlocked(f: Pick<Feature, 'bucket' | 'sides'>): boolean {
+  return f.bucket === 'blocked' && !isStarted(f.sides)
+}
+export function isWaiting(f: Pick<Feature, 'bucket' | 'sides'>): boolean {
+  return f.bucket === 'blocked' && isStarted(f.sides)
+}
+
 export type Split = { ready: string[]; blocked: string[]; done: string[]; waiting: Record<string, string[]> }
 
 // wt.py plan: a feature is done with no side below Implemented; blocked while a
@@ -323,7 +340,7 @@ export function stageChecks(artifacts: readonly ArtifactState[], features: reado
     build: [
       { text: live.length > 0 ? count(live.length, live.length === 1 ? 'live feature listed' : 'live features listed') : 'no live feature listed in specs/README.md', state: live.length > 0 ? 'met' : 'open' },
       ...(live.length > 0 ? [{ text: `${done} of ${live.length} live features done`, state: done === live.length ? 'met' : 'open' } as StageCheck] : []),
-      ...(live.length > 0 ? [{ text: `${live.filter(f => f.bucket === 'ready').length} ready, ${live.filter(f => f.bucket === 'blocked').length} blocked`, state: 'info' } as StageCheck] : []),
+      ...(live.length > 0 ? [{ text: `${live.filter(f => f.bucket === 'ready').length} ready, ${live.filter(isBlocked).length} blocked${live.some(isWaiting) ? `, ${live.filter(isWaiting).length} waiting` : ''}`, state: 'info' } as StageCheck] : []),
     ],
     qa: [
       artifacts.some(a => a.path === 'docs/product/test-strategy.md' && a.notApplicable !== undefined)
