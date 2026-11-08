@@ -54,6 +54,7 @@ Each gate is a row with a **measure** that is a command, a file or a CI run, and
 | G30-15 | `install.ps1` passes its tests on Windows x64 and arm64 runners; owner ran the one-liner on a machine without Git Bash | `scripts/test-install-ps1.ps1` in CI; transcript (032 T058) | |
 | G30-16 | The README says plainly which tools still need `uv` and Python (the db plugin, while `dbrun` is Python) | grep for the sentence in `README.md` and the docs Install page | |
 | G30-17 | The 3.0.0 release notes contain the SHA256 of `install.sh`, `install.ps1` and every archive; the install page prefers the GitHub Releases URL (D25) | the draft release body; page text | |
+| G30-18 | The `dbrun` port is tracked by spec 043 and is not a 3.0.0 gate (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun; was a relayed gate that held 3.0.0 for it) | `specs/043-dbrun-port/tasks.md`; nothing in G30 depends on it | |
 | G30-14 | `grep -rn 'AI_GENT_MODE' install.sh setup.sh scripts` shows only the removal message and its test | grep | |
 
 ## Rollback
