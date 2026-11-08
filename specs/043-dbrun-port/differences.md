@@ -17,6 +17,9 @@ Every behavior of `plugins/db/scripts/dbrun.py` that the port changes, or may ch
 | D-009 | A request without `timeout` (FR-011) | `req["timeout"]` raises `KeyError` (a traceback); the CLI always sends one (default 30) | 30 s | `request` tests |
 | D-010 | A request without `max_rows` | `req["max_rows"]` raises `KeyError`; the CLI sends 100 (`query`, default `--max-rows 100`), 1000 (`apply`), 1 (identity probe) | 200 (the crate's existing default; Q-008 asks whether it should be the CLI's 100) | `Request::new` |
 | D-011 | PostgreSQL: DDL, `EXPLAIN` and `SHOW` row counts (T031, FR-022) | psycopg `cursor.rowcount`: `-1` for DDL, the rows received for `EXPLAIN` and `SHOW` | `0` for every statement whose `CommandComplete` tag carries no number (the client crate keeps only the number); a `SELECT` and a DML keep the server's number, as psycopg | `connector::postgres` tests `ddl_explain_and_show_count_zero_the_contract_value`, `rowcount_is_the_servers_count_whatever_the_statement_text`; `real_server_counts_come_from_the_server` (needs a server) |
+| D-012 | PostgreSQL TLS (T032, FR-015..FR-017) | libpq `sslmode=prefer` through psycopg: TLS when offered, plain text otherwise, certificate not verified | always TLS, certificate verified (system roots or `tls_ca_file`, name from `tls_server_name` or the host); a server that answers `N` to the SSL request is a `connect` failure, never a plain session; `unverified` only through `TlsSettings::authorize`; the request's host must be the host the policy was checked for | `tests/connector_postgres.rs` (fake TLS server with a throwaway CA) |
+| D-013 | PostgreSQL port | a non-numeric `port` raises in the connect; an empty one is 5432 | a port that is not 1-65535 is a `connect` failure `invalid port` (the spike fell back to 5432 on a parse error, which could connect to the wrong service); an empty or missing one is 5432 | `bad_connection_facts_are_refused_without_echoing_them` |
+| D-014 | PostgreSQL silent server | none: a server that accepts and never answers hangs the runner (libpq has `connect_timeout` for the TCP and startup, psycopg passes 10 s, so this hangs only after the connect) | the connector abandons the request at `connect_timeout + 5 s + timeout x (statements + 3)` with an `execute`-stage failure; the server-side timeouts are unchanged | `a_server_that_accepts_and_goes_silent_is_given_up_on_at_the_deadline` |
 
 ## Questions for the owner (the Python behavior is what runs today)
 
@@ -29,6 +32,8 @@ Every behavior of `plugins/db/scripts/dbrun.py` that the port changes, or may ch
 | Q-005 | Redaction strictness | see D-003 | a one-character password or user is redacted wherever it occurs, which can make an error unreadable; host and user also match in any ASCII case, so a user `a`, `user`, `select` or `sa`, or a host `db`, turns "A table named a is a problem" into "<user> table named <user> is <user> problem" | safe over readable on a credential path; say if a minimum length is wanted |
 | Q-006 | Host names in the field allowlist | any text | ASCII only (an internationalized name is given as punycode); IPv6 without brackets | a profile with a Unicode host is refused, with the field named |
 | Q-007 | PostgreSQL: a `SELECT`'s `rowcount` | psycopg: the number of rows the server sent (`SELECT 3` gives `3`) | the same (the server's number); the contract's `-1` for a statement that returns rows comes from SQLite and is not applied, because `CommandComplete` cannot tell `SELECT 3` from `UPDATE ... RETURNING` with 3 rows without reading the statement text | a fixture for PostgreSQL would need to say which of the two the contract wants |
+| Q-008 | PostgreSQL: a host that is empty or a unix socket | no host means libpq's default socket; a path starting with `/` is a socket and uses no TLS | an empty host is a `connect` failure `missing conn.host`; a socket path (Unix only) uses no TLS, since it never leaves the machine | say if a socket host should also be refused |
+| Q-009 | PostgreSQL without TLS | psycopg connects to a server with TLS off (`prefer`) | unreachable: there is no `disable` mode in the profile model (`verify` or `unverified`), and `unverified` still encrypts. A plain `postgres:17` container has TLS off, so the engines script (T034) must start it with `ssl=on` and a self-signed certificate and set `tls_mode = unverified` on its proven-local profile | decide whether a proven-local loopback profile may have a `disable` mode |
 
 ## Original behavior pinned by the contract (T002, T005)
 
@@ -68,6 +73,7 @@ A future `_exec` reader (the process-side entry point that reads the request fro
 | ID | Item | Why it matters |
 |---|---|---|
 | Q-007 | `CountKind::Rows` is `-1` for every engine | that matches `sqlite3` and pymssql only. psycopg3 and PyMySQL report the number of rows for a SELECT and the affected count for `UPDATE ... RETURNING`. The engine groups must decide per engine (their fixtures pin it) and record the choice here; the shared helper only fixes `-1` for the SQLite and SQL Server style |
+| Q-008 | Default `max_rows` 200 | the CLI default is 100 |
 
 ## Worker A2 entries (T007, T010)
 
