@@ -366,10 +366,18 @@ fn unverified_works_on_a_proven_local_loopback_profile_only() {
         let err = PostgresConnector::authorized(&unverified, &context).unwrap_err();
         assert_eq!(err.field(), "tls_mode", "{name}");
     }
+    // The same untrusted server is refused by a verified connector, so the explicit mode is what let it pass.
+    let ca = TestCa::new("other");
+    let dir = tempfile::tempdir().unwrap();
+    let ca_file = ca.write_ca(dir.path());
+    let verified =
+        connector(Some(&ca_file), None, "127.0.0.1").run(&request("127.0.0.1", server.port));
+    assert!(!error(&verified).contains(MARKER), "{verified:?}");
+    assert_eq!(verified.stage, Some(Stage::Connect));
     assert_eq!(
-        server.stats.accepted.load(Ordering::SeqCst),
+        server.stats.startups.lock().unwrap().len(),
         1,
-        "only the allowed case connected"
+        "only the unverified run sent a startup"
     );
 }
 
@@ -409,9 +417,10 @@ fn a_ca_file_that_is_a_private_key_is_refused_before_any_connection() {
         "{out:?}"
     );
     assert_clean(&out, &[USER]);
+    let shown = key_file.to_string_lossy();
     assert!(
-        !out.to_line().contains(key_file.to_str().unwrap_or("?")) || cfg!(windows),
-        "{out:?}"
+        !out.to_line().contains(shown.as_ref()),
+        "no path in the output: {out:?}"
     );
     assert_eq!(
         server.stats.accepted.load(Ordering::SeqCst),
@@ -467,7 +476,7 @@ fn bad_connection_facts_are_refused_without_echoing_them() {
 }
 
 #[test]
-fn a_server_that_accepts_and_goes_silent_is_given_up_on_at_the_deadline() {
+fn a_server_that_accepts_and_goes_silent_is_a_connect_failure_at_the_connect_deadline() {
     let ca = TestCa::new("silent");
     let dir = tempfile::tempdir().unwrap();
     let ca_file = ca.write_ca(dir.path());
@@ -478,17 +487,19 @@ fn a_server_that_accepts_and_goes_silent_is_given_up_on_at_the_deadline() {
     req.timeout = 0.1;
     let started = Instant::now();
     let out = c.run(&req);
+    let took = started.elapsed();
+    // connect_timeout 200 ms + the connect grace (the 200 ms grace, capped at 2 s).
     assert!(
-        started.elapsed() < Duration::from_secs(5),
-        "bounded: {:?}",
-        started.elapsed()
+        took >= Duration::from_millis(350) && took < Duration::from_secs(3),
+        "{took:?}"
     );
     assert_eq!(
         (out.ok, out.stage),
-        (false, Some(Stage::Execute)),
+        (false, Some(Stage::Connect)),
         "{out:?}"
     );
-    assert!(error(&out).contains("deadline"), "{out:?}");
+    assert!(error(&out).contains("connect timeout"), "{out:?}");
+    assert!(out.seconds.is_none(), "a connect failure has no seconds");
     assert_clean(&out, &[USER]);
 }
 
@@ -521,6 +532,494 @@ fn the_engine_name_is_postgresql_only() {
     req.engine = "mysql".into();
     let out = c.run(&req);
     assert_eq!(out.error.as_deref(), Some("unsupported engine mysql"));
+}
+
+// ---- A scripted wire-protocol server --------------------------------------------------------------
+//
+// Over TLS from a throwaway CA: authentication ok, then the simple and the extended (prepare) protocol
+// answered by a script, with every statement the client sends recorded. This is what lets the tests see
+// the messages (`BEGIN READ ONLY`, `COMMIT`, ...) and the command tags the connector turns into counts.
+
+#[derive(Clone, Default)]
+struct Reply {
+    cols: Vec<(&'static str, u32)>,
+    rows: Vec<Vec<Option<String>>>,
+    tag: String,
+    delay: Duration,
+}
+
+const TEXT: u32 = 25;
+const INT4: u32 = 23;
+const INT8: u32 = 20;
+
+impl Reply {
+    fn tag(tag: &str) -> Self {
+        Self {
+            tag: tag.into(),
+            ..Self::default()
+        }
+    }
+    fn rows(cols: &[(&'static str, u32)], rows: &[&[&str]], tag: &str) -> Self {
+        Self {
+            cols: cols.to_vec(),
+            rows: rows
+                .iter()
+                .map(|r| r.iter().map(|v| Some((*v).to_string())).collect())
+                .collect(),
+            tag: tag.into(),
+            ..Self::default()
+        }
+    }
+    fn delayed(mut self, d: Duration) -> Self {
+        self.delay = d;
+        self
+    }
+}
+
+type Script = Arc<dyn Fn(&str) -> Reply + Send + Sync>;
+
+struct Wire {
+    port: u16,
+    log: Arc<Mutex<Vec<String>>>,
+    startups: Arc<Mutex<Vec<Vec<u8>>>>,
+}
+
+impl Wire {
+    fn log(&self) -> Vec<String> {
+        self.log.lock().unwrap().clone()
+    }
+    fn position(&self, sql: &str) -> Option<usize> {
+        self.log().iter().position(|q| q == sql)
+    }
+    fn has(&self, sql: &str) -> bool {
+        self.position(sql).is_some()
+    }
+    fn sent_starting_with(&self, prefix: &str) -> bool {
+        self.log().iter().any(|q| q.starts_with(prefix))
+    }
+}
+
+fn frame(kind: u8, body: &[u8]) -> Vec<u8> {
+    let mut out = vec![kind];
+    out.extend_from_slice(&u32::try_from(body.len() + 4).unwrap().to_be_bytes());
+    out.extend_from_slice(body);
+    out
+}
+
+fn row_description(cols: &[(&'static str, u32)]) -> Vec<u8> {
+    let mut body = u16::try_from(cols.len()).unwrap().to_be_bytes().to_vec();
+    for (name, oid) in cols {
+        body.extend_from_slice(name.as_bytes());
+        body.push(0);
+        body.extend_from_slice(&0u32.to_be_bytes()); // table oid
+        body.extend_from_slice(&0u16.to_be_bytes()); // attribute number
+        body.extend_from_slice(&oid.to_be_bytes());
+        body.extend_from_slice(&(-1i16).to_be_bytes()); // type size
+        body.extend_from_slice(&(-1i32).to_be_bytes()); // type modifier
+        body.extend_from_slice(&0u16.to_be_bytes()); // text format
+    }
+    frame(b'T', &body)
+}
+
+fn ready() -> Vec<u8> {
+    frame(b'Z', b"I")
+}
+
+fn cstr(body: &[u8]) -> String {
+    let end = body.iter().position(|b| *b == 0).unwrap_or(body.len());
+    String::from_utf8_lossy(&body[..end]).into_owned()
+}
+
+fn data_row(row: &[Option<String>]) -> Vec<u8> {
+    let mut b = u16::try_from(row.len()).unwrap().to_be_bytes().to_vec();
+    for v in row {
+        match v {
+            Some(v) => {
+                b.extend_from_slice(&u32::try_from(v.len()).unwrap().to_be_bytes());
+                b.extend_from_slice(v.as_bytes());
+            }
+            None => b.extend_from_slice(&(-1i32).to_be_bytes()),
+        }
+    }
+    frame(b'D', &b)
+}
+
+fn wire_session(tls: &mut (impl Read + Write), script: &Script, log: &Mutex<Vec<String>>) {
+    let mut last = Reply::default();
+    loop {
+        let mut kind = [0u8; 1];
+        let mut len = [0u8; 4];
+        if tls.read_exact(&mut kind).is_err() || tls.read_exact(&mut len).is_err() {
+            return;
+        }
+        let mut body = vec![0u8; usize::try_from(u32::from_be_bytes(len)).unwrap() - 4];
+        if tls.read_exact(&mut body).is_err() {
+            return;
+        }
+        let mut out = Vec::new();
+        match kind[0] {
+            b'Q' => {
+                let sql = cstr(&body);
+                log.lock().unwrap().push(sql.clone());
+                let reply = script(&sql);
+                std::thread::sleep(reply.delay);
+                if !reply.cols.is_empty() {
+                    out.extend(row_description(&reply.cols));
+                    for row in &reply.rows {
+                        out.extend(data_row(row));
+                    }
+                }
+                let mut tag = reply.tag.clone().into_bytes();
+                tag.push(0);
+                out.extend(frame(b'C', &tag));
+                out.extend(ready());
+            }
+            b'P' => {
+                let name_end = body.iter().position(|b| *b == 0).unwrap_or(0);
+                last = script(&cstr(&body[name_end + 1..]));
+                out.extend(frame(b'1', b""));
+            }
+            b'D' => {
+                out.extend(frame(b't', &0u16.to_be_bytes()));
+                if last.cols.is_empty() {
+                    out.extend(frame(b'n', b""));
+                } else {
+                    out.extend(row_description(&last.cols));
+                }
+            }
+            b'C' => out.extend(frame(b'3', b"")),
+            b'S' => out.extend(ready()),
+            b'X' => return,
+            _ => {}
+        }
+        if !out.is_empty() && (tls.write_all(&out).is_err() || tls.flush().is_err()) {
+            return;
+        }
+    }
+}
+
+fn wire(cert: &ServerCert, script: &Script) -> Wire {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let startups = Arc::new(Mutex::new(Vec::new()));
+    let (config, script) = (server_config(cert), Arc::clone(script));
+    let (shared_log, shared_startups) = (Arc::clone(&log), Arc::clone(&startups));
+    std::thread::spawn(move || {
+        for conn in listener.incoming() {
+            let Ok(mut tcp) = conn else { return };
+            let (config, script) = (Arc::clone(&config), Arc::clone(&script));
+            let (log, startups) = (Arc::clone(&shared_log), Arc::clone(&shared_startups));
+            std::thread::spawn(move || {
+                let mut ssl_request = [0u8; 8];
+                if tcp.read_exact(&mut ssl_request).is_err() {
+                    return;
+                }
+                tcp.write_all(b"S").unwrap();
+                let mut tls = StreamOwned::new(ServerConnection::new(config).unwrap(), tcp);
+                let Ok(startup) = read_startup(&mut tls) else {
+                    return;
+                };
+                startups.lock().unwrap().push(startup);
+                let mut hello = frame(b'R', &0u32.to_be_bytes());
+                hello.extend(frame(b'K', &[0, 0, 0, 1, 0, 0, 0, 2]));
+                hello.extend(ready());
+                if tls.write_all(&hello).is_err() || tls.flush().is_err() {
+                    return;
+                }
+                wire_session(&mut tls, &script, &log);
+            });
+        }
+    });
+    Wire {
+        port,
+        log,
+        startups,
+    }
+}
+
+/// The probes and transaction control every script answers; `rest` handles the test's statements
+/// (and may override `SHOW transaction_read_only` and `COMMIT`).
+fn script(rest: impl Fn(&str) -> Option<Reply> + Send + Sync + 'static) -> Script {
+    Arc::new(move |sql: &str| {
+        if let Some(r) = rest(sql) {
+            return r;
+        }
+        if sql.starts_with("SELECT version()") {
+            return Reply::rows(
+                &[("version", TEXT), ("addr", TEXT), ("db", TEXT)],
+                &[&["PostgreSQL 17 fake", "socket", "shop"]],
+                "SELECT 1",
+            );
+        }
+        if sql.starts_with("SELECT (SELECT count(*)") {
+            return Reply::rows(&[("n", INT8)], &[&["0"]], "SELECT 1");
+        }
+        match sql {
+            "BEGIN" | "BEGIN READ ONLY" => Reply::tag("BEGIN"),
+            "COMMIT" => Reply::tag("COMMIT"),
+            "ROLLBACK" => Reply::tag("ROLLBACK"),
+            "SHOW transaction_read_only" => {
+                Reply::rows(&[("transaction_read_only", TEXT)], &[&["on"]], "SHOW")
+            }
+            _ => Reply::tag("OK"),
+        }
+    })
+}
+
+fn wire_connector(ca: &TestCa) -> (PostgresConnector, ServerCert, tempfile::TempDir) {
+    let dir = tempfile::tempdir().unwrap();
+    let ca_file = ca.write_ca(dir.path());
+    (
+        connector(Some(&ca_file), None, "127.0.0.1"),
+        ca.issue_server(&["127.0.0.1"]),
+        dir,
+    )
+}
+
+fn wire_request(port: u16, mode: Mode, statements: &[&str]) -> Request {
+    let mut req = request("127.0.0.1", port);
+    req.mode = mode;
+    req.statements = statements.iter().map(|s| (*s).to_string()).collect();
+    req
+}
+
+fn one_int(n: &str) -> Reply {
+    Reply::rows(&[("a", INT4)], &[&[n]], "SELECT 1")
+}
+
+#[test]
+fn read_mode_begins_read_only_checks_after_every_statement_and_never_commits() {
+    let ca = TestCa::new("readonly");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let server = wire(
+        &cert,
+        &script(|sql| (sql == "SELECT 1").then(|| one_int("1"))),
+    );
+    let out = c.run(&wire_request(
+        server.port,
+        Mode::Read,
+        &["SELECT 1", "SELECT 1"],
+    ));
+    assert!(out.ok, "{out:?}");
+    let log = server.log();
+    let begin = server
+        .position("BEGIN READ ONLY")
+        .expect("BEGIN READ ONLY was sent");
+    assert!(begin < server.position("SELECT 1").unwrap(), "{log:?}");
+    assert_eq!(
+        log.iter()
+            .filter(|q| *q == "SHOW transaction_read_only")
+            .count(),
+        2,
+        "{log:?}"
+    );
+    assert!(server.has("ROLLBACK") && !server.has("COMMIT"), "{log:?}");
+    let startup = String::from_utf8_lossy(&server.startups.lock().unwrap()[0]).replace('\0', "|");
+    assert!(
+        startup.contains("-c DateStyle=ISO") && startup.contains("-c bytea_output=hex"),
+        "{startup}"
+    );
+}
+
+#[test]
+fn read_mode_stops_when_a_statement_made_the_session_writable() {
+    // After the COMMIT the session is no longer read only (as after `SET default_transaction_read_only
+    // = off` and a commit). The statement that writes must never be sent.
+    let ca = TestCa::new("lost");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let committed = Arc::new(Mutex::new(false));
+    let seen = Arc::clone(&committed);
+    let server = wire(
+        &cert,
+        &script(move |sql| match sql {
+            "SHOW transaction_read_only" => {
+                let off = *seen.lock().unwrap();
+                Some(Reply::rows(
+                    &[("transaction_read_only", TEXT)],
+                    &[&[if off { "off" } else { "on" }]],
+                    "SHOW",
+                ))
+            }
+            "COMMIT" => {
+                *seen.lock().unwrap() = true;
+                Some(Reply::tag("COMMIT"))
+            }
+            _ => None,
+        }),
+    );
+    let out = c.run(&wire_request(
+        server.port,
+        Mode::Read,
+        &["COMMIT", "DELETE FROM customer"],
+    ));
+    assert_eq!(
+        (out.ok, out.stage),
+        (false, Some(Stage::Execute)),
+        "{out:?}"
+    );
+    assert!(
+        error(&out).contains("read-only enforcement was lost"),
+        "{out:?}"
+    );
+    assert!(
+        !server.sent_starting_with("DELETE"),
+        "the write was never sent: {:?}",
+        server.log()
+    );
+    assert!(server.has("ROLLBACK"));
+    assert_clean(&out, &[USER]);
+}
+
+#[test]
+fn the_count_is_the_command_tag_number_for_every_kind_of_statement() {
+    let ca = TestCa::new("tags");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let server = wire(
+        &cert,
+        &script(|sql| match sql {
+            s if s.starts_with("WITH d AS") => {
+                Some(Reply::rows(&[("id", INT4)], &[&["1"], &["2"]], "SELECT 2"))
+            }
+            s if s.starts_with("INSERT") => {
+                Some(Reply::rows(&[("id", INT4)], &[&["9"]], "INSERT 0 1"))
+            }
+            s if s.contains("UPDATE") => Some(Reply::tag("UPDATE 4")),
+            s if s.starts_with("CREATE TABLE") => Some(Reply::tag("CREATE TABLE")),
+            s if s.starts_with("EXPLAIN") => Some(Reply::rows(
+                &[("QUERY PLAN", TEXT)],
+                &[&["Result"]],
+                "EXPLAIN",
+            )),
+            s if s.starts_with("SHOW TimeZone") => {
+                Some(Reply::rows(&[("TimeZone", TEXT)], &[&["UTC"]], "SHOW"))
+            }
+            s if s.starts_with("SELECT * FROM t") => Some(Reply::rows(
+                &[("id", INT4)],
+                &[&["1"], &["2"], &["3"]],
+                "SELECT 3",
+            )),
+            _ => None,
+        }),
+    );
+    let statements = [
+        "WITH d AS (DELETE FROM t WHERE id < 3 RETURNING id) SELECT id FROM d",
+        "INSERT INTO t VALUES (9) RETURNING id",
+        "/* change */ UPDATE t SET n = 1",
+        "CREATE TABLE u (x int)",
+        "EXPLAIN SELECT 1",
+        "SHOW TimeZone",
+        "SELECT * FROM t",
+    ];
+    let mut req = wire_request(server.port, Mode::Write, &statements);
+    req.max_rows = 1;
+    req.expect = vec![
+        Some(2),
+        Some(1),
+        Some(4),
+        Some(0),
+        Some(0),
+        Some(0),
+        Some(3),
+    ];
+    let out = c.run(&req);
+    assert!(out.ok && out.committed == Some(true), "{out:?}");
+    let results = out.results.unwrap();
+    assert_eq!(
+        results.iter().map(|r| r.rowcount).collect::<Vec<_>>(),
+        vec![2, 1, 4, 0, 0, 0, 3],
+        "CTE delete, insert returning, update, DDL, EXPLAIN, SHOW, SELECT"
+    );
+    // max_rows applies in write mode, truncated stays false.
+    assert_eq!(results[0].rows.as_ref().map(Vec::len), Some(1));
+    assert_eq!(results[0].truncated, Some(false));
+    assert!(server.has("COMMIT"));
+}
+
+#[test]
+fn a_wrong_expected_count_rolls_back_and_never_commits() {
+    let ca = TestCa::new("verify");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let server = wire(
+        &cert,
+        &script(|sql| sql.contains("UPDATE").then(|| Reply::tag("UPDATE 4"))),
+    );
+    let mut req = wire_request(server.port, Mode::Write, &["/* c */ UPDATE t SET n = 1"]);
+    req.expect = vec![Some(1)];
+    let out = c.run(&req);
+    assert_eq!((out.ok, out.stage), (false, Some(Stage::Verify)), "{out:?}");
+    assert_eq!(
+        error(&out),
+        "row counts differ from the plan: statement 1: expected 1, got 4"
+    );
+    assert!(
+        server.has("ROLLBACK") && !server.has("COMMIT"),
+        "{:?}",
+        server.log()
+    );
+}
+
+#[test]
+fn an_abandoned_write_never_commits() {
+    // The UPDATE answers after the request's deadline: the caller is told it was abandoned, and when the
+    // worker wakes up it must roll back instead of committing.
+    let ca = TestCa::new("abandon");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let c = c.with_limits(Duration::from_millis(300), Duration::from_millis(200));
+    let server = wire(
+        &cert,
+        &script(|sql| {
+            sql.contains("UPDATE")
+                .then(|| Reply::tag("UPDATE 1").delayed(Duration::from_millis(1500)))
+        }),
+    );
+    let mut req = wire_request(server.port, Mode::Write, &["UPDATE t SET n = 1"]);
+    req.timeout = 0.1;
+    req.expect = vec![Some(1)];
+    let out = c.run(&req);
+    assert_eq!(
+        (out.ok, out.stage),
+        (false, Some(Stage::Execute)),
+        "{out:?}"
+    );
+    assert!(
+        error(&out).contains("abandoned") && error(&out).contains("nothing was committed"),
+        "{out:?}"
+    );
+    std::thread::sleep(Duration::from_millis(2200));
+    let log = server.log();
+    assert!(
+        server.sent_starting_with("UPDATE"),
+        "the statement reached the server: {log:?}"
+    );
+    assert!(
+        !server.has("COMMIT"),
+        "nothing may commit after the abandon: {log:?}"
+    );
+    assert!(server.has("ROLLBACK"), "the worker rolled back: {log:?}");
+}
+
+#[test]
+fn a_commit_that_does_not_answer_in_time_is_reported_as_unknown() {
+    let ca = TestCa::new("unknown");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let c = c.with_limits(Duration::from_millis(300), Duration::from_millis(200));
+    let server = wire(
+        &cert,
+        &script(|sql| {
+            (sql == "COMMIT").then(|| Reply::tag("COMMIT").delayed(Duration::from_millis(1500)))
+        }),
+    );
+    let mut req = wire_request(server.port, Mode::Write, &["UPDATE t SET n = 1"]);
+    req.timeout = 0.1;
+    let out = c.run(&req);
+    assert_eq!(
+        (out.ok, out.stage),
+        (false, Some(Stage::Execute)),
+        "{out:?}"
+    );
+    assert!(error(&out).contains("commit outcome unknown"), "{out:?}");
+    assert!(server.has("COMMIT"), "COMMIT was sent");
 }
 
 // ---- A real server -------------------------------------------------------------------------------
@@ -584,6 +1083,54 @@ fn real_server_read_mode_refuses_a_write_with_25006_and_a_second_statement() {
         error(&out).contains("25006"),
         "the transaction stays read only: {out:?}"
     );
+    // Transaction control that makes the session writable: stopped before the write, nothing created.
+    for script in [
+        [
+            "SET default_transaction_read_only = off",
+            "COMMIT",
+            "CREATE TABLE ai_gent_ro_probe (a int)",
+        ],
+        [
+            "COMMIT",
+            "BEGIN READ WRITE",
+            "CREATE TABLE ai_gent_ro_probe (a int)",
+        ],
+    ] {
+        let (req, c) = real(Mode::Read, &script);
+        let out = c.run(&req);
+        assert!(
+            error(&out).contains("read-only enforcement was lost"),
+            "{script:?}: {out:?}"
+        );
+        let (req, c) = real(
+            Mode::Read,
+            &["SELECT to_regclass('ai_gent_ro_probe')::text"],
+        );
+        let rows = c.run(&req).results.unwrap()[0].rows.clone().unwrap();
+        assert_eq!(rows[0][0], serde_json::Value::Null, "nothing was created");
+    }
+}
+
+#[test]
+#[ignore = "needs AI_GENT_TEST_PG_* (a real PostgreSQL server with TLS)"]
+fn real_server_passes_the_postgresql_contract_fixtures() {
+    use ai_gent_dbrun::connector::contract;
+    let ran = contract::run_exec_cases(
+        &real(Mode::Test, &[]).1,
+        "postgresql",
+        contract::Profile::Port,
+        |_case, setup| {
+            let (mut req, c) = real(
+                Mode::Write,
+                &setup.iter().map(String::as_str).collect::<Vec<_>>(),
+            );
+            req.expect = vec![];
+            let out = c.run(&req);
+            assert!(out.ok, "setup failed: {out:?}");
+            real(Mode::Test, &[]).0.conn
+        },
+    );
+    assert_eq!(ran, 1);
 }
 
 #[test]

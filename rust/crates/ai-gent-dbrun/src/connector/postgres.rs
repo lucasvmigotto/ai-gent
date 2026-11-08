@@ -7,9 +7,14 @@
 //! - `max_rows` caps the rows in both modes and `truncated` is only ever set in read mode (finding 2);
 //! - errors go through `as_db_error()`: SQLSTATE and message, never DETAIL (which can quote row data).
 //!
-//! Read mode is refused a write by the server itself, in two layers: the session option
-//! `default_transaction_read_only=on` and a `BEGIN READ ONLY` transaction (so `SET
-//! default_transaction_read_only = off` inside it cannot undo it; SQLSTATE `25006`).
+//! Read mode is refused a write by the server itself (SQLSTATE `25006`), in three steps. The session
+//! option `default_transaction_read_only=on` and a `BEGIN READ ONLY` transaction make the server refuse a
+//! write. A statement can still end the transaction (`COMMIT`) or turn the session default off (`SET
+//! default_transaction_read_only = off`, `SET SESSION CHARACTERISTICS ...`), so after every statement the
+//! connector asks `SHOW transaction_read_only` and, when it is not `on`, rolls back and fails before any
+//! further statement runs. What is enforced is therefore: no statement runs while the session or the
+//! transaction is writable, except the one that made it writable, which is transaction control or a
+//! `SET` (a write would have been refused while read-only).
 //!
 //! TLS (T032): the connection is always encrypted (`sslmode=require` semantics: a server that answers
 //! `N` to the SSL request is a failure, never a plain-text fallback). The certificate is verified by
@@ -18,10 +23,16 @@
 //! loopback. A unix-socket host (a path starting with `/`, Unix only) never leaves the machine and is
 //! the one case that uses no TLS.
 //!
-//! Every wait is bound: the TCP connect (10 s, as `connect_timeout` in `dbrun.py`), the server's
-//! statements (`statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`), and the
-//! whole request, by a deadline the connector enforces itself, since the client has no read timeout
-//! and a server that accepts and then goes silent would otherwise hang the runner.
+//! Every wait is bound. The client's `connect_timeout` covers the TCP connect only, so the connector
+//! waits for the worker's "connected" signal for `connect_timeout` plus a small grace and fails at the
+//! `connect` stage when it does not come; the statements have `statement_timeout`, `lock_timeout` and
+//! `idle_in_transaction_session_timeout` on the server, and the whole request has a deadline the
+//! connector enforces itself, since the client has no read timeout.
+//!
+//! An abandoned request never commits: the worker and the caller share a gate. The caller sets
+//! `abandoned` on a timeout; the worker checks it before `BEGIN`, before each statement and before
+//! `COMMIT`, and rolls back when it is set. If the worker had already passed the commit point, the
+//! caller reports `commit outcome unknown` (stage `execute`) instead.
 use super::{Connector, ExecResult, Mode, Request, Stage, StatementResult, request};
 use crate::core::explain_sql;
 use crate::core::tls::{self, Authorized, TlsContext, TlsError, TlsSettings};
@@ -30,7 +41,7 @@ use ::postgres::types::Type;
 use ::postgres::{Client, Config, SimpleQueryMessage, config::SslMode};
 use serde_json::{Value, json};
 use std::error::Error as _;
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 use tokio_postgres_rustls::MakeRustlsConnect;
 
@@ -42,6 +53,8 @@ const IDLE_IN_TRANSACTION_MS: u64 = 60_000;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Extra time over the statements' own timeouts before the connector gives up on a silent server.
 const GRACE: Duration = Duration::from_secs(5);
+/// Most of the grace the connect phase may add to `connect_timeout` (authentication, startup).
+const CONNECT_GRACE: Duration = Duration::from_secs(2);
 /// `application_name`, as `dbrun.py`.
 const APPLICATION_NAME: &str = "ai-gent-dbrun";
 const IDENTITY: &str =
@@ -100,38 +113,113 @@ impl Connector for PostgresConnector {
             Ok(p) => p,
             Err(e) => return ExecResult::failure(Stage::Connect, e),
         };
-        // The deadline: connecting, the two probes, every statement and the closing round trips.
         let statements = u32::try_from(req.statements.len()).unwrap_or(u32::MAX);
         let per_statement = request::timeout(req.timeout).unwrap_or(Duration::from_secs(30));
-        let deadline = self.connect_timeout
-            + self.grace
-            + per_statement.saturating_mul(statements.saturating_add(3));
+        let run_deadline = self.grace + per_statement.saturating_mul(statements.saturating_add(3));
+        let connect_wait = self.connect_timeout + self.grace.min(CONNECT_GRACE);
+        let gate = Arc::new(Mutex::new(Gate::default()));
         let (tx, rx) = mpsc::channel();
         let request = req.clone();
+        let worker_gate = Arc::clone(&gate);
         let spawned = std::thread::Builder::new()
             .name("dbrun-postgres".into())
             .spawn(move || {
-                let _ = tx.send(run(&request, &plan));
+                let done = run(&request, &plan, &worker_gate, &tx);
+                let _ = tx.send(Msg::Done(done));
             });
         if spawned.is_err() {
             return ExecResult::failure(Stage::Connect, "could not start the connection thread");
         }
-        let mut result = match rx.recv_timeout(deadline) {
-            Ok(r) => r,
-            // The thread keeps its socket until the process ends; the result never waits for it.
-            Err(mpsc::RecvTimeoutError::Timeout) => ExecResult::failure(
-                Stage::Execute,
-                "the server did not answer within the request's deadline; the request was abandoned",
-            ),
+        // Phase 1: connected (the client's own timeout covers the TCP connect only).
+        match rx.recv_timeout(connect_wait) {
+            Ok(Msg::Connected) => {}
+            Ok(Msg::Done(r)) => return finish(r, started),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                abandon(&gate);
+                return ExecResult::failure(
+                    Stage::Connect,
+                    "no connection within the connect timeout; the attempt was abandoned",
+                );
+            }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return ExecResult::failure(Stage::Connect, "the connection thread failed");
+            }
+        }
+        // Phase 2: the probes, the statements and the closing round trips.
+        let result = match rx.recv_timeout(run_deadline) {
+            Ok(Msg::Done(r)) => r,
+            // The thread may still hold its socket; the result never waits for it.
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                let committing = abandon(&gate);
+                ExecResult::failure(
+                    Stage::Execute,
+                    if committing {
+                        "commit outcome unknown: the server did not answer COMMIT within the request's deadline; check the data before running it again"
+                    } else {
+                        "the server did not answer within the request's deadline; the request was abandoned and nothing was committed"
+                    },
+                )
+            }
+            Ok(Msg::Connected) | Err(mpsc::RecvTimeoutError::Disconnected) => {
                 ExecResult::failure(Stage::Execute, "the connection thread failed")
             }
         };
-        if result.seconds.is_none() && result.stage != Some(Stage::Connect) {
-            result.seconds = Some(started.elapsed().as_secs_f64());
-        }
-        result
+        finish(result, started)
     }
+}
+
+fn finish(mut result: ExecResult, started: Instant) -> ExecResult {
+    if result.seconds.is_none() && result.stage != Some(Stage::Connect) {
+        result.seconds = Some(started.elapsed().as_secs_f64());
+    }
+    result
+}
+
+/// What the caller and the worker share.
+#[derive(Default)]
+struct Gate {
+    /// The caller gave up: the worker must not begin, run another statement or commit.
+    abandoned: bool,
+    /// The worker is past the point of no return: `COMMIT` was sent.
+    committing: bool,
+}
+
+enum Msg {
+    Connected,
+    Done(ExecResult),
+}
+
+type Shared = Arc<Mutex<Gate>>;
+
+/// Marks the request abandoned; returns whether the worker was already committing.
+fn abandon(gate: &Shared) -> bool {
+    let mut g = gate
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if g.committing {
+        return true;
+    }
+    g.abandoned = true;
+    false
+}
+
+fn proceed(gate: &Shared) -> bool {
+    !gate
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .abandoned
+}
+
+/// The worker's last look before `COMMIT`: false when abandoned, otherwise marks the commit point.
+fn begin_commit(gate: &Shared) -> bool {
+    let mut g = gate
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if g.abandoned {
+        return false;
+    }
+    g.committing = true;
+    true
 }
 
 /// Everything `run` needs that is decided before a thread starts: the driver configuration and the
@@ -190,6 +278,8 @@ impl PostgresConnector {
             "-c statement_timeout={} -c lock_timeout={LOCK_TIMEOUT_MS} -c idle_in_transaction_session_timeout={IDLE_IN_TRANSACTION_MS}",
             timeout.as_millis().max(1)
         );
+        // Pinned so the value normalisation of `text_value` cannot be defeated by a server's own setting.
+        options.push_str(" -c DateStyle=ISO -c bytea_output=hex");
         if req.mode != Mode::Write {
             options.push_str(" -c default_transaction_read_only=on");
         }
@@ -344,6 +434,8 @@ fn run_statement(
         match message {
             SimpleQueryMessage::Row(row) => {
                 // One past the cap is kept so read mode can tell it truncated; the rest are not converted.
+                // `simple_query` has already buffered every row the server sent: `max_rows` bounds the
+                // output, not memory (as psycopg's client-side cursor; recorded in differences.md).
                 if rows.len() > cap {
                     continue;
                 }
@@ -371,14 +463,19 @@ fn first_row(client: &mut Client, sql: &str) -> Result<Vec<Option<String>>, ::po
     Ok(vec![])
 }
 
-fn run(req: &Request, plan: &Plan) -> ExecResult {
+fn run(req: &Request, plan: &Plan, gate: &Shared, tx: &mpsc::Sender<Msg>) -> ExecResult {
     let started = Instant::now();
     let mut client = match connect(plan) {
         Ok(c) => c,
         Err(e) => return ExecResult::failure(Stage::Connect, describe(&e)),
     };
+    // Connected after the caller gave up: close without running anything.
+    if !proceed(gate) {
+        return ExecResult::failure(Stage::Connect, "abandoned");
+    }
+    let _ = tx.send(Msg::Connected);
     let mut result = ExecResult::success();
-    let outcome = execute_in(&mut client, req, &mut result);
+    let outcome = execute_in(&mut client, req, &mut result, gate);
     match outcome {
         Ok(()) => {}
         Err(Failure::Driver(e)) => {
@@ -393,12 +490,20 @@ fn run(req: &Request, plan: &Plan) -> ExecResult {
             result.stage = Some(Stage::Execute);
             result.error = Some(message.into());
         }
+        Err(Failure::Abandoned) => {
+            // The caller has its answer already; nothing may stay open or commit.
+            let _ = client.batch_execute("ROLLBACK");
+            result.ok = false;
+            result.stage = Some(Stage::Execute);
+            result.error = Some("abandoned".into());
+        }
     }
     result.seconds = Some(started.elapsed().as_secs_f64());
     result
 }
 
 enum Failure {
+    Abandoned,
     Driver(::postgres::Error),
     Refused(&'static str),
 }
@@ -409,7 +514,12 @@ impl From<::postgres::Error> for Failure {
     }
 }
 
-fn execute_in(client: &mut Client, req: &Request, result: &mut ExecResult) -> Result<(), Failure> {
+fn execute_in(
+    client: &mut Client,
+    req: &Request,
+    result: &mut ExecResult,
+    gate: &Shared,
+) -> Result<(), Failure> {
     let ident = first_row(client, IDENTITY)?;
     result.server = Some(
         ident
@@ -429,11 +539,17 @@ fn execute_in(client: &mut Client, req: &Request, result: &mut ExecResult) -> Re
         return Ok(());
     }
     let read = req.mode != Mode::Write;
-    // Read: the session default is already read-only; the transaction is also opened READ ONLY, so
-    // `SET default_transaction_read_only = off` cannot undo it.
+    if !proceed(gate) {
+        return Err(Failure::Abandoned);
+    }
+    // Read: the session default is already read-only and the transaction is opened READ ONLY; both are
+    // checked again after every statement (see the module docs).
     client.batch_execute(if read { "BEGIN READ ONLY" } else { "BEGIN" })?;
     let mut counts = Vec::new();
     for stmt in &req.statements {
+        if !proceed(gate) {
+            return Err(Failure::Abandoned);
+        }
         let sql = if req.explain {
             explain_sql("postgresql", stmt)
         } else {
@@ -442,6 +558,16 @@ fn execute_in(client: &mut Client, req: &Request, result: &mut ExecResult) -> Re
         let entry = run_statement(client, &sql, req.max_rows, read)?.map_err(Failure::Refused)?;
         counts.push(entry.rowcount);
         result.results.get_or_insert_with(Vec::new).push(entry);
+        if read {
+            // A statement can end the transaction or turn the session default off: never run another
+            // one in a writable session.
+            let state = first_row(client, "SHOW transaction_read_only")?;
+            if state.first().and_then(|v| v.as_deref()) != Some("on") {
+                return Err(Failure::Refused(
+                    "read-only enforcement was lost (transaction_read_only is not on after a statement); rolled back, no further statement ran",
+                ));
+            }
+        }
     }
     if read {
         client.batch_execute("ROLLBACK")?;
@@ -453,6 +579,9 @@ fn execute_in(client: &mut Client, req: &Request, result: &mut ExecResult) -> Re
         result.stage = Some(Stage::Verify);
         result.error = Some(error);
     } else {
+        if !begin_commit(gate) {
+            return Err(Failure::Abandoned);
+        }
         client.batch_execute("COMMIT")?;
         result.committed = Some(true);
     }
@@ -495,28 +624,10 @@ mod tests {
     }
 
     #[test]
-    fn rowcount_is_the_servers_count_whatever_the_statement_text() {
-        // No columns: the entry is the server's count, as for `/* c */ UPDATE ...` or `WITH ... DELETE`.
-        let one = shape_entry(&[], vec![], 1, 200, false).unwrap();
-        assert_eq!((one.rowcount, one.columns), (1, None));
-        assert_eq!(shape_entry(&[], vec![], 0, 200, false).unwrap().rowcount, 0);
-        // A count the server could not give (beyond i64) is refused, never guessed.
+    fn a_count_the_server_could_not_give_is_refused_never_guessed() {
+        // The counts themselves come from the wire (see tests/connector_postgres.rs, command tags).
         assert!(shape_entry(&[], vec![], u64::MAX, 200, false).is_err());
-    }
-
-    #[test]
-    fn ddl_explain_and_show_count_zero_the_contract_value() {
-        // The client hands `CommandComplete` tags without a number (CREATE TABLE, EXPLAIN, SHOW) as 0.
-        assert_eq!(shape_entry(&[], vec![], 0, 200, false).unwrap().rowcount, 0);
-        let show = shape_entry(
-            &[("TimeZone".into(), Type::TEXT)],
-            vec![vec![json!("UTC")]],
-            0,
-            200,
-            true,
-        )
-        .unwrap();
-        assert_eq!((show.rowcount, show.truncated), (0, Some(false)));
+        assert!(shape_entry(&[], vec![], u64::try_from(i64::MAX).unwrap(), 200, false).is_ok());
     }
 
     #[test]
