@@ -76,7 +76,7 @@ A reader opens `#/changelog` and reads `CHANGELOG.md` rendered as Markdown.
 
 ### Edge Cases
 
-- The copy key `install.troubleshooting` ("If it does not work") exists but the page never renders a troubleshooting section [OBSERVED: i18n.tsx:214 vs pages.tsx:206-241] — the brief's journey 1 and the UX vision promise one.
+- The install page renders a troubleshooting section, one entry per problem, from `install.troubleshooting` and `troubleshootingItems` [OBSERVED: docs/site/src/content/sections.ts:101, docs/site/src/i18n.tsx:104 and :293]. (Corrected 2026-11-07: this edge case once said the key was never rendered; that was true when the spec was reconstructed and no longer is.)
 - The UX vision's per-tool tabs on the install page are two stacked code blocks [OBSERVED: pages.tsx:213-223].
 - Reference entries link out to GitHub instead of rendering pages (`/reference/pipeline` etc. in the vision's IA) [OBSERVED: pages.tsx:351-358].
 - The contribute page has no section sidebar (vision's navigation model) [OBSERVED: pages.tsx:243-299].
@@ -105,4 +105,4 @@ A reader opens `#/changelog` and reads `CHANGELOG.md` rendered as Markdown.
 ## Assumptions
 
 - [ASSUMPTION: linking reference entries to GitHub, rather than rendering them, is a deliberate simplification of the UX vision's IA.]
-- [NEEDS CLARIFICATION: is the install troubleshooting section still wanted (brief journey 1), or should the dead `install.troubleshooting` key be removed?]
+- [RESOLVED 2026-11-07, owner, chat: the install troubleshooting section is kept (it is rendered and tested), not removed. The question assumed the key was dead; it is live.]

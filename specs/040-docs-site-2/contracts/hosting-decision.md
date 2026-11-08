@@ -30,6 +30,6 @@ Move to **GitHub Pages deployed by OIDC** if the docs-hub bucket is not needed f
 
 ## Sign-off
 
-- Chosen option:
-- Date:
-- Owner:
+- Chosen option: A, stay on Cloudflare R2 (recorded from the owner's decision given through a side session on 2026-11-07, relayed; the owner confirmed in chat that it should be recorded). Reason: sibling sites share the docs-hub bucket, so a Pages move would split the hub. Mitigations 1-4 apply; the R2 key rotates on a schedule (T032). Open fact: whether the deploy key is scoped to the `ai-gent/` prefix or to the whole bucket (a Cloudflare setting only the owner can check).
+- Date: 2026-11-07
+- Owner: lucasvmigotto
