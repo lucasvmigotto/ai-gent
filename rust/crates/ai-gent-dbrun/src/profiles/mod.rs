@@ -654,15 +654,9 @@ pub fn get_profile(ctx: &Ctx, name: &str, secret: bool) -> Result<Profile, Profi
     if let Some(pw) = &p.password {
         pw.register();
     }
-    // Host and user are redacted from every message as well (FR-008): driver errors quote them. The
-    // process-wide redactor ignores values under four characters; `redaction_pairs` covers those for
-    // callers that redact with labels.
-    for v in [p.host.as_deref(), p.user.as_deref()].into_iter().flatten() {
-        let v = v.trim();
-        if v != "127.0.0.1" && v != "localhost" {
-            ai_gent_core::passstore::redact::register(v);
-        }
-    }
+    // Host and user are NOT put into the process-wide substring redactor: it would mangle ordinary text
+    // (a user `postgres` turns `postgresql` into `<token>ql`). They are redacted as whole words with
+    // labels through `Profile::redaction_pairs` / the shared `Redactor` (FR-008), as `dbrun.py` did.
     if !ENGINES.contains(&p.engine.as_str()) {
         return Err(ProfileError::new(format!(
             "profile {name}: engine '{}' isn't one of {}",

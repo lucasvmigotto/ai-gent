@@ -1870,17 +1870,26 @@ fn raw_profile_debug_hides_every_secret_named_field() {
 }
 
 #[test]
-fn get_profile_registers_host_and_user_with_the_redactor() {
+fn host_and_user_are_redacted_as_whole_words_not_as_substrings() {
     let s = Sandbox::new();
-    s.write_profiles("H_ENGINE=postgresql\nH_HOST=private-host.internal\nH_USER=svc_reader\nH_PASSWORD=plain-pw-value\n");
-    get_profile(&s.ctx(), "H", true).unwrap();
-    let shown = ai_gent_core::passstore::redact(
-        "could not connect to private-host.internal as svc_reader with plain-pw-value",
-    );
+    s.write_profiles("H_ENGINE=postgresql\nH_HOST=private-host.internal\nH_USER=postgres\nH_PASSWORD=plain-pw-value\n");
+    let p = get_profile(&s.ctx(), "H", true).unwrap();
+    // The process-wide redactor must not turn ordinary words that contain the user name into tokens.
+    let text = "engine 'postgresql'; image postgres:16";
+    assert_eq!(ai_gent_core::passstore::redact(text), text);
+    // The password is still hidden everywhere.
     assert_clean(
-        &shown,
-        &["private-host.internal", "svc_reader", "plain-pw-value"],
+        &ai_gent_core::passstore::redact("failed with plain-pw-value"),
+        &["plain-pw-value"],
     );
+    // Host and user are offered with labels for the whole-word redactor.
+    let pairs = p.redaction_pairs();
+    assert!(
+        pairs
+            .iter()
+            .any(|(v, l)| v == "private-host.internal" && *l == "<host>")
+    );
+    assert!(pairs.iter().any(|(v, l)| v == "postgres" && *l == "<user>"));
 }
 
 #[test]

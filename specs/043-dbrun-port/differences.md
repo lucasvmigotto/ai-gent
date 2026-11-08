@@ -63,10 +63,17 @@ intended 3.0.0 changes of T005 are added by that task.
   profile and never the text. `dbrun.py` validated at read time, so `dbrun profiles` still listed the profile.
   Consequence: one bad reference blocks every command until it is fixed. Question: list it with an error
   marker instead?
-- D-A2-22. `get_profile` registers the password, host and user with the process-wide redactor of
-  `ai-gent-core` (replacement text `<token>`, values under four characters ignored, substring match).
-  `dbrun.py` redacted whole words with the labels `<password>`, `<host>`, `<user>`. The labeled form is
-  available through `Profile::redaction_pairs` for the callers that want it (the shared redactor of T004).
+- D-A2-22. `get_profile` registers only the password with the process-wide redactor of `ai-gent-core`
+  (replacement text `<token>`, values under four characters ignored, substring match). Host and user are
+  not registered there, because a substring match mangles ordinary text (user `postgres` turns
+  `postgresql` into `<token>ql`; found in review). `dbrun.py` redacted host and user as whole words with
+  the labels `<host>` and `<user>`: `Profile::redaction_pairs` offers them for the shared whole-word
+  `Redactor` of T004, which T011/T012 must apply to every driver message.
+- D-A2-25. Known limits left by review (2026-11-08): `migrate --all` re-checks each value against what was
+  loaded only for the single-profile path, so a change between load and the phase-2 read (milliseconds) is
+  not detected; the two FIFO tests use a FIFO already in place, so they cannot tell the open-first fix from
+  the old metadata-first check (a swap race is not tested); `Authorized::host()` is carried but no driver
+  connects to it yet (T011/T014 must connect to `host()`).
 - D-A2-23. Mode 600 is a Unix guarantee. On Windows the migrate and export files are created exclusively
   but inherit the directory's ACL: owner-only is NOT enforced there and nothing in the code claims it.
   Question: enforce an owner-only ACL on Windows, or document it for the user?
