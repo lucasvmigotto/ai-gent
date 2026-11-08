@@ -2,6 +2,9 @@
 
 Status: Draft
 Date: 2026-10-31
+
+Review note (2026-11-07, an agent review, not an owner acceptance): checked against `docs/product/architecture.md` as changed on 2026-11-01 (commit 2fb378f, one line: the SBOM component count and the script that rebuilds it); nothing in this artifact is affected, so it is still valid as written. The owner can revise this note.
+
 Owner stage: `qa:strategy` (format), written by hand for this repository. Nothing here was web-researched; every claim is read from the files under Sources, and anything not verifiable from the repository is labelled `[ASSUMPTION]`.
 
 ## Scope and honest shape
