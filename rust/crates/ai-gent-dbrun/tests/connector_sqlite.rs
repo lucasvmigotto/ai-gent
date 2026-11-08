@@ -30,8 +30,8 @@ fn connector_sqlite_passes_the_contract() {
         },
     );
     // 5 of the 8 SqliteEndToEndTest cases act at the connector (01, 02, 04, 05, 06), 6 more come from the
-    // reviews (09-14) and 6 from the T002 contract freeze (15-20); 03 is policy, 07 and 08 are pending.
-    assert_eq!(ran, 17, "exec cases run");
+    // reviews (09-14) and 8 from the T002 contract freeze and its review round (15-22); 03 is policy, 07 and 08 are pending.
+    assert_eq!(ran, 19, "exec cases run");
 }
 
 #[test]

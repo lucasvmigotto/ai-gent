@@ -1,0 +1,79 @@
+{
+  "contract_version": 1,
+  "name": "ddl-expect-minus-one",
+  "derived_from": "a plan recorded by dbrun.py holds expect -1 for a DDL statement. The port counts DDL as 0 (D-001), so such a plan is refused at verify with the counts in the message, rolled back, and must be planned again",
+  "kind": "exec",
+  "engines": [
+    "sqlite"
+  ],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30)"
+    ]
+  },
+  "steps": [
+    {
+      "difference": "D-008",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "CREATE TABLE u (x)"
+        ],
+        "timeout": 5,
+        "max_rows": 200,
+        "expect": [
+          -1
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rowcount": -1
+          }
+        ]
+      },
+      "expected_port": {
+        "ok": false,
+        "stage": "verify",
+        "error_contains": "statement 1: expected -1, got 0"
+      },
+      "absent_port": [
+        "committed"
+      ]
+    },
+    {
+      "difference": "D-008",
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT name FROM sqlite_master WHERE name = 'u'"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rows": [
+              [
+                "u"
+              ]
+            ]
+          }
+        ]
+      },
+      "expected_port": {
+        "ok": true,
+        "results": [
+          {
+            "rows": []
+          }
+        ]
+      }
+    }
+  ]
+}
