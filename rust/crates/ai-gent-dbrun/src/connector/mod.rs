@@ -22,6 +22,8 @@ use serde_json::Value;
 use std::fmt;
 
 pub mod contract;
+#[cfg(feature = "postgres")]
+pub mod postgres;
 pub mod process;
 pub mod request;
 #[cfg(feature = "sqlite")]
