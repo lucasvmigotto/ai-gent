@@ -21,7 +21,7 @@
 
 import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
-import { evaluate } from "./rules.mjs"
+import { appendGuardRow, evaluate, guardLogDir, guardRow, guardWords } from "./rules.mjs"
 import { decideWithBinary, packageInstall } from "./binary.mjs"
 
 // A package install (VERSION at the package root) is decided by the ai-gent
@@ -55,7 +55,12 @@ export default {
       const result = pkg ? decideWithBinary(event, { cwd, bin: pkg.bin }) : evaluate(event, { cwd, branchOf })
       if (result.decision === "none") return
       event.effect = result.decision
-      event.message = result.reason
+      // The guard's own words before its reason, and a row in the session's guard log (specs 015, 024).
+      const { message } = guardWords(result.decision, result.reason)
+      event.message = message ? `${message}\n\n${result.reason}` : result.reason
+      const command = event.action === "shell" && Array.isArray(event.resources) ? event.resources[0] : undefined
+      const tool = event.action === "shell" ? "Bash" : event.action === "edit" ? "Edit" : "Read"
+      appendGuardRow(guardLogDir(), event.sessionID, guardRow(result.decision, result.reason, tool, command, Date.now()))
     })
   },
 }

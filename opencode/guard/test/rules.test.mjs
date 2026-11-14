@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate } from "../rules.mjs"
+import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate, appendGuardRow, guardRow, guardVerb, guardWords } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
 // guards (plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh) decide for
@@ -315,6 +315,31 @@ console.log("    pass allowlist: TypeScript rules vs plugins/secrets/hooks/guard
 console.log("    evaluate(): OpenCode permission event adapter")
 for (const c of load("adapter").cases) {
   check(JSON.stringify(c.event), c.want, evaluate(c.event, { cwd: cwdOf(c.cwd), branchOf }).decision)
+}
+
+// ----------------------------------------------------- words and log rows
+
+// The guards' own words and log rows (specs 015, 024); scripts/guard-fixtures.py checks them against
+// every fixture, and these the edges: a value never reaches a row, and the log keeps the newest rows.
+console.log("    guardWords(), guardRow(), appendGuardRow()")
+{
+  const token = "ghp_" + "a1b2c3d4e5".repeat(4)
+  check("verb: a token as the first word", null, guardVerb(`${token} push`, "Bash"))
+  check("verb: a token in an argument", "git push", guardVerb(`git push https://${token}@x/y`, "Bash"))
+  check("verb: a path", "psql", guardVerb("/usr/bin/psql -c x", "Bash"))
+  check("verb: not Bash", null, guardVerb("git push", "Read"))
+  const onMain = "git:workflow guard: this commits or merges on main; the workflow works on a branch (allow only if the user asked for it)"
+  const row = guardRow("ask", onMain, "Bash", "git commit -m main", 1)
+  check("row: entry, not the branch", "the workflow works on a branch", row.entry)
+  check("row: holds no value", false, JSON.stringify(row).includes("main"))
+  check("row: a reason no guard owns", null, guardRow("deny", "something else", "Bash", "ls", 1))
+  check("words: a generic ask says nothing more", null, guardWords("ask", "db guard: a new question").message)
+  const dir = join(sandbox, "guard-log")
+  for (let i = 0; i < 401; i++) appendGuardRow(dir, "s-1", { at: i })
+  const kept = readFileSync(join(dir, "s-1.jsonl"), "utf8").trim().split("\n")
+  check("log: cut to the newest 200", "200 400", `${kept.length} ${JSON.parse(kept.at(-1)).at}`)
+  appendGuardRow(dir, "../x", { at: 1 })
+  check("log: an unsafe session id writes nothing", false, existsSync(join(sandbox, "x.jsonl")))
 }
 
 console.log(`\n    ${count} checks, ${failures} failed`)

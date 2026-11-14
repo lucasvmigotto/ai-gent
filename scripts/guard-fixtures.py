@@ -17,7 +17,9 @@ opencode parity vectors; every `want` and `reason` is what the real guard.sh pri
 install (the launcher head of shared/guard-launcher.sh, a VERSION file and the real binary
 at bin/ai-gent: the path hooks use). `--parity` leaves out the cases tagged `new`, which only
 the binary decides, so the three counts are equal. `failures` runs the launcher against a
-renamed, failing and slow binary (T051). Output lines use the format of scripts/test-*guard.sh (`      ok    <want> <command>` or `FAIL`).
+renamed, failing and slow binary (T051). `run` also checks each implementation's own words
+(systemMessage, additionalContext) and the row it appends to the session's guard log against
+the reference below, built from shared/guard-words.json (specs 015, 024). Output lines use the format of scripts/test-*guard.sh (`      ok    <want> <command>` or `FAIL`).
 Stdlib only.
 """
 import argparse
@@ -52,6 +54,79 @@ GRANTS = {
     "expired": "expires: 2000-01-01T00:00:00Z\nbranches: develop dev\nactions: push pr merge issues\n",
     "partial": "expires: 2099-12-31T23:59:59Z\nactions: issues\n",
 }
+
+
+with open(os.path.join(REPO, "shared", "guard-words.json"), encoding="utf-8") as _f:
+    WORDS = json.load(_f)
+
+
+def _owner(reason):
+    for gid, g in WORDS["guards"].items():
+        at = (reason or "").find(g["marker"])
+        if at >= 0:
+            text = reason[at + len(g["marker"]):].strip()
+            return gid, g, next((e for e in g["entries"] if e["match"] in text), None), text
+    return None
+
+
+def ref_words(decision, reason):
+    """(systemMessage, additionalContext) a guard prints with its decision."""
+    o = _owner(reason)
+    if not o or decision not in ("deny", "ask"):
+        return None, None
+    _, g, e, text = o
+    name = g["marker"].rstrip(":")
+    if decision == "deny":
+        why = (e["say"] + (" Instead: " + e["instead"] if e.get("instead") else "")) if e else text
+        return "%s refused this. %s (%s)" % (name, why, g["skill"]), ("%s: instead, %s" % (name, e["instead"]) if e and e.get("instead") else None)
+    if not e:
+        return None, None
+    return "%s asks: %s%s (%s)" % (name, e["say"], " " + e["allowIf"] if e.get("allowIf") else "", g["skill"]), None
+
+
+def ref_verb(command, tool):
+    if not isinstance(command, str) or tool != "Bash":
+        return None
+    words = command.split()
+    raw = words[0] if words else ""
+    if "://" in raw:
+        return None
+    first = raw.rsplit("/", 1)[-1]
+    if not re.fullmatch(r"[a-z][a-z0-9._-]{0,23}", first) or sum(c.isdigit() for c in first) >= 7:
+        return None
+    second = words[1] if len(words) > 1 else ""
+    return "%s %s" % (first, second) if first in ("git", "gh", "pass", "podman", "docker") and re.fullmatch(r"[a-z][a-z-]{0,23}", second) else first
+
+
+def ref_row(decision, reason, tool, command):
+    """The guard-log row, without `at`."""
+    o = _owner(reason)
+    if not o or decision not in ("deny", "ask"):
+        return None
+    gid, _, e, _ = o
+    tool = tool if isinstance(tool, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,63}", tool) else "unknown"
+    return {"guard": gid, "decision": decision, "entry": e["match"] if e else "generic", "tool": tool,
+            "verb": ref_verb(command, tool), "outcome": "asked" if decision == "ask" else None}
+
+
+def hook_words(out):
+    out = out.strip()
+    if not out:
+        return None, None
+    o = json.loads(out)
+    return o.get("systemMessage"), o["hookSpecificOutput"].get("additionalContext")
+
+
+def logged_row(logdir, session):
+    try:
+        with open(os.path.join(logdir, session + ".jsonl"), encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return None
+    row = json.loads(lines[-1]) if lines else None
+    if row is not None and not isinstance(row.pop("at", None), int):
+        return {"bad": "at"}
+    return row
 
 
 def load(name):
@@ -202,7 +277,7 @@ def run_mjs(items):
     r = subprocess.run([rt, os.path.join(REPO, "scripts", "guard-fixtures-mjs.mjs")], input=json.dumps(payload), capture_output=True, text=True)
     if r.returncode:
         sys.exit("guard-fixtures: mjs runner failed: " + r.stderr)
-    return [(x["decision"], x["reason"]) for x in json.loads(r.stdout)]
+    return [(x["decision"], x["reason"], x.get("words"), x.get("row")) for x in json.loads(r.stdout)]
 
 
 class Package:
@@ -318,6 +393,7 @@ def cmd_run(a):
             items.append((g, c, event(c, command, sb), shell))
     results = []
     pkg = None
+    logdir = tempfile.mkdtemp(prefix="ai-gent-fx-log-")
     try:
         if a.impl == "mjs":
             results = run_mjs(items)
@@ -325,30 +401,60 @@ def cmd_run(a):
             binpath = find_bin(a.bin) if a.impl in ("bin", "launcher") else None
             if a.impl == "launcher":
                 pkg = Package(binpath)
-            for g, c, ev, shell in items:
+            env = dict(pkg.env if pkg else os.environ, AI_GENT_GUARD_LOG_DIR=logdir)
+            for n, (g, c, ev, shell) in enumerate(items):
                 if a.impl == "sh":
                     argv = ["sh", os.path.join(REPO, GUARDS[g])]
                 elif a.impl == "launcher":
                     argv = ["sh", pkg.guard(g)]
                 else:
                     argv = [binpath, "guard", "--guard", g, "--shell", shell]
-                r = subprocess.run(argv, input=json.dumps(ev), capture_output=True, text=True, env=pkg.env if pkg else None)
-                results.append(parse_hook(r.stdout))
+                session = "fx-%d" % n
+                r = subprocess.run(argv, input=json.dumps(dict(ev, session_id=session)), capture_output=True, text=True, env=env)
+                got, reason = parse_hook(r.stdout)
+                results.append((got, reason, hook_words(r.stdout), logged_row(logdir, session)))
+            if items and a.impl in ("sh", "launcher"):
+                results_off = options_off(a, items, pkg, logdir)
+            else:
+                results_off = 0
     finally:
         sb.close()
         if pkg:
             pkg.close()
-    failures = 0
-    for (g, c, ev, shell), (got, reason) in zip(items, results):
+        shutil.rmtree(logdir, ignore_errors=True)
+    failures = results_off if a.impl != "mjs" else 0
+    for (g, c, ev, shell), (got, reason, words, row) in zip(items, results):
         label = (ev["tool_input"].get("command") or "%s %s" % (c["tool"], json.dumps(c.get("tool_input")))).replace("\n", "⏎")
         want = c["want"]
-        if got == want and (want == "none" or reason == c["reason"]):
+        want_words = ref_words(want, c.get("reason"))
+        want_row = ref_row(want, c.get("reason"), ev["tool_name"], ev["tool_input"].get("command"))
+        words = tuple(words) if words else (None, None)
+        if got == want and (want == "none" or reason == c["reason"]) and words == want_words and row == want_row:
             print("      ok    %-5s %s" % (want, label))
+        elif got == want and (want == "none" or reason == c["reason"]):
+            failures += 1
+            print("      FAIL  %s %s words or log row: want %s %s, got %s %s: %s" % (c["id"], shell, want_words, want_row, words, row, label))
         else:
             failures += 1
             print("      FAIL  %s %s want %s (%s), got %s (%s): %s" % (c["id"], shell, want, c.get("reason"), got, reason, label))
     print("guard-fixtures: %d run, %d failed, %d skipped (impl %s)" % (len(items), failures, skipped, a.impl))
     return 1 if failures else 0
+
+
+def options_off(a, items, pkg, logdir):
+    """With the plugin options guardUx and guardLog false, a decision carries no words and logs no row."""
+    g, c, ev, _ = next((i for i in items if i[1]["want"] != "none"), (None, None, None, None))
+    if g is None:
+        return 0
+    argv = ["sh", pkg.guard(g) if pkg else os.path.join(REPO, GUARDS[g])]
+    env = dict(pkg.env if pkg else os.environ, AI_GENT_GUARD_LOG_DIR=logdir, CLAUDE_PLUGIN_OPTION_guardUx="false", CLAUDE_PLUGIN_OPTION_GUARDLOG="false")
+    r = subprocess.run(argv, input=json.dumps(dict(ev, session_id="fx-off")), capture_output=True, text=True, env=env)
+    got, _ = parse_hook(r.stdout)
+    if got == c["want"] and hook_words(r.stdout) == (None, None) and logged_row(logdir, "fx-off") is None:
+        print("      ok    options guardUx and guardLog off: no words, no row (%s)" % c["id"])
+        return 0
+    print("      FAIL  options guardUx and guardLog off: %s" % r.stdout.strip())
+    return 1
 
 
 MUTATIONS = (
@@ -393,7 +499,7 @@ def cmd_mutate(a):
                 ev = event(c, mutated, sb)
                 want = decide(a.oracle, g, ev, None)
                 if a.impl == "mjs":
-                    got = run_mjs([(g, c, ev, "sh")])[0]
+                    got = run_mjs([(g, c, ev, "sh")])[0][:2]
                 else:
                     got = decide("bin", g, ev, binpath)
                 n += 1

@@ -11,7 +11,7 @@
 // function returns { decision: "deny" | "ask" | "none", reason?: string }.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // The autonomy grant: .ai-gent/autonomy at the repository root, key: value lines the user writes
@@ -554,4 +554,88 @@ export function evaluate(event, { cwd = ".", branchOf = () => "", grantOf = gran
     return candidates.find((c) => c.decision === "ask");
   }
   return { decision: "none" };
+}
+
+// ----------------------------------------------------------- words and log
+
+// The guards' own words and log rows (specs 015 and 024, decided 2026-11-14): a deny or ask is
+// shown with the plain words of its table entry, and one row per decision (the entry and the
+// command's verb, never the reason, the command or a path) goes to the session's guard log.
+// words.json is a copy of shared/guard-words.json; the shell guards (the generated `guard words`
+// block of each guard.sh) and the binary (guard/words.rs) do the same, checked by
+// scripts/guard-fixtures.py run.
+export const WORDS = JSON.parse(readFileSync(new URL("./words.json", import.meta.url), "utf8"));
+
+function owner(reason) {
+  if (typeof reason !== "string") return null;
+  for (const [id, g] of Object.entries(WORDS.guards)) {
+    const at = reason.indexOf(g.marker);
+    if (at < 0) continue;
+    const text = reason.slice(at + g.marker.length).trim();
+    return { id, guard: g, text, entry: g.entries.find((e) => text.includes(e.match)) ?? null };
+  }
+  return null;
+}
+
+// { message, context }: for the person, and on a deny one line for the model; nulls when none.
+export function guardWords(decision, reason) {
+  const o = owner(reason);
+  if (!o || (decision !== "deny" && decision !== "ask")) return { message: null, context: null };
+  const name = o.guard.marker.replace(/:$/, "");
+  const e = o.entry;
+  if (decision === "deny") {
+    const why = e ? (e.instead ? `${e.say} Instead: ${e.instead}` : e.say) : o.text;
+    return { message: `${name} refused this. ${why} (${o.guard.skill})`, context: e?.instead ? `${name}: instead, ${e.instead}` : null };
+  }
+  if (!e) return { message: null, context: null };
+  return { message: `${name} asks: ${e.say}${e.allowIf ? ` ${e.allowIf}` : ""} (${o.guard.skill})`, context: null };
+}
+
+const TWO_WORDS = new Set(["git", "gh", "pass", "podman", "docker"]);
+
+// The command's verb: never a value, an argument or a path.
+export function guardVerb(command, tool) {
+  if (typeof command !== "string" || tool !== "Bash") return null;
+  const words = command.trim().split(/[ \t\n\r]+/);
+  const raw = words[0] ?? "";
+  if (raw.includes("://")) return null;
+  const first = raw.slice(raw.lastIndexOf("/") + 1);
+  if (!/^[a-z][a-z0-9._-]{0,23}$/.test(first) || first.replace(/[^0-9]/g, "").length >= 7) return null;
+  const second = words[1] ?? "";
+  return TWO_WORDS.has(first) && /^[a-z][a-z-]{0,23}$/.test(second) ? `${first} ${second}` : first;
+}
+
+// The log row of a deny or ask a guard owns, or null.
+export function guardRow(decision, reason, tool, command, at) {
+  const o = owner(reason);
+  if (!o || (decision !== "deny" && decision !== "ask")) return null;
+  const t = typeof tool === "string" && /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/.test(tool) ? tool : "unknown";
+  return { at, guard: o.id, decision, entry: o.entry?.match ?? "generic", tool: t, verb: guardVerb(command, t), outcome: decision === "ask" ? "asked" : null };
+}
+
+// AI_GENT_GUARD_LOG_DIR, else the state directory's ai-gent/guard-log (as the binary and guard.sh).
+export function guardLogDir(env = process.env) {
+  if (env.AI_GENT_GUARD_LOG_DIR) return env.AI_GENT_GUARD_LOG_DIR;
+  if (env.XDG_STATE_HOME) return join(env.XDG_STATE_HOME, "ai-gent", "guard-log");
+  if (env.HOME) return join(env.HOME, ".local", "state", "ai-gent", "guard-log");
+  if (env.LOCALAPPDATA) return join(env.LOCALAPPDATA, "ai-gent", "state", "guard-log");
+  return null;
+}
+
+// Append a row to <dir>/<session>.jsonl; past twice the limit, keep the newest rows. Never throws.
+export function appendGuardRow(dir, session, row) {
+  if (!dir || !row || typeof session !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(session)) return;
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const file = join(dir, `${session}.jsonl`);
+    appendFileSync(file, JSON.stringify(row) + "\n", { mode: 0o600 });
+    const lines = readFileSync(file, "utf8").split("\n").filter(Boolean);
+    if (lines.length > 2 * WORDS.maxRows) {
+      const tmp = `${file}.${process.pid}`;
+      writeFileSync(tmp, lines.slice(-WORDS.maxRows).join("\n") + "\n", { mode: 0o600 });
+      renameSync(tmp, file);
+    }
+  } catch {
+    // a row that cannot be written is lost, never the decision
+  }
 }

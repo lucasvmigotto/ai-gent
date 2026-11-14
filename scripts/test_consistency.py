@@ -243,27 +243,27 @@ class StageNames(unittest.TestCase):
         self.assertEqual(consistency.check_stage_names(consistency.ROOT), [])
 
 
-class GuardUx(unittest.TestCase):
-    SHARED = ("export const GUARDS = {\n  git: {\n    marker: 'git:workflow guard:',\n    skill: 'git:workflow',\n    entries: [\n"
-              "      { match: 'hooks must not be bypassed', say: 'x' },\n    ],\n  },\n}\n")
+class GuardWords(unittest.TestCase):
+    WORDS = json.dumps({"schema": 1, "maxRows": 200, "guards": {"git": {"marker": "git:workflow guard:", "skill": "git:workflow",
+                        "entries": [{"match": "hooks must not be bypassed", "say": "x", "instead": "y"}]}}})
     GUARD = 'decide deny "hooks must not be bypassed (--no-verify); fix it"\n'
 
-    def files(self, shared=SHARED, guard=GUARD, copy=None):
-        files = {consistency.GUARD_UX: shared, "plugins/git/hooks/guard.sh": guard}
-        for plugin in consistency.SHARED_CODE[consistency.GUARD_UX]:
-            files[f"plugins/{plugin}/hooks/guard-ux.ts"] = shared if copy is None else copy
+    def files(self, words=WORDS, guard=GUARD, copy=None):
+        files = {consistency.GUARD_WORDS: words, "plugins/git/hooks/guard.sh": guard}
+        for c in consistency.GUARD_WORDS_COPIES:
+            files[c] = words if copy is None else copy
         return files
 
     def problems(self, **kw):
-        # only the git guard has a guard.sh in these throwaway trees
+        # only the git guard has a guard.sh in these throwaway trees, and no words template
         return consistency.check_guard_ux(tree(self.files(**kw)))
 
     def test_identical_copies_and_a_covered_reason_pass(self):
         self.assertEqual(self.problems(), [])
 
     def test_a_copy_that_differs_fails(self):
-        problems = self.problems(copy=self.SHARED + "// edited\n")
-        self.assertEqual(len(problems), len(consistency.SHARED_CODE[consistency.GUARD_UX]))
+        problems = self.problems(copy=self.WORDS + "\n")
+        self.assertEqual(len(problems), len(consistency.GUARD_WORDS_COPIES))
         self.assertIn("--sync-shared-code", problems[0])
 
     def test_a_band_priority_copy_that_differs_fails(self):
@@ -277,35 +277,26 @@ class GuardUx(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("plugins/git/hooks/band-priority.ts differs from shared/band-priority.ts", problems[0])
 
-    def test_the_repo_band_priority_copy_is_checked_too(self):
-        files = self.files()
-        files["shared/band-priority.ts"] = "export const a = 1\n"
-        files["plugins/project/hooks/band-priority.ts"] = "export const a = 1\n"
-        files["plugins/git/hooks/band-priority.ts"] = "export const a = 1\n"
-        files["plugins/repo/hooks/band-priority.ts"] = "export const a = 2\n"
-        files["plugins/devcontainer/hooks/band-priority.ts"] = "export const a = 1\n"
-        problems = consistency.check_guard_ux(tree(files))
-        self.assertEqual(len(problems), 1)
-        self.assertIn("plugins/repo/hooks/band-priority.ts differs", problems[0])
-
-    def test_the_devcontainer_band_priority_copy_is_checked_too(self):
-        files = self.files()
-        files["shared/band-priority.ts"] = "export const a = 1\n"
-        for plugin in ("project", "git", "repo"):
-            files[f"plugins/{plugin}/hooks/band-priority.ts"] = "export const a = 1\n"
-        files["plugins/devcontainer/hooks/band-priority.ts"] = "export const a = 2\n"
-        problems = consistency.check_guard_ux(tree(files))
-        self.assertEqual(len(problems), 1)
-        self.assertIn("plugins/devcontainer/hooks/band-priority.ts differs", problems[0])
-
     def test_a_reason_with_no_entry_fails(self):
         problems = self.problems(guard='decide ask "a brand new question"\ndecide deny "hooks must not be bypassed"\n')
         self.assertEqual(len(problems), 1)
         self.assertIn("a brand new question", problems[0])
 
-    def test_reasons_come_from_decide_lines_variables_and_printf_arguments(self):
-        text = 'creds_reason="that is a creds file"\ndecide deny "$creds_reason"\ndecide ask "plain"\nprintf x \\\n    "from printf"\n'
-        self.assertEqual(consistency.guard_reasons(text), ["that is a creds file", "plain", "from printf"])
+    def test_reasons_come_from_decide_and_guard_emit_lines_and_variables(self):
+        text = ('creds_reason="that is a creds file"\ndecide deny "$creds_reason"\ndecide ask "plain"\n'
+                '    guard_emit deny "repo guard: from emit"\n  guard_emit deny "git:workflow guard: $creds_reason"\n')
+        self.assertEqual(consistency.guard_reasons(text), ["that is a creds file", "plain", "from emit"])
+
+    def test_the_words_block_is_generated_and_checked(self):
+        root = tree(self.files())
+        (root / "shared" / "guard-words.sh").write_text((consistency.ROOT / "shared" / "guard-words.sh").read_text(encoding="utf-8"), encoding="utf-8")
+        problems = consistency.check_guard_ux(root)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("guard words block differs", problems[0])
+        consistency.sync_words(root)
+        self.assertEqual(consistency.check_guard_ux(root), [])
+        block = consistency.words_block(root)
+        self.assertIn("git:*'hooks must not be bypassed'*) _gw_match='hooks must not be bypassed' _gw_say='x' _gw_do='y' ;;", block)
 
     def test_the_repository_agrees(self):
         self.assertEqual(consistency.check_guard_ux(consistency.ROOT), [])
@@ -553,12 +544,12 @@ class Budget(unittest.TestCase):
 
 
 class GuardReasons(unittest.TestCase):
-    UX = "marker: 'repo guard:',\n    entries: [\n      { match: 'sign-off' },\n    ],\n"
+    UX = json.dumps({"maxRows": 200, "guards": {"repo": {"marker": "repo guard:", "skill": "repo:pr", "entries": [{"match": "sign-off", "say": "x"}]}}})
     GUARD = '#!/bin/sh\ndecide deny "no sign-off here"\n'
 
     def files(self, text):
         return {
-            consistency.GUARD_UX: self.UX,
+            consistency.GUARD_WORDS: self.UX,
             "plugins/repo/hooks/guard.sh": self.GUARD,
             consistency.REASONS_JSON: json.dumps([{"id": "repo.attrib", "guard": "repo", "marker": "repo guard:", "decision": "deny", "text": text}]),
         }
@@ -572,9 +563,9 @@ class GuardReasons(unittest.TestCase):
         problems = consistency.check_guard_reasons(root, consistency.guard_matches(root))
         self.assertEqual(len(problems), 2, problems)
 
-    def test_a_reason_without_a_ux_entry_fails(self):
+    def test_a_reason_without_a_words_entry_fails(self):
         root = tree(self.files("no sign-off here"))
-        (root / consistency.GUARD_UX).write_text("marker: 'repo guard:',\n    entries: [\n      { match: 'other' },\n    ],\n")
+        (root / consistency.GUARD_WORDS).write_text(self.UX.replace("sign-off", "other"))
         problems = consistency.check_guard_reasons(root, consistency.guard_matches(root))
         self.assertTrue(any("no entry" in p for p in problems), problems)
 
