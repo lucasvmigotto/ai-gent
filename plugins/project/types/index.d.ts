@@ -91,8 +91,8 @@ export type Snapshot = {
 // change is told once.
 export type NextStageLast = Next | null
 
-// One decision of a guard plugin's guard, verb only (the five plugins' own
-// types declare the same shape; this contract has to be self-contained).
+// One row of the guard log the five guards append to (specs/024-guard-log): the
+// entry and the command's verb only, never the reason, a command line or a path.
 export type GuardRow = {
   at: number
   guard: 'git' | 'db' | 'secrets' | 'repo' | 'containers'
@@ -150,6 +150,8 @@ declare module 'claude-code' {
   interface PluginState {
     project: {
       checkpoint: Shaped<Checkpoint | null>
+      // Bumped after a tool call while the guards pane is open, so it rereads the guard log.
+      guardsTick: number
       isBandHidden: boolean
       handoffToasted: Shaped<HandoffToasted>
       // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
@@ -189,11 +191,8 @@ declare module 'claude-code' {
       nextStageMtimes: Record<string, number>
     }
     // The other plugins' atoms, read-only here; each is absent when its plugin is not installed.
-    // guardLog is each guard plugin's own ring (spec 024); /guards reads all five.
-    git: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
-    repo: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
-    devcontainer: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
-    db: { guardLog: Shaped<GuardRow[]> }
-    secrets: { guardLog: Shaped<GuardRow[]> }
+    git: { bands: Band[] }
+    repo: { bands: Band[] }
+    devcontainer: { bands: Band[] }
   }
 }

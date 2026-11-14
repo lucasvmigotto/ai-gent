@@ -28,26 +28,11 @@ export type Hygiene = {
 // The atom adds `branch`, the chain branch it was computed on (for the behind note).
 export type ReleasePlan = { version: string; bump: 'major' | 'minor' | 'patch'; since: string | null; plugins: number }
 
-// One decision of this plugin's guard, verb only: never the guard's reason, a command line, an argument or a path.
-export type GuardRow = {
-  at: number
-  guard: 'git' | 'db' | 'secrets' | 'repo' | 'containers'
-  decision: 'deny' | 'ask'
-  // The guard table entry's `match`, or `generic`.
-  entry: string
-  tool: string
-  verb: string | null
-  outcome: 'asked' | null
-}
 
 declare module 'claude-code' {
   interface PluginState {
     git: {
-      // The last 200 guard decisions, newest last; the project plugin's /guards reads it.
-      guardLog: Shaped<GuardRow[]>
       hygiene: Shaped<Hygiene | null>
-      // What was already shown this session, by name, so a reload repeats nothing.
-      toasted: Record<string, boolean>
       // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
       bands: Band[]
       // The release band's plan, or the failure line; null when nothing is releasable or the branch is not a chain branch.

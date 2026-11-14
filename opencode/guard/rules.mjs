@@ -11,7 +11,8 @@
 // function returns { decision: "deny" | "ask" | "none", reason?: string }.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { chmodSync, closeSync, constants as FS, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 
 // The autonomy grant: .ai-gent/autonomy at the repository root, key: value lines the user writes
@@ -554,4 +555,242 @@ export function evaluate(event, { cwd = ".", branchOf = () => "", grantOf = gran
     return candidates.find((c) => c.decision === "ask");
   }
   return { decision: "none" };
+}
+
+// ----------------------------------------------------------- words and log
+
+// The guards' own words and log rows (specs 015 and 024, decided 2026-11-14): a deny or ask is
+// shown with the plain words of its table entry, and one row per decision (the entry and the
+// command's verb, never the reason, the command or a path) goes to the session's guard log.
+// words.json is a copy of shared/guard-words.json; the shell guards (the generated `guard words`
+// block of each guard.sh) and the binary (guard/words.rs) do the same, checked by
+// scripts/guard-fixtures.py run.
+export const WORDS = JSON.parse(readFileSync(new URL("./words.json", import.meta.url), "utf8"));
+
+function owner(reason) {
+  if (typeof reason !== "string") return null;
+  for (const [id, g] of Object.entries(WORDS.guards)) {
+    const at = reason.indexOf(g.marker);
+    if (at < 0) continue;
+    const text = reason.slice(at + g.marker.length).trim();
+    return { id, guard: g, text, entry: g.entries.find((e) => text.includes(e.match)) ?? null };
+  }
+  return null;
+}
+
+// { message, context }: for the person, and on a deny one line for the model; nulls when none.
+export function guardWords(decision, reason) {
+  const o = owner(reason);
+  if (!o || (decision !== "deny" && decision !== "ask")) return { message: null, context: null };
+  const name = o.guard.marker.replace(/:$/, "");
+  const e = o.entry;
+  if (decision === "deny") {
+    const why = e ? (e.instead ? `${e.say} Instead: ${e.instead}` : e.say) : o.text;
+    return { message: `${name} refused this. ${why} (${o.guard.skill})`, context: e?.instead ? `${name}: instead, ${e.instead}` : null };
+  }
+  if (!e) return { message: null, context: null };
+  return { message: `${name} asks: ${e.say}${e.allowIf ? ` ${e.allowIf}` : ""} (${o.guard.skill})`, context: null };
+}
+
+// The command's verb: the first word and, for a first word the table's verbs lists, the second
+// word when it is a listed subcommand. Never a value, an entry, a branch or a path.
+export function guardVerb(command, tool) {
+  if (typeof command !== "string" || tool !== "Bash") return null;
+  const words = command.trim().split(/[ \t\n\r]+/);
+  const raw = words[0] ?? "";
+  if (raw.includes("://")) return null;
+  const first = raw.slice(raw.lastIndexOf("/") + 1);
+  if (!/^[a-z][a-z0-9._-]{0,23}$/.test(first) || first.replace(/[^0-9]/g, "").length >= 7) return null;
+  const second = words[1] ?? "";
+  return Object.hasOwn(WORDS.verbs, first) && WORDS.verbs[first].includes(second) ? `${first} ${second}` : first;
+}
+
+// The log row of a deny or ask a guard owns, or null.
+export function guardRow(decision, reason, tool, command, at) {
+  const o = owner(reason);
+  if (!o || (decision !== "deny" && decision !== "ask")) return null;
+  const t = typeof tool === "string" && /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/.test(tool) ? tool : "unknown";
+  return { at, guard: o.id, decision, entry: o.entry?.match ?? "generic", tool: t, verb: guardVerb(command, t), outcome: decision === "ask" ? "asked" : null };
+}
+
+// AI_GENT_GUARD_LOG_DIR, else the state directory's ai-gent/guard-log (as the binary and guard.sh).
+export function guardLogDir(env = process.env) {
+  if (env.AI_GENT_GUARD_LOG_DIR) return env.AI_GENT_GUARD_LOG_DIR;
+  if (env.XDG_STATE_HOME) return join(env.XDG_STATE_HOME, "ai-gent", "guard-log");
+  if (env.HOME) return join(env.HOME, ".local", "state", "ai-gent", "guard-log");
+  if (env.LOCALAPPDATA) return join(env.LOCALAPPDATA, "ai-gent", "state", "guard-log");
+  return null;
+}
+
+// Whether a plugin option is set to false (CLAUDE_PLUGIN_OPTION_<key>, as written or upper-cased),
+// read the way the binary and guard.sh read it.
+export function optionOff(key, env = process.env) {
+  return env[`CLAUDE_PLUGIN_OPTION_${key}`] === "false" || env[`CLAUDE_PLUGIN_OPTION_${key.toUpperCase()}`] === "false";
+}
+
+// What OpenCode shows for a decision: the person's line, the guard's reason and, on a deny, the
+// line for the agent (OpenCode has one message for both, where Claude Code has systemMessage and
+// additionalContext), and whether to log it. guardUx false leaves the reason alone; guardLog
+// false writes no row.
+export function guardPresent(decision, reason, env = process.env) {
+  const { message, context } = optionOff("guardUx", env) ? { message: null, context: null } : guardWords(decision, reason);
+  return { message: [message, reason, context].filter(Boolean).join("\n\n"), log: !optionOff("guardLog", env) };
+}
+
+const OWN = typeof process.getuid === "function" ? process.getuid() : null;
+const NOFOLLOW = FS.O_NOFOLLOW ?? 0;
+const NONBLOCK = FS.O_NONBLOCK ?? 0;
+
+// Open the log without following a symlink or blocking on a FIFO; anything but a regular file is
+// refused (throws).
+function openLog(file, flags) {
+  if (!NOFOLLOW) {
+    try {
+      if (!lstatSync(file).isFile()) throw new Error("not a regular file");
+    } catch (e) {
+      if (e.code !== "ENOENT") throw e;
+    }
+  }
+  const fd = openSync(file, flags | NOFOLLOW | NONBLOCK, 0o600);
+  const st = fstatSync(fd);
+  if (!st.isFile()) {
+    closeSync(fd);
+    throw new Error("not a regular file");
+  }
+  return { fd, st };
+}
+
+// The last `cap` bytes of an open file.
+function readTail(fd, size, cap) {
+  const n = Math.min(size, cap);
+  const buf = Buffer.alloc(n);
+  let got = 0;
+  while (got < n) {
+    const r = readSync(fd, buf, got, n - got, size - n + got);
+    if (r <= 0) break;
+    got += r;
+  }
+  return buf.subarray(0, got).toString("utf8");
+}
+
+// Append a row to <dir>/<session>.jsonl (directory 0700, file 0600; one we own is tightened), only
+// to a regular file, never through a symlink. Past twice the row limit (or maxBytes) the file is
+// cut to its newest rows, read from its last maxBytes only, under <session>.jsonl.trim (created
+// exclusively; held by another writer, the cut waits for the next row). Never throws.
+export function appendGuardRow(dir, session, row) {
+  if (!dir || !row || typeof session !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(session)) return;
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const d = statSync(dir);
+    if (OWN !== null && d.uid === OWN && (d.mode & 0o077) !== 0) chmodSync(dir, 0o700);
+    const file = join(dir, `${session}.jsonl`);
+    const { fd, st } = openLog(file, FS.O_WRONLY | FS.O_APPEND | FS.O_CREAT);
+    let size;
+    try {
+      if (OWN !== null && st.uid === OWN && (st.mode & 0o077) !== 0) chmodSync(file, 0o600);
+      writeSync(fd, JSON.stringify(row) + "\n");
+      size = fstatSync(fd).size;
+    } finally {
+      closeSync(fd);
+    }
+    const cap = WORDS.maxBytes;
+    let text = null;
+    if (size <= cap) {
+      const r = openLog(file, FS.O_RDONLY);
+      try {
+        text = readTail(r.fd, r.st.size, cap);
+      } finally {
+        closeSync(r.fd);
+      }
+      if (text.split("\n").filter(Boolean).length <= 2 * WORDS.maxRows) return;
+    }
+    trimGuardLog(dir, session, file, cap);
+  } catch {
+    // a row that cannot be written is lost, never the decision
+  }
+}
+
+// The token a lock file holds, or null when it cannot be read.
+function lockToken(lock) {
+  try {
+    const { fd } = openLog(lock, FS.O_RDONLY);
+    try {
+      return readTail(fd, fstatSync(fd).size, 64);
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+}
+
+// Take <session>.jsonl.trim: created exclusively, holding a random token; a lock left by a writer
+// that died is stale after 30 s and is taken over. Returns the token, or null when another writer
+// holds it.
+export function takeTrimLock(lock) {
+  const token = randomBytes(16).toString("hex");
+  for (let tries = 0; ; tries++) {
+    try {
+      const lfd = openSync(lock, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | NOFOLLOW, 0o600);
+      try {
+        writeSync(lfd, token);
+      } finally {
+        closeSync(lfd);
+      }
+      return token;
+    } catch (e) {
+      if (e.code !== "EEXIST" || tries >= 1) return null;
+      try {
+        const seen = lockToken(lock);
+        if (Date.now() - lstatSync(lock).mtimeMs < 30_000) return null;
+        // remove only the stale lock we looked at, never one that replaced it meanwhile
+        if (lockToken(lock) !== seen) return null;
+        unlinkSync(lock);
+      } catch {
+        return null;
+      }
+    }
+  }
+}
+
+// Release the lock only while it still holds our token: a writer that stalled past 30 s and had its
+// lock taken over must not remove the new holder's lock.
+export function dropTrimLock(lock, token) {
+  if (token && lockToken(lock) === token) {
+    try { unlinkSync(lock); } catch {}
+  }
+}
+
+function trimGuardLog(dir, session, file, cap) {
+  const lock = join(dir, `${session}.jsonl.trim`);
+  const token = takeTrimLock(lock);
+  if (!token) return;
+  let tmp = null;
+  try {
+    const r = openLog(file, FS.O_RDONLY);
+    let text;
+    try {
+      text = readTail(r.fd, r.st.size, cap);
+    } finally {
+      closeSync(r.fd);
+    }
+    const lines = text.split("\n").filter(Boolean);
+    if (r.st.size > cap) lines.shift(); // a cut from the middle starts on a partial line
+    if (!lines.length) return;
+    tmp = join(dir, `.${session}.jsonl.${randomBytes(8).toString("hex")}`);
+    const tfd = openSync(tmp, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | NOFOLLOW, 0o600);
+    try {
+      writeSync(tfd, lines.slice(-WORDS.maxRows).join("\n") + "\n");
+    } finally {
+      closeSync(tfd);
+    }
+    // a row appended since the snapshot (the file grew) would be lost: leave the file whole and cut
+    // at the next row; only a row appended between this check and the rename can still be lost
+    if (lstatSync(file).size !== r.st.size) return;
+    renameSync(tmp, file);
+    tmp = null;
+  } finally {
+    if (tmp) try { unlinkSync(tmp); } catch {}
+    dropTrimLock(lock, token);
+  }
 }

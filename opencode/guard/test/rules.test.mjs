@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate } from "../rules.mjs"
+import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate, appendGuardRow, dropTrimLock, takeTrimLock, guardPresent, guardRow, guardVerb, guardWords } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
 // guards (plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh) decide for
@@ -10,6 +10,7 @@ import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuar
 // (shared/guard-fixtures/*.json, spec 033), which the shell test suites and
 // scripts/guard-fixtures.py read too, so the implementations cannot drift.
 
+const WORDS_MAX_BYTES = JSON.parse(readFileSync(new URL("../words.json", import.meta.url), "utf8")).maxBytes
 const REPO = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const GIT_GUARD = join(REPO, "plugins/git/hooks/guard.sh")
 const DB_GUARD = join(REPO, "plugins/db/hooks/guard.sh")
@@ -315,6 +316,80 @@ console.log("    pass allowlist: TypeScript rules vs plugins/secrets/hooks/guard
 console.log("    evaluate(): OpenCode permission event adapter")
 for (const c of load("adapter").cases) {
   check(JSON.stringify(c.event), c.want, evaluate(c.event, { cwd: cwdOf(c.cwd), branchOf }).decision)
+}
+
+// ----------------------------------------------------- words and log rows
+
+// The guards' own words and log rows (specs 015, 024); scripts/guard-fixtures.py checks them against
+// every fixture, and these the edges: a value never reaches a row, and the log keeps the newest rows.
+console.log("    guardWords(), guardRow(), appendGuardRow()")
+{
+  const token = "ghp_" + "a1b2c3d4e5".repeat(4)
+  check("verb: a token as the first word", null, guardVerb(`${token} push`, "Bash"))
+  check("verb: a token in an argument", "git push", guardVerb(`git push https://${token}@x/y`, "Bash"))
+  check("verb: a path", "psql", guardVerb("/usr/bin/psql -c x", "Bash"))
+  check("verb: not Bash", null, guardVerb("git push", "Read"))
+  const onMain = "git:workflow guard: this commits or merges on main; the workflow works on a branch (allow only if the user asked for it)"
+  const row = guardRow("ask", onMain, "Bash", "git commit -m main", 1)
+  check("row: entry, not the branch", "the workflow works on a branch", row.entry)
+  check("row: holds no value", false, JSON.stringify(row).includes("main"))
+  check("row: a reason no guard owns", null, guardRow("deny", "something else", "Bash", "ls", 1))
+  check("words: a generic ask says nothing more", null, guardWords("ask", "db guard: a new question").message)
+  const dir = join(sandbox, "guard-log")
+  for (let i = 0; i < 401; i++) appendGuardRow(dir, "s-1", { at: i })
+  const kept = readFileSync(join(dir, "s-1.jsonl"), "utf8").trim().split("\n")
+  check("log: cut to the newest 200", "200 400", `${kept.length} ${JSON.parse(kept.at(-1)).at}`)
+  appendGuardRow(dir, "../x", { at: 1 })
+  check("log: an unsafe session id writes nothing", false, existsSync(join(sandbox, "x.jsonl")))
+  check("log: no temporary or lock file left", "s-1.jsonl", readdirSync(dir).join(" "))
+  check("verb: an entry name is not a subcommand", "pass", guardVerb("pass example-entry", "Bash"))
+  check("verb: a branch name is not a subcommand", "git", guardVerb("git feature-x", "Bash"))
+  check("verb: a listed subcommand", "pass show", guardVerb("pass show a/b", "Bash"))
+  // never through a link, never a FIFO, never a hang; loose modes we own are tightened
+  const target = join(sandbox, "target")
+  writeFileSync(target, "x\n")
+  symlinkSync(target, join(dir, "s-link.jsonl"))
+  appendGuardRow(dir, "s-link", { at: 1 })
+  check("log: a symlinked log is refused", "x\n", readFileSync(target, "utf8"))
+  if (process.platform !== "win32") {
+    execFileSync("mkfifo", [join(dir, "s-fifo.jsonl")])
+    const t0 = Date.now()
+    appendGuardRow(dir, "s-fifo", { at: 1 })
+    check("log: a FIFO is refused without blocking", true, Date.now() - t0 < 2000)
+    writeFileSync(join(dir, "s-loose.jsonl"), "")
+    chmodSync(join(dir, "s-loose.jsonl"), 0o644)
+    chmodSync(dir, 0o755)
+    appendGuardRow(dir, "s-loose", { at: 1 })
+    check("log: modes tightened", "700 600", `${(statSync(dir).mode & 0o777).toString(8)} ${(statSync(join(dir, "s-loose.jsonl")).mode & 0o777).toString(8)}`)
+  }
+  // a large log is read from its tail only
+  const pad = JSON.stringify({ at: 0, pad: "x".repeat(100) }) + "\n"
+  writeFileSync(join(dir, "s-big.jsonl"), pad.repeat(Math.ceil((2 * WORDS_MAX_BYTES) / pad.length)))
+  appendGuardRow(dir, "s-big", { at: 1 })
+  const big = readFileSync(join(dir, "s-big.jsonl"), "utf8").trim().split("\n")
+  check("log: a large log cut from its tail", "200 1", `${big.length} ${JSON.parse(big.at(-1)).at}`)
+  // a trim another writer holds is skipped: no row is lost
+  writeFileSync(join(dir, "s-held.jsonl.trim"), "")
+  for (let i = 0; i < 401; i++) appendGuardRow(dir, "s-held", { at: i })
+  check("log: a held trim loses no row", 401, readFileSync(join(dir, "s-held.jsonl"), "utf8").trim().split("\n").length)
+  // a writer that stalls past 30 s has its lock taken over; its late release leaves the new lock
+  const lock = join(dir, "s-stale.jsonl.trim")
+  const first = takeTrimLock(lock)
+  check("lock: a second writer waits", null, takeTrimLock(lock))
+  utimesSync(lock, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000))
+  const second = takeTrimLock(lock)
+  check("lock: a stale lock is taken over", true, !!second && second !== first)
+  dropTrimLock(lock, first)
+  check("lock: the stalled writer leaves the new holder's lock", second, existsSync(lock) && readFileSync(lock, "utf8"))
+  dropTrimLock(lock, second)
+  check("lock: the holder removes its own lock", false, existsSync(lock))
+  // OpenCode's message: words, reason and the agent's line; the options turn each off
+  const deny = "git:workflow guard: hooks must not be bypassed (--no-verify); fix the hook failure instead"
+  const w = guardWords("deny", deny)
+  check("present: words, reason, context", [w.message, deny, w.context].join("\n\n"), guardPresent("deny", deny, {}).message)
+  check("present: guardUx off leaves the reason", deny, guardPresent("deny", deny, { CLAUDE_PLUGIN_OPTION_guardUx: "false" }).message)
+  check("present: guardLog off writes no row", false, guardPresent("deny", deny, { CLAUDE_PLUGIN_OPTION_GUARDLOG: "false" }).log)
+  check("present: logs by default", true, guardPresent("deny", deny, {}).log)
 }
 
 console.log(`\n    ${count} checks, ${failures} failed`)

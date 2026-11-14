@@ -52,8 +52,14 @@ hook() { env -u AI_GENT_UPDATE_ROOT CLAUDE_PLUGIN_ROOT="$1" sh -c "$HOOK_CMD"; }
 mkdir -p "$SANDBOX/skills"
 ln -s "$AI_GENT_HOME/current/plugins/git" "$SANDBOX/skills/git"
 fresh
+OUT="$(hook "$AI_GENT_HOME/current/plugins/git")"
 check "package with the binary: the hook prints the notice" \
-  test "$(hook "$AI_GENT_HOME/current/plugins/git" | grep -c 'update available: 9.9.0 -> 9.9.1')" = 1
+  test "$(printf '%s' "$OUT" | grep -c 'update available: 9.9.0 -> 9.9.1')" = 1
+check "the notice is a systemMessage for the person and context for the model (no module relays it)" \
+  python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert "update available: 9.9.0 -> 9.9.1" in d["systemMessage"] and d["hookSpecificOutput"]["hookEventName"] == "SessionStart" and "update available" in d["hookSpecificOutput"]["additionalContext"], d' "$OUT"
+fresh
+check "sessionToasts off: the plain line, for the model only" \
+  test "$(CLAUDE_PLUGIN_OPTION_sessionToasts=false hook "$AI_GENT_HOME/current/plugins/git" | grep -c '^\[ai-gent\] update available: 9.9.0 -> 9.9.1')" = 1
 check "package with the binary: the second session of the day is silent" \
   test -z "$(hook "$AI_GENT_HOME/current/plugins/git")"
 fresh

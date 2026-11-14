@@ -17,7 +17,7 @@
     "guardLog": {
       "type": "boolean",
       "title": "Keep a log of this guard's decisions",
-      "description": "Remember the last 200 denies and asks (the entry and the command's verb only, never the command or the reason) for the project plugin's /guards (the guard still decides)",
+      "description": "Append each deny and ask (the entry and the command's verb only, never the command or the reason) to this session's guard log in the state directory (~/.local/state/ai-gent/guard-log, the last 200 kept) for the project plugin's /guards (the guard still decides)",
       "default": true
     },
     "hygieneBand": {
@@ -35,7 +35,7 @@
     "sessionToasts": {
       "type": "boolean",
       "title": "Show the update notice",
-      "description": "Show ai-gent's update notice (printed by the session-start hook, which only the model sees) as a toast",
+      "description": "Show ai-gent's update notice to you at session start: the session-start hook prints it as a message the engine shows, besides the copy the model reads",
       "default": true
     },
     "releasePreview": {

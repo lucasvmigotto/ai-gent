@@ -1,0 +1,185 @@
+{
+  "//": "The guards friendly words and guard-log rules (specs/015-guard-ux, specs/024-guard-log): each guard prints them itself (ai-gent guard, the shell fallback in plugins/*/hooks/guard.sh, opencode/guard/rules.mjs). A row keeps the first word of a Bash command and, for a first word listed under verbs, a second word only when it is a listed subcommand (never an entry, a branch or a value); a log file larger than maxBytes is read from its last maxBytes only. Copies: rust/crates/ai-gent-core/src/guard/words.json, opencode/guard/words.json and the generated block in each guard.sh; python3 scripts/consistency.py --sync-shared-code rewrites them.",
+  "schema": 1,
+  "maxRows": 200,
+  "maxBytes": 262144,
+  "verbs": {
+    "git": ["add", "am", "apply", "bisect", "blame", "branch", "checkout", "cherry-pick", "clean", "clone", "commit", "config", "diff", "fetch", "filter-branch", "filter-repo", "gc", "init", "log", "merge", "mv", "notes", "pull", "push", "rebase", "reflog", "remote", "replace", "reset", "restore", "revert", "rm", "show", "stash", "status", "submodule", "switch", "tag", "update-ref", "worktree"],
+    "gh": ["api", "auth", "gist", "issue", "pr", "release", "repo", "run", "secret", "ssh-key", "variable", "workflow"],
+    "pass": ["cp", "edit", "find", "generate", "git", "grep", "init", "insert", "ls", "mv", "otp", "rm", "show"],
+    "podman": ["build", "builder", "buildx", "compose", "container", "cp", "create", "exec", "image", "images", "inspect", "kill", "load", "login", "logout", "logs", "network", "pause", "pod", "ps", "pull", "push", "rm", "rmi", "run", "save", "start", "stop", "system", "tag", "volume"],
+    "docker": ["build", "builder", "buildx", "compose", "container", "cp", "create", "exec", "image", "images", "inspect", "kill", "load", "login", "logout", "logs", "network", "pause", "pod", "ps", "pull", "push", "rm", "rmi", "run", "save", "start", "stop", "system", "tag", "volume"]
+  },
+  "guards": {
+    "git": {
+      "marker": "git:workflow guard:",
+      "skill": "git:workflow",
+      "entries": [
+        {
+          "match": "hooks must not be bypassed",
+          "say": "Hooks are never bypassed (--no-verify, -n).",
+          "instead": "fix what the hook reports, then commit again."
+        },
+        {
+          "match": "commits, issues, pull requests and comments carry no sign-off",
+          "say": "Commits, issues, pull requests and comments carry no mention of the agent.",
+          "instead": "remove the Co-Authored-By or \"generated with\" line and run the command again."
+        },
+        {
+          "match": "force pushes use --force-with-lease",
+          "say": "A plain force push can overwrite other people's commits.",
+          "instead": "use --force-with-lease, and only on the user's explicit order."
+        },
+        {
+          "match": "the autonomy grant",
+          "say": "Only you write the autonomy grant; an agent that could write it could give itself the permissions.",
+          "instead": "create or change the grant file yourself (expires, branches and actions lines)."
+        },
+        {
+          "match": "git push publishes",
+          "say": "This publishes commits to the remote.",
+          "allowIf": "Allow only if you asked for this push."
+        },
+        {
+          "match": "opening a PR publishes the branch",
+          "say": "This opens a pull request, which publishes the branch.",
+          "allowIf": "Allow only if you asked for it."
+        },
+        {
+          "match": "git branch -D deletes unmerged work",
+          "say": "This deletes a branch that may hold unmerged work.",
+          "allowIf": "Allow only if you asked for it; the workflow uses git branch -d."
+        },
+        {
+          "match": "rewrites history or discards work",
+          "say": "This rewrites history or discards work.",
+          "allowIf": "Allow only if you asked for it."
+        },
+        {
+          "match": "the workflow works on a branch",
+          "say": "This commits or merges on a long-lived branch.",
+          "allowIf": "Allow only if you asked for it."
+        },
+        {
+          "match": "promotion up the branch chain",
+          "say": "This commits or merges on a branch higher in the chain.",
+          "allowIf": "Allow only if you asked to promote."
+        },
+        {
+          "match": "commits directly on",
+          "say": "This commits straight onto the integration branch.",
+          "allowIf": "Work goes on a branch merged into it; allow only if you meant this (concluding a merge is fine)."
+        }
+      ]
+    },
+    "db": {
+      "marker": "db guard:",
+      "skill": "db:connect",
+      "entries": [
+        {
+          "match": "db credentials file",
+          "say": "Only dbrun reads database credential files.",
+          "instead": "use dbrun profiles, classify or test."
+        },
+        {
+          "match": "restores into a database",
+          "say": "A direct restore changes a database.",
+          "instead": "local restores go through dbrun restore; anything else is a script for a person to run."
+        },
+        {
+          "match": "with SQL that writes",
+          "say": "A direct client call would write to a database.",
+          "instead": "use dbrun (plan and apply on a proven local database, a script for anything else)."
+        },
+        {
+          "match": "bypasses dbrun",
+          "say": "This calls a database client directly: no classification, masking or command log.",
+          "allowIf": "Allow only if you want this direct call."
+        }
+      ]
+    },
+    "secrets": {
+      "marker": "secrets guard:",
+      "skill": "secrets:pass",
+      "entries": [
+        {
+          "match": "decrypting the password store directly",
+          "say": "Decrypting the store would show secret values.",
+          "instead": "the runner that needs a secret reads it."
+        },
+        {
+          "match": "ai-gent/db/ entries are read only by dbrun",
+          "say": "Database passwords are read only by dbrun.",
+          "instead": "use dbrun test or query."
+        },
+        {
+          "match": "hands the secret to a command that can print it",
+          "say": "This would hand a secret to a command that can print it.",
+          "instead": "run the tool that needs it after --."
+        },
+        {
+          "match": "pass -c/-q exposes a secret value",
+          "say": "This would expose a secret value.",
+          "instead": "the runner that needs it reads it; the agent never does."
+        },
+        {
+          "match": "the agent never writes a credential",
+          "say": "The agent never types a credential.",
+          "instead": "ask the user to run `pass insert <entry>` in their own terminal."
+        },
+        {
+          "match": "changes the password store",
+          "say": "This changes the password store.",
+          "allowIf": "The user decides."
+        },
+        {
+          "match": "mentions the pass allowlist",
+          "say": "This touches the list of pass entries the agent may read.",
+          "allowIf": "The user decides what the agent may read."
+        },
+        {
+          "match": "that shows a secret value from pass",
+          "say": "This would show a secret value.",
+          "instead": "the agent sees names only (pass ls)."
+        }
+      ]
+    },
+    "repo": {
+      "marker": "repo guard:",
+      "skill": "repo:pr",
+      "entries": [
+        {
+          "match": "work items, pull requests and comments carry no sign-off",
+          "say": "Issues, work items, pull requests and comments carry no mention of the agent.",
+          "instead": "remove the Co-Authored-By or \"generated with\" line and run the command again."
+        },
+        {
+          "match": "reporun --write changes an issue",
+          "say": "This changes an issue, work item or pull request on the platform.",
+          "allowIf": "Allow only if you asked for exactly this change."
+        }
+      ]
+    },
+    "containers": {
+      "marker": "containers guard:",
+      "skill": "devcontainer:workflow",
+      "entries": [
+        {
+          "match": "prune removes other projects",
+          "say": "A prune removes other projects' images, volumes and builds.",
+          "instead": "remove by ID, or by this project's label (containers.md §9a)."
+        },
+        {
+          "match": "removing everything takes other projects",
+          "say": "Removing everything takes other projects' resources.",
+          "instead": "remove by ID or by this project's label (containers.md §9)."
+        },
+        {
+          "match": "removes whatever an unfiltered listing returns",
+          "say": "That removes whatever an unfiltered listing returns.",
+          "instead": "filter the listing by this project's label (containers.md §9a)."
+        }
+      ]
+    }
+  }
+}

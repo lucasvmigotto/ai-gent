@@ -1,6 +1,6 @@
 // The repo-hygiene features' reading: everything that needs `$`. It runs only
 // read-only git commands (never fetch, pull or a ref change), reads
-// FETCH_HEAD's time, and relays what the update-check hook already printed.
+// FETCH_HEAD's time.
 // The wording is in hygiene-model.ts; this file feeds it.
 
 import { atom, read, update } from 'claude-code'
@@ -8,14 +8,12 @@ import type { EngineInterface } from 'claude-code'
 
 import type { BranchState, Hygiene } from '../types'
 import { setBand } from './bands'
-import { hookLines, rowText, updateLine } from './hook-lines'
 import { CHAIN, branchesWithRemote, parseCounts, releasesIn, sentence, summaryOf } from './hygiene-model'
 import { git, runRelease } from './release'
 
 // Change the tag when Hygiene's fields change: it declines what an earlier
 // version stored, which outlives a reload.
 const hygieneAtom = atom({ plugin: 'git', key: 'hygiene' } as const, null, { shape: 'hygiene-1' })
-const toastedAtom = atom({ plugin: 'git', key: 'toasted' } as const, {})
 
 // The comparison is read again at most this often between turns.
 const THROTTLE_MS = 60_000
@@ -64,17 +62,6 @@ export async function recordHygieneBand($: EngineInterface): Promise<void> {
 
 export async function readHygiene($: EngineInterface): Promise<Hygiene | null> {
   return read($, hygieneAtom)
-}
-
-// ----------------------------------------------------------- session notices
-
-// update-check.sh's line was only in the model's context; the person sees it
-// once, as a toast. The script's own words, never a check of the mod's own.
-export async function relayUpdate($: EngineInterface, message: unknown): Promise<void> {
-  const line = updateLine(hookLines(rowText(message)))
-  if (line === null || (await read($, toastedAtom)).update === true) return
-  await update($, toastedAtom, current => ({ ...current, update: true }))
-  $.ui.toast(line, { timeoutMs: 12_000 })
 }
 
 // ----------------------------------------------------------- /release-preview

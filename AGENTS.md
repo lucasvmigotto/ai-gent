@@ -50,11 +50,19 @@ file covers changing things.
   `shared/` and are symlinked (relative links) into each plugin's
   `references/`. The exception is code a plugin's hooks module imports:
   the engine refuses an import through a symlink that leaves the plugin,
-  so such a file (`shared/guard-ux.ts`, `shared/hook-lines.ts`) is copied into
+  so such a file (`shared/band-priority.ts`) is copied into
   each plugin's `hooks/`, and `scripts/consistency.py` fails if a copy differs
-  (`--sync-shared-code` rewrites them). A hooks module's tests can import only
-  code files, so data they need from `shared/` (the secret patterns, the
-  fixture cases) is a generated `.ts` twin kept equal the same way.
+  (`--sync-shared-code` rewrites them). The guards' own words and log rules,
+  `shared/guard-words.json`, are copied for the binary and the OpenCode plugin
+  and generated as the `guard words` block of each `guard.sh` the same way.
+  A hooks module's tests can import only code files, so data they need from
+  `shared/` (the secret patterns, the fixture cases) is a generated `.ts`
+  twin kept equal the same way.
+- A hooks module never hooks an event the built-in `cc-plugin-sec-default`
+  sends on past person-installed mods (`classic.*`, `session.compact`,
+  `skill.prompt`, a `session.append` door it skips, …): the hook never runs
+  where it is seated and Claude Code says so. `scripts/consistency.py` (item 14)
+  lists them and fails on one; put the work in the command hook instead.
 - Refer to other skills as `plugin:skill` and to files with backticked
   relative paths (`../../references/pipeline.md`); `scripts/check.sh`
   verifies both resolve.
