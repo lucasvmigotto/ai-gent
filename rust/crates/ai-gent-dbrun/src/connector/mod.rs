@@ -24,6 +24,10 @@ use std::fmt;
 pub use crate::core::backup::Backup;
 pub mod contract;
 pub mod isolate;
+#[cfg(feature = "mysql")]
+pub mod mysql;
+#[cfg(feature = "postgres")]
+pub mod postgres;
 pub mod process;
 pub mod request;
 #[cfg(feature = "sqlite")]

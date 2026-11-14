@@ -1,0 +1,87 @@
+{
+  "contract_version": 1,
+  "name": "postgres-ddl-and-command-tags",
+  "derived_from": "spec 043 T031 and FR-010 on PostgreSQL: psycopg reports cursor.rowcount -1 for DDL, the server's command-tag number for DML (also with RETURNING and in a CTE) and the rows received for SHOW and EXPLAIN; the port reports the CommandComplete number, and 0 where the tag carries none (DDL, EXPLAIN, SHOW). This fixture runs UPDATE, DDL, a no-match DELETE and a CTE delete; the SHOW, EXPLAIN and SELECT counts are covered by the wire test the_count_is_the_command_tag_number_for_every_kind_of_statement.",
+  "kind": "exec",
+  "engines": [
+    "postgresql"
+  ],
+  "setup": {
+    "postgresql": [
+      "DROP TABLE IF EXISTS ai_gent_t",
+      "DROP TABLE IF EXISTS ai_gent_u",
+      "CREATE TABLE ai_gent_t (id integer PRIMARY KEY, n integer NOT NULL)",
+      "INSERT INTO ai_gent_t VALUES (1, 10), (2, 20)"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "/* change */ UPDATE ai_gent_t SET n = n + 1",
+          "CREATE TABLE ai_gent_u (x integer)",
+          "DELETE FROM ai_gent_t WHERE id = 99",
+          "WITH d AS (DELETE FROM ai_gent_t WHERE id = 1 RETURNING id) SELECT id FROM d"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rowcount": 2
+          },
+          {
+            "rowcount": -1
+          },
+          {
+            "rowcount": 0
+          },
+          {
+            "rowcount": 1,
+            "columns": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ],
+            "truncated": false
+          }
+        ]
+      },
+      "difference": "D-011",
+      "expected_port": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rowcount": 2
+          },
+          {
+            "rowcount": 0
+          },
+          {
+            "rowcount": 0
+          },
+          {
+            "rowcount": 1,
+            "columns": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ],
+            "truncated": false
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "contract_version": 1,
+  "name": "26-mariadb-json",
+  "derived_from": "MariaDB's JSON is LONGTEXT: the text is returned as stored",
+  "kind": "exec",
+  "engines": [
+    "mariadb"
+  ],
+  "setup": {
+    "mariadb": [
+      "CREATE TABLE j (id INT PRIMARY KEY, doc JSON)",
+      "INSERT INTO j VALUES (1, '{\"a\":1,\"b\":[1,2]}')"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT doc FROM j ORDER BY id"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "columns": [
+              "doc"
+            ],
+            "rows": [
+              [
+                "{\"a\":1,\"b\":[1,2]}"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
