@@ -380,8 +380,7 @@ fn e2e_5_plan_apply_restore_log_first_and_a_second_apply_refused() {
     // The entry was on disk, status started, when the write request arrived.
     let at_write = spy.log_at_write.borrow().clone().expect("a write ran");
     assert!(
-        at_write.contains("· apply · LOCALDB ·")
-            && at_write.contains("- status: started"),
+        at_write.contains("· apply · LOCALDB ·") && at_write.contains("- status: started"),
         "{at_write}"
     );
     assert!(
