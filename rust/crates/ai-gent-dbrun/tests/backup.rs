@@ -426,6 +426,124 @@ mod sqlite {
         assert!(matches!(err, BackupError::Failed(_)), "{err:?}");
         assert_eq!(rows(&t), 3);
     }
+
+    fn failed(r: Result<impl std::fmt::Debug, BackupError>, needle: &str) -> String {
+        match r {
+            Err(BackupError::Failed(m)) => {
+                assert!(m.contains(needle), "{m}");
+                assert!(!m.contains(PW), "{m}");
+                m
+            }
+            other => panic!("expected a failure containing {needle:?}, got {other:?}"),
+        }
+    }
+
+    fn secret(mut t: BackupTarget) -> BackupTarget {
+        t.password = Some(PW.into());
+        t
+    }
+
+    fn files_in(dir: &Path) -> usize {
+        std::fs::read_dir(dir).unwrap().count()
+    }
+
+    #[test]
+    fn a_sqlite_backup_of_a_locked_database_gives_up_at_the_deadline_and_leaves_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = tempfile::tempdir().unwrap();
+        let t = secret(db(dir.path()));
+        // Another process's EXCLUSIVE lock keeps every reader out (rollback journal).
+        let holder = Connection::open(t.path.as_deref().unwrap()).unwrap();
+        holder.execute_batch("BEGIN EXCLUSIVE").unwrap();
+        let fake = Fake::ok();
+        let mut b = EngineBackup::new(&fake);
+        b.timeout = std::time::Duration::from_millis(300);
+        let started = std::time::Instant::now();
+        failed(b.take(&t, ID, backups.path()), "is the database in use");
+        assert!(started.elapsed() < std::time::Duration::from_secs(3));
+        assert_eq!(files_in(backups.path()), 0, "no partial backup is left");
+        holder.execute_batch("ROLLBACK").unwrap();
+        assert!(
+            b.take(&t, ID, backups.path()).is_ok(),
+            "free again: the backup works"
+        );
+    }
+
+    #[test]
+    fn a_sqlite_restore_into_a_database_in_use_gives_up_and_changes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = tempfile::tempdir().unwrap();
+        let t = secret(db(dir.path()));
+        let fake = Fake::ok();
+        let mut b = EngineBackup::new(&fake);
+        let loc = b.take(&t, ID, backups.path()).unwrap();
+        Connection::open(t.path.as_deref().unwrap())
+            .unwrap()
+            .execute_batch("DELETE FROM c WHERE id > 1")
+            .unwrap();
+        let holder = Connection::open(t.path.as_deref().unwrap()).unwrap();
+        holder.execute_batch("BEGIN EXCLUSIVE").unwrap();
+        b.timeout = std::time::Duration::from_millis(300);
+        let started = std::time::Instant::now();
+        failed(
+            b.restore(&t, ID, &loc, backups.path()),
+            "is the database in use",
+        );
+        assert!(started.elapsed() < std::time::Duration::from_secs(3));
+        holder.execute_batch("ROLLBACK").unwrap();
+        assert_eq!(rows(&t), 1, "a restore that did not finish wrote nothing");
+        b.restore(&t, ID, &loc, backups.path()).unwrap();
+        assert_eq!(rows(&t), 3);
+    }
+
+    #[test]
+    fn a_sqlite_database_over_the_size_cap_is_not_backed_up() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = tempfile::tempdir().unwrap();
+        let t = secret(db(dir.path()));
+        let fake = Fake::ok();
+        let mut b = EngineBackup::new(&fake);
+        b.max_bytes = 1024;
+        failed(b.take(&t, ID, backups.path()), "size cap");
+        assert_eq!(files_in(backups.path()), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_sqlite_path_that_is_a_fifo_or_a_directory_is_neither_backed_up_nor_restored_into() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = tempfile::tempdir().unwrap();
+        let good = secret(db(dir.path()));
+        let fake = Fake::ok();
+        let b = EngineBackup::new(&fake);
+        let loc = b.take(&good, ID, backups.path()).unwrap();
+        let fifo = dir.path().join("pipe.db");
+        assert!(
+            std::process::Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let started = std::time::Instant::now();
+        for path in [fifo.clone(), dir.path().to_path_buf()] {
+            let mut t = good.clone();
+            t.path = Some(path.to_string_lossy().into());
+            failed(
+                b.take(&t, "20260101-120000-cd34", backups.path()),
+                "not a regular file",
+            );
+            failed(
+                b.restore(&t, ID, &loc, backups.path()),
+                "not a regular file",
+            );
+        }
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(3),
+            "nothing blocked"
+        );
+        assert_eq!(files_in(backups.path()), 1, "only the good backup exists");
+    }
 }
 
 /// The real exec against a stand-in "container engine" script: the deadline kills a hang, the size cap

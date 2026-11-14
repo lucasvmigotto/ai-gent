@@ -30,7 +30,8 @@ fn connector_sqlite_passes_the_contract() {
         },
     );
     // 5 of the 8 SqliteEndToEndTest cases act at the connector (01, 02, 04, 05, 06), 6 more come from the
-    // reviews (09-14) and 8 from the T002 contract freeze and its review round (15-22); 03 is policy, 07 and 08 are pending.
+    // reviews (09-14) and 8 from the T002 contract freeze and its review round (15-22); 03 is policy, 07 and 08 are
+    // journeys of the plan layer (see the test below).
     assert_eq!(ran, 20, "exec cases run");
 }
 
@@ -40,10 +41,29 @@ fn connector_policy_cases_hold_without_a_connector() {
 }
 
 #[test]
-fn connector_plan_layer_cases_are_listed_not_hidden() {
-    let names: Vec<String> = contract::pending_cases()
-        .into_iter()
-        .map(|(n, _)| n)
-        .collect();
+fn connector_no_case_is_pending_and_every_journey_names_a_test_that_exists() {
+    assert!(
+        contract::pending_cases().is_empty(),
+        "T020: none of the 8 SqliteEndToEndTest journeys is pending"
+    );
+    let journeys = contract::journey_cases();
+    let names: Vec<&str> = journeys.iter().map(|(n, _)| n.as_str()).collect();
     assert_eq!(names, ["tampered-plan-refused", "script-never-executes"]);
+    for (name, tests) in &journeys {
+        assert!(!tests.is_empty(), "{name}: names no test");
+        for t in tests {
+            let (file, function) = t.split_once("::").expect("tests/<file>.rs::<function>");
+            let source = std::fs::read_to_string(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file),
+            )
+            .unwrap_or_else(|e| panic!("{name}: {file}: {e}"));
+            let at = source
+                .find(&format!("fn {function}()"))
+                .unwrap_or_else(|| panic!("{name}: {t} does not exist"));
+            assert!(
+                source[..at].trim_end().ends_with("#[test]"),
+                "{name}: {t} is not a #[test]"
+            );
+        }
+    }
 }

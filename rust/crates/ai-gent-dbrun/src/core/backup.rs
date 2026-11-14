@@ -9,7 +9,8 @@
 //!   the container engine; the user and the database name are positional arguments, as in Python;
 //! - a dump goes to `<backups>/<plan id>.<ext>`, created exclusively with mode 600; a restore streams that
 //!   file into the tool and recreates the whole database (objects a plan created disappear);
-//! - SQLite uses the backup API on the file, without a container.
+//! - SQLite uses the backup API on the file, without a container (`connector::sqlite::copy_database`):
+//!   regular files only, under the same deadline and size cap as an exec, all or nothing.
 //!
 //! Fail closed, beyond Python:
 //!
@@ -516,7 +517,7 @@ impl Backup for EngineBackup<'_> {
         };
         let dst = dir.join(format!("{plan_id}.{ext}"));
         match t.engine.as_str() {
-            "sqlite" => sqlite_take(t, &dst),
+            "sqlite" => sqlite_take(t, &dst, self.timeout, self.max_bytes),
             "postgresql" => self
                 .run(t, PG_DUMP, None, Some(&dst), "backup")
                 .map(|()| path_text(&dst)),
@@ -570,7 +571,7 @@ impl Backup for EngineBackup<'_> {
             }
         }
         match t.engine.as_str() {
-            "sqlite" => sqlite_restore(t, &expected),
+            "sqlite" => sqlite_restore(t, &expected, self.timeout, self.max_bytes),
             "postgresql" => self.run(t, PG_RESTORE, Some(&expected), None, "restore"),
             _ => self.run(t, MYSQL_RESTORE, Some(&expected), None, "restore"),
         }
@@ -582,7 +583,13 @@ fn path_text(p: &Path) -> String {
 }
 
 #[cfg(feature = "sqlite")]
-fn sqlite_take(t: &BackupTarget, dst: &Path) -> Result<String, BackupError> {
+fn sqlite_take(
+    t: &BackupTarget,
+    dst: &Path,
+    timeout: Duration,
+    max_bytes: u64,
+) -> Result<String, BackupError> {
+    use crate::connector::sqlite::{check_database_file, copy_database};
     use rusqlite::{Connection, OpenFlags};
     let fail = |m: &str| BackupError::Failed(format!("sqlite backup failed: {m}"));
     let src = t
@@ -591,17 +598,19 @@ fn sqlite_take(t: &BackupTarget, dst: &Path) -> Result<String, BackupError> {
         .filter(|p| !p.is_empty())
         .ok_or_else(|| refuse("a SQLite backup needs the profile's path"))?;
     let src = std::fs::canonicalize(src).map_err(|e| fail(&format!("{}", e.kind())))?;
+    // A FIFO or a device would block or never end: only a regular file is copied.
+    check_database_file(&src, false).map_err(|m| fail(&m))?;
     create_private(dst)
         .map_err(|e| fail(&format!("cannot create the backup file: {}", e.kind())))?;
     let result = (|| -> Result<(), String> {
         let a = Connection::open_with_flags(&src, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|_| "cannot open the database read-only".to_string())?;
-        let mut b = Connection::open(dst).map_err(|_| "cannot open the backup file".to_string())?;
-        let backup = rusqlite::backup::Backup::new(&a, &mut b)
-            .map_err(|_| "cannot start the backup".to_string())?;
-        backup
-            .run_to_completion(64, Duration::from_millis(50), None)
-            .map_err(|_| "the backup did not complete".to_string())
+        let mut b = Connection::open_with_flags(
+            dst,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        )
+        .map_err(|_| "cannot open the backup file".to_string())?;
+        copy_database(&a, &mut b, timeout, max_bytes)
     })();
     match result {
         Ok(()) => Ok(path_text(dst)),
@@ -613,14 +622,20 @@ fn sqlite_take(t: &BackupTarget, dst: &Path) -> Result<String, BackupError> {
 }
 
 #[cfg(not(feature = "sqlite"))]
-fn sqlite_take(_: &BackupTarget, _: &Path) -> Result<String, BackupError> {
+fn sqlite_take(_: &BackupTarget, _: &Path, _: Duration, _: u64) -> Result<String, BackupError> {
     Err(BackupError::Refused(
         "this build has no SQLite support".into(),
     ))
 }
 
 #[cfg(feature = "sqlite")]
-fn sqlite_restore(t: &BackupTarget, backup: &Path) -> Result<(), BackupError> {
+fn sqlite_restore(
+    t: &BackupTarget,
+    backup: &Path,
+    timeout: Duration,
+    max_bytes: u64,
+) -> Result<(), BackupError> {
+    use crate::connector::sqlite::{check_database_file, copy_database};
     use rusqlite::{Connection, OpenFlags};
     let fail = |m: &str| BackupError::Failed(format!("sqlite restore failed: {m}"));
     let live = t
@@ -628,7 +643,11 @@ fn sqlite_restore(t: &BackupTarget, backup: &Path) -> Result<(), BackupError> {
         .as_deref()
         .filter(|p| !p.is_empty())
         .ok_or_else(|| refuse("a SQLite restore needs the profile's path"))?;
+    // A restore writes, so like a write it never follows a link in the last component (the local proof
+    // refuses one; this is the backstop for a file swapped after the proof).
+    check_database_file(Path::new(live), false).map_err(|m| fail(&m))?;
     let live = std::fs::canonicalize(live).map_err(|e| fail(&format!("{}", e.kind())))?;
+    check_database_file(&live, false).map_err(|m| fail(&m))?;
     // Only a real SQLite file is copied over the database: the header is checked on the opened file.
     let mut head = [0u8; 16];
     let mut f = std::fs::File::open(backup).map_err(|e| fail(&format!("{}", e.kind())))?;
@@ -639,18 +658,21 @@ fn sqlite_restore(t: &BackupTarget, backup: &Path) -> Result<(), BackupError> {
         return Err(refuse("the backup is not a SQLite database file"));
     }
     drop(f);
-    let a = Connection::open_with_flags(backup, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|_| fail("cannot open the backup"))?;
-    let mut b = Connection::open_with_flags(&live, OpenFlags::SQLITE_OPEN_READ_WRITE)
-        .map_err(|_| fail("cannot open the database"))?;
-    let run =
-        rusqlite::backup::Backup::new(&a, &mut b).map_err(|_| fail("cannot start the restore"))?;
-    run.run_to_completion(64, Duration::from_millis(50), None)
-        .map_err(|_| fail("the restore did not complete (is the database in use?)"))
+    let a = Connection::open_with_flags(
+        backup,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+    )
+    .map_err(|_| fail("cannot open the backup"))?;
+    let mut b = Connection::open_with_flags(
+        &live,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+    )
+    .map_err(|_| fail("cannot open the database"))?;
+    copy_database(&a, &mut b, timeout, max_bytes).map_err(|m| fail(&m))
 }
 
 #[cfg(not(feature = "sqlite"))]
-fn sqlite_restore(_: &BackupTarget, _: &Path) -> Result<(), BackupError> {
+fn sqlite_restore(_: &BackupTarget, _: &Path, _: Duration, _: u64) -> Result<(), BackupError> {
     Err(BackupError::Refused(
         "this build has no SQLite support".into(),
     ))

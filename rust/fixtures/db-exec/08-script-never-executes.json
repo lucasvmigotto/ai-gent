@@ -2,6 +2,10 @@
   "contract_version": 1,
   "name": "script-never-executes",
   "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_script_never_executes",
-  "kind": "pending",
-  "reason": "Command layer, not connector behavior: run as journey_08 in rust/crates/ai-gent-dbrun/tests/plan.rs over core::plan::write_script, which takes no connector. The refusal of a write script is the classifier case in 03-remote-refusals."
+  "kind": "journey",
+  "reason": "Command layer, not connector behavior: run by the tests named in `tests` over core::plan::write_script, which takes no connector. The refusal of a write script is the classifier case in 03-remote-refusals.",
+  "tests": [
+    "tests/run.rs::e2e_8_script_never_executes",
+    "tests/plan.rs::journey_08_a_change_script_is_written_and_never_executed"
+  ]
 }

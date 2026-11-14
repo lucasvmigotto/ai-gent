@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
   "name": "dml-returning-rowcount",
-  "derived_from": "plugins/db/scripts/dbrun.py execute(): rowcount is read before the rows are fetched, so a DML with RETURNING reports 0 while a plain SELECT reports -1; the rows come back either way",
+  "derived_from": "plugins/db/scripts/dbrun.py execute(): rowcount is read before the rows are fetched, so a DML with RETURNING reports 0 while a plain SELECT reports -1; the rows come back either way; the port keeps the 0 (each engine keeps its original row-count value, owner decision (chat 2026-11-14); a writing statement that returns rows reports 0, judged from the prepared statement, never its text)",
   "kind": "exec",
   "engines": [
     "sqlite"
@@ -29,35 +29,6 @@
         "results": [
           {
             "rowcount": 0,
-            "rows": [
-              [
-                1
-              ],
-              [
-                2
-              ]
-            ]
-          },
-          {
-            "rowcount": -1,
-            "rows": [
-              [
-                1
-              ],
-              [
-                2
-              ]
-            ]
-          }
-        ]
-      },
-      "difference": "D-007",
-      "expected_port": {
-        "ok": true,
-        "committed": true,
-        "results": [
-          {
-            "rowcount": 2,
             "rows": [
               [
                 1

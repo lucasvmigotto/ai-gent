@@ -59,6 +59,12 @@ tempfile.workspace = true
 # Turns `tls` and `test-ca` on for this crate's own tests, so `cargo test -p ai-gent-dbrun` covers the TLS builder.
 ai-gent-dbrun = { path = ".", features = ["test-ca"] }
 
+# The `_exec` child over the SQLite connector, for `scripts/test-dbrun-engines.py --runner` (T021).
+[[example]]
+name = "sqlite_exec"
+path = "examples/sqlite_exec.rs"
+required-features = ["sqlite"]
+
 # `isolate` is its own test executable without libtest: the child process of the isolation tests is this very
 # binary, and libtest would print its own lines on the stdout the parent reads as the result line.
 [[test]]

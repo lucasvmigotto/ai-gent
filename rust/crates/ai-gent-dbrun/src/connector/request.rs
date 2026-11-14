@@ -38,6 +38,23 @@ pub const DDL_ROWCOUNT: i64 = 0;
 /// The fixed text of a timeout refusal.
 pub const BAD_TIMEOUT: &str = "invalid timeout: it must be a number of seconds from 0.001 to 3600";
 
+/// Appended to a text value whose invalid UTF-8 was replaced with U+FFFD (owner decision (chat 2026-11-14),
+/// `differences.md` D-020), so a replacement cannot pass for a U+FFFD the data really holds.
+pub const INVALID_UTF8_MARK: &str = " <invalid UTF-8 replaced>";
+
+/// A text value from the bytes the engine returned: the text itself when it is UTF-8; otherwise every
+/// invalid sequence becomes U+FFFD and [`INVALID_UTF8_MARK`] is appended (Python raised on such a byte).
+#[must_use]
+pub fn text_value(bytes: &[u8]) -> String {
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        text.to_string()
+    } else {
+        let mut text = String::from_utf8_lossy(bytes).into_owned();
+        text.push_str(INVALID_UTF8_MARK);
+        text
+    }
+}
+
 /// The request timeout as a duration.
 ///
 /// # Errors
@@ -259,6 +276,19 @@ mod tests {
         assert_eq!(cap_rows(0..3, true, 2), (vec![0, 1], true));
         assert_eq!(cap_rows(0..0, true, 0), (vec![], false));
         assert_eq!(cap_rows(0..1, true, 0), (vec![], true));
+    }
+
+    #[test]
+    fn invalid_utf8_is_replaced_and_marked_and_valid_text_is_untouched() {
+        assert_eq!(
+            text_value("Ana \u{FFFD} Lima".as_bytes()),
+            "Ana \u{FFFD} Lima"
+        );
+        assert_eq!(
+            text_value(b"caf\xe9 \xff"),
+            format!("caf\u{FFFD} \u{FFFD}{INVALID_UTF8_MARK}")
+        );
+        assert_eq!(text_value(b""), "");
     }
 
     #[test]
