@@ -232,7 +232,8 @@ pub fn is_session_id(s: &str) -> bool {
 /// Unix (an existing one we own is tightened to that); the file is opened without following a
 /// symlink and without blocking, and anything but a regular file is refused. Past twice the row
 /// limit (or `maxBytes`) the file is cut to its newest rows, read from its last `maxBytes` only,
-/// under a lock on `<session>.jsonl.lock`; a lock held by another writer skips the cut this time.
+/// under a lock on `<session>.jsonl.lock`; a lock held by another writer skips the cut this time,
+/// and a file that grew while the cut was written is left whole (the cut waits for the next row).
 ///
 /// # Errors
 /// When the directory or file cannot be created or written, or the path is not a regular file.
@@ -280,6 +281,28 @@ fn owned(meta: &std::fs::Metadata) -> bool {
     meta.uid() == rustix::process::getuid().as_raw()
 }
 
+/// Open `<session>.jsonl.lock` to lock it: read and write access, which Windows needs to lock a
+/// file (an append-only handle is refused there), never through a symlink or into a FIFO.
+fn open_lock(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut opts = std::fs::OpenOptions::new();
+    opts.read(true).write(true).create(true).truncate(false);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    #[cfg(not(unix))]
+    if std::fs::symlink_metadata(path).is_ok_and(|m| !m.file_type().is_file()) {
+        return Err(not_regular(path));
+    }
+    let file = opts.open(path)?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(not_regular(path));
+    }
+    Ok(file)
+}
+
 /// Open the log (to append, or to read) without following a symlink or blocking on a FIFO; refuse
 /// anything that is not a regular file, and tighten a file we own to 0600.
 fn open_log(path: &Path, write: bool) -> std::io::Result<std::fs::File> {
@@ -321,20 +344,21 @@ fn not_regular(path: &Path) -> std::io::Error {
     )
 }
 
-/// The last `cap` bytes of the log.
-fn read_tail(path: &Path, cap: u64) -> std::io::Result<Vec<u8>> {
+/// The last `cap` bytes of the log, and its length when read.
+fn read_tail(path: &Path, cap: u64) -> std::io::Result<(Vec<u8>, u64)> {
     use std::io::{Read, Seek, SeekFrom};
     let mut file = open_log(path, false)?;
     let len = file.metadata()?.len();
     file.seek(SeekFrom::Start(len.saturating_sub(cap)))?;
     let mut buf = Vec::new();
     file.take(cap).read_to_end(&mut buf)?;
-    Ok(buf)
+    Ok((buf, len))
 }
 
 #[allow(clippy::naive_bytecount)] // at most maxBytes, once per row; no crate for it
 fn count_lines(path: &Path, cap: u64) -> std::io::Result<usize> {
     Ok(read_tail(path, cap)?
+        .0
         .iter()
         .filter(|b| **b == b'\n')
         .count())
@@ -342,30 +366,43 @@ fn count_lines(path: &Path, cap: u64) -> std::io::Result<usize> {
 
 fn trim(dir: &Path, session: &str, path: &Path, max: usize, cap: u64) -> std::io::Result<()> {
     let lock_path = dir.join(format!("{session}.jsonl.lock"));
-    let lock = open_log(&lock_path, true)?;
+    let lock = open_lock(&lock_path)?;
     match lock.try_lock() {
         Ok(()) => {}
         Err(std::fs::TryLockError::WouldBlock) => return Ok(()),
         Err(std::fs::TryLockError::Error(e)) => return Err(e),
     }
-    let tail = read_tail(path, cap)?;
+    let (tail, len) = read_tail(path, cap)?;
     let text = String::from_utf8_lossy(&tail);
     let mut lines: Vec<&str> = text.lines().collect();
     if tail.len() as u64 >= cap && !lines.is_empty() {
         lines.remove(0); // the first line read from the middle of the file may be cut
     }
     let keep = &lines[lines.len().saturating_sub(max)..];
+    if keep.is_empty() {
+        return Ok(());
+    }
     let (tmp, mut file) = temp_file(dir, session)?;
     let body = keep.join("\n") + "\n";
-    if let Err(e) = file
-        .write_all(body.as_bytes())
-        .and_then(|()| std::fs::rename(&tmp, path))
-    {
+    let written = file.write_all(body.as_bytes());
+    drop(file); // closed before the rename, which Windows needs
+    // A row appended since the snapshot (the file grew) would be lost by the rename: leave the
+    // file whole and cut at the next row. Only a row appended between this check and the rename
+    // can still be lost.
+    let result = written
+        .and_then(|()| std::fs::symlink_metadata(path))
+        .and_then(|m| {
+            if m.len() == len {
+                std::fs::rename(&tmp, path).map(|()| true)
+            } else {
+                Ok(false)
+            }
+        });
+    if !matches!(result, Ok(true)) {
         let _ = std::fs::remove_file(&tmp);
-        return Err(e);
     }
     drop(lock);
-    Ok(())
+    result.map(|_| ())
 }
 
 /// A new file `<dir>/.<session>.jsonl.<random>` (`create_new`, 0600, never through a symlink).
