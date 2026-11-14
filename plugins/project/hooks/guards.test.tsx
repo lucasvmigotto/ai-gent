@@ -27,6 +27,7 @@ function world(on: Handlers, rows: unknown[] | null) {
     return { value: { isPlaced: state.placed } }
   })
   on('ui.close', () => undefined)
+  on('tool.call', () => ({ result: {} }) as never)
   on('process.run', () => ({ value: { exitCode: 0, stdout: '/repo\n', stderr: '' } }))
   on('fs.stat', () => ({ deny: 'ENOENT' }))
   on('fs.exists', () => ({ value: false }))
@@ -123,9 +124,14 @@ test('the pane draws the same list on terminal and desktop, and rereads the log 
     expect(await ui.find({ type: 'Text', text: /5 decisions/ })).toBeDefined()
     await ui.unmount()
   }
-  w.log += lines([row({ guard: 'secrets', decision: 'deny', entry: 'a brand new entry', verb: 'cat', outcome: null })])
+  // Opened by /guards-pane and left mounted: a row a guard writes shows after the next tool call.
+  expect(String((await $.command.run({ command: 'guards-pane', args: '' } as never)).text)).toBe('Guards pane opened.')
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /5 decisions/ })).toBeDefined()
+  w.log += lines([row({ guard: 'secrets', decision: 'deny', entry: 'a brand new entry', verb: 'cat', outcome: null })])
+  await $.tool.call({ tool: 'Bash', command: 'cat x' } as never)
   expect(await ui.find({ type: 'Text', text: /a brand new entry/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /6 decisions/ })).toBeDefined()
   await ui.unmount()
 })
 
