@@ -570,6 +570,34 @@ class GuardReasons(unittest.TestCase):
         self.assertTrue(any("no entry" in p for p in problems), problems)
 
 
+class PassedOver(unittest.TestCase):
+    def problems(self, src, plugin="git", name="register.tsx"):
+        return consistency.check_passed_over(tree({f"plugins/{plugin}/hooks/{name}": src}))
+
+    def test_events_that_run_pass(self):
+        self.assertEqual(self.problems("on('tool.call', { tool: 'Bash' }, f)\non('prompt.submit', f)\non('session.append', { door: 'tool-result' }, f)\n"), [])
+
+    def test_a_classic_hook_fails(self):
+        problems = self.problems("on('classic.PreToolUse', f)\n")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("register.tsx:1", problems[0])
+
+    def test_session_compact_fails(self):
+        self.assertEqual(len(self.problems("x\non(\n  'session.compact', f)\n")), 1)
+
+    def test_session_append_on_a_skipped_door_or_without_one_fails(self):
+        self.assertIn("hook-context", self.problems("on('session.append', { door: 'hook-context' }, f)\n")[0])
+        self.assertIn("no door", self.problems("on('session.append', f)\n")[0])
+        self.assertEqual(len(self.problems("on('session.append', { door: ['tool-result', 'attachment'] }, f)\n")), 1)
+
+    def test_tests_are_not_read(self):
+        self.assertEqual(self.problems("on('session.compact', f)\n", name="x.test.tsx"), [])
+
+    def test_the_secrets_skill_prompt_mask_is_exempt(self):
+        self.assertEqual(self.problems("on('skill.prompt', f)\n", plugin="secrets"), [])
+        self.assertEqual(len(self.problems("on('skill.prompt', f)\n", plugin="db")), 1)
+
+
 class Tiers(unittest.TestCase):
     SETUP = "AGENT_IDS=(claude codex cursor)\n"
 

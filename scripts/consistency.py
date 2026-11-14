@@ -47,6 +47,13 @@
  13. The Rust workspace (rust/, spec 032) is not a plugin (no .claude-plugin,
      no skills/) and every crate's license is the one the plugins declare.
 
+ 14. No hooks module hooks an event the built-in cc-plugin-sec-default plugin
+     sends on past every person-installed mod where it is seated (classic.*,
+     the prompt.* parts, skill.prompt, attribution.text, session.compact,
+     settings.read, session.append without a door or on a door it skips):
+     the hook would never run, and Claude Code tells the person it was
+     skipped (decided 2026-11-14). PASSED_OVER_EXEMPT lists the exceptions.
+
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
 (default 19000, room for growth; raise it deliberately with a new plugin,
@@ -979,6 +986,41 @@ def check_readme_tiers(root: Path) -> list[str]:
     return problems
 
 
+# Events cc-plugin-sec-default (Claude Code 2.1.325) answers with next.to(e, "append"),
+# skipping every user-tier hook, and the session.append doors it skips (tool-message
+# and note only in some cases; they are refused too, to be safe).
+PASSED_OVER = ("prompt.section", "prompt.context", "prompt.attachment", "prompt.compose", "skill.prompt", "attribution.text", "session.compact", "settings.read")
+PASSED_OVER_DOORS = ("attachment", "hook-context", "compaction", "tool-message", "note")
+# The secrets mask on skill.prompt stays (decided 2026-11-14): where the built-in plugin
+# is not seated it masks a secret in a skill's body; where it is, the built-in's own
+# masking stands in and the notice is accepted.
+PASSED_OVER_EXEMPT = {("secrets", "skill.prompt")}
+ON_CALL = re.compile(r"""\bon\(\s*['"]([A-Za-z.]+)['"]\s*(?:,\s*(\{[^}]*\}))?""")
+
+
+def check_passed_over(root: Path) -> list[str]:
+    problems = []
+    for f in sorted((root / "plugins").glob("*/hooks/*.ts*")):
+        if ".test." in f.name or f.name.endswith(".d.ts"):
+            continue
+        plugin = f.parent.parent.name
+        text = f.read_text(encoding="utf-8")
+        for m in ON_CALL.finditer(text):
+            event, matcher = m.group(1), m.group(2) or ""
+            where = f"{f.relative_to(root)}:{text.count(chr(10), 0, m.start()) + 1}"
+            if (plugin, event) in PASSED_OVER_EXEMPT:
+                continue
+            if event.startswith("classic.") or event in PASSED_OVER:
+                problems.append(f"{where}: on('{event}') is passed over where cc-plugin-sec-default is seated; the hook never runs (see consistency.py item 14)")
+            elif event == "session.append":
+                doors = re.findall(r"""['"]([a-z-]+)['"]""", matcher.split("door", 1)[1]) if "door" in matcher else []
+                bad = [d for d in doors if d in PASSED_OVER_DOORS]
+                if not doors or bad:
+                    what = f"door {', '.join(bad)}" if bad else "no door matcher"
+                    problems.append(f"{where}: on('session.append') with {what} is passed over where cc-plugin-sec-default is seated (see consistency.py item 14)")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
     if "--sync-token-tags" in sys.argv[1:]:
         (root / TOKEN_TAGS_COPY).write_bytes((root / TOKEN_TAGS).read_bytes())
@@ -998,13 +1040,13 @@ def main(root: Path = ROOT) -> int:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_launchers(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_compact_langs(root) + check_tiers(root) + check_readme_tiers(root) + check_naming(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_launchers(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_compact_langs(root) + check_tiers(root) + check_readme_tiers(root) + check_naming(root) + check_passed_over(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, rust workspace license, tier matrix, major-version naming, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, rust workspace license, tier matrix, major-version naming, no passed-over hook events, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

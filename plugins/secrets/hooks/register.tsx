@@ -137,6 +137,9 @@ export const register: Register = (on, options: Options) => {
     next.called || !looksSecret(e.args, 'prompt') ? next(e) : { text: HELD },
   )
 
+  // skill.prompt is passed over where the built-in cc-plugin-sec-default is seated
+  // (Claude Code then says this hook was skipped); the mask stays for every other
+  // install, decided 2026-11-14, and scripts/consistency.py exempts it (item 14).
   on('skill.prompt', async ($, e, next) => {
     const masked = await maskText($, e.text, 'skill', off, 'skill.prompt')
     return masked.total > 0 ? next({ ...e, text: masked.text }) : next(e)

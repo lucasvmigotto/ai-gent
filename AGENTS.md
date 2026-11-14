@@ -58,6 +58,11 @@ file covers changing things.
   A hooks module's tests can import only code files, so data they need from
   `shared/` (the secret patterns, the fixture cases) is a generated `.ts`
   twin kept equal the same way.
+- A hooks module never hooks an event the built-in `cc-plugin-sec-default`
+  sends on past person-installed mods (`classic.*`, `session.compact`,
+  `skill.prompt`, a `session.append` door it skips, …): the hook never runs
+  where it is seated and Claude Code says so. `scripts/consistency.py` (item 14)
+  lists them and fails on one; put the work in the command hook instead.
 - Refer to other skills as `plugin:skill` and to files with backticked
   relative paths (`../../references/pipeline.md`); `scripts/check.sh`
   verifies both resolve.
