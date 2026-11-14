@@ -192,6 +192,61 @@
             ]
           }
         ]
+      },
+      "expected_port": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "read mode runs only"
+      },
+      "difference": "D-MY-01",
+      "absent_port": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "CALL two_sets()",
+          "SELECT 42 AS n"
+        ],
+        "expect": [
+          1,
+          1
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "columns": [
+              "a"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          },
+          {
+            "rowcount": 1,
+            "columns": [
+              "n"
+            ],
+            "rows": [
+              [
+                42
+              ]
+            ]
+          }
+        ]
       }
     },
     {
@@ -207,7 +262,17 @@
         "ok": false,
         "stage": "execute",
         "error_contains": "ERROR 1792"
-      }
+      },
+      "expected_port": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "read mode runs only"
+      },
+      "difference": "D-MY-01",
+      "absent_port": [
+        "results",
+        "server"
+      ]
     },
     {
       "request": {
@@ -995,6 +1060,199 @@
             "rows": [
               [
                 3
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1 --\u00a0; DELETE FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "refused:"
+      },
+      "absent": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "SELECT 1 --\u00a0; DELETE FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "refused:"
+      },
+      "absent": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1 --\u2028; DELETE FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "refused:"
+      },
+      "absent": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "SELECT 1 --\u2028; DELETE FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "refused:"
+      },
+      "absent": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1 --\u3000; DELETE FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "refused:"
+      },
+      "absent": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "SELECT 1 --\u3000; DELETE FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "refused:"
+      },
+      "absent": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1 --\u0085; DELETE FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "refused:"
+      },
+      "absent": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "SELECT 1 --\u0085; DELETE FROM w"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": false,
+        "stage": "execute",
+        "error_contains": "refused:"
+      },
+      "absent": [
+        "results",
+        "server"
+      ]
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT 1 -- real comment"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "only": "port",
+      "difference": "D-MY-01",
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "rows": [
+              [
+                1
               ]
             ]
           }

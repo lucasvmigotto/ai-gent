@@ -116,8 +116,14 @@ impl Connector for MysqlConnector {
             Err(m) => return request::refusal(m.to_string()),
         };
         for sql in &req.statements {
-            if let Err(m) = server_view(sql) {
-                return ExecResult::failure(Stage::Execute, m);
+            match server_view(sql) {
+                Err(m) => return ExecResult::failure(Stage::Execute, m),
+                Ok(view) if req.mode != Mode::Write => {
+                    if let Err(m) = read_statement_allowed(&view) {
+                        return ExecResult::failure(Stage::Execute, m);
+                    }
+                }
+                Ok(_) => {}
             }
         }
         let mut conn = match connect(req, timeout, &self.tls) {
@@ -179,6 +185,13 @@ struct Lexed {
 /// Refused, with a fixed message that holds no part of the text: a `;` in code other than one trailing,
 /// code after it, an executable comment (`/*!`, `/*M!`: it is code on the server, so it is not
 /// accepted), a backslash or NUL outside text, an unterminated quote or comment.
+/// What MySQL and MariaDB count as a blank after `--`: ASCII space, tab, line breaks, other ASCII
+/// control characters. (Rust's `is_whitespace` also accepts U+00A0, U+2028, U+3000 ..., which the
+/// server does not, so it must not be used here.)
+fn is_server_blank(c: char) -> bool {
+    c.is_ascii() && (c == ' ' || c.is_ascii_control())
+}
+
 fn lex(sql: &str) -> Result<Lexed, &'static str> {
     let b: Vec<char> = sql.chars().collect();
     if b.contains(&'\0') {
@@ -189,9 +202,7 @@ fn lex(sql: &str) -> Result<Lexed, &'static str> {
     while i < b.len() {
         let c = b[i];
         let at = |k: usize| b.get(i + k).copied();
-        let dash_comment = c == '-'
-            && at(1) == Some('-')
-            && at(2).is_none_or(|x| x.is_whitespace() || x.is_control());
+        let dash_comment = c == '-' && at(1) == Some('-') && at(2).is_none_or(is_server_blank);
         if c == '#' || dash_comment {
             while i < b.len() && b[i] != '\n' {
                 i += 1;
@@ -218,11 +229,16 @@ fn lex(sql: &str) -> Result<Lexed, &'static str> {
             bare.push(' ');
             continue;
         }
-        if c.is_whitespace() {
+        if is_server_blank(c) && c.is_ascii() {
             view.push(c);
             bare.push(' ');
             i += 1;
             continue;
+        }
+        // Unicode spaces and other control characters: the server and Rust disagree about which of
+        // them separate tokens or end a `--` comment, so none is accepted outside quoted text.
+        if c.is_whitespace() || c.is_control() {
+            return Err("refused: a control or non-ASCII space character outside quoted text");
         }
         if ended {
             return Err(MORE);
@@ -311,6 +327,28 @@ pub fn server_view(sql: &str) -> Result<String, &'static str> {
     Ok(l.view)
 }
 
+/// In read mode the connector itself refuses any statement that does not start with a reading word,
+/// so it never depends on a caller's classifier alone (a `CALL` can commit and write inside the
+/// server, which a check made after the statement cannot undo). `EXPLAIN ANALYZE` and MariaDB's
+/// `ANALYZE <statement>` execute the statement and are refused.
+fn read_statement_allowed(view: &str) -> Result<(), &'static str> {
+    let lower = view.to_ascii_lowercase();
+    let mut words = lower
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|w| !w.is_empty());
+    let first = words.next().unwrap_or("");
+    let allowed = matches!(
+        first,
+        "select" | "with" | "show" | "describe" | "desc" | "explain" | "table" | "values"
+    );
+    if !allowed || (first == "explain" && lower.contains("analyze")) {
+        return Err(
+            "refused: read mode runs only SELECT, WITH, SHOW, DESCRIBE, EXPLAIN, TABLE and VALUES",
+        );
+    }
+    Ok(())
+}
+
 /// The session setup after `SELECT VERSION()`, in `dbrun.py`'s order (after `autocommit = 0`).
 fn session_statements(maria: bool, timeout: Duration, read: bool) -> Vec<String> {
     let mut sql = vec![if maria {
@@ -334,6 +372,24 @@ fn session_statements(maria: bool, timeout: Duration, read: bool) -> Vec<String>
         sql.push("SET SESSION TRANSACTION READ ONLY".to_string());
     }
     sql
+}
+
+/// True when a `sql_mode` value turns on `ANSI_QUOTES` or `NO_BACKSLASH_ESCAPES`, directly or through a
+/// composite mode.
+fn sql_mode_changes_quoting(mode: &str) -> bool {
+    mode.to_ascii_uppercase().split(',').any(|m| {
+        matches!(
+            m.trim(),
+            "ANSI_QUOTES"
+                | "NO_BACKSLASH_ESCAPES"
+                | "ANSI"
+                | "ORACLE"
+                | "MSSQL"
+                | "DB2"
+                | "POSTGRESQL"
+                | "MAXDB"
+        )
+    })
 }
 
 /// Runs a query that gives one value or row; a value that cannot be read is a failure that says so
@@ -384,6 +440,16 @@ fn connect(req: &Request, timeout: Duration, policy: &TlsPolicy) -> Result<Conn,
         let maria = version.is_some_and(|v| v.to_lowercase().contains("mariadb"));
         for sql in session_statements(maria, timeout, req.mode != Mode::Write) {
             conn.query_drop(sql)?;
+        }
+        // The lexer assumes default quoting. `REPLACE` removes the two literal flags only, so a
+        // composite mode (ANSI, ORACLE, MSSQL, DB2, POSTGRESQL, MAXDB) that implies `ANSI_QUOTES` would
+        // survive: read the mode back and refuse to run anything in such a session.
+        let mode: Option<String> = first(conn, "SELECT @@session.sql_mode")?;
+        if sql_mode_changes_quoting(mode.as_deref().unwrap_or("")) {
+            return Err(Failed {
+                message: "refused: the session sql_mode changes how quotes are read (ANSI_QUOTES, NO_BACKSLASH_ESCAPES or a mode that implies them)".into(),
+                connection_lost: false,
+            });
         }
         Ok(())
     };
@@ -939,6 +1005,64 @@ mod tests {
     }
 
     // ---- session setup ----
+
+    #[test]
+    fn a_non_ascii_space_after_dash_dash_is_refused_not_read_as_a_comment() {
+        // The server reads `--` followed by one of these as two minus signs and the rest as code.
+        for blank in ['\u{a0}', '\u{2028}', '\u{3000}', '\u{85}', '\u{2003}'] {
+            let sql = format!("SELECT 1 --{blank}; DELETE FROM t");
+            assert!(server_view(&sql).is_err(), "{blank:?} accepted");
+        }
+        assert!(server_view("SELECT 1 -- real comment").is_ok());
+        assert!(server_view("SELECT 1 --\n").is_ok());
+        // Inside quoted text such characters are just data.
+        assert!(server_view("SELECT '\u{a0}'").is_ok());
+    }
+
+    #[test]
+    fn composite_sql_modes_that_imply_ansi_quotes_are_detected() {
+        for m in [
+            "ANSI",
+            "STRICT_TRANS_TABLES,ORACLE",
+            "mssql",
+            "ANSI_QUOTES",
+            "NO_BACKSLASH_ESCAPES,X",
+        ] {
+            assert!(sql_mode_changes_quoting(m), "{m}");
+        }
+        assert!(!sql_mode_changes_quoting(
+            "STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"
+        ));
+        assert!(!sql_mode_changes_quoting(""));
+    }
+
+    #[test]
+    fn read_mode_runs_only_reading_statements_and_no_explain_analyze() {
+        for ok in [
+            "SELECT 1",
+            "with x as (select 1) select * from x",
+            "SHOW TABLES",
+            "DESC t",
+            "EXPLAIN SELECT 1",
+            "TABLE t",
+            "VALUES ROW(1)",
+        ] {
+            assert!(read_statement_allowed(ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "CALL p()",
+            "DO SLEEP(1)",
+            "SET @a = 1",
+            "EXPLAIN ANALYZE SELECT 1",
+            "ANALYZE DELETE FROM t",
+            "DELETE FROM t",
+            "COMMIT",
+            "LOCK TABLES t WRITE",
+            "",
+        ] {
+            assert!(read_statement_allowed(bad).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn the_timeout_variable_follows_the_server_family() {

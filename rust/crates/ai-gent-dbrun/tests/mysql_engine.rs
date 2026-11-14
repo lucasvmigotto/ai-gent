@@ -493,37 +493,47 @@ fn guards(c: &Container) {
     assert_eq!(n, Some(1));
 }
 
-/// In read mode a statement that turns the session read-write is caught by the check after it, and
-/// the request stops. The table stays as it was.
+/// In read mode the connector allows only reads, so a write statement is refused before it connects
+/// (and so is anything that would turn the session read-write: the recheck after each statement cannot
+/// be reached). What the allowlist still lets through is a read that calls a stored function that
+/// writes; the server's read-only transaction stops that one (error 1792). The table stays as it was.
 fn read_only_is_checked_after_every_statement(c: &Container) {
     let mut s = raw(c, None).unwrap();
     s.query_drop("CREATE DATABASE rodb").unwrap();
     s.query_drop("USE rodb").unwrap();
     s.query_drop("CREATE TABLE r (n INT)").unwrap();
     s.query_drop("INSERT INTO r VALUES (1)").unwrap();
+    // The throwaway server has binary logging on, which refuses a function that writes unless trusted.
+    s.query_drop("SET GLOBAL log_bin_trust_function_creators = 1")
+        .unwrap();
+    s.query_drop(
+        "CREATE FUNCTION wr() RETURNS INT MODIFIES SQL DATA BEGIN DELETE FROM r; RETURN 1; END",
+    )
+    .unwrap();
+    for sql in [
+        "SET SESSION TRANSACTION READ WRITE",
+        "DELETE FROM r",
+        "CALL nothing()",
+        "EXPLAIN ANALYZE SELECT * FROM r",
+    ] {
+        let (out, line) = run(
+            &verified(c),
+            &request(c, Mode::Read, Some("rodb"), &[sql], 10.0),
+        );
+        assert_eq!(out["ok"], false, "{sql}: {line}");
+        assert_eq!(out["stage"], "execute", "{sql}: {line}");
+        assert!(
+            out.get("server").is_none(),
+            "{sql}: reached the server: {line}"
+        );
+    }
     let (out, line) = run(
         &verified(c),
-        &request(
-            c,
-            Mode::Read,
-            Some("rodb"),
-            &[
-                "SET SESSION TRANSACTION READ WRITE",
-                "COMMIT",
-                "DELETE FROM r",
-            ],
-            10.0,
-        ),
+        &request(c, Mode::Read, Some("rodb"), &["SELECT wr()"], 10.0),
     );
     assert_eq!(out["ok"], false, "{line}");
     assert_eq!(out["stage"], "execute", "{line}");
-    assert!(
-        out["error"]
-            .as_str()
-            .unwrap()
-            .contains("no longer read only"),
-        "{line}"
-    );
+    assert!(out["error"].as_str().unwrap().contains("1792"), "{line}");
     let n: Option<i64> = s.query_first("SELECT COUNT(*) FROM r").unwrap();
     assert_eq!(n, Some(1), "the read deleted a row");
 }
