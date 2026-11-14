@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process"
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate, appendGuardRow, guardPresent, guardRow, guardVerb, guardWords } from "../rules.mjs"
+import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate, appendGuardRow, dropTrimLock, takeTrimLock, guardPresent, guardRow, guardVerb, guardWords } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
 // guards (plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh) decide for
@@ -372,6 +372,17 @@ console.log("    guardWords(), guardRow(), appendGuardRow()")
   writeFileSync(join(dir, "s-held.jsonl.trim"), "")
   for (let i = 0; i < 401; i++) appendGuardRow(dir, "s-held", { at: i })
   check("log: a held trim loses no row", 401, readFileSync(join(dir, "s-held.jsonl"), "utf8").trim().split("\n").length)
+  // a writer that stalls past 30 s has its lock taken over; its late release leaves the new lock
+  const lock = join(dir, "s-stale.jsonl.trim")
+  const first = takeTrimLock(lock)
+  check("lock: a second writer waits", null, takeTrimLock(lock))
+  utimesSync(lock, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000))
+  const second = takeTrimLock(lock)
+  check("lock: a stale lock is taken over", true, !!second && second !== first)
+  dropTrimLock(lock, first)
+  check("lock: the stalled writer leaves the new holder's lock", second, existsSync(lock) && readFileSync(lock, "utf8"))
+  dropTrimLock(lock, second)
+  check("lock: the holder removes its own lock", false, existsSync(lock))
   // OpenCode's message: words, reason and the agent's line; the options turn each off
   const deny = "git:workflow guard: hooks must not be bypassed (--no-verify); fix the hook failure instead"
   const w = guardWords("deny", deny)

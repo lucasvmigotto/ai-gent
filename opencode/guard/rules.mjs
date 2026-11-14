@@ -710,24 +710,61 @@ export function appendGuardRow(dir, session, row) {
   }
 }
 
-function trimGuardLog(dir, session, file, cap) {
-  const lock = join(dir, `${session}.jsonl.trim`);
-  let lfd;
+// The token a lock file holds, or null when it cannot be read.
+function lockToken(lock) {
+  try {
+    const { fd } = openLog(lock, FS.O_RDONLY);
+    try {
+      return readTail(fd, fstatSync(fd).size, 64);
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+}
+
+// Take <session>.jsonl.trim: created exclusively, holding a random token; a lock left by a writer
+// that died is stale after 30 s and is taken over. Returns the token, or null when another writer
+// holds it.
+export function takeTrimLock(lock) {
+  const token = randomBytes(16).toString("hex");
   for (let tries = 0; ; tries++) {
     try {
-      lfd = openSync(lock, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | NOFOLLOW, 0o600);
-      break;
-    } catch (e) {
-      if (e.code !== "EEXIST" || tries >= 1) return;
-      // a lock left by a writer that died is stale after 30 s
+      const lfd = openSync(lock, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | NOFOLLOW, 0o600);
       try {
-        if (Date.now() - lstatSync(lock).mtimeMs < 30_000) return;
+        writeSync(lfd, token);
+      } finally {
+        closeSync(lfd);
+      }
+      return token;
+    } catch (e) {
+      if (e.code !== "EEXIST" || tries >= 1) return null;
+      try {
+        const seen = lockToken(lock);
+        if (Date.now() - lstatSync(lock).mtimeMs < 30_000) return null;
+        // remove only the stale lock we looked at, never one that replaced it meanwhile
+        if (lockToken(lock) !== seen) return null;
         unlinkSync(lock);
       } catch {
-        return;
+        return null;
       }
     }
   }
+}
+
+// Release the lock only while it still holds our token: a writer that stalled past 30 s and had its
+// lock taken over must not remove the new holder's lock.
+export function dropTrimLock(lock, token) {
+  if (token && lockToken(lock) === token) {
+    try { unlinkSync(lock); } catch {}
+  }
+}
+
+function trimGuardLog(dir, session, file, cap) {
+  const lock = join(dir, `${session}.jsonl.trim`);
+  const token = takeTrimLock(lock);
+  if (!token) return;
   let tmp = null;
   try {
     const r = openLog(file, FS.O_RDONLY);
@@ -739,6 +776,7 @@ function trimGuardLog(dir, session, file, cap) {
     }
     const lines = text.split("\n").filter(Boolean);
     if (r.st.size > cap) lines.shift(); // a cut from the middle starts on a partial line
+    if (!lines.length) return;
     tmp = join(dir, `.${session}.jsonl.${randomBytes(8).toString("hex")}`);
     const tfd = openSync(tmp, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | NOFOLLOW, 0o600);
     try {
@@ -746,11 +784,13 @@ function trimGuardLog(dir, session, file, cap) {
     } finally {
       closeSync(tfd);
     }
+    // a row appended since the snapshot (the file grew) would be lost: leave the file whole and cut
+    // at the next row; only a row appended between this check and the rename can still be lost
+    if (lstatSync(file).size !== r.st.size) return;
     renameSync(tmp, file);
     tmp = null;
   } finally {
     if (tmp) try { unlinkSync(tmp); } catch {}
-    closeSync(lfd);
-    try { unlinkSync(lock); } catch {}
+    dropTrimLock(lock, token);
   }
 }
