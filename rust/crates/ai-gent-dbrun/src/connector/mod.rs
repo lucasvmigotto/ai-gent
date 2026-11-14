@@ -24,6 +24,8 @@ use std::fmt;
 pub mod contract;
 #[cfg(feature = "mysql")]
 pub mod mysql;
+#[cfg(feature = "postgres")]
+pub mod postgres;
 pub mod process;
 pub mod request;
 #[cfg(feature = "sqlite")]
