@@ -23,6 +23,7 @@ use std::fmt;
 
 pub use crate::core::backup::Backup;
 pub mod contract;
+pub mod isolate;
 pub mod process;
 pub mod request;
 #[cfg(feature = "sqlite")]

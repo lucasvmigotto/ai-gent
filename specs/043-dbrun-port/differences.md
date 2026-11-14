@@ -233,3 +233,23 @@ Differences (each with its test; Python did none of these):
 - D-A3-13. `--expect` entries Python crashes on (`--5`, a number that does not fit 64 bits) are refused with a message; a non-numeric entry still means "skip" as in Python (a typo such as `2x` silently skips that count; Question: refuse it?). Plan SQL and script SQL above 16 MiB are refused.
 - D-A3-14. `script` creates its file exclusively (Python checked `exists()` and then wrote, which races and follows a symbolic link) and removes it if its log entry cannot be written. `--format json` writes the `masked` object with sorted keys; Python keeps column order.
 - D-A3-15. Not in this task: reading the SQL from `--sql -` or a file (bounded read), the CLI flags, the profile-to-`Target` wiring beyond `Target::from_profile` (T011), `session`, `secrets migrate` log entries (`MigrateReport::log_line` is for the CLI to log), the container-exec route (T014).
+
+### T012: connector isolation (parity list and decisions)
+
+`dbrun.py` ran the driver in a separate process too (`driver_process`: `uv run ... _exec`, request on stdin, last stdout line parsed, a timeout of `req.timeout * statements + 180` s, `driver process failed: <last 5 lines of stderr>` as a connect failure). Parity items and their tests (`rust/crates/ai-gent-dbrun/tests/isolate.rs`, a test executable without libtest because the child is that same executable; names contain `isolate`):
+
+| Behavior of `dbrun.py` | Test |
+|---|---|
+| Request on stdin, one JSON line out | `isolate_a_round_trip_carries_the_password_on_stdin_only` |
+| A child that dies or prints no result line: a connect-stage failure with a bounded, redacted excerpt | `isolate_an_abort_...`, `isolate_garbage_output_...` |
+| A timeout kills the driver process; wall limit scales with the statement count | `isolate_a_hang_is_killed_at_the_deadline_and_the_child_is_gone` (limit scaling: `process` unit test) |
+| `_exec` reads the request from stdin and prints `execute()`'s result | `isolate_the_exec_reader_...` |
+
+Differences:
+
+- D-A3-16. `serve_exec` (the `_exec` reader) bounds its own read at the 16 MiB request limit plus the newline: it stops reading an endless stdin (the old reader was `json.load(sys.stdin)`, unbounded). Malformed, non-UTF-8 and empty input each get one `request`-stage line that names no value.
+- D-A3-17. The child's environment is rebuilt, not inherited: `PATH`, system and temp variables, locale, `SSL_CERT_FILE` and `SSL_CERT_DIR`, and what the caller adds. `PGPASSWORD`, `MYSQL_PWD`, `ORACLE_*`, tokens and the rest are dropped. `dbrun.py` passed its whole environment on (and added `LD_LIBRARY_PATH` for Oracle thick mode, which T070 must add through `with_env`). `HOME` is not inherited either (no `~/.pgpass` or `~/.my.cnf` read by a driver: a profile is the only source of credentials). Question: does any driver need `HOME`?
+- D-A3-18. A panic that unwinds is caught inside the child and becomes an `execute`-stage line with a fixed message (the panic text may hold a credential and is never shown); an abort ends the child and the parent reports it. During a `write` request a child that gave no result is an `execute` failure that says the commit is unconfirmed (the process connector said `connect`), and `apply` keeps the plan claimed (D-A3-08).
+- D-A3-19. The release profile still reads `panic = "unwind"` in `rust/Cargo.toml` while plan decision 5 says `panic = "abort"` stays; with this change both work (unwind is caught in the child, abort is contained by the process boundary). Left to the owner and T091.
+- D-A3-20. Kill is by child handle on every platform (no pattern kill). A grandchild that inherited the pipes can outlive the kill (the process connector's recorded limitation); the readers are bounded so the runner does not wait for it.
+- Not in this task: the `ai-gent db _exec` subcommand itself (T011 wires `serve_exec` and the real connectors; `IsolatedConnector::current_exe` gives it `db _exec`).

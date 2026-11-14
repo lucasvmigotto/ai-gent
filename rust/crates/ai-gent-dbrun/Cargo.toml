@@ -52,5 +52,12 @@ tempfile.workspace = true
 # Turns `tls` and `test-ca` on for this crate's own tests, so `cargo test -p ai-gent-dbrun` covers the TLS builder.
 ai-gent-dbrun = { path = ".", features = ["test-ca"] }
 
+# `isolate` is its own test executable without libtest: the child process of the isolation tests is this very
+# binary, and libtest would print its own lines on the stdout the parent reads as the result line.
+[[test]]
+name = "isolate"
+path = "tests/isolate.rs"
+harness = false
+
 [lints]
 workspace = true

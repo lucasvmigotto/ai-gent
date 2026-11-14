@@ -50,6 +50,8 @@ pub struct ProcessConnector {
     args: Vec<OsString>,
     timeout: Option<Duration>,
     max_output: usize,
+    /// `Some` replaces the child's whole environment with exactly these pairs.
+    env: Option<Vec<(OsString, OsString)>>,
 }
 
 impl ProcessConnector {
@@ -64,7 +66,16 @@ impl ProcessConnector {
             args: args.into_iter().map(Into::into).collect(),
             timeout: None,
             max_output: DEFAULT_MAX_OUTPUT,
+            env: None,
         }
+    }
+
+    /// Runs the child with exactly `env` as its environment (nothing inherited). Without this the child
+    /// inherits the parent's environment, as `dbrun.py` did.
+    #[must_use]
+    pub fn with_clean_env(mut self, env: Vec<(OsString, OsString)>) -> Self {
+        self.env = Some(env);
+        self
     }
 
     /// The host default: `python3 <dbrun_py> _exec`.
@@ -227,8 +238,12 @@ impl Connector for ProcessConnector {
             return fail("the request could not be encoded");
         };
         let deadline = Instant::now() + self.wall_limit(req);
-        let spawned = Command::new(&self.program)
-            .args(&self.args)
+        let mut command = Command::new(&self.program);
+        command.args(&self.args);
+        if let Some(env) = &self.env {
+            command.env_clear().envs(env.iter().map(|(k, v)| (k, v)));
+        }
+        let spawned = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
