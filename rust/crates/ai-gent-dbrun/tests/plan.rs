@@ -61,6 +61,7 @@ fn new_plan(sql: &str) -> NewPlan<'_> {
         sql,
         expect: vec![Some(1)],
         backup_supported: true,
+        evidence: &[],
     }
 }
 
@@ -244,4 +245,53 @@ fn apply_defaults_are_those_of_dbrun_py_apply() {
     let d = ApplyOptions::default();
     assert!(d.backup_supported);
     assert_eq!((d.timeout, d.max_rows), (120.0, 1000));
+}
+
+type Edit = Box<dyn Fn(&mut ai_gent_dbrun::core::plan::Plan)>;
+
+#[test]
+fn a_plan_file_copied_to_another_id_is_refused_and_every_sealed_field_matters() {
+    use ai_gent_dbrun::core::plan::plan_seal;
+    let plans = tempfile::tempdir().unwrap();
+    let plan = create_plan(plans.path(), &new_plan("DELETE FROM customer WHERE id = 3")).unwrap();
+    let copy = "20260101-120000-cd34";
+    std::fs::copy(
+        plans.path().join(format!("{ID}.json")),
+        plans.path().join(format!("{copy}.json")),
+    )
+    .unwrap();
+    assert!(matches!(
+        load_plan(plans.path(), "LOCALDB", copy),
+        Err(PlanError::Refused(m)) if m.contains("another id")
+    ));
+    assert!(load_plan(plans.path(), "LOCALDB", ID).is_ok());
+    // Each field of the seal, changed alone, changes the seal.
+    let base = plan_seal(&plan);
+    let edits: Vec<(&str, Edit)> = vec![
+        ("id", Box::new(|p| p.id = copy.into())),
+        ("profile", Box::new(|p| p.profile = "OTHER".into())),
+        ("engine", Box::new(|p| p.engine = "mysql".into())),
+        ("expect", Box::new(|p| p.expect = vec![None])),
+        ("ddl", Box::new(|p| p.ddl = vec![1])),
+        ("backup", Box::new(|p| p.backup = "none".into())),
+        (
+            "statements",
+            Box::new(|p| p.statements = vec!["DELETE FROM customer".into()]),
+        ),
+    ];
+    for (name, edit) in &edits {
+        let mut p = plan.clone();
+        edit(&mut p);
+        assert_ne!(plan_seal(&p), base, "{name} is not in the seal");
+    }
+    // And through the file: editing `ddl` alone is refused at load.
+    let file = plans.path().join(format!("{ID}.json"));
+    let mut v: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+    v["ddl"] = serde_json::json!([1]);
+    std::fs::write(&file, v.to_string()).unwrap();
+    assert!(matches!(
+        load_plan(plans.path(), "LOCALDB", ID),
+        Err(PlanError::Refused(m)) if m.contains("modified")
+    ));
 }

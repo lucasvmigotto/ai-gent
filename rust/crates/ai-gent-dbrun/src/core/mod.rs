@@ -6,10 +6,13 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
+pub mod backup;
 pub mod fields;
+pub mod log;
 pub mod mask;
 pub mod plan;
 pub mod redact;
+pub mod run;
 pub mod tls;
 
 macro_rules! re {
@@ -407,7 +410,10 @@ pub fn require_user_database(
     database: Option<&str>,
     action: &str,
 ) -> Result<(), Refused> {
+    // Python: `p.get("database") or "master"`, so an empty name is an unset one: a SQL Server profile
+    // with `DATABASE=` connects to `master` and must be refused like one with no database at all.
     let db = database
+        .filter(|d| !d.is_empty())
         .unwrap_or(if engine == "sqlserver" { "master" } else { "" })
         .to_lowercase();
     let system: &[&str] = match engine {

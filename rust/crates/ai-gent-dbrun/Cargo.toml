@@ -49,7 +49,7 @@ tokio-postgres-rustls = { version = "0.14", default-features = false, features =
 mysql = { version = "28", default-features = false, features = ["minimal-rust", "rustls-tls-ring"], optional = true }
 mysql_common = { version = "0.37", default-features = false, optional = true }
 tempfile = { workspace = true, optional = true }
-rusqlite = { version = "0.41", features = ["bundled", "hooks"], optional = true }
+rusqlite = { version = "0.41", features = ["bundled", "hooks", "backup"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
@@ -58,6 +58,13 @@ libc = "0.2"
 tempfile.workspace = true
 # Turns `tls` and `test-ca` on for this crate's own tests, so `cargo test -p ai-gent-dbrun` covers the TLS builder.
 ai-gent-dbrun = { path = ".", features = ["test-ca"] }
+
+# `isolate` is its own test executable without libtest: the child process of the isolation tests is this very
+# binary, and libtest would print its own lines on the stdout the parent reads as the result line.
+[[test]]
+name = "isolate"
+path = "tests/isolate.rs"
+harness = false
 
 [lints]
 workspace = true

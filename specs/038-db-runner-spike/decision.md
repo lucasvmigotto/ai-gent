@@ -6,13 +6,13 @@ Drafted 2026-11-07 from the repository evidence on `origin/dev` (`results.md`, `
 
 - **Date / author / machines used**: 2026-11-07; drafted by an agent for the owner; the spike's experiments ran on one machine: Linux x86_64 (Debian, glibc, Intel i7-1165G7, 8 threads), rustc 1.98.1, gcc 14.2.0, Podman 5.4.2 (`results.md` "E8" and each engine section). The research report `docs/product/dbrun-spike-report.md` (2026-11-01) was a second machine, in a sandbox.
 - **Option chosen**: **N (native all)**, proposed, with the phasing of H-exec during the port: the process connector (`dbrun.py _exec`) keeps an engine working until its native connector passes, and is deleted in the cutover. Why N and not H-exec, C, S or "not yet": see "Verdict and why" below.
-- **Per engine**: postgresql: native (`postgres` 0.19.14); mysql: native (`mysql` 28.0.4); mariadb: native (same binary); sqlserver: native (`tiberius-ng` 0.13.1, fork-dependent, owner decision pending on fork versus plain, see below); oracle: native thin (`oracledb` `=26.0.0-beta.5`, a beta), thick optional (`oracle` 0.6.3, never run to a result); sqlite: native (`rusqlite`, bundled).
+- **Per engine**: postgresql: native (`postgres` 0.19.14); mysql: native (`mysql` 28.0.4); mariadb: native (same binary); sqlserver: native (`tiberius-ng` 0.13.1, fork-dependent, owner chose `tiberius-ng` (owner decision (chat 2026-11-14)); health check still open); oracle: native thin (`oracledb` `=26.0.0-beta.5`, a beta), thick optional (`oracle` 0.6.3, never run to a result); sqlite: native (`rusqlite`, bundled).
 - **Evidence**: E1 to E8 below, linked to `results.md`.
 - **User-visible requirement after the change** (one sentence): the db plugin needs nothing but the `ai-gent` binary (and a container engine only for a database that runs in a local container), with no `uv` and no Python.
 - **Command word**: `ai-gent db`.
-- **Release**: ~~3.0.0, held until the port is done (the owner's decision, relayed)~~ amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: 3.0.0 ships with `dbrun.py` still Python (spec 039 D26/D27); the port ships in the 3.x line, when spec 043's own gates pass, as the last 3.x step. The owner decides; this draft does not set a date.
+- **Release**: ~~3.0.0, held until the port is done (the owner's decision, relayed)~~ amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: 3.0.0 ships with `dbrun.py` still Python (spec 039 D26/D27); the port ships in the 3.x line, when spec 043's own gates pass, engine by engine, Python fallback: each 3.x minor switches one engine with a per-engine switch (owner decision (chat 2026-11-14)). The owner decides; this draft does not set a date.
 - **Not run** (carried over): see "Not run".
-- **Crate layout** (D28): confirmed as written in `spec.md` "Crate layout" (library `ai-gent-dbrun` with features `sqlite`, `postgres`, `mysql`, `mssql`, `oracle`; `ai-gent-core` depends on no driver). The crate exists (`rust/crates/ai-gent-dbrun/`, T015 and T025 done: `cargo publish --dry-run` packaged and verified 12 files). The `ai-gent-dbrun` Trusted Publishing step (T024) is the owner's and is pending (not found as done). Whether `mssql` becomes its own crate and whether `ai-gent-dbrun` depends on `ai-gent-core` (spec.md open question 6): [NEEDS CLARIFICATION: not decided in the repository or in the relayed chat].
+- **Crate layout** (D28): confirmed as written in `spec.md` "Crate layout" (library `ai-gent-dbrun` with features `sqlite`, `postgres`, `mysql`, `mssql`, `oracle`; `ai-gent-core` depends on no driver). The crate exists (`rust/crates/ai-gent-dbrun/`, T015 and T025 done: `cargo publish --dry-run` packaged and verified 12 files). Trusted Publishing on crates.io is configured for `ai-gent-dbrun`, `ai-gent-core` and `ai-gent`; `mssql` stays a feature of `ai-gent-dbrun`, not its own crate; `ai-gent-dbrun` depends on `ai-gent-core`, and core depends on no database driver (owner decision (chat 2026-11-14)).
 - **Must-not-regress checklist**: see "Must-not-regress checklist".
 - **If the answer is "not yet"**: see that section, kept as the fallback.
 - **Owner sign-off**: pending (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: the approval covers a verdict that ships after 3.0.0; status stays DRAFT until the owner approves).
@@ -166,22 +166,22 @@ Kept as the fallback if the owner withdraws N.
 
 - **What stays**: `plugins/db/scripts/dbrun.py`, `test_dbrun.py`, the `passstore.py` link, the guard patterns, the `check.sh` block, the weekly engines run.
 - **What is documented**: the db plugin requires `uv` or Podman/Docker; `ai-gent doctor` reports it; spec 039's README sentence stays ("only the db plugin needs uv and Python").
-- **Revisit**: when `oracledb` leaves beta and the TLS, 11G-verifier and count-probe gaps above have results. Date: [NEEDS CLARIFICATION: not set by the owner].
+- **Revisit**: when `oracledb` leaves beta, or 2027-05-14, whichever comes first (owner decision (chat 2026-11-14)).
 
 ## Decisions given by the owner in chat on 2026-11-07
 
 These are the owner's own words as relayed to the drafting agent, in the form `Decided: <choice> — <reason>`. Reasons are taken from the repository evidence, not invented; a reason the repository does not give is marked.
 
 - **Command word.** Decided: `ai-gent db` — one binary; `spec.md` open question 2 recommended it and D9 says "later `db`"; the guard patterns change in the same release.
-- **Backup and restore.** Decided: Rust drives the same engine tools (`pg_dump`, `mysqldump`, the SQL Server `BACKUP`/`RESTORE`) through the container exec — the dumps are already container shell-outs and do not depend on the driver (`spec.md`, `results.md` E2). This is spec 043 FR-018 option (a). Whether Oracle gets a backup: [NEEDS CLARIFICATION].
+- **Backup and restore.** Decided: Rust drives the same engine tools (`pg_dump`, `mysqldump`, the SQL Server `BACKUP`/`RESTORE`) through the container exec — the dumps are already container shell-outs and do not depend on the driver (`spec.md`, `results.md` E2). This is spec 043 FR-018 option (a). Oracle `apply` stays refused until a backup path is decided (owner decision (chat 2026-11-14)).
 - **TLS.** Decided: verify by default (system roots or a CA file); loopback-proven profiles may opt out explicitly; the opt-out is refused on production profiles — the spike's `NoTls`, no TLS and `trust_cert()` are unacceptable outside a throwaway image (`results.md` E2, E3, E5).
-- **SQL Server.** Decided: keep `tiberius-ng`, and send a plan as one batch (no count probe between statements) — plain `tiberius` answered identically, so the fallback stays one dependency line; the batch avoids the `@@ROWCOUNT` finding that the driver cannot fix. Vendoring and a separate `mssql` crate are not decided.
+- **SQL Server.** Decided: keep `tiberius-ng`, and send a plan as one batch (no count probe between statements) — plain `tiberius` answered identically, so the fallback stays one dependency line; the batch avoids the `@@ROWCOUNT` finding that the driver cannot fix. `mssql` stays a feature, not its own crate (owner decision (chat 2026-11-14)); the fork health check remains open.
 - **Panic containment.** Decided: a short-lived child process per engine call — `panic = "abort"` cannot be caught, so `catch_unwind` around the Oracle login does nothing (`results.md` E6 review); this is spec 043 FR-014 option (a).
 - **Oracle thin.** Decided: thin refuses accounts without a 12c verifier with a message pointing at thick mode; TLS via a PEM wallet or a CA file — the crate implements only the 12c verifier (`results.md` E6b) and supports PEM wallets only.
-- **Oracle thick.** Decided: optional, reusing `AI_GENT_ORACLE_CLIENT_LIB`, a separate optional crate never in the package — client libraries cannot be shipped (`results.md` E6a).
+- **Oracle thick.** Decided: optional, reusing `AI_GENT_ORACLE_CLIENT_LIB`, an optional feature, thick only when the library variable is set, thin by default with no silent fallback (owner decision (chat 2026-11-14)); client libraries never in the package — client libraries cannot be shipped (`results.md` E6a).
 - **Value contract.** Decided: Rust values are the contract (the DDL row count is 0; `NUMBER` is typed from its text) — they are what the spike's drivers produce. The differences from Python go on the accepted-differences list (043 FR-005).
 - **Profiles with no published port.** Decided: they keep the container exec path — the spike always connected over TCP to a published port; the namespace join of `dbrun.py` stays for the rest (043 FR-020).
-- **Targets.** Decided: all six release targets, with a per-target engine waiver — an engine that cannot build on a target is an owner-signed waiver, never a silent omission (043 FR-029). The target list is [NEEDS CLARIFICATION: not found in the repository].
+- **Targets.** Decided: all six release targets, with a per-target engine waiver — an engine that cannot build on a target is an owner-signed waiver, never a silent omission (043 FR-029). Six release targets are approved (owner decision (chat 2026-11-14)); Windows, macOS and aarch64 remain untested and cannot be tested now, disclosed in release notes, not gated.
 - **Held cutovers.** Decided: they merge to `dev` inert until one cutover PR — one breaking release (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: for 035, 036 and 037 that is 3.0.0; the `dbrun` cutover is its own later PR).
 
 Earlier decisions, marked as relayed (they reached the drafting agent through the supervisor, not from a file the owner wrote; spec 043 "Owner decisions on record" lists them):
@@ -191,13 +191,16 @@ Earlier decisions, marked as relayed (they reached the drafting agent through th
 - **Relayed**: thick Oracle is optional; thin is the default; client libraries are never shipped.
 - **Relayed**: spec 043 is the production port, one worker per engine and per shared-core task, each output reviewed by a different agent, landing by pull request into `dev`.
 
+## Decisions (owner decision (chat 2026-11-14))
+
+- No hard size limit; report measured size each release. The full-feature `regex` crate is accepted.
+- Pull all old Oracle 10G/11G/12.1 images in parts to test them: one image at a time, at least 15 GB free, removed by ID. Permission is decided; the results are not yet evidence.
+- 3.0.0 keeps `dbrun.py` Python. Rust dbrun ships in 3.x "engine by engine, Python fallback": each 3.x minor switches one engine with a per-engine switch and Python fallback.
+
 ## Open points
 
-- [NEEDS CLARIFICATION] The sign-off itself: this file is a draft; the owner decides, and T012 records it.
-- [NEEDS CLARIFICATION] `tiberius-ng` versus plain `tiberius` versus vendoring (the owner chose `tiberius-ng`; health beyond local sources is not retrieved).
-- [NEEDS CLARIFICATION] `ai-gent-dbrun` depends on `ai-gent-core`? (spec.md open question 6); whether `mssql` is the first split.
-- [NEEDS CLARIFICATION] Trusted Publishing for `ai-gent-dbrun` (T024), the owner's step.
-- [NEEDS CLARIFICATION] The 10G verifier: needs an Oracle 11g or 12.1 image; the owner decides whether it may be pulled.
-- [NEEDS CLARIFICATION] The size budget (043 FR-030), the six-target list and waiver terms, and whether Oracle gets a backup.
-- [NEEDS CLARIFICATION] E7 (Windows) and aarch64 need the owner's machines or a CI runner.
-- The thick-mode check with a real Instant Client is an owner-run item (043 FR-027, T072).
+- [NEEDS CLARIFICATION] The sign-off itself: this file is a draft; the owner decides, and T012 records it. Recording the decisions above does not supply sign-off.
+- [NEEDS CLARIFICATION] `tiberius-ng` health beyond local sources still needs checking. The owner chose `tiberius-ng`; the choice is decided (owner decision (chat 2026-11-14)).
+- [NEEDS CLARIFICATION] E7 (Windows) and aarch64 evidence remains open. Windows, macOS and aarch64 are untested and cannot be tested now; disclose this in release notes, not gated (owner decision (chat 2026-11-14)).
+- Oracle's backup path remains undecided; `apply` stays refused until it is decided (owner decision (chat 2026-11-14)).
+- The thick-mode check with a real Instant Client remains an owner-run item (043 FR-027, T072).

@@ -99,5 +99,18 @@ Known differences from the Python tool: SCSS is read with the CSS grammar (`tree
 ## Not measured yet
 
 - T006 gopass on Windows.
-- T028 `scripts/test-reporun-github.py` against a real repository (owner).
+- T028 `scripts/test-reporun-github.py` against a real repository: run, blocked at the sub-issue step by a missing pass token (see the T028 section below).
 - Group D (grammar table, spike verdict).
+
+## T028: `scripts/test-reporun-github.py --impl bin` against real GitHub (2026-11-14)
+
+Run twice as `python3 scripts/test-reporun-github.py --impl bin --bin <ai-gent 0.1.0 x86_64-unknown-linux-musl from rust.yml run 43623830008>`, each time in a throwaway private repo `lucasvmigotto/ai-gent-e2e-<timestamp>`, deleted by the script at the end (no `ai-gent-e2e-` repository is left). T028 stays open.
+
+| Step | Result |
+|---|---|
+| detect | First run FAIL, a script bug: it read a top-level `platform`, but both `reporun.py` and `ai-gent repo detect --json` put it under `repository.platform` (identical shape, checked). Fixed in the script; passes on the second run. |
+| a read needs no `--write`; a write without it is refused (exit 3) | ok |
+| issue create, comment, label, view | ok (through `gh`, which used its own sign-in) |
+| sub-issue (`ai-gent repo api github GET /repos/<slug>/issues/<n>`) | FAIL both runs: `HTTP 401 Requires authentication`, `token from none (public)`. `pass` holds no `ai-gent/github/pat` entry (`detect`: `token_in_pass: false`), and `repo api` reads only pass, not the `gh` login. `reporun.py` behaves the same (401, public), so this is a missing prerequisite, not a port difference. The script then crashes parsing the empty body, so the later steps (close, pull requests by rebase and merge commit, batch) did not run. |
+
+To finish: store a GitHub token as `ai-gent/github/pat` (`secrets:pass`), then rerun with `--impl bin`; the script would also do better to stop with a clear message when `api` returns 401 instead of a JSON error.
