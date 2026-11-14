@@ -11,10 +11,12 @@
 //! option `default_transaction_read_only=on` and a `BEGIN READ ONLY` transaction make the server refuse a
 //! write. A statement can still end the transaction (`COMMIT`) or turn the session default off (`SET
 //! default_transaction_read_only = off`, `SET SESSION CHARACTERISTICS ...`), so after every statement the
-//! connector asks `SHOW transaction_read_only` and, when it is not `on`, rolls back and fails before any
-//! further statement runs. What is enforced is therefore: no statement runs while the session or the
-//! transaction is writable, except the one that made it writable, which is transaction control or a
-//! `SET` (a write would have been refused while read-only).
+//! connector reads `transaction_read_only` and the transaction's start time and, when the flag is not `on`
+//! or the transaction is a new one, rolls back and fails before any further statement runs. What is
+//! enforced is therefore: no further statement runs once the session or the transaction is no longer
+//! the read-only one. The statement that changed it has already run: harmless for `COMMIT` or `SET`,
+//! but a `DO` block or `CALL` that commits inside itself and then writes is not stopped by a check made
+//! afterwards (the classifier refuses `DO` and `CALL` in read mode; see D-016).
 //!
 //! TLS (T032): the connection is always encrypted (`sslmode=require` semantics: a server that answers
 //! `N` to the SSL request is a failure, never a plain-text fallback). The certificate is verified by
@@ -415,6 +417,11 @@ fn shape_entry(
     })
 }
 
+/// The read-only flag and the transaction's start time, schema-qualified so a `search_path` change cannot
+/// shadow them.
+const READ_STATE: &str =
+    "SELECT pg_catalog.current_setting('transaction_read_only'), pg_catalog.now()::text";
+
 /// Runs one statement with the simple query protocol (text values, converted by the column type from a
 /// prepare, which also refuses a second statement in the same text, as psycopg's extended protocol).
 fn run_statement(
@@ -545,6 +552,13 @@ fn execute_in(
     // Read: the session default is already read-only and the transaction is opened READ ONLY; both are
     // checked again after every statement (see the module docs).
     client.batch_execute(if read { "BEGIN READ ONLY" } else { "BEGIN" })?;
+    // The transaction's start time: it changes if a statement ends the transaction (a `COMMIT`, or a
+    // `DO` block or `CALL` that commits), which the read-only flag alone would not show.
+    let started = if read {
+        first_row(client, READ_STATE)?.get(1).cloned().flatten()
+    } else {
+        None
+    };
     let mut counts = Vec::new();
     for stmt in &req.statements {
         if !proceed(gate) {
@@ -561,10 +575,13 @@ fn execute_in(
         if read {
             // A statement can end the transaction or turn the session default off: never run another
             // one in a writable session.
-            let state = first_row(client, "SHOW transaction_read_only")?;
-            if state.first().and_then(|v| v.as_deref()) != Some("on") {
+            let state = first_row(client, READ_STATE)?;
+            let still_read_only = state.first().and_then(|v| v.as_deref()) == Some("on");
+            let same_transaction =
+                started.is_some() && state.get(1).and_then(|v| v.as_deref()) == started.as_deref();
+            if !still_read_only || !same_transaction {
                 return Err(Failure::Refused(
-                    "read-only enforcement was lost (transaction_read_only is not on after a statement); rolled back, no further statement ran",
+                    "read-only enforcement was lost (the transaction ended or is no longer read only after a statement); rolled back, no further statement ran",
                 ));
             }
         }

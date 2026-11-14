@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
   "name": "postgres-ddl-and-command-tags",
-  "derived_from": "spec 043 T031 and FR-010 on PostgreSQL: psycopg reports cursor.rowcount -1 for DDL, the server's command-tag number for DML (also with RETURNING and in a CTE) and the rows received for SHOW and EXPLAIN; the port reports the CommandComplete number, and 0 where the tag carries none (DDL, EXPLAIN, SHOW)",
+  "derived_from": "spec 043 T031 and FR-010 on PostgreSQL: psycopg reports cursor.rowcount -1 for DDL, the server's command-tag number for DML (also with RETURNING and in a CTE) and the rows received for SHOW and EXPLAIN; the port reports the CommandComplete number, and 0 where the tag carries none (DDL, EXPLAIN, SHOW). This fixture runs UPDATE, DDL, a no-match DELETE and a CTE delete; the SHOW, EXPLAIN and SELECT counts are covered by the wire test the_count_is_the_command_tag_number_for_every_kind_of_statement.",
   "kind": "exec",
   "engines": [
     "postgresql"
@@ -42,8 +42,14 @@
           },
           {
             "rowcount": 1,
-            "columns": ["id"],
-            "rows": [[1]],
+            "columns": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ],
             "truncated": false
           }
         ]
@@ -64,8 +70,14 @@
           },
           {
             "rowcount": 1,
-            "columns": ["id"],
-            "rows": [[1]],
+            "columns": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ],
             "truncated": false
           }
         ]

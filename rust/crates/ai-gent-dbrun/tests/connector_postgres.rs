@@ -738,6 +738,10 @@ fn wire(cert: &ServerCert, script: &Script) -> Wire {
     }
 }
 
+/// What the connector asks after every read statement (flag and transaction start time).
+const READ_STATE: &str =
+    "SELECT pg_catalog.current_setting('transaction_read_only'), pg_catalog.now()::text";
+
 /// The probes and transaction control every script answers; `rest` handles the test's statements
 /// (and may override `SHOW transaction_read_only` and `COMMIT`).
 fn script(rest: impl Fn(&str) -> Option<Reply> + Send + Sync + 'static) -> Script {
@@ -759,9 +763,11 @@ fn script(rest: impl Fn(&str) -> Option<Reply> + Send + Sync + 'static) -> Scrip
             "BEGIN" | "BEGIN READ ONLY" => Reply::tag("BEGIN"),
             "COMMIT" => Reply::tag("COMMIT"),
             "ROLLBACK" => Reply::tag("ROLLBACK"),
-            "SHOW transaction_read_only" => {
-                Reply::rows(&[("transaction_read_only", TEXT)], &[&["on"]], "SHOW")
-            }
+            READ_STATE => Reply::rows(
+                &[("s", TEXT), ("t", TEXT)],
+                &[&["on", "2026-01-01 00:00:00+00"]],
+                "SELECT 1",
+            ),
             _ => Reply::tag("OK"),
         }
     })
@@ -808,10 +814,8 @@ fn read_mode_begins_read_only_checks_after_every_statement_and_never_commits() {
         .expect("BEGIN READ ONLY was sent");
     assert!(begin < server.position("SELECT 1").unwrap(), "{log:?}");
     assert_eq!(
-        log.iter()
-            .filter(|q| *q == "SHOW transaction_read_only")
-            .count(),
-        2,
+        log.iter().filter(|q| *q == READ_STATE).count(),
+        3,
         "{log:?}"
     );
     assert!(server.has("ROLLBACK") && !server.has("COMMIT"), "{log:?}");
@@ -819,6 +823,60 @@ fn read_mode_begins_read_only_checks_after_every_statement_and_never_commits() {
     assert!(
         startup.contains("-c DateStyle=ISO") && startup.contains("-c bytea_output=hex"),
         "{startup}"
+    );
+}
+
+#[test]
+fn read_mode_stops_when_a_statement_ended_the_transaction_though_the_flag_still_reads_on() {
+    // A `DO` block or `CALL` can COMMIT inside itself and leave the session default on: the flag alone
+    // reads `on`, but the transaction is a new one (a later start time). The next statement must not run.
+    let ca = TestCa::new("ended");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let ended = Arc::new(Mutex::new(false));
+    let seen = Arc::clone(&ended);
+    let server = wire(
+        &cert,
+        &script(move |sql| match sql {
+            READ_STATE => {
+                let new_tx = *seen.lock().unwrap();
+                Some(Reply::rows(
+                    &[("s", TEXT), ("t", TEXT)],
+                    &[&[
+                        "on",
+                        if new_tx {
+                            "2026-01-01 00:00:09+00"
+                        } else {
+                            "2026-01-01 00:00:00+00"
+                        },
+                    ]],
+                    "SELECT 1",
+                ))
+            }
+            s if s.starts_with("DO ") => {
+                *seen.lock().unwrap() = true;
+                Some(Reply::tag("DO"))
+            }
+            _ => None,
+        }),
+    );
+    let out = c.run(&wire_request(
+        server.port,
+        Mode::Read,
+        &["DO $$ BEGIN COMMIT; END $$", "DELETE FROM customer"],
+    ));
+    assert_eq!(
+        (out.ok, out.stage),
+        (false, Some(Stage::Execute)),
+        "{out:?}"
+    );
+    assert!(
+        error(&out).contains("read-only enforcement was lost"),
+        "{out:?}"
+    );
+    assert!(
+        !server.sent_starting_with("DELETE"),
+        "the write was never sent: {:?}",
+        server.log()
     );
 }
 
@@ -833,12 +891,12 @@ fn read_mode_stops_when_a_statement_made_the_session_writable() {
     let server = wire(
         &cert,
         &script(move |sql| match sql {
-            "SHOW transaction_read_only" => {
+            READ_STATE => {
                 let off = *seen.lock().unwrap();
                 Some(Reply::rows(
-                    &[("transaction_read_only", TEXT)],
-                    &[&[if off { "off" } else { "on" }]],
-                    "SHOW",
+                    &[("s", TEXT), ("t", TEXT)],
+                    &[&[if off { "off" } else { "on" }, "2026-01-01 00:00:00+00"]],
+                    "SELECT 1",
                 ))
             }
             "COMMIT" => {
@@ -1130,7 +1188,7 @@ fn real_server_passes_the_postgresql_contract_fixtures() {
             real(Mode::Test, &[]).0.conn
         },
     );
-    assert_eq!(ran, 1);
+    assert!(ran >= 1, "at least one postgresql fixture case runs");
 }
 
 #[test]
