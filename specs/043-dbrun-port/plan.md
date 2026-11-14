@@ -4,12 +4,14 @@
 
 ## Summary
 
+The owner decision (chat 2026-11-14) supersedes the single-release phasing below: each 3.x minor switches one engine, with a per-engine switch and Python fallback. Delete Python only after the final engine cutover; 3.0.0 keeps `dbrun.py` Python.
+
 Promote the spike drivers in `rust/spikes/dbrun/` into `rust/crates/ai-gent-dbrun/`, finish the shared core there (CLI, profiles, plans, log, backup/restore, TLS fields), close the three gaps the owner named (TLS verification, the Oracle old-verifier case, native backup/restore), add optional Oracle thick mode, then cut the skills, guard, package and docs over to `ai-gent db` and delete `dbrun.py` and `uv`, all at the release that ships the port, in the 3.x line, not inside 3.0.0 (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun; 3.0.0 ships with `dbrun.py` still Python). Work is split into groups that one worker each can take; every output is reviewed by a different agent and lands by pull request into `dev`.
 
 ## Technical context
 
 **Language**: Rust (workspace in `rust/`, toolchain pinned by `rust/rust-toolchain.toml`); Python only in dev tools (the parity generator, the engines script).
-**Crate**: `ai-gent-dbrun` (D28) with features `sqlite`, `postgres`, `mysql`, `mssql`, `oracle`, `oracle-thick`; `process` is always compiled until the cutover removes it. `ai-gent-core` never depends on a driver. The `ai-gent` binary depends on `ai-gent-dbrun` with default features per target.
+**Crate**: `ai-gent-dbrun` (D28) with features `sqlite`, `postgres`, `mysql`, `mssql`, `oracle`, `oracle-thick`; `process` is always compiled until the cutover removes it. `ai-gent-dbrun` depends on `ai-gent-core`; core never depends on a database driver (owner decision (chat 2026-11-14)). The `ai-gent` binary depends on `ai-gent-dbrun` with default features per target.
 **Drivers**: see spec FR-021. TLS: rustls only (FR-016).
 **Testing**: Rust unit and contract tests (`cargo test -p ai-gent-dbrun --features <engine>`), the golden/parity corpus generated from `dbrun.py` (committed generator), `scripts/test-dbrun-engines.py --runner` per engine (weekly in `scheduled.yml`, and run by the worker before its pull request), guard tests (`scripts/test-db-guard.sh`, `scripts/test-secrets-guard.sh`, `shared/guard-fixtures/*.json`), `scripts/check.sh`.
 
@@ -19,7 +21,7 @@ Promote the spike drivers in `rust/spikes/dbrun/` into `rust/crates/ai-gent-dbru
 |---|---|
 | D8 no Python fallback | this spec removes the single declared exception at the release that ships the port; D26/D27 stand for 3.0.0 (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun; the relayed reversal is itself reversed) |
 | D16 dev tools stay Python | the engines script and the parity generator stay Python, dev-only |
-| D28 crate layout | kept; the `mssql` split stays a candidate (FR-021) |
+| D28 crate layout | kept; the `mssql` stays a feature, not its own crate (owner decision (chat 2026-11-14)) |
 | `shared/secrets.md` | throwaway container passwords only in tests; pass first; credentials never in argv or output; the child process of FR-014 receives them on stdin |
 | `shared/containers.md` 9a | engine containers by ID or label, one engine at a time, no prune |
 | CLAUDE.md "propose first" | this draft is the proposal; no skill, hook or plugin file changes until the owner approves it |
@@ -44,6 +46,8 @@ One worker per task group below. A task is one pull request into `dev` unless it
 | J Docs | T095-T098 | H | references, README, docs site, migration guide |
 
 Parallelism: A's T002, T004 and T007 unblock B-F; B-F run in parallel worktrees after them (up to the slot cap), landing one at a time in dependency order (`agents:parallel`). Each engine worker needs one engine container at a time on the machine; the disk floor applies, so engine groups that need images are scheduled so no two pull at once unless disk allows. G waits for F. H starts only when every engine passes the engines script natively. Cutover work in H-J merges to `dev` as it is ready but stays inert for packages until the single cutover pull request (Sequencing, FR-036); T001's `decision.md` is approved by the owner before B-F start.
+
+## Earlier sequencing (superseded by the 2026-11-14 release phasing below)
 
 ## Sequencing with the rest of the series (relayed 6 and 7)
 
@@ -70,18 +74,18 @@ Why: the previous plan made `dbrun` the last 3.x step so 3.0.0 could ship with P
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Oracle thin is beta (`=26.0.0-beta.5`), narrower than python-oracledb thin (12c verifier only), no total login deadline, panics possible | the port's cutover blocked (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun; was "3.0.0 blocked"), or a crash on a credential path | FR-014 child-process containment, FR-024 deadline, FR-025 clear refusal pointing to thick, exact pin, thick as the documented escape for users who install Instant Client |
-| The old-verifier case cannot be reproduced on the 26ai image | an untested claim | the owner chose no 11g/12.1 image now (2026-11-07): the 10G case stays recorded "unverified"; the 11G-only account tests the refusal text |
-| `tiberius-ng` is a one-maintainer fork | supply-chain and maintenance risk on a credential path | fork kept with its checksum pinned (decided 2026-11-07), plain `tiberius` as the measured fallback; the `mssql` crate split stays open |
+| The old-verifier case cannot be reproduced on the 26ai image | an untested claim | pull all old 10G/11G/12.1 images in parts, one at a time, at least 15 GB free, removed by ID (owner decision (chat 2026-11-14)); results remain unverified until run |
+| `tiberius-ng` is a one-maintainer fork | supply-chain and maintenance risk on a credential path | fork kept with its checksum pinned (decided 2026-11-07), plain `tiberius` as the measured fallback; `mssql` stays a feature (owner decision (chat 2026-11-14)) |
 | TLS defaults break profiles that worked unencrypted | users locked out after upgrade | FR-015 default decided (verify, 2026-11-07); migration guide row; clear error naming the field; explicit `unverified` only on proven-local loopback profiles |
 | Native backup/restore is less proven than `pg_dump`/`mysqldump` | data loss on restore of a local dev database | FR-018 decided (the same engine tools through the container exec, 2026-11-07); engines script restore journey per engine; backups are of proven-local databases only |
 | Parity corpus covers reads only today | behaviour drift in writes and plans | T003 extends it to writes, plans, errors, CLI shapes; accepted differences reviewed |
-| musl/aarch64/Windows/macOS builds of the engines were never run | a target without `db` | T091 matrix before the cutover; per-target waiver of the failing engine per FR-029/FR-035 |
+| musl/aarch64/Windows/macOS builds of the engines were never run | a target without `db` | six targets with owner-signed per-engine waivers; disclose Windows/macOS/aarch64 as untested in release notes, not gated (owner decision (chat 2026-11-14)) |
 | Thick mode untestable in CI | silent breakage | owner-run evidence (FR-027); CI builds the feature and runs the missing-library path |
-| The slowest engine holds the port's release (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: no longer 3.0.0) | the port's release slips; 3.0.0 does not | engine groups run in parallel; the owner can later split the release by a new decision (not assumed here) |
+| The slowest engine holds the port's release (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun: no longer 3.0.0) | the port's release slips; 3.0.0 does not | each 3.x minor switches one engine, with a per-engine switch and Python fallback (owner decision (chat 2026-11-14)) |
 | 51 Python test runs have no one-to-one Rust names | missed behaviour | SC-002 mapping table in `differences.md` |
 | The container-exec path (profiles with no published port) diverges from the driver path | two code paths to keep equal | one parity corpus exercises both (T014); decided 2026-11-07 |
 
-## Decisions (given by the owner in chat, 2026-11-07, three rounds; the 14 open points of the first draft)
+## Earlier decisions (given by the owner in chat, 2026-11-07, three rounds; superseded where the 2026-11-14 decisions below differ)
 
 Format as `shared/asking.md`: `Decided: <choice> — <reason>`. The eight earlier decisions stay "relayed" (spec header).
 
@@ -91,25 +95,45 @@ Format as `shared/asking.md`: `Decided: <choice> — <reason>`. The eight earlie
 | 2 | Local container with no published port; `session` | no published port keeps the container exec path (engine client in the container); published port uses the Rust drivers; `session` stays | no client image or namespace join to rebuild | 2026-11-07 | T010, T011, T014 |
 | 3 | TLS model | verify by default (system roots or named CA file); explicit `unverified` only on a proven-local loopback profile; refused on production | safe default with a door for throwaway databases | 2026-11-07 | T007, T032, T042, T054, T063 |
 | 4 | System roots for Oracle thin | PEM wallet or CA file, no system-roots promise | `oracledb` ships webpki-roots only | 2026-11-07 | T063 |
-| 5 | "Native" backup/restore | Rust drives the same tools through the container exec; no Python, no Rust dump | proven tools, no correctness risk | 2026-11-07 | T008, T020, T033, T043, T055 (Oracle: T065 still open) |
+| 5 | "Native" backup/restore | Rust drives the same tools through the container exec; no Python, no Rust dump | proven tools, no correctness risk | 2026-11-07 | T008, T020, T033, T043, T055 (Oracle: T065: apply stays refused until a backup path is decided, 2026-11-14) |
 | 6 | SQL Server count | one batch per plan, count read once at the end or from DONE tokens if exposed | no probe between statements, no patch | 2026-11-07 | T051 |
 | 7 | Panic containment | child process of `ai-gent db` per engine call; `panic = "abort"` stays | clean failure JSON, uniform deadline | 2026-11-07 | T012, T060, T064 |
-| 8 | `tiberius-ng` | keep the fork, checksum pinned, not vendored; plain `tiberius` is the fallback | measured drop-in | 2026-11-07 | T050 (crate split: still open) |
+| 8 | `tiberius-ng` | keep the fork, checksum pinned, not vendored; plain `tiberius` is the fallback | measured drop-in | 2026-11-07 | T050 (mssql stays a feature, 2026-11-14) |
 | 9 | DDL row count and `NUMBER` | the Rust values are the contract (DDL `0`, `NUMBER` from text), documented as intended changes of the release that ships the port | simplest and server-true | 2026-11-07 | T005, T031, T053, T061, T097 |
 | 10 | Old-verifier means | clear refusal naming the cause and pointing to thick; no 11g/12.1 image now | cost not justified for a beta driver | 2026-11-07 | T062 |
-| 11 | Thick mode | `AI_GENT_ORACLE_CLIENT_LIB`; separate optional crate/feature, only where a client exists, never in the package; thin default | no client ever shipped | 2026-11-07 | T070, T071 (selection rule: still open) |
+| 11 | Thick mode | `AI_GENT_ORACLE_CLIENT_LIB`; separate optional crate/feature, only where a client exists, never in the package; thin default | no client ever shipped | 2026-11-07 | T070, T071 (selection rule decided 2026-11-14) |
 | 12 | Platforms, waiver, size | six release targets; an engine that cannot build is waived for that target with a refusal and a matrix line; size: spec 032 budget (8 MB binary, derived from 032/038 measurements) | do not block the release on one engine | 2026-11-07 | T091 |
 | 13 | Held cutovers | merge to `dev` as ready, inert for packages until the single cutover PR; 2.28 releases from `dev` without the cutover edits | no long-lived branch | 2026-11-07 | T084 |
 | 14 | 038 `decision.md` | T001 drafts it from 038's results and these answers; owner approves in the PR before any engine group starts | owner keeps the gate | 2026-11-07 | T001, groups B-F |
 
-## Still open (genuinely; nothing else)
+## Decisions (owner decision (chat 2026-11-14))
 
-- TLS profile field names and file keys (T007 proposes, the owner reviews in its PR).
-- Whether Oracle gets a backup (Data Pump) or `apply` stays refused there (T065; default: refused).
-- Whether `mssql` becomes its own crate (D28 candidate).
-- Oracle thick selection rule when the variable is set (assumed: thick only when set, no automatic fallback; T070).
-- Whether the full-feature `regex` is acceptable for size (answered by a measurement in T091).
-- Measured combined size per target: the 8 MB budget is derived (about 6.1 MB estimated), not yet measured together.
+- **TLS trust.** Decided: MySQL accepts the crate's bundled public roots, including alongside a CA file; document it. PostgreSQL always uses TLS, with no plaintext `disable` mode; a local container must start with `ssl=on`. (owner decision (chat 2026-11-14)).
+- **TLS profiles.** Decided: Approved fields: `tls_mode`, `tls_ca_file`, `tls_server_name`; `.env` keys `<P>_TLS_MODE`, `<P>_TLS_CA_FILE`, `<P>_TLS_SERVER_NAME`. A relative `tls_ca_file` stays refused. An unclassified container profile needs `CLASS=local` to use `unverified`. (owner decision (chat 2026-11-14)).
+- **TLS advisory.** Decided: `rustls-pemfile` advisory RUSTSEC-2025-0134 is ignored in `deny.toml` with a dated reason; review by 2027-05-14. (owner decision (chat 2026-11-14)).
+- **Oracle backup and revisit.** Decided: Oracle `apply` stays refused until a backup path is decided. Revisit `oracledb` when it leaves beta, or 2027-05-14, whichever comes first. (owner decision (chat 2026-11-14)).
+- **Old Oracle images.** Decided: Pull all old Oracle 10G/11G/12.1 images, in parts, to test them: one image at a time, at least 15 GB free, removed by ID. This supersedes the 2026-11-07 decision not to pull them. (owner decision (chat 2026-11-14)).
+- **Size and regex.** Decided: No hard size limit; report the measured size each release. The full-feature `regex` crate is accepted. (owner decision (chat 2026-11-14)).
+- **Profiles.** Decided: A bad `pass:` reference does not prevent listing all profiles: mark the bad profile with an error. Blank profile fields mean unset, as in Python. Default `max_rows` is 100. (owner decision (chat 2026-11-14)).
+- **Windows and local proof.** Decided: Document Windows owner-only files now; enforce an ACL later. `npipe` is not treated as local. Unix sockets in world-writable folders are refused. (owner decision (chat 2026-11-14)).
+- **Counts and expectations.** Decided: Each engine keeps its original row-count value; DDL is 0 everywhere. An `expect` length mismatch is refused. A bad `--expect` entry is refused; explicit `skip` is allowed. (owner decision (chat 2026-11-14)).
+- **Times and plans.** Decided: UTC timestamps everywhere. Old Python plans are refused with "make a new plan". (owner decision (chat 2026-11-14)).
+- **Request and text safety.** Decided: Approved request limits: 3600 s timeout, 1,000,000 rows, 16 MiB. Redact secrets of any length. Invalid UTF-8 is replaced with U+FFFD and marked. (owner decision (chat 2026-11-14)).
+- **Engine behavior.** Decided: PostgreSQL values stay as server text (valid JSON). MySQL `sql_mode` refusals, executable-comment refusals and `sql_mode`-word refusals are accepted. Non-loopback published ports and Podman pods keep the container exec path. (owner decision (chat 2026-11-14)).
+- **Crate layout.** Decided: `mssql` stays a feature of `ai-gent-dbrun`, not its own crate. `ai-gent-dbrun` depends on `ai-gent-core`; core depends on no database driver. (owner decision (chat 2026-11-14)).
+- **Oracle thick selection.** Decided: Thick only when `AI_GENT_ORACLE_CLIENT_LIB` is set; thin by default; no silent fallback. (owner decision (chat 2026-11-14)).
+- **Release phasing.** Decided: 3.0.0 does not ship Rust dbrun; `dbrun.py` stays Python. Rust dbrun ships in 3.x "engine by engine, Python fallback": each 3.x minor switches one engine, with a per-engine switch and a Python fallback. (owner decision (chat 2026-11-14)).
+- **Targets and evidence.** Decided: Six release targets, with an owner-signed per-target engine waiver for an engine that cannot build, never a silent omission. Windows, macOS and aarch64 are untested and cannot be tested now; disclose this in release notes, not as a release gate. The E7/Windows and aarch64 evidence remains open. (owner decision (chat 2026-11-14)).
+- **Publishing and SQL Server.** Decided: Trusted Publishing on crates.io is configured for `ai-gent-dbrun`, `ai-gent-core` and `ai-gent`. `tiberius-ng` stays the owner's choice for SQL Server; its health check remains open. (owner decision (chat 2026-11-14)).
+
+## Still open
+
+- The owner's sign-off on 038 `decision.md` remains pending; recording these decisions does not sign it off.
+- `tiberius-ng` health beyond local sources still needs checking; the driver choice is decided.
+- E7 (Windows) and aarch64 evidence remains open; Windows, macOS and aarch64 are untested and cannot be tested now, disclosed in release notes rather than gated.
+- Oracle's backup path remains undecided; `apply` stays refused until it is decided.
+- Combined size measurements per target remain evidence to collect and report each release, with no hard limit.
+- The real Instant Client check remains owner-run (T072). Unanswered behavior questions remain in `differences.md`.
 
 ## Amendments to 039 (made in this change set; each carries "amended 2026-11-07 per owner decision (relayed)")
 
