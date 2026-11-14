@@ -57793,5 +57793,72 @@
    "stdout": "Plan <ID> — P (sqlserver, proven local)\n\nReason: why\n\n1. expected rows: 1\nUPDATE t SET a = 1 WHERE id = 1\n\nBackup before applying: required. Everything runs in one transaction; it commits only if every expected row count matches.\nRestore afterwards: dbrun restore P <ID> --confirmed\n\nShow this plan to the user. Only after they confirm: dbrun apply P <ID> --confirmed\n",
    "log": "## <TS> · plan · P · <EID>\n\n- engine: sqlserver · class: local · writable: true · via: file\n- evidence: ev one; ev two\n- reason: why\n- plan <ID>\n\n```sql\nUPDATE t SET a = 1 WHERE id = 1\n```\n\n- status: started\n\n- <EID> result: plan recorded at <STATE>/state/plans/<ID>.json\n\n"
   }
+ ],
+ "format": [
+  {
+   "columns": [
+    "id",
+    "nome",
+    "note"
+   ],
+   "rows": [
+    [
+     1,
+     "Ana\nLima",
+     null
+    ],
+    [
+     22,
+     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     true
+    ],
+    [
+     3,
+     "é",
+     1.5
+    ]
+   ],
+   "masked": {
+    "nome": "name",
+    "email": "email"
+   },
+   "table": "id | nome                                                                                                                     | note\n---+--------------------------------------------------------------------------------------------------------------------------+-----\n1  | Ana⏎Lima                                                                                                                 | NULL\n22 | xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx… | True\n3  | é                                                                                                                        | 1.5 \n",
+   "csv": "id,nome,note\r\n1,\"Ana\nLima\",\r\n22,xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,True\r\n3,é,1.5\r\n",
+   "json": "{\"columns\": [\"id\", \"nome\", \"note\"], \"rows\": [[1, \"Ana\\nLima\", null], [22, \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", true], [3, \"\\u00e9\", 1.5]], \"truncated\": false, \"masked\": {\"nome\": \"name\", \"email\": \"email\"}}"
+  },
+  {
+   "columns": [
+    "a"
+   ],
+   "rows": [],
+   "masked": {},
+   "table": "a\n-\n",
+   "csv": "a\r\n",
+   "json": "{\"columns\": [\"a\"], \"rows\": [], \"truncated\": false, \"masked\": {}}"
+  },
+  {
+   "columns": [
+    "a",
+    "b"
+   ],
+   "rows": [
+    [
+     "q\"uote",
+     "c,omma"
+    ],
+    [
+     false,
+     -0.0
+    ],
+    [
+     1000000000000000,
+     "tab\there"
+    ]
+   ],
+   "masked": {},
+   "table": "a                | b       \n-----------------+---------\nq\"uote           | c,omma  \nFalse            | -0.0    \n1000000000000000 | tab\there\n",
+   "csv": "a,b\r\n\"q\"\"uote\",\"c,omma\"\r\nFalse,-0.0\r\n1000000000000000,tab\there\r\n",
+   "json": "{\"columns\": [\"a\", \"b\"], \"rows\": [[\"q\\\"uote\", \"c,omma\"], [false, -0.0], [1000000000000000, \"tab\\there\"]], \"truncated\": false, \"masked\": {}}"
+  }
  ]
 }

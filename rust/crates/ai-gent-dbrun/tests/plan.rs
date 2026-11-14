@@ -61,6 +61,7 @@ fn new_plan(sql: &str) -> NewPlan<'_> {
         sql,
         expect: vec![Some(1)],
         backup_supported: true,
+        evidence: &[],
     }
 }
 

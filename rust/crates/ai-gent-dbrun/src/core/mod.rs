@@ -8,9 +8,11 @@ use std::sync::OnceLock;
 
 pub mod backup;
 pub mod fields;
+pub mod log;
 pub mod mask;
 pub mod plan;
 pub mod redact;
+pub mod run;
 pub mod tls;
 
 macro_rules! re {

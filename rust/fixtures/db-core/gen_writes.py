@@ -181,5 +181,23 @@ for e, sql, expect in PLANS:
         log = re.sub(r"## \S+ ·", "## <TS> ·", log)
         out["plan"].append({"engine": e, "sql": sql, "expect": expect, "record": rec, "stdout": stdout, "log": log})
 dbrun.dt = real_dt
+# Output formats of `query` (print_table, --format json, --format csv) on awkward values.
+import csv  # noqa: E402
+
+out["format"] = []
+for cols, rows, masked in [
+    (["id", "nome", "note"], [[1, "Ana\nLima", None], [22, "x" * 130, True], [3, "é", 1.5]], {"nome": "name", "email": "email"}),
+    (["a"], [], {}),
+    (["a", "b"], [["q\"uote", "c,omma"], [False, -0.0], [10 ** 15, "tab\there"]], {}),
+]:
+    tbl = io.StringIO()
+    with contextlib.redirect_stdout(tbl):
+        dbrun.print_table(cols, rows)
+    cs = io.StringIO()
+    w = csv.writer(cs)
+    w.writerow(cols)
+    w.writerows(rows)
+    out["format"].append({"columns": cols, "rows": rows, "masked": masked, "table": tbl.getvalue(), "csv": cs.getvalue(),
+                          "json": json.dumps({"columns": cols, "rows": rows, "truncated": False, "masked": masked})})
 (ROOT / "rust/fixtures/db-core/golden-writes.json").write_text(json.dumps(out, ensure_ascii=False, indent=1) + "\n")
 print({k: len(v) for k, v in out.items()})

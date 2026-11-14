@@ -207,3 +207,29 @@ Differences (Python did none of these):
 - D-A3-06. SQL Server: refused until its connector offers the autocommit path (FR-019); Python used a one-off `pymssql` script. `BackupError::Refused` says so; no backup is attempted, so `apply` on SQL Server stops before writing.
 - D-A3-07. SQLite restore checks the 16-byte SQLite header of the backup file first and refuses anything else.
 - Windows: the kill is by child handle, never by name; the removal of a partial dump after a kill can fail while a leaked grandchild still holds the file open (the file is then left, with the plan not recorded as backed up).
+
+### T009: plan, apply, restore, script, query and the command log (parity list)
+
+Behaviors of `dbrun.py` listed before the tests (`rust/crates/ai-gent-dbrun/tests/run.rs`; golden data from `rust/fixtures/db-core/gen_writes.py`):
+
+| Behavior of `dbrun.py` | Test |
+|---|---|
+| `test_read_masks_and_logs`, `test_row_cap`, `test_remote_refusals`, `test_remote_read_is_read_only_even_past_the_classifier`, `test_plan_apply_restore`, `test_apply_rolls_back_on_count_mismatch`, `test_tampered_plan_refused`, `test_script_never_executes` (the 8 `SqliteEndToEndTest` cases) | `e2e_1` .. `e2e_8` |
+| The plan record keys and values (`profile`, `engine`, `reason`, `statements`, `expect`, `ddl`, `backup`, `sha256`, `evidence`), the text `plan` prints, and the command-log entry (heading, engine line, evidence, reason, plan line, fenced statements, `status: started`, result line), 7 plans over 5 engines | `parity_plan_record_text_and_log_entry_match_the_original` |
+| The change script text and its refusals (UPDATE or DELETE without WHERE, backslash split, no statements), 17 scripts | `parity_change_script_text_and_refusals_match_the_original` |
+| `print_table` (cut at 120, `NULL`, newline as a symbol), `--format json` separators and `ensure_ascii`, `--format csv` | `parity_query_output_formats_match_the_original` |
+| `--expect` parsing (`1,,x,-2` gives 1, skip, skip, -2) and the exit codes 0 to 4 | `parity_expect_parsing_and_exit_codes` |
+| Log entry written before the statement runs (checked from inside the connector at the write request) | `e2e_5_...` |
+| `apply` needs `--confirmed`, re-proves local, system database refused, probe fails with exit 4, links make it non-local, rollback prints `ROLLED BACK (stage)` and exits 1, MySQL DDL warning, `restore` needs a backup | `e2e_5`, `e2e_6`, `system_databases_and_links_and_missing_proof_are_refused`, `exit_codes_...`, `restore_refuses_...` |
+| `--allow-full-count` lifts the COUNT rule and nothing else | `e2e_3_...` |
+
+Differences (each with its test; Python did none of these):
+
+- D-A3-08. A second `apply` of the same plan is refused (an exclusive `<id>.applied` claim file; two concurrent applies get exactly one claim). The claim is given back only when the connector confirmed a rollback (`verify` stage) or the backup failed before any write; any other failure (a killed driver, MySQL's implicit DDL commit, `ok` without `committed`) keeps it and says so, because the database may have changed. The user makes a new plan. Question: should a failed `execute` with no DDL release the claim too?
+- D-A3-09. The plan carries a `seal`: SHA-256 over id, profile, engine, `expect`, `ddl`, backup mode and statements. Python's `sha256` (statements only, kept for compatibility) let `expect` be edited to `[null]` and the count check disappear. A plan without a seal, which includes every plan the Python runner recorded, is refused with "make a new plan". The seal is tamper evidence against accidental or agent edits, not a MAC: someone who can write the plans directory can recompute it, exactly as with the Python hash. Question: sign with a key kept outside the plans directory?
+- D-A3-10. `apply` also refuses a plan whose engine differs from the profile's, runs the connect probe only after the tamper check (a tampered plan causes no connection), and treats a result as committed only if it says `ok` AND `committed` with one count per statement.
+- D-A3-11. The command log: user text cannot forge structure (a line starting `## `, a code fence or, after the first line, `- ` gets a tab; control characters become U+FFFD); the log path may not be a symbolic link (`O_NOFOLLOW`) or a non-file; an entry above 32 MiB is refused; every entry is redacted (password, host, user) including the reason and the statements. A log that cannot be written stops the command before anything runs (Python let the exception propagate, which had the same effect, but nothing tested it). `plan` removes its plan file when its entry cannot be logged.
+- D-A3-12. Times are UTC (`...+00:00`, log file date and plan id from UTC); Python used local time. The standard library has no local-zone lookup and the crate forbids `unsafe`. Question: add a time crate for local time?
+- D-A3-13. `--expect` entries Python crashes on (`--5`, a number that does not fit 64 bits) are refused with a message; a non-numeric entry still means "skip" as in Python (a typo such as `2x` silently skips that count; Question: refuse it?). Plan SQL and script SQL above 16 MiB are refused.
+- D-A3-14. `script` creates its file exclusively (Python checked `exists()` and then wrote, which races and follows a symbolic link) and removes it if its log entry cannot be written. `--format json` writes the `masked` object with sorted keys; Python keeps column order.
+- D-A3-15. Not in this task: reading the SQL from `--sql -` or a file (bounded read), the CLI flags, the profile-to-`Target` wiring beyond `Target::from_profile` (T011), `session`, `secrets migrate` log entries (`MigrateReport::log_line` is for the CLI to log), the container-exec route (T014).

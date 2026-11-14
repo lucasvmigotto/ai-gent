@@ -60,11 +60,19 @@ pub struct Plan {
     pub ddl: Vec<usize>,
     /// `required` when a backup is taken before applying, else a note.
     pub backup: String,
-    /// SHA-256 (hex) of the statements joined with `"\n;\n"`.
+    /// SHA-256 (hex) of the statements joined with `"\n;\n"` (the Python tamper check).
     pub sha256: String,
+    /// The classification evidence at plan time (`evidence` of the Python record).
+    #[serde(default)]
+    pub evidence: Vec<String>,
     /// Where the backup went, set by [`apply_plan`] (`none` without one).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backup_location: Option<String>,
+    /// SHA-256 over everything a plan decides (id, profile, engine, expected counts, DDL positions, backup
+    /// mode, statements). The Python `sha256` covers the statements only, so editing `expect` (to skip the
+    /// count check) or `engine` went unnoticed. A plan without a seal is refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seal: Option<String>,
 }
 
 /// What [`create_plan`] needs besides the statements.
@@ -86,6 +94,29 @@ pub struct NewPlan<'a> {
     pub expect: Vec<Option<i64>>,
     /// Whether the engine's databases can be backed up (`BACKUP_SUPPORT` in Python).
     pub backup_supported: bool,
+    /// The classification evidence to record.
+    pub evidence: &'a [String],
+}
+
+/// Largest SQL text a plan or a script takes (a bound; the connector caps a request line at the same size).
+pub const MAX_SQL_BYTES: usize = 16 * 1024 * 1024;
+/// Largest plan file read back.
+const MAX_PLAN_BYTES: u64 = 32 * 1024 * 1024;
+
+/// The seal of a plan: SHA-256 of a JSON array of every field a plan decides.
+#[must_use]
+pub fn plan_seal(plan: &Plan) -> String {
+    let v = serde_json::json!([
+        "ai-gent-dbrun-plan-v1",
+        plan.id,
+        plan.profile,
+        plan.engine,
+        plan.expect,
+        plan.ddl,
+        plan.backup,
+        plan.statements
+    ]);
+    sha256_hex(v.to_string().as_bytes())
 }
 
 /// SHA-256 of the statements joined as Python does: `"\n;\n".join(statements)`.
@@ -106,7 +137,11 @@ fn valid_id(id: &str) -> bool {
             .all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-fn plan_path(dir: &Path, id: &str) -> Result<PathBuf, PlanError> {
+/// The file of plan `id` in `dir`; refuses anything that is not a plan id.
+///
+/// # Errors
+/// [`PlanError::Failed`] for a bad id.
+pub fn plan_path(dir: &Path, id: &str) -> Result<PathBuf, PlanError> {
     if valid_id(id) {
         Ok(dir.join(format!("{id}.json")))
     } else {
@@ -130,6 +165,11 @@ fn create_new_private(path: &Path) -> std::io::Result<std::fs::File> {
 /// [`PlanError::Failed`] for no statements, a bad id or an I/O error.
 pub fn create_plan(dir: &Path, new: &NewPlan<'_>) -> Result<Plan, PlanError> {
     let path = plan_path(dir, new.id)?;
+    if new.sql.len() > MAX_SQL_BYTES {
+        return Err(PlanError::Refused(
+            "the SQL text is larger than 16 MiB".into(),
+        ));
+    }
     let statements = split_statements(new.sql, new.engine).map_err(|r| PlanError::Refused(r.0))?;
     if statements.is_empty() {
         return Err(PlanError::Failed("no statements".into()));
@@ -146,7 +186,7 @@ pub fn create_plan(dir: &Path, new: &NewPlan<'_>) -> Result<Plan, PlanError> {
             new.engine
         )));
     }
-    let plan = Plan {
+    let mut plan = Plan {
         id: new.id.to_string(),
         profile: new.profile.to_string(),
         engine: new.engine.to_string(),
@@ -161,13 +201,16 @@ pub fn create_plan(dir: &Path, new: &NewPlan<'_>) -> Result<Plan, PlanError> {
         } else {
             "none (DML in one transaction)".into()
         },
+        evidence: new.evidence.to_vec(),
         backup_location: None,
+        seal: None,
     };
+    plan.seal = Some(plan_seal(&plan));
     write_plan(&path, &plan, true)?;
     Ok(plan)
 }
 
-fn write_plan(path: &Path, plan: &Plan, fresh: bool) -> Result<(), PlanError> {
+pub(crate) fn write_plan(path: &Path, plan: &Plan, fresh: bool) -> Result<(), PlanError> {
     let text = serde_json::to_string_pretty(plan).map_err(|e| PlanError::Failed(e.to_string()))?;
     let io = |e: std::io::Error| PlanError::Failed(format!("{}: {}", path.display(), e.kind()));
     if fresh {
@@ -186,10 +229,11 @@ fn write_plan(path: &Path, plan: &Plan, fresh: bool) -> Result<(), PlanError> {
 /// made for another profile or whose statements no longer hash to the recorded `sha256`.
 pub fn load_plan(dir: &Path, profile: &str, id: &str) -> Result<Plan, PlanError> {
     let path = plan_path(dir, id)?;
-    let text = std::fs::read_to_string(&path).map_err(|e| match e.kind() {
-        std::io::ErrorKind::NotFound => PlanError::Failed(format!("no plan {id}")),
-        k => PlanError::Failed(format!("plan {id}: {k}")),
-    })?;
+    if !path.exists() {
+        return Err(PlanError::Failed(format!("no plan {id}")));
+    }
+    let text = crate::fsutil::read_text_bounded(&path, MAX_PLAN_BYTES)
+        .map_err(|_| PlanError::Failed(format!("plan {id} cannot be read as a plan file")))?;
     let plan: Plan = serde_json::from_str(&text)
         .map_err(|_| PlanError::Failed(format!("plan {id} is not a valid plan file")))?;
     if plan.profile != profile {
@@ -203,7 +247,54 @@ pub fn load_plan(dir: &Path, profile: &str, id: &str) -> Result<Plan, PlanError>
             "plan {id} was modified after it was recorded"
         )));
     }
+    match &plan.seal {
+        Some(seal) if *seal == plan_seal(&plan) => {}
+        Some(_) => {
+            return Err(PlanError::Refused(format!(
+                "plan {id} was modified after it was recorded"
+            )));
+        }
+        None => {
+            return Err(PlanError::Refused(format!(
+                "plan {id} has no seal (recorded by an older runner, or the seal was removed); make a new plan"
+            )));
+        }
+    }
+    if plan.statements.is_empty() {
+        return Err(PlanError::Refused(format!("plan {id} has no statements")));
+    }
     Ok(plan)
+}
+
+/// Marks plan `id` as applied (or being applied) by creating `<id>.applied` exclusively: of two
+/// concurrent applies exactly one gets the claim.
+///
+/// # Errors
+/// [`PlanError::Refused`] when the claim exists (a second apply); [`PlanError::Failed`] on an I/O error.
+pub fn claim_apply(dir: &Path, id: &str) -> Result<(), PlanError> {
+    let path = plan_path(dir, id)?.with_extension("applied");
+    match create_new_private(&path) {
+        Ok(mut f) => f
+            .write_all(b"applied\n")
+            .map_err(|e| PlanError::Failed(format!("{}: {}", path.display(), e.kind()))),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            Err(PlanError::Refused(format!(
+                "plan {id} was already applied, or an apply of it started; a plan applies once. Make a new plan for another change"
+            )))
+        }
+        Err(e) => Err(PlanError::Failed(format!(
+            "{}: {}",
+            path.display(),
+            e.kind()
+        ))),
+    }
+}
+
+/// Gives the claim back after an apply that provably changed nothing.
+pub fn release_apply(dir: &Path, id: &str) {
+    if let Ok(p) = plan_path(dir, id) {
+        let _ = std::fs::remove_file(p.with_extension("applied"));
+    }
 }
 
 /// How [`apply_plan`] runs, defaults as `dbrun.py apply` has them.
@@ -244,8 +335,16 @@ pub fn apply_plan(
     backup: impl FnOnce(&Plan) -> Result<String, String>,
 ) -> Result<(Plan, ExecResult), PlanError> {
     let mut plan = load_plan(dir, profile, id)?;
+    claim_apply(dir, id)?;
     let location = if opts.backup_supported {
-        backup(&plan).map_err(|e| PlanError::Failed(format!("backup failed: {e}")))?
+        match backup(&plan) {
+            Ok(l) => l,
+            Err(e) => {
+                // Nothing ran: the plan can be applied again once the backup works.
+                release_apply(dir, id);
+                return Err(PlanError::Failed(format!("backup failed: {e}")));
+            }
+        }
     } else {
         "none".to_string()
     };
@@ -293,6 +392,11 @@ pub fn write_script(spec: &ScriptSpec<'_>, out: &Path) -> Result<String, PlanErr
     let statements = split_statements(spec.sql, engine).map_err(|r| PlanError::Refused(r.0))?;
     if statements.is_empty() {
         return Err(PlanError::Failed("no statements".into()));
+    }
+    if spec.sql.len() > MAX_SQL_BYTES {
+        return Err(PlanError::Refused(
+            "the SQL text is larger than 16 MiB".into(),
+        ));
     }
     if out.exists() {
         return Err(PlanError::Failed(format!(
@@ -380,7 +484,13 @@ pub fn write_script(spec: &ScriptSpec<'_>, out: &Path) -> Result<String, PlanErr
     if let Some(parent) = out.parent() {
         std::fs::create_dir_all(parent).map_err(io)?;
     }
-    std::fs::write(out, &text).map_err(io)?;
+    // Exclusive creation: the check above can race, this cannot, and it never follows a symbolic link.
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(out)
+        .and_then(|mut f| f.write_all(text.as_bytes()))
+        .map_err(io)?;
     Ok(text)
 }
 
