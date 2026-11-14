@@ -127,6 +127,76 @@ class ClassifyTest(unittest.TestCase):
         self.assertFalse(reporun.api_is_write("jira", "POST", "/rest/api/3/search/jql", b"{}"))
         self.assertTrue(reporun.api_is_write("jira", "POST", "/rest/api/3/issue", b"{}"))
         self.assertTrue(reporun.api_is_write("bitbucket", "DELETE", "/repositories/w/r/pullrequests/1", None))
+        self.assertFalse(reporun.api_is_write("azure-devops", "POST", "/proj/_apis/wit/wiql", None))
+        q, s = b'{"query":"query { viewer { login } }"}', b'{"query":"subscription { x }"}'
+        for plat, path in (("github", "/graphql"), ("gitlab", "/api/graphql"), ("gitlab", "/graphql")):
+            with self.subTest(plat=plat, path=path):
+                self.assertFalse(reporun.api_is_write(plat, "POST", path, q))
+                self.assertTrue(reporun.api_is_write(plat, "POST", path, s))
+                self.assertTrue(reporun.api_is_write(plat, "POST", path, None))
+                self.assertTrue(reporun.api_is_write(plat, "POST", path, b""))
+        self.assertTrue(reporun.api_is_write("bitbucket", "POST", "/graphql", q))
+
+    # Twin of the tests in rust/crates/ai-gent-core/src/repo/graphql.rs.
+    GRAPHQL_READS = [
+        r'{"query":"query { viewer { login } }"}',
+        r'{"query":"{ viewer { login } }"}',
+        r'{"query":"query Q($n: Int = 3, $o: In = {a: [1, 2]}) @d(x: \"}\") { a(n: $n) { ...F } } fragment F on A { b }","variables":{"n":1}}',
+        r'{"query":"# mutation\nquery { search(query: \"mutation testing\") { mutation } }"}',
+        r'{"query":"query A { a } mutation B { b }","operationName":"A"}',
+    ]
+    GRAPHQL_NOT_READS = [
+        r'{"query":"mutation { x }"}',
+        r'{"query":"subscription { x }"}',
+        r'{"query":"subscription S { x }"}',
+        r'{"query":"query A { a } mutation B { b }","operationName":"B"}',
+        r'{"query":"query A { a } \u006dutation B { b }","operationName":"B"}',
+        r'{"query":"query A { a } mutation B { b }"}',
+        r'{"query":"query A { a } subscription B { b }","operationName":"C"}',
+        r'{"query":"query A { a } query A { b }","operationName":"A"}',
+        r'{"query":"{ a } query B { b }","operationName":"B"}',
+        r'{"query":"# query\n\u006dutation { x }"}',
+        r'{"query":"\u006dutation { x }"}',
+        r'{"query":"query { a }","operationName":""}',
+        r'{"query":"query { a }","operationName":3}',
+        r'{"query":"query { a }","query":"\u006dutation { x }"}',
+        r'[{"query":"query { a }"},{"query":"\u006dutation { x }"}]',
+        r'[{"query":"query { a }"}]',
+        r'{"query":"query { a }"} x',
+        r'{"variables":{}}',
+        r'{"query":null}',
+        r'{"query":["query { a }"]}',
+        r'{"query":""}',
+        r'{"query":"   "}',
+        r'{"query":"query { a"}',
+        r'{"query":"query { a }}"}',
+        r'{"query":"Query { a }"}',
+        r'{"query":"MUTATION { a }"}',
+        r'{"query":"type Query { a: Int }"}',
+        r'{"query":"query { a } \u00a0mutation { b }"}',
+        r'{"query":"# x\u2028\u006dutation { b }"}',
+        r'{"query":"query { a } \u200bmutation { b }"}',
+        r'{"query":"query { a(x: \"\\q\") }"}',
+        r'{"query":"query { a(x: 01) }"}',
+        r'{"query":"query { a(x: 1x) }"}',
+        r'{"query":"query { a(x: \"unterminated) }"}',
+        r'{"query":"query { a(x: \"\"\"open) }"}',
+        '{"query":"query { a }", "x": NaN}',
+        '\ufeff{"query":"query { a }"}',
+        "not json",
+        "",
+    ]
+
+    def test_graphql_body(self):
+        for body in self.GRAPHQL_READS:
+            with self.subTest(read=body):
+                self.assertTrue(reporun.graphql_is_read(body.encode()))
+        for body in self.GRAPHQL_NOT_READS:
+            with self.subTest(not_read=body):
+                self.assertFalse(reporun.graphql_is_read(body.encode()))
+                self.assertTrue(reporun.api_is_write("github", "POST", "/graphql", body.encode()))
+        self.assertFalse(reporun.graphql_is_read(None))
+        self.assertFalse(reporun.graphql_is_read(b'{"query":"query { a \xff }"}'))
 
 
 class Stub(http.server.BaseHTTPRequestHandler):

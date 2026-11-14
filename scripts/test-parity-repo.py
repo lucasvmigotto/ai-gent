@@ -198,6 +198,21 @@ def cases():
     s.run("api", "github", "POST", "/repos/o/r/issues", "--data", "-", "--write", stdin='{"title": "stdin"}')
     s.run("api", "github", "BREW", "/x")
     add("api-write-needs-flag", "ApiTest::test_write_needs_flag", s)
+    # A GraphQL POST reads only when its body runs a query operation (ClassifyTest::test_graphql_body).
+    s = Scn()
+    gql_reads = [r'{"query":"query { viewer { login } }"}', r'{"query":"{ viewer { login } }"}',
+                 r'{"query":"query A { a } mutation B { b }","operationName":"A"}',
+                 r'{"query":"# mutation\nquery { search(query: \"mutation\") { n } }"}']
+    gql_writes = [r'{"query":"mutation { x }"}', r'{"query":"mutation { x }"}', r'{"query":"subscription { x }"}',
+                  r'{"query":"query A { a } mutation B { b }","operationName":"B"}',
+                  r'{"query":"query A { a } query B { b }"}', r'{"query":"# query\nmutation { x }"}',
+                  r'[{"query":"query { a }"},{"query":"mutation { x }"}]', r'{"query":"query { a }","query":"mutation { x }"}',
+                  r'{"query":"query { a } ​mutation { b }"}', "not json", ""]
+    for i, b in enumerate(gql_reads + gql_writes):
+        s.put(f"g{i}.json", b)
+        s.run("api", "github", "POST", "/graphql", "--data", f"<ROOT>/g{i}.json")
+    s.run("api", "github", "POST", "/graphql")
+    add("api-graphql-body-decides", "ClassifyTest::test_graphql_body", s)
     s = Scn(remote="https://dev.azure.com/org/proj/_git/app", token=False).entry("ai-gent/azure-devops/pat", f"{TOKEN}\n")
     s.put("w.json", '[{"op": "add", "path": "/fields/System.Title", "value": "t"}]')
     s.run("api", "azure-devops", "GET", "/{project}/_apis/wit/workitems/12")
@@ -289,12 +304,15 @@ def cases():
     s = Scn(token=False, stub=False)
     api_steps = {
         "github": [("GET", "/repos/o/r/issues", None), ("POST", "/graphql", {"query": "query { viewer { login } }"}),
-                   ("POST", "/graphql", {"query": "mutation { x }"}), ("POST", "/repos/o/r/issues", {}), ("HEAD", "/x", None)],
+                   ("POST", "/graphql", {"query": "mutation { x }"}), ("POST", "/repos/o/r/issues", {}), ("HEAD", "/x", None),
+                   ("POST", "/graphql", {"query": "subscription { x }"}), ("POST", "/graphql", None), ("POST", "/graphql", ["query { a }"]),
+                   ("POST", "/graphql", {"query": "query A { a } mutation B { b }", "operationName": "A"})],
         "azure-devops": [("POST", "/proj/_apis/wit/wiql", {}), ("POST", "/proj/_apis/wit/wiql/abc", {}), ("PATCH", "/proj/_apis/wit/workitems/1", {})],
         "jira": [("POST", "/rest/api/3/search/jql", {}), ("POST", "/rest/api/3/search", {}), ("POST", "/rest/api/3/issue", {}),
                  ("POST", "/rest/agile/1.0/board/5/search", {}), ("POST", "/rest/agile/1.0/search", {})],
         "bitbucket": [("DELETE", "/repositories/w/r/pullrequests/1", None), ("POST", "/graphql", {})],
-        "gitlab": [("POST", "/api/graphql", {"query": "{ a }"}), ("POST", "/graphql", {"query": "mutation { a }"}), ("PUT", "/x", {})],
+        "gitlab": [("POST", "/api/graphql", {"query": "{ a }"}), ("POST", "/graphql", {"query": "mutation { a }"}), ("PUT", "/x", {}),
+                   ("POST", "/api/graphql", {"query": "subscription { a }"}), ("POST", "/graphql", {"query": "query { a }"})],
     }
     for plat, steps in api_steps.items():
         body = []

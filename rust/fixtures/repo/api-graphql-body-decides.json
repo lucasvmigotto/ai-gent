@@ -1,0 +1,314 @@
+{
+ "name": "api-graphql-body-decides",
+ "derived_from": "ClassifyTest::test_graphql_body",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "g0.json": "{\"query\":\"query { viewer { login } }\"}",
+  "g1.json": "{\"query\":\"{ viewer { login } }\"}",
+  "g2.json": "{\"query\":\"query A { a } mutation B { b }\",\"operationName\":\"A\"}",
+  "g3.json": "{\"query\":\"# mutation\\nquery { search(query: \\\"mutation\\\") { n } }\"}",
+  "g4.json": "{\"query\":\"mutation { x }\"}",
+  "g5.json": "{\"query\":\"mutation { x }\"}",
+  "g6.json": "{\"query\":\"subscription { x }\"}",
+  "g7.json": "{\"query\":\"query A { a } mutation B { b }\",\"operationName\":\"B\"}",
+  "g8.json": "{\"query\":\"query A { a } query B { b }\"}",
+  "g9.json": "{\"query\":\"# query\\nmutation { x }\"}",
+  "g10.json": "[{\"query\":\"query { a }\"},{\"query\":\"mutation { x }\"}]",
+  "g11.json": "{\"query\":\"query { a }\",\"query\":\"mutation { x }\"}",
+  "g12.json": "{\"query\":\"query { a } ​mutation { b }\"}",
+  "g13.json": "not json",
+  "g14.json": ""
+ },
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g0.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/graphql",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"query\":\"query { viewer { login } }\"}"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g1.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/graphql",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"query\":\"{ viewer { login } }\"}"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g2.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/graphql",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"query\":\"query A { a } mutation B { b }\",\"operationName\":\"A\"}"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g3.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/graphql",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"query\":\"# mutation\\nquery { search(query: \\\"mutation\\\") { n } }\"}"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g4.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g5.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g6.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g7.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g8.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g9.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g10.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g11.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g12.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g13.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g14.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}
