@@ -176,9 +176,13 @@ _gw_log() { # _gw_log deny|ask: one row (entry and verb only) in <log dir>/<sess
     (
       flock -n 9 || exit 0
       _gw_t="$(mktemp "$_gw_dir/.$_gw_sid.jsonl.XXXXXXXX")" || exit 0
-      # a cut from the middle of a large file starts on a partial line: drop it
+      # a cut from the middle of a large file starts on a partial line: drop it. The copy replaces
+      # the file only when it is not empty and ends on the file's last row: a read that failed
+      # upstream (the pipe still exits 0) or a row appended meanwhile leaves the file whole.
       if tail -c 262144 "$_gw_f" | if [ "$_gw_size" -gt 262144 ]; then sed 1d; else cat; fi |
-        tail -n 200 >"$_gw_t" && mv -f "$_gw_t" "$_gw_f"; then :; else rm -f "$_gw_t"; fi
+        tail -n 200 >"$_gw_t" && [ -s "$_gw_t" ] &&
+        _gw_l="$(tail -n 1 "$_gw_f")" && [ -n "$_gw_l" ] && [ "$(tail -n 1 "$_gw_t")" = "$_gw_l" ] &&
+        mv -f "$_gw_t" "$_gw_f"; then :; else rm -f "$_gw_t"; fi
     ) 9>>"$_gw_f.lock"
   ) 2>/dev/null
   return 0

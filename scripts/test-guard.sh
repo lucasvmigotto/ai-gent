@@ -45,6 +45,16 @@ if command -v flock >/dev/null 2>&1; then
     deny s7 >/dev/null
   ) 9>>"$log/s7.jsonl.lock"
   check "a held lock skips the cut and loses no row" test "$(lines "$log/s7.jsonl")" = 401
+  # a read that fails inside the cut's pipe (the pipe itself still exits 0) leaves the file whole:
+  # the shimmed tail serves the row count, then fails on the cut's `tail -c`
+  shim="$log/shim"; mkdir "$shim"
+  real_tail="$(command -v tail)"
+  printf '#!/bin/sh\nif [ "$1" = -c ]; then\n  [ -e "%s/used" ] && exit 1\n  : >"%s/used"\nfi\nexec "%s" "$@"\n' \
+    "$shim" "$shim" "$real_tail" >"$shim/tail"
+  chmod +x "$shim/tail"
+  for _ in $(seq 400); do echo '{"at":1}'; done >"$log/s8.jsonl"
+  PATH="$shim:$PATH" deny s8 >/dev/null
+  check "a failed read in the cut keeps every row" test "$(lines "$log/s8.jsonl")" = 401 -a -e "$shim/used" -a -z "$(find "$log" -name '.s8.jsonl.*')"
 fi
 ((fails == 0)) || exit 1
 
