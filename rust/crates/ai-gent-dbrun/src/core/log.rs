@@ -136,6 +136,12 @@ pub struct CommandLog {
     redactor: Redactor,
 }
 
+/// Control characters (but tab) and the invisible format and bidi characters that can hide or reorder text.
+fn hidden(c: char) -> bool {
+    (c.is_control() && c != '\t')
+        || matches!(c, '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}')
+}
+
 /// Makes user text safe to put in an entry: no forged headings or fences, no control characters.
 fn plain(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
@@ -147,13 +153,7 @@ fn plain(text: &str) -> String {
         if t.starts_with("## ") || t.starts_with("```") || (i > 0 && t.starts_with("- ")) {
             out.push('\t');
         }
-        out.extend(line.chars().map(|c| {
-            if c.is_control() && c != '\t' {
-                '\u{fffd}'
-            } else {
-                c
-            }
-        }));
+        out.extend(line.chars().map(|c| if hidden(c) { '\u{fffd}' } else { c }));
     }
     out
 }

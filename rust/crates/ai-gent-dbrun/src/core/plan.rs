@@ -236,6 +236,11 @@ pub fn load_plan(dir: &Path, profile: &str, id: &str) -> Result<Plan, PlanError>
         .map_err(|_| PlanError::Failed(format!("plan {id} cannot be read as a plan file")))?;
     let plan: Plan = serde_json::from_str(&text)
         .map_err(|_| PlanError::Failed(format!("plan {id} is not a valid plan file")))?;
+    if plan.id != id {
+        return Err(PlanError::Refused(format!(
+            "plan file {id} holds a plan recorded under another id; a plan file cannot be copied"
+        )));
+    }
     if plan.profile != profile {
         return Err(PlanError::Refused(format!(
             "plan {id} was made for {}, not {profile}",
@@ -389,14 +394,14 @@ pub struct ScriptSpec<'a> {
 /// no statements, an existing `out`, an unknown engine or an I/O error.
 pub fn write_script(spec: &ScriptSpec<'_>, out: &Path) -> Result<String, PlanError> {
     let (profile, engine) = (spec.profile, spec.engine);
-    let statements = split_statements(spec.sql, engine).map_err(|r| PlanError::Refused(r.0))?;
-    if statements.is_empty() {
-        return Err(PlanError::Failed("no statements".into()));
-    }
     if spec.sql.len() > MAX_SQL_BYTES {
         return Err(PlanError::Refused(
             "the SQL text is larger than 16 MiB".into(),
         ));
+    }
+    let statements = split_statements(spec.sql, engine).map_err(|r| PlanError::Refused(r.0))?;
+    if statements.is_empty() {
+        return Err(PlanError::Failed("no statements".into()));
     }
     if out.exists() {
         return Err(PlanError::Failed(format!(

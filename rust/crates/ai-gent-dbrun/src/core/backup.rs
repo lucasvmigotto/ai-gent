@@ -229,6 +229,15 @@ impl Exec for ContainerExec {
             None => None,
         };
         let outcome = (|| {
+            // Opened before the engine starts: a missing or unreadable backup must fail the restore, not
+            // feed the client an empty input it would accept.
+            let input = match spec.stdin_file {
+                Some(f) => Some(
+                    std::fs::File::open(f)
+                        .map_err(|e| format!("cannot open the backup file: {}", e.kind()))?,
+                ),
+                None => None,
+            };
             let mut child = cmd
                 .spawn()
                 .map_err(|_| "the container engine could not be started".to_string())?;
@@ -240,15 +249,16 @@ impl Exec for ContainerExec {
                 return Err("the engine pipes could not be opened".to_string());
             };
             let head = spec.stdin.to_vec();
-            let file = spec.stdin_file.map(Path::to_path_buf);
+            let (in_tx, in_rx) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
                 let mut stdin = stdin;
-                let _ = stdin.write_all(&head);
-                if let Some(f) = file
-                    && let Ok(mut f) = std::fs::File::open(f)
+                let mut done = stdin.write_all(&head).map(|()| 0u64);
+                if done.is_ok()
+                    && let Some(mut f) = input
                 {
-                    let _ = io::copy(&mut f, &mut stdin);
+                    done = io::copy(&mut f, &mut stdin);
                 }
+                let _ = in_tx.send(done.map_err(|_| ()));
             });
             let cap = spec.max_stdout;
             let (out_tx, out_rx) = std::sync::mpsc::channel();
@@ -316,6 +326,15 @@ impl Exec for ContainerExec {
             let grace = Duration::from_secs(2);
             let over = out_rx.recv_timeout(grace).unwrap_or(true);
             let tail = err_rx.recv_timeout(grace).unwrap_or_default();
+            // The streamed file must have gone in whole, or the client saw a truncated input.
+            if spec.stdin_file.is_some() && status == Some(0) && !timed_out {
+                match in_rx.recv_timeout(grace) {
+                    Ok(Ok(_)) => {}
+                    _ => {
+                        return Err("the backup file could not be streamed to the tool".to_string());
+                    }
+                }
+            }
             let code = if timed_out {
                 124
             } else if over {
@@ -538,6 +557,17 @@ impl Backup for EngineBackup<'_> {
             return Err(refuse(
                 "the recorded backup location is not where this plan's backup is taken; refusing to restore from it",
             ));
+        }
+        // A missing, unreadable, non-regular or empty backup is never fed to a tool.
+        match std::fs::metadata(&expected) {
+            Ok(m) if m.is_file() && m.len() > 0 => {}
+            Ok(_) => return Err(refuse("the backup is not a non-empty regular file")),
+            Err(e) => {
+                return Err(BackupError::Failed(format!(
+                    "cannot read the backup: {}",
+                    e.kind()
+                )));
+            }
         }
         match t.engine.as_str() {
             "sqlite" => sqlite_restore(t, &expected),

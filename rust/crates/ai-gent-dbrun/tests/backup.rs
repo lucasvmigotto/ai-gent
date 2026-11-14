@@ -313,6 +313,44 @@ fn restore_streams_the_recorded_file_and_refuses_any_other_location() {
     );
 }
 
+#[test]
+fn restore_refuses_a_missing_directory_or_empty_backup_and_never_runs_the_tool() {
+    let dir = tempfile::tempdir().unwrap();
+    let fake = Fake::ok();
+    let b = EngineBackup::new(&fake);
+    for engine in ["mysql", "mariadb", "postgresql"] {
+        let t = target(engine, Some("shop"));
+        let ext = if engine == "postgresql" {
+            "pgdump"
+        } else {
+            "sql"
+        };
+        let path = dir.path().join(format!("{ID}.{ext}"));
+        let loc = path.to_string_lossy().into_owned();
+        // missing
+        let e = b.restore(&t, ID, &loc, dir.path()).unwrap_err();
+        assert!(
+            matches!(&e, BackupError::Failed(m) if m.contains("cannot read the backup")),
+            "{e:?}"
+        );
+        // a directory
+        std::fs::create_dir(&path).unwrap();
+        assert_refused(
+            b.restore(&t, ID, &loc, dir.path()),
+            "non-empty regular file",
+        );
+        std::fs::remove_dir(&path).unwrap();
+        // empty
+        std::fs::write(&path, b"").unwrap();
+        assert_refused(
+            b.restore(&t, ID, &loc, dir.path()),
+            "non-empty regular file",
+        );
+        std::fs::remove_file(&path).unwrap();
+    }
+    assert!(fake.seen.borrow().is_empty(), "the tool never ran");
+}
+
 #[cfg(feature = "sqlite")]
 mod sqlite {
     use super::*;
@@ -481,6 +519,25 @@ mod real_exec {
         assert!(t0.elapsed() < Duration::from_secs(20));
         assert_eq!(r.code, 125);
         assert!(!out.exists());
+    }
+
+    #[test]
+    fn a_stdin_file_that_cannot_be_opened_fails_the_exec_before_the_engine_runs() {
+        let d = tempfile::tempdir().unwrap();
+        let ran = d.path().join("ran");
+        // The stand-in would exit 0 on empty input, as a SQL client does.
+        let e = engine(
+            d.path(),
+            &format!("touch {}; cat > /dev/null", ran.display()),
+        );
+        let unused = d.path().join("unused");
+        let mut s = spec(&unused, b"x\n", Duration::from_secs(5), 10);
+        s.stdout_file = None;
+        let missing = d.path().join("missing.sql");
+        s.stdin_file = Some(&missing);
+        let err = e.run(&s).unwrap_err();
+        assert!(err.contains("cannot open the backup file"), "{err}");
+        assert!(!ran.exists(), "the engine was not started");
     }
 
     #[test]

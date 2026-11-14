@@ -242,6 +242,25 @@ fn refused(r: Result<Done, Fail>, needle: &str) -> Fail {
     }
 }
 
+/// The golden cases were written for Python, where any non-number meant skip; the port wants `skip`.
+fn owner_expect(text: &str) -> String {
+    text.split(',')
+        .map(|x| {
+            let t = x.trim();
+            if t.is_empty()
+                || t.trim_start_matches('-')
+                    .bytes()
+                    .all(|c| c.is_ascii_digit())
+            {
+                t.to_string()
+            } else {
+                "skip".to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 // ---- the eight SqliteEndToEndTest cases --------------------------------------------------------------
 
 #[test]
@@ -580,7 +599,7 @@ fn parity_plan_record_text_and_log_entry_match_the_original() {
             &t,
             case["sql"].as_str().unwrap(),
             "why",
-            case["expect"].as_str().unwrap(),
+            &owner_expect(case["expect"].as_str().unwrap()),
         );
         if let Some(why) = case.get("refused") {
             match got {
@@ -726,14 +745,32 @@ fn parity_query_output_formats_match_the_original() {
 #[test]
 fn parity_expect_parsing_and_exit_codes() {
     assert_eq!(
-        parse_expect("1,,x,-2").unwrap(),
+        parse_expect("1,,skip,-2").unwrap(),
         vec![Some(1), None, None, Some(-2)]
     );
-    assert_eq!(parse_expect(" 2 , null").unwrap(), vec![Some(2), None]);
+    assert_eq!(parse_expect(" 2 , SKIP").unwrap(), vec![Some(2), None]);
     assert_eq!(parse_expect("").unwrap(), Vec::<Option<i64>>::new());
     // Python crashes on these two; the port refuses.
-    for bad in ["--5", "99999999999999999999"] {
+    // Owner decision 2026-11-14: a non-numeric entry is refused (Python read it as skip), and only ASCII
+    // digits count.
+    for bad in [
+        "--5",
+        "99999999999999999999",
+        "x",
+        "1,2x",
+        "null",
+        "1,-",
+        "\u{663}",
+        "\u{ff11}",
+        "1_0",
+        "+1",
+        "0x1",
+    ] {
         assert!(matches!(parse_expect(bad), Err(Fail::Refused(_))), "{bad}");
+        let Err(Fail::Refused(m)) = parse_expect(bad) else {
+            unreachable!()
+        };
+        assert!(!m.contains("x1") || bad == "0x1", "{m}");
     }
     assert_eq!(
         (EXIT_OK, EXIT_ERROR, EXIT_USAGE, EXIT_REFUSED, EXIT_CONNECT),
@@ -911,7 +948,7 @@ fn a_result_that_is_not_a_confirmed_commit_is_a_failure_and_the_plan_stays_claim
     let d = fx.runner(&canned, &bk).apply(&t, &id, true, 5.0).unwrap();
     assert_eq!(d.code, EXIT_ERROR);
     assert!(
-        d.out.contains("ROLLED BACK (execute)") && d.out.contains("marked as applied"),
+        d.out.contains("OUTCOME UNKNOWN (execute)") && d.out.contains("marked as applied"),
         "{}",
         d.out
     );
@@ -1067,4 +1104,312 @@ fn restore_refuses_a_forged_backup_location_and_a_plan_without_a_backup() {
     refused(r.restore(&t, &id, true), "recorded backup location");
     assert_eq!(count(&db, ""), 2);
     no_secret(&[&fx.log_text()]);
+}
+
+// ---- review round -----------------------------------------------------------------------------------
+
+/// A connector for another engine with canned answers (a probe always succeeds).
+struct EngCanned(&'static str, ExecResult);
+impl Connector for EngCanned {
+    fn engines(&self) -> &'static [&'static str] {
+        match self.0 {
+            "mysql" => &["mysql"],
+            _ => &["sqlite"],
+        }
+    }
+    fn execute(&self, req: &Request) -> ExecResult {
+        if req.mode == Mode::Test {
+            let mut r = ExecResult::success();
+            r.links = Some(0);
+            return r;
+        }
+        self.1.clone()
+    }
+}
+
+/// A backup that makes the file the real one would.
+struct FileBackup;
+impl Backup for FileBackup {
+    fn take(
+        &self,
+        t: &ai_gent_dbrun::core::backup::BackupTarget,
+        id: &str,
+        dir: &Path,
+    ) -> Result<String, ai_gent_dbrun::core::backup::BackupError> {
+        let ext = if t.engine == "mysql" { "sql" } else { "sqlite" };
+        let p = dir.join(format!("{id}.{ext}"));
+        std::fs::write(&p, "dump").unwrap();
+        Ok(p.to_string_lossy().into_owned())
+    }
+    fn restore(
+        &self,
+        _: &ai_gent_dbrun::core::backup::BackupTarget,
+        _: &str,
+        _: &str,
+        _: &Path,
+    ) -> Result<(), ai_gent_dbrun::core::backup::BackupError> {
+        Ok(())
+    }
+}
+
+fn mysql_target(fx: &Fx) -> Target {
+    let mut t = fx.target("MYDB", Path::new("/unused"), true);
+    t.engine = "mysql".into();
+    t.conn.database = Some("shop".into());
+    t.container = Some("shop-db-1".into());
+    t
+}
+
+fn claim(fx: &Fx, id: &str) -> PathBuf {
+    plan_path(&fx.plans(), id)
+        .unwrap()
+        .with_extension("applied")
+}
+
+#[test]
+fn mysql_ddl_plan_failing_verify_is_not_called_rolled_back_and_keeps_claim_and_backup() {
+    let fx = Fx::new();
+    let t = mysql_target(&fx);
+    let verify = EngCanned(
+        "mysql",
+        ExecResult::failure(Stage::Verify, "statement 2: expected 1, got 0"),
+    );
+    let r = fx.runner(&verify, &FileBackup);
+    let id = plan_id(
+        &r.plan(
+            &t,
+            "CREATE TABLE t2 (id int); UPDATE t SET x = 1 WHERE id = 1",
+            "t",
+            "skip,1",
+        )
+        .unwrap()
+        .out,
+    );
+    let d = r.apply(&t, &id, true, 5.0).unwrap();
+    assert_eq!(d.code, EXIT_ERROR);
+    assert!(!d.out.contains("ROLLED BACK"), "{}", d.out);
+    assert!(d.out.contains("OUTCOME UNKNOWN"), "{}", d.out);
+    assert!(d.out.contains("MySQL commits DDL immediately"), "{}", d.out);
+    assert!(claim(&fx, &id).exists(), "claim kept");
+    assert!(
+        fx.backups().join(format!("{id}.sql")).exists(),
+        "backup kept"
+    );
+    assert!(!fx.log_text().contains("ROLLED BACK"));
+    refused(r.apply(&t, &id, true, 5.0), "already applied");
+}
+
+#[test]
+fn mysql_dml_only_plan_failing_verify_is_a_proven_rollback() {
+    let fx = Fx::new();
+    let t = mysql_target(&fx);
+    let verify = EngCanned(
+        "mysql",
+        ExecResult::failure(Stage::Verify, "expected 1, got 0"),
+    );
+    let r = fx.runner(&verify, &FileBackup);
+    let id = plan_id(
+        &r.plan(&t, "UPDATE t SET x = 1 WHERE id = 1", "t", "1")
+            .unwrap()
+            .out,
+    );
+    let d = r.apply(&t, &id, true, 5.0).unwrap();
+    assert!(d.out.contains("ROLLED BACK (verify)"), "{}", d.out);
+    assert!(!claim(&fx, &id).exists());
+    assert!(!fx.backups().join(format!("{id}.sql")).exists());
+}
+
+fn apply_with(result: ExecResult) -> (Done, Fx, String) {
+    let fx = Fx::new();
+    let t = mysql_target(&fx);
+    let c = EngCanned("mysql", result);
+    let r = fx.runner(&c, &FileBackup);
+    let id = plan_id(
+        &r.plan(&t, "UPDATE t SET x = 1 WHERE id = 1", "t", "1")
+            .unwrap()
+            .out,
+    );
+    let d = r.apply(&t, &id, true, 5.0).unwrap();
+    (d, fx, id)
+}
+
+fn one_count() -> Vec<ai_gent_dbrun::connector::StatementResult> {
+    vec![ai_gent_dbrun::connector::StatementResult {
+        rowcount: 1,
+        columns: None,
+        rows: None,
+        truncated: None,
+    }]
+}
+
+#[test]
+fn a_commit_needs_ok_committed_and_one_count_per_statement_each_on_its_own() {
+    // ok and counts, but committed missing or false: not a commit.
+    for committed in [None, Some(false)] {
+        let mut res = ExecResult::success();
+        res.results = Some(one_count());
+        res.committed = committed;
+        let (d, fx, id) = apply_with(res);
+        assert_eq!(d.code, EXIT_ERROR, "{committed:?}");
+        assert!(
+            d.out.contains("OUTCOME UNKNOWN") && !d.out.contains("COMMITTED plan"),
+            "{}",
+            d.out
+        );
+        assert!(!d.out.contains("ROLLED BACK"));
+        assert!(claim(&fx, &id).exists());
+    }
+    // committed and ok, but the count list is short or long: not a clean commit either.
+    for counts in [vec![], {
+        let mut v = one_count();
+        v.extend(one_count());
+        v
+    }] {
+        let mut res = ExecResult::success();
+        res.results = Some(counts);
+        res.committed = Some(true);
+        let (d, fx, id) = apply_with(res);
+        assert_eq!(d.code, EXIT_ERROR);
+        assert!(
+            d.out.contains("OUTCOME UNKNOWN") && d.out.contains("different number of row counts"),
+            "{}",
+            d.out
+        );
+        assert!(!d.out.contains("ROLLED BACK") && !d.out.contains("COMMITTED plan"));
+        assert!(claim(&fx, &id).exists());
+    }
+    // all three: committed.
+    let mut res = ExecResult::success();
+    res.results = Some(one_count());
+    res.committed = Some(true);
+    let (d, _, _) = apply_with(res);
+    assert_eq!(d.code, EXIT_OK);
+    assert!(d.out.contains("COMMITTED plan"), "{}", d.out);
+    // not ok, even with committed true and counts: a failure.
+    let mut res = ExecResult::failure(Stage::Execute, "boom");
+    res.results = Some(one_count());
+    res.committed = Some(true);
+    let (d, _, _) = apply_with(res);
+    assert_eq!(d.code, EXIT_ERROR);
+    assert!(!d.out.contains("COMMITTED plan"));
+}
+
+#[test]
+fn a_late_exit_warning_is_shown_next_to_the_commit() {
+    let mut res = ExecResult::success();
+    res.results = Some(one_count());
+    res.committed = Some(true);
+    res.warning = Some(format!("did not exit in time {PW}"));
+    let (d, _, _) = apply_with(res);
+    assert_eq!(d.code, EXIT_OK);
+    assert!(
+        d.out.contains("COMMITTED plan") && d.out.contains("warning: did not exit in time"),
+        "{}",
+        d.out
+    );
+    no_secret(&[&d.out]);
+}
+
+#[test]
+fn outcome_labels_follow_the_stage() {
+    // A child that died during the write (execute stage): unknown, claim kept.
+    let (d, fx, id) = apply_with(ExecResult::failure(
+        Stage::Execute,
+        "the command exited with status 134 without a result; the transaction was not confirmed committed, check the database state",
+    ));
+    assert!(d.out.starts_with("OUTCOME UNKNOWN (execute)"), "{}", d.out);
+    assert!(claim(&fx, &id).exists());
+    // A connect failure at the write: nothing ran, the claim and the backup are given back.
+    let (d, fx, id) = apply_with(ExecResult::failure(
+        Stage::Connect,
+        "process connector: the command could not be started",
+    ));
+    assert!(d.out.starts_with("NOT APPLIED (connect)"), "{}", d.out);
+    assert!(!d.out.contains("not confirmed committed") && !d.out.contains("ROLLED BACK"));
+    assert!(!claim(&fx, &id).exists());
+    assert!(fx.log_text().contains("NOT APPLIED at connect"));
+}
+
+#[test]
+fn a_refused_second_apply_leaves_no_started_entry_and_a_failing_log_gives_the_claim_back() {
+    let fx = Fx::new();
+    let db = fx.db("app.db");
+    let (spy, bk) = (Spy::new(&fx.log_dir()), EngineBackup::new(&NoExec));
+    let r = fx.runner(&spy, &bk);
+    let t = fx.target("LOCALDB", &db, true);
+    let id = plan_id(
+        &r.plan(&t, "DELETE FROM customer WHERE id = 3", "t", "1")
+            .unwrap()
+            .out,
+    );
+    r.apply(&t, &id, true, 5.0).unwrap();
+    let before = fx.log_text().matches("· apply ·").count();
+    refused(r.apply(&t, &id, true, 5.0), "already applied");
+    assert_eq!(fx.log_text().matches("· apply ·").count(), before);
+}
+
+#[test]
+fn the_log_hides_no_text_behind_invisible_or_bidi_characters_and_refuses_odd_paths() {
+    let fx = Fx::new();
+    let db = fx.db("app.db");
+    let (spy, bk) = (Spy::new(&fx.log_dir()), EngineBackup::new(&NoExec));
+    let r = fx.runner(&spy, &bk);
+    let t = fx.target("LOCALDB", &db, true);
+    let reason = "a\u{200b}b\u{200f}c\u{202e}d\u{2066}e\u{2069}f\u{feff}g";
+    r.query(&t, &QueryArgs::new("SELECT id FROM customer", reason))
+        .unwrap();
+    let log = fx.log_text();
+    for c in [
+        '\u{200b}', '\u{200f}', '\u{202e}', '\u{2066}', '\u{2069}', '\u{feff}',
+    ] {
+        assert!(!log.contains(c), "{c:?} survived");
+    }
+    assert!(log.contains("a\u{fffd}b"));
+    // The path is a directory or a symbolic link (live or dangling): refused by the metadata check, never
+    // opened. O_NOFOLLOW is the second guard that closes the swap between that check and the open; a swap
+    // cannot be staged deterministically, so it is not tested on its own.
+    #[cfg(unix)]
+    {
+        let f = std::fs::read_dir(fx.log_dir())
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        std::fs::remove_file(&f).unwrap();
+        std::fs::create_dir(&f).unwrap();
+        let e = r
+            .query(&t, &QueryArgs::new("SELECT id FROM customer", "t"))
+            .unwrap_err();
+        assert!(
+            e.report(&Redactor::new()).contains("not a regular file"),
+            "{e:?}"
+        );
+        std::fs::remove_dir(&f).unwrap();
+        std::os::unix::fs::symlink(fx.tmp.path().join("nowhere"), &f).unwrap();
+        let e = r
+            .query(&t, &QueryArgs::new("SELECT id FROM customer", "t"))
+            .unwrap_err();
+        assert!(
+            e.report(&Redactor::new()).contains("not a regular file"),
+            "{e:?}"
+        );
+        assert!(
+            !fx.tmp.path().join("nowhere").exists(),
+            "the link was not followed"
+        );
+    }
+}
+
+#[test]
+fn a_script_over_the_size_limit_is_refused_before_it_is_split() {
+    let fx = Fx::new();
+    let db = fx.db("prod.db");
+    let (spy, bk) = (Spy::new(&fx.log_dir()), EngineBackup::new(&NoExec));
+    let t = fx.target("PRODDB", &db, false);
+    // Blank text would split to "no statements" (a plain failure) if the size were checked after the split.
+    let big = " ".repeat(16 * 1024 * 1024 + 1);
+    let out = fx.tmp.path().join("big.sql");
+    refused(fx.runner(&spy, &bk).script(&t, &big, "t", &out), "16 MiB");
+    assert!(!out.exists());
 }

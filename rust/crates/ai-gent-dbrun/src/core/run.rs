@@ -286,23 +286,35 @@ fn float_text(s: Option<f64>) -> String {
     s.map_or_else(|| "0".into(), |v| format!("{v}"))
 }
 
-/// Python's `int(x) if x.strip().lstrip("-").isdigit() else None` for each comma-separated entry.
+/// Parses `--expect`: comma-separated entries, each an integer, or `skip` (also an empty entry) for "no
+/// count check on this statement". Owner decision 2026-11-14: any other entry is REFUSED (Python read it as
+/// "skip", so a typo such as `2x` silently dropped a check); only ASCII digits count.
 ///
 /// # Errors
-/// A refusal for an entry Python would crash on (`--5`) or that does not fit an `i64`.
+/// A refusal naming the position of the bad entry, never its text.
 pub fn parse_expect(text: &str) -> Result<Vec<Option<i64>>, Fail> {
     if text.is_empty() {
         return Ok(Vec::new());
     }
     text.split(',')
-        .map(|x| {
+        .enumerate()
+        .map(|(i, x)| {
             let t = x.trim();
-            let digits = t.trim_start_matches('-');
-            if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
+            if t.is_empty() || t.eq_ignore_ascii_case("skip") {
                 return Ok(None);
             }
+            let digits = t.strip_prefix('-').unwrap_or(t);
+            if digits.is_empty() || !digits.bytes().all(|c| c.is_ascii_digit()) {
+                return Err(Fail::Refused(format!(
+                    "--expect entry {} is not an integer or `skip`",
+                    i + 1
+                )));
+            }
             t.parse::<i64>().map(Some).map_err(|_| {
-                Fail::Refused("--expect holds a number that is not a plain integer".into())
+                Fail::Refused(format!(
+                    "--expect entry {} does not fit a 64-bit integer",
+                    i + 1
+                ))
             })
         })
         .collect()
@@ -605,16 +617,22 @@ impl Runner<'_> {
             ));
         }
         t.require_local("apply")?;
-        // 1. the log, before anything changes
-        let entry = self.start(
+        // 1. one apply per plan (a refused second apply leaves no log entry behind)
+        claim_apply(&self.plans_dir, plan_id)?;
+        // 2. the log, before anything changes; a log that cannot be written gives the claim back
+        let entry = match self.start(
             &t,
             "apply",
             &plan.reason,
             &plan.statements,
             &format!("plan {}", plan.id),
-        )?;
-        // 2. one apply per plan
-        claim_apply(&self.plans_dir, plan_id)?;
+        ) {
+            Ok(e) => e,
+            Err(e) => {
+                release_apply(&self.plans_dir, plan_id);
+                return Err(e);
+            }
+        };
         // 3. the backup
         let mut location = "none".to_string();
         if self.backup.supported(&t.engine) {
@@ -661,18 +679,31 @@ impl Runner<'_> {
         let committed =
             res.ok && res.committed == Some(true) && counts.len() == plan.statements.len();
         let mut done = Done::default();
+        let mysql_ddl = !plan.ddl.is_empty() && matches!(t.engine.as_str(), "mysql" | "mariadb");
         if !committed {
-            let (stage, error) = if res.ok {
-                (
-                    "execute".to_string(),
-                    "the runner did not report a commit".to_string(),
-                )
+            let (label, stage, error) = if res.ok {
+                let why = if res.committed == Some(true) {
+                    "the runner reported a commit but returned a different number of row counts than statements"
+                } else {
+                    "the runner did not report whether the transaction committed"
+                };
+                ("OUTCOME UNKNOWN", "execute".to_string(), why.to_string())
             } else {
-                failure_parts(&res)
+                let (stage, error) = failure_parts(&res);
+                // Only a verify failure is a rollback the connector confirmed, and not when MySQL or
+                // MariaDB already committed the DDL implicitly. A connect failure means nothing ran.
+                let rolled =
+                    res.stage == Some(Stage::Verify) && res.committed != Some(true) && !mysql_ddl;
+                let label = if rolled {
+                    "ROLLED BACK"
+                } else if res.stage == Some(Stage::Connect) {
+                    "NOT APPLIED"
+                } else {
+                    "OUTCOME UNKNOWN"
+                };
+                (label, stage, error)
             };
-            // Only a verify failure is a rollback the connector itself confirmed; any other failure may have
-            // changed something (a killed driver, MySQL's implicit DDL commit), so the claim stays.
-            let proven = !res.ok && res.stage == Some(Stage::Verify) && res.committed != Some(true);
+            let proven = label == "ROLLED BACK" || label == "NOT APPLIED";
             if proven {
                 release_apply(&self.plans_dir, plan_id);
                 // Nothing changed, so this plan's backup file is not needed and must not block the next try.
@@ -687,17 +718,16 @@ impl Runner<'_> {
             }
             let _ = self
                 .log
-                .result(&entry, &format!("ROLLED BACK at {stage}: {error}"));
+                .result(&entry, &format!("{label} at {stage}: {error}"));
             let _ = writeln!(
                 done.out,
                 "{}",
-                t.redactor()
-                    .redact(&format!("ROLLED BACK ({stage}): {error}"))
+                t.redactor().redact(&format!("{label} ({stage}): {error}"))
             );
             if !proven {
                 done.out.push_str("The plan is marked as applied because this failure may have changed the database: check the state, then make a new plan.\n");
             }
-            if !plan.ddl.is_empty() && matches!(t.engine.as_str(), "mysql" | "mariadb") {
+            if mysql_ddl {
                 let _ = writeln!(
                     done.out,
                     "MySQL commits DDL immediately: check the state, and restore with `dbrun restore {} {} --confirmed` if needed",
@@ -719,6 +749,9 @@ impl Runner<'_> {
             "COMMITTED plan {} · row counts {counts:?}",
             plan.id
         );
+        if let Some(w) = &res.warning {
+            let _ = writeln!(done.out, "warning: {}", t.redactor().redact(w));
+        }
         if location == "none" {
             done.out
                 .push_str("Backup: none. To undo, write the reverse statements as a new plan\n");

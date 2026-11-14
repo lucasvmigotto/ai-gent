@@ -67,6 +67,15 @@ impl Connector for FakeEngine {
 
 fn child() {
     match std::env::var("ISOLATE_MODE").unwrap_or_default().as_str() {
+        "late" => {
+            let mut s = String::new();
+            let _ = std::io::stdin().read_line(&mut s);
+            let mut r = ExecResult::success();
+            r.committed = Some(true);
+            println!("{}", r.to_line());
+            let _ = std::io::stdout().flush();
+            std::thread::sleep(Duration::from_secs(120));
+        }
         "garbage" => {
             let mut s = String::new();
             let _ = std::io::stdin().read_to_string(&mut s);
@@ -345,6 +354,34 @@ fn isolate_the_exec_reader_answers_malformed_input_with_a_line_that_names_no_val
 
 // ---- the harness -----------------------------------------------------------------------------------
 
+fn isolate_a_valid_commit_result_survives_a_child_that_does_not_exit() {
+    let c = connector(&exe(), "late").with_timeout(Duration::from_millis(1500));
+    let t0 = Instant::now();
+    let r = c.run(&request(Mode::Write, "SELECT 1"));
+    assert!(t0.elapsed() < Duration::from_secs(20));
+    assert!(r.ok && r.committed == Some(true), "{r:?}");
+    assert!(
+        r.warning
+            .as_deref()
+            .unwrap()
+            .contains("did not exit in time"),
+        "{r:?}"
+    );
+}
+
+fn isolate_a_spawn_failure_on_a_write_says_nothing_ran() {
+    let c = IsolatedConnector::new("/no/such/dir/ai-gent-fake", ["db", "_exec"]);
+    let r = c.run(&request(Mode::Write, "SELECT 1"));
+    assert_eq!(r.stage, Some(Stage::Connect), "{r:?}");
+    assert!(
+        !r.error
+            .as_deref()
+            .unwrap()
+            .contains("not confirmed committed"),
+        "{r:?}"
+    );
+}
+
 type TestFn = fn();
 
 fn main() {
@@ -354,6 +391,14 @@ fn main() {
         _ => {}
     }
     let tests: &[(&str, TestFn)] = &[
+        (
+            "isolate_a_valid_commit_result_survives_a_child_that_does_not_exit",
+            isolate_a_valid_commit_result_survives_a_child_that_does_not_exit,
+        ),
+        (
+            "isolate_a_spawn_failure_on_a_write_says_nothing_ran",
+            isolate_a_spawn_failure_on_a_write_says_nothing_ran,
+        ),
         (
             "isolate_a_round_trip_carries_the_password_on_stdin_only",
             isolate_a_round_trip_carries_the_password_on_stdin_only,
@@ -395,13 +440,20 @@ fn main() {
             isolate_the_exec_reader_answers_malformed_input_with_a_line_that_names_no_value,
         ),
     ];
-    let filters: Vec<String> = std::env::args()
-        .skip(1)
-        .filter(|a| !a.starts_with('-'))
-        .collect();
+    let mut filters: Vec<String> = Vec::new();
+    let mut skips: Vec<String> = Vec::new();
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        if a == "--skip" {
+            skips.extend(args.next());
+        } else if !a.starts_with('-') {
+            filters.push(a);
+        }
+    }
     let selected: Vec<_> = tests
         .iter()
         .filter(|(n, _)| filters.is_empty() || filters.iter().any(|f| n.contains(f.as_str())))
+        .filter(|(n, _)| !skips.iter().any(|f| n.contains(f.as_str())))
         .collect();
     println!("running {} tests", selected.len());
     let mut failed = 0;

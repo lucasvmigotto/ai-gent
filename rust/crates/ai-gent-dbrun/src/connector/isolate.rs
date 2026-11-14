@@ -141,7 +141,17 @@ impl Connector for IsolatedConnector {
         // A child that failed to deliver a result while a write was running leaves the transaction in the
         // server's hands (it rolls back when the connection closes, but the runner never saw that): that
         // is an `execute` failure, and it says so.
-        if !result.ok && req.mode == Mode::Write && result.stage == Some(Stage::Connect) {
+        // A command that never started ran nothing: that stays a plain connect failure.
+        let never_ran = result.error.as_deref().is_some_and(|e| {
+            e.contains("could not be started")
+                || e.contains("could not be opened")
+                || e.contains("could not be encoded")
+        });
+        if !result.ok
+            && req.mode == Mode::Write
+            && result.stage == Some(Stage::Connect)
+            && !never_ran
+        {
             result.stage = Some(Stage::Execute);
             let why = result.error.take().unwrap_or_default();
             result.error = Some(format!(

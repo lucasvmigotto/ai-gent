@@ -172,19 +172,25 @@ fn read_stderr(reader: impl Read, tx: &mpsc::Sender<(Vec<u8>, bool)>) {
     let _ = tx.send((kept, cut));
 }
 
-/// Waits for the child until `deadline`; kills and reaps it past that. Returns the exit code.
-fn finish(child: &mut Child, deadline: Instant) -> Option<i32> {
+/// Waits for the child until `deadline`; kills and reaps it past that. Returns the exit code and whether
+/// the child had to be killed.
+fn finish_ex(child: &mut Child, deadline: Instant) -> (Option<i32>, bool) {
     loop {
         match child.try_wait() {
-            Ok(Some(status)) => return status.code(),
+            Ok(Some(status)) => return (status.code(), false),
             Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
             _ => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return None;
+                return (None, true);
             }
         }
     }
+}
+
+/// [`finish_ex`] without the kill flag.
+fn finish(child: &mut Child, deadline: Instant) -> Option<i32> {
+    finish_ex(child, deadline).0
 }
 
 fn kill(child: &mut Child) {
@@ -273,10 +279,21 @@ impl Connector for ProcessConnector {
         let left = deadline.saturating_duration_since(Instant::now());
         match out_rx.recv_timeout(left) {
             Ok(Out::Line(line)) => {
-                if finish(&mut child, deadline).is_none() {
-                    return fail("the command did not exit in time and was killed");
-                }
+                let killed = finish_ex(&mut child, deadline).1;
                 match serde_json::from_slice::<ExecResult>(&line) {
+                    // A committed result is kept even when the child was slow to exit: the commit
+                    // happened and hiding it would be wrong. Any other result of a child that had to
+                    // be killed stays a failure, as before.
+                    Ok(mut result) if killed && result.ok && result.committed == Some(true) => {
+                        result.warning = Some(
+                            "the command printed its result but did not exit in time and was killed"
+                                .into(),
+                        );
+                        result
+                    }
+                    Ok(_) | Err(_) if killed => {
+                        fail("the command did not exit in time and was killed")
+                    }
                     Ok(result) => result,
                     Err(_) => fail("the command printed an invalid result"),
                 }
