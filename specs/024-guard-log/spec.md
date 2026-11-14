@@ -91,15 +91,15 @@ Projected for after the first cut. `/guards --history` reads the Claude Code tra
 
 ### Functional Requirements
 
-- **FR-001**: Each of the five modules MUST record one row per deny or ask that `decorate` recognizes as its own guard's, after calling `next(e)`, and MUST NOT change the result for the record's sake.
+- **FR-001** (amended 2026-11-14: the guard itself records the row; see the amendment): Each of the five modules MUST record one row per deny or ask that `decorate` recognizes as its own guard's, after calling `next(e)`, and MUST NOT change the result for the record's sake.
 - **FR-002**: A row MUST hold only: time, guard id, `deny` or `ask`, the matched table entry's `match` (or `generic`), the tool name, and the command verb as defined by the verb rule. It MUST NOT hold the guard's raw reason, which interpolates values.
 - **FR-003**: No command line, argument, path or value MUST be stored, shown or logged; a test runs every `shared/secret-cases.json` credential shape (built from its fragments) through a command, as a first word, an argument and a URL, and asserts the record is clean.
-- **FR-004**: The record MUST be a bounded ring in `$.state` (200 rows) and MUST NOT write a file, `$.store` or anything outside the engine's state.
+- **FR-004** (amended 2026-11-14: the record is the file `<state dir>/ai-gent/guard-log/<session id>.jsonl`, bounded to the newest 200 rows, written by the guards and read by `project`; see the amendment): The record MUST be a bounded ring in `$.state` (200 rows) and MUST NOT write a file, `$.store` or anything outside the engine's state.
 - **FR-005**: `/guards [N]` MUST print the newest N rows (default `guardLogLimit`, 20) and the entries with the most rows; it MUST NOT run a command or call a model.
 - **FR-006**: The summary MUST state counts only; it MUST NOT call a guard "over-strict" or suggest loosening one. What to do with a frequent entry is the maintainer's decision (`shared/guard-ux.ts`, `guard.sh`).
 - **FR-007**: A failure in recording MUST NOT change a decision: the `.catch` on the hook replays `next(e)` (015's rule).
 - **FR-008**: `guardLog` (boolean, default true) in each guard plugin's `userConfig` turns that plugin's recording off; `guardLogLimit` (number, default 20) and `guardsPane` (boolean, default true) in `project`. `project`'s `plugin.json` lists `git`, `db`, `secrets`, `repo` and `devcontainer` under `dependencies`, and `/guards` must work with any subset present (edge cases).
-- **FR-009**: No change to any `guard.sh`, `opencode/guard/`, the shell guard tests or the parity test.
+- **FR-009** (superseded 2026-11-14): No change to any `guard.sh`, `opencode/guard/`, the shell guard tests or the parity test.
 
 ## Success Criteria *(mandatory)*
 
@@ -129,3 +129,10 @@ Projected for after the first cut. `/guards --history` reads the Claude Code tra
 - [ASSUMPTION: `project` can `$.state.get` an atom declared by another plugin once that plugin is under its `dependencies` (the engine lays each dependency's contract into `.claude-plugin/types/<plugin>/index.d.ts`; `claude plugin validate` on 2.1.312 accepted a `dependencies` entry for a plugin that was not installed, with no error or warning, in a probe on 2026-10-31). What `$.state.get` returns for an atom whose plugin is absent at run time is not verified: research R1.]
 - [ASSUMPTION: the `classic.PreToolUse` event carries `tool` and `command` for Bash (015, "A module's event carries `tool` and `command`") and, for the db guard's other matcher tools (`Read`, `Grep`, `Glob`, `Edit`, `Write`, `MultiEdit`, `NotebookEdit`), at least `tool`; a missing `command` is recorded as no verb.]
 - [ASSUMPTION: the guard reason prefixes and `decorate`'s marker matching stay as they are (015).]
+
+## Amendment (2026-11-14, the owner, via chat)
+
+- Where the built-in `cc-plugin-sec-default` plugin is seated (machines with managed settings, Team and Enterprise orgs) it sends `classic.*` events, `session.compact`, `skill.prompt` and `session.append` on the `hook-context` door on past every person-installed mod, so those hooks never ran there and Claude Code told the person each one was skipped. The row was written from the `classic.PreToolUse` hook, so no row was written there either.
+- The guards write the row themselves (`ai-gent guard`, the shell logic in each `guard.sh` and `opencode/guard/rules.mjs` decide and write the same; rules in `shared/guard-words.json`): one JSON line per deny or ask in `<log dir>/<session id>.jsonl`, the log dir `AI_GENT_GUARD_LOG_DIR`, else `$XDG_STATE_HOME/ai-gent/guard-log`, else `~/.local/state/ai-gent/guard-log`, else `%LOCALAPPDATA%/ai-gent/state/guard-log`; created with mode 0700, trimmed to the newest 200 rows once it passes 400. The row keeps FR-002's fields and FR-003's rule (verb only). `guardLog` (false) still turns a plugin's recording off, read by the guard from `CLAUDE_PLUGIN_OPTION_guardLog`.
+- `project` reads the file for the session (`$.session.id()`) and rereads it for the pane on each tool call while the pane is open. The `guardLog` atoms, the per-plugin "not reporting" note and the cross-plugin `$.state.get` are gone.
+- This supersedes FR-009 and the decision that the log is `$.state`, not a file: a file is the only place a command hook can write, and it holds no command line, argument, path or value.

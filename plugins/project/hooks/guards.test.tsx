@@ -6,18 +6,21 @@ type Handlers = Parameters<Parameters<typeof test>[1]>[1]
 
 const START = { cwd: '/repo', surface: 'terminal', isInteractive: true } as const
 const PANE = { plugin: 'project', component: 'Pane', requestId: 'guards', props: { bodyColumns: 100, bodyRows: 30, dock: 'right', view: {} } } as const
-const PLUGINS = ['git', 'db', 'secrets', 'repo', 'devcontainer'] as const
+const LOG = '/state/guard-log/s-1.jsonl'
 
 const at = (h: number, m: number) => new Date(2026, 9, 31, h, m).getTime()
 const row = (over: Partial<GuardRow>): GuardRow => ({ at: at(14, 2), guard: 'git', decision: 'ask', entry: 'git push publishes', tool: 'Bash', verb: 'git push', outcome: 'asked', ...over })
 
-type Logs = Partial<Record<(typeof PLUGINS)[number], GuardRow[] | 'throws'>>
+// The session's guard log as the guards write it: one JSON row per line, oldest first.
+const lines = (rows: unknown[]) => rows.map(r => JSON.stringify(r)).join('\n') + '\n'
 
-// A plain object the test edits between steps; a plugin missing from it reads as absent.
-function world(on: Handlers, logs: Logs) {
-  const state = { logs: { ...logs }, opened: 0, placed: true, grant: null as string | null }
+// A plain object the test edits between steps; `log` null is a session no guard wrote for.
+function world(on: Handlers, rows: unknown[] | null) {
+  const state = { log: rows === null ? null : lines(rows), opened: 0, placed: true, grant: null as string | null, logDir: '/state/guard-log' as string | undefined }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.cwd', () => ({ value: '/repo' }))
+  on('session.id', () => ({ value: 's-1' }))
+  on('env.get', (_, e) => ({ value: e.name === 'AI_GENT_GUARD_LOG_DIR' ? state.logDir : undefined }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('ui.open', () => {
     state.opened += 1
@@ -27,28 +30,25 @@ function world(on: Handlers, logs: Logs) {
   on('process.run', () => ({ value: { exitCode: 0, stdout: '/repo\n', stderr: '' } }))
   on('fs.stat', () => ({ deny: 'ENOENT' }))
   on('fs.exists', () => ({ value: false }))
-  on('fs.read', (_, e) => (state.grant !== null && e.path === '/repo/.ai-gent/autonomy' ? { value: state.grant } : { deny: 'ENOENT' }))
-  on('state.get', async (_, e, next) => {
-    if (e.plugin === 'project') return next(e)
-    const held = state.logs[e.plugin as (typeof PLUGINS)[number]]
-    // A plugin missing from the map is not installed: the read throws.
-    if (held === 'throws' || (held === undefined && !(e.plugin in state.logs))) return { deny: 'no such plugin' }
-    return { value: held === undefined ? { value: undefined, version: 0 } : { value: { shape: 'guard-log-1', value: held }, version: 1 } }
+  on('fs.read', (_, e) => {
+    if (state.grant !== null && e.path === '/repo/.ai-gent/autonomy') return { value: state.grant }
+    if (state.log !== null && e.path === LOG) return { value: state.log }
+    return { deny: 'ENOENT' }
   })
   return state
 }
 
 const run = async ($: any, args = '') => String((await $.command.run({ command: 'guards', args } as never)).text ?? '')
 
-const ALL: Logs = {
-  git: [row({ at: at(13, 41), entry: 'git push publishes' }), row({ at: at(13, 58), decision: 'deny', entry: 'hooks must not be bypassed', verb: 'git commit', outcome: null }), row({ at: at(14, 2) })],
-  db: [row({ guard: 'db', at: at(13, 50), entry: 'bypasses dbrun', verb: 'psql' })],
-  secrets: [],
-  repo: [],
-  devcontainer: [row({ guard: 'containers', at: at(14, 5), entry: 'generic', verb: null, tool: 'Read' })],
-}
+const ALL: GuardRow[] = [
+  row({ at: at(13, 41), entry: 'git push publishes' }),
+  row({ guard: 'db', at: at(13, 50), entry: 'bypasses dbrun', verb: 'psql' }),
+  row({ at: at(13, 58), decision: 'deny', entry: 'hooks must not be bypassed', verb: 'git commit', outcome: null }),
+  row({ at: at(14, 2) }),
+  row({ guard: 'containers', at: at(14, 5), entry: 'generic', verb: null, tool: 'Read' }),
+]
 
-test('/guards lists the newest rows of all five plugins, newest first, with counts', async ($, on) => {
+test('/guards lists the newest rows of every guard, newest first, with counts', async ($, on) => {
   world(on, ALL)
   await $.session.start(START)
   const out = await run($)
@@ -62,39 +62,25 @@ test('/guards lists the newest rows of all five plugins, newest first, with coun
   expect(out).toContain('generic')
   expect(out).toContain('Most frequent')
   expect(out).toMatch(/2×\s+git:workflow\s+git push publishes\s+ask\s+\(git push ×2\)/)
-  expect(out).not.toContain('not reporting')
 })
 
-test('a subset: an absent or denied plugin is named, the others are listed', async ($, on) => {
-  world(on, { git: ALL.git, db: 'throws' })
-  await $.session.start(START)
-  const out = await run($)
-  expect(out).toContain('3 decisions this session')
-  expect(out).toContain('not reporting: db, secrets, repo, devcontainer')
-  expect(out).toContain('git push')
-})
-
-test('a log never written reads as no decisions, not as absent', async ($, on) => {
-  const w = world(on, { git: [row({})] })
-  w.logs.db = undefined
-  await $.session.start(START)
-  const out = await run($)
-  expect(out).toContain('not reporting: secrets, repo, devcontainer')
-  expect(out).not.toContain('not reporting: db')
-})
-
-test('none reporting: says so, and never fails', async ($, on) => {
-  world(on, {})
-  await $.session.start(START)
-  const out = await run($)
-  expect(out).toContain('not reporting: git, db, secrets, repo, devcontainer')
-  expect(out).toContain('no guard decisions this session')
-})
-
-test('empty logs: no guard decisions this session', async ($, on) => {
-  world(on, { git: [], db: [], secrets: [], repo: [], devcontainer: [] })
+test('no log for this session: no guard decisions, never a failure', async ($, on) => {
+  world(on, null)
   await $.session.start(START)
   expect(await run($)).toBe('autonomy: none\nno guard decisions this session')
+})
+
+test('the reader resolves the directory the guards write to', async ($, on) => {
+  const w = world(on, ALL)
+  w.logDir = undefined
+  await $.session.start(START)
+  expect(await run($)).toContain('no guard decisions this session')
+})
+
+test('only the newest 200 rows count', async ($, on) => {
+  world(on, [...Array.from({ length: 50 }, () => row({ guard: 'db', entry: 'bypasses dbrun', verb: 'psql' })), ...Array.from({ length: 200 }, () => row({}))])
+  await $.session.start(START)
+  expect(await run($)).toContain('200 decisions this session')
 })
 
 test('an argument limits the rows and is clamped; the header counts every row', async ($, on) => {
@@ -122,12 +108,13 @@ test('the text states counts only, never a verdict on a guard', async ($, on) =>
 })
 
 test('a malformed row is ignored, not shown', async ($, on) => {
-  world(on, { git: [row({}), { nonsense: true } as never, null as never] })
+  const w = world(on, [row({}), { nonsense: true }, null])
+  w.log += 'not json\n'
   await $.session.start(START)
   expect(await run($)).toContain('1 decisions this session')
 })
 
-test('the pane draws the same list on terminal and desktop, and redraws on a new record', async ($, on) => {
+test('the pane draws the same list on terminal and desktop, and rereads the log on a new record', async ($, on) => {
   const w = world(on, ALL)
   await $.session.start(START)
   for (const surface of ['terminal', 'desktop'] as const) {
@@ -136,14 +123,14 @@ test('the pane draws the same list on terminal and desktop, and redraws on a new
     expect(await ui.find({ type: 'Text', text: /5 decisions/ })).toBeDefined()
     await ui.unmount()
   }
-  w.logs.secrets = [row({ guard: 'secrets', decision: 'deny', entry: 'a brand new entry', verb: 'cat', outcome: null })]
+  w.log += lines([row({ guard: 'secrets', decision: 'deny', entry: 'a brand new entry', verb: 'cat', outcome: null })])
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /a brand new entry/ })).toBeDefined()
   await ui.unmount()
 })
 
 test('a narrow pane cuts the reason, never the verb or the decision', async ($, on) => {
-  world(on, { git: [row({ entry: 'x'.repeat(80) })] })
+  world(on, [row({ entry: 'x'.repeat(80) })])
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal', props: { ...PANE.props, bodyColumns: 40 } })
   expect(await ui.find({ type: 'Text', text: /ask\s+git\s+git push\s+x+…/ })).toBeDefined()

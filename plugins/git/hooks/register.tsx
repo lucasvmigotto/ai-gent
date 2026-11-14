@@ -1,7 +1,6 @@
 // The git plugin's Claude Code mod, optional features that only make visible
-// what git:workflow and its guard already say:
-//  - guard-ux (specs/015): why the guard denied or asked, and what to do
-//    instead. hooks/guard.sh still decides.
+// what git:workflow and its guard already say (the guard's own words and its
+// log rows are printed by hooks/guard.sh itself, specs/015 and 024):
 //  - release readiness (specs/028): a band with the next release from
 //    scripts/release.py --dry-run --json, on a chain branch.
 //  - repo hygiene (specs/017): a band when local main or dev lag their remote
@@ -9,11 +8,8 @@
 //    notice only the model saw, and /release-preview. None of it fetches,
 //    pulls, commits or tags.
 
-import { atom, update } from 'claude-code'
-import type { PreToolUseResult, Register } from 'claude-code'
+import type { Register } from 'claude-code'
 
-import { append, decorate, record } from './guard-ux'
-import type { GuardRow } from './guard-ux'
 import { MOVES_REFS, sentence } from './hygiene-model'
 import { bandsText, plan } from './bands'
 import type { Options as BandOptions } from './bands'
@@ -21,7 +17,7 @@ import { MOVES_RELEASE } from './release-model'
 import { hideRelease, refreshAndRecord, releaseLine } from './release'
 import { readHygiene, recordHygieneBand, refreshHygiene, refreshHygieneThrottled, relayUpdate, releasePreview } from './hygiene'
 
-type Options = BandOptions & { guardUx?: boolean; guardLog?: boolean; hygieneBand?: boolean; sessionToasts?: boolean; releasePreview?: boolean; releaseBand?: boolean }
+type Options = BandOptions & { hygieneBand?: boolean; sessionToasts?: boolean; releasePreview?: boolean; releaseBand?: boolean }
 
 // The band's id in the `bands` atom (priority normal).
 const HYGIENE = 'hygiene'
@@ -34,28 +30,8 @@ const refresh = async ($: Parameters<typeof refreshHygiene>[0]) => {
   await recordHygieneBand($).catch(() => undefined)
 }
 
-// The ring of this guard's recent decisions (specs/024-guard-log); the project plugin reads it.
-const guardLogAtom = atom({ plugin: 'git', key: 'guardLog' } as const, [] as GuardRow[], { shape: 'guard-log-1' })
 
 export const register: Register = (on, options: Options) => {
-  if (options.guardUx !== false || options.guardLog !== false) {
-    on('classic.PreToolUse', async ($, e, next) => {
-      const result = await next(e)
-      // The row comes from the guard's own answer, before decorate adds words.
-      if (options.guardLog !== false) {
-        // A failure here loses a row, never the decision.
-        await (async () => {
-          const row = record('git', result, e, await $.clock.now())
-          if (row) await update($, guardLogAtom, rows => append(rows, row))
-        })().catch(() => undefined)
-      }
-      if (options.guardUx === false) return result
-      const { result: decorated, notice } = decorate('git', result)
-      if (notice) $.ui.toast(notice)
-      return decorated as PreToolUseResult
-    }).catch(($, e, next) => next(e))
-  }
-
   const hasBand = options.hygieneBand !== false
   const hasPreview = options.releasePreview !== false
   const hasRelease = options.releaseBand !== false
