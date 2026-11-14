@@ -21,7 +21,7 @@ path = "src/lib.rs"
 [features]
 default = []
 sqlite = ["dep:rusqlite"]
-postgres = []
+postgres = ["tls", "dep:postgres", "dep:tokio-postgres-rustls"]
 mysql = []
 mssql = []
 oracle = []
@@ -42,6 +42,9 @@ toml = { version = "1", default-features = false, features = ["parse", "serde"] 
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
 rustls-native-certs = { version = "0.8", optional = true }
 rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }
+# PostgreSQL: the sync client over tokio-postgres (pure Rust) with rustls through the shared TLS builder (spec 043 T030, T032).
+postgres = { version = "0.19", optional = true }
+tokio-postgres-rustls = { version = "0.14", default-features = false, features = ["ring"], optional = true }
 rusqlite = { version = "0.41", features = ["bundled", "hooks"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
