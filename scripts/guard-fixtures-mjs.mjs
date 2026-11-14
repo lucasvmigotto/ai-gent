@@ -5,7 +5,7 @@
 // Used by scripts/guard-fixtures.py --impl mjs.
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
-import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, guardRow, guardWords } from "../opencode/guard/rules.mjs"
+import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, guardRow, guardWords, optionOff } from "../opencode/guard/rules.mjs"
 
 const branchOf = (dir) => {
   try {
@@ -42,8 +42,9 @@ function run(c) {
 const cases = JSON.parse(readFileSync(0, "utf8"))
 process.stdout.write(JSON.stringify(cases.map((c) => {
   const r = run(c)
-  const w = guardWords(r.decision, r.reason)
-  const row = guardRow(r.decision, r.reason, c.tool, c.command, 0)
+  // the plugin options guardUx and guardLog, read from the environment as the index.ts adapter does
+  const w = optionOff("guardUx") ? { message: null, context: null } : guardWords(r.decision, r.reason)
+  const row = optionOff("guardLog") ? null : guardRow(r.decision, r.reason, c.tool, c.command, 0)
   if (row) delete row.at
   return { decision: r.decision, reason: r.reason ?? null, words: [w.message, w.context], row }
 })))

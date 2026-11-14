@@ -34,15 +34,17 @@ _gw_verb() { # _gw_verb <command, JSON-escaped>: its verb, or nothing (never a v
   printf '%s\n' "$_gw_w" | grep -Eq '^[a-z][a-z0-9._-]{0,23}$' || return 0
   _gw_n="$(printf '%s' "$_gw_w" | tr -cd '0-9')"
   [ "${#_gw_n}" -lt 7 ] || return 0
-  case "$_gw_w" in
-    git | gh | pass | podman | docker)
-      if printf '%s\n' "$_gw_2" | grep -Eq '^[a-z][a-z-]{0,23}$'; then
-        printf '%s %s' "$_gw_w" "$_gw_2"
-        return 0
-      fi
+  # a second word only when the table lists it as a subcommand of the first (never an entry or a branch)
+  case "$_gw_w:$_gw_2" in
+    @VERBS@
+      printf '%s %s' "$_gw_w" "$_gw_2"
+      return 0
       ;;
   esac
   printf '%s' "$_gw_w"
+}
+_gw_mine() { # _gw_mine <path>: it belongs to the current user (POSIX has no test -O)
+  [ -n "$(find "$1" -prune -user "$(id -u)" -print 2>/dev/null)" ]
 }
 _gw_log() { # _gw_log deny|ask: one row (entry and verb only) in <log dir>/<session>.jsonl
   _gw_off guardLog GUARDLOG && return 0
@@ -62,18 +64,41 @@ _gw_log() { # _gw_log deny|ask: one row (entry and verb only) in <log dir>/<sess
   if [ -n "$_gw_v" ]; then _gw_v="\"$_gw_v\""; else _gw_v=null; fi
   if [ "$1" = ask ]; then _gw_o='"asked"'; else _gw_o=null; fi
   _gw_f="$_gw_dir/$_gw_sid.jsonl"
-  (umask 077 && mkdir -p "$_gw_dir" &&
+  # A subshell with umask 077: the directory 0700, the file and the cut copy 0600 (one we own is
+  # tightened). Only a regular file is written or read, never a link, a FIFO or a device, and at
+  # most the last @MAX_BYTES@ bytes are read. The cut runs under flock on <file>.lock, skipped when
+  # flock is missing or another writer holds it (the file then grows until the next cut).
+  (
+    umask 077
+    mkdir -p "$_gw_dir" || exit 0
+    if _gw_mine "$_gw_dir"; then chmod 700 "$_gw_dir" || :; fi
+    if [ -e "$_gw_f" ] || [ -L "$_gw_f" ]; then
+      [ -f "$_gw_f" ] && [ ! -L "$_gw_f" ] || exit 0
+    fi
     printf '{"at":%s000,"guard":"%s","decision":"%s","entry":"%s","tool":"%s","verb":%s,"outcome":%s}\n' \
-      "$(date +%s)" "$_gw_id" "$1" "$_gw_match" "$_gw_tool" "$_gw_v" "$_gw_o" >>"$_gw_f") 2>/dev/null || return 0
-  if [ "$(wc -l <"$_gw_f")" -gt @TRIM_AT@ ]; then
-    tail -n @MAX_ROWS@ "$_gw_f" >"$_gw_f.$$" 2>/dev/null && mv "$_gw_f.$$" "$_gw_f" 2>/dev/null
-  fi
+      "$(date +%s)" "$_gw_id" "$1" "$_gw_match" "$_gw_tool" "$_gw_v" "$_gw_o" >>"$_gw_f" || exit 0
+    if _gw_mine "$_gw_f"; then chmod 600 "$_gw_f" || :; fi
+    _gw_size=$(($(wc -c <"$_gw_f")))
+    [ "$_gw_size" -gt @MAX_BYTES@ ] || [ $(($(tail -c @MAX_BYTES@ "$_gw_f" | wc -l))) -gt @TRIM_AT@ ] || exit 0
+    command -v flock >/dev/null 2>&1 && command -v mktemp >/dev/null 2>&1 || exit 0
+    if [ -e "$_gw_f.lock" ] || [ -L "$_gw_f.lock" ]; then
+      [ -f "$_gw_f.lock" ] && [ ! -L "$_gw_f.lock" ] || exit 0
+    fi
+    (
+      flock -n 9 || exit 0
+      _gw_t="$(mktemp "$_gw_dir/.$_gw_sid.jsonl.XXXXXXXX")" || exit 0
+      # a cut from the middle of a large file starts on a partial line: drop it
+      if tail -c @MAX_BYTES@ "$_gw_f" | if [ "$_gw_size" -gt @MAX_BYTES@ ]; then sed 1d; else cat; fi |
+        tail -n @MAX_ROWS@ >"$_gw_t" && mv -f "$_gw_t" "$_gw_f"; then :; else rm -f "$_gw_t"; fi
+    ) 9>>"$_gw_f.lock"
+  ) 2>/dev/null
   return 0
 }
 guard_emit() { # guard_emit deny|ask "<marker> <reason>"
   _gw_msg='' _gw_ctx=''
+  _gw_own=''
   if _gw_find "$2"; then
-    _gw_log "$1" || :
+    _gw_own=1
     if ! _gw_off guardUx GUARDUX; then
       _gw_name="${_gw_marker%:}"
       if [ "$1" = deny ]; then
@@ -96,5 +121,7 @@ guard_emit() { # guard_emit deny|ask "<marker> <reason>"
   [ -z "$_gw_ctx" ] || _gw_x=',"additionalContext":"'"$_gw_ctx"'"'
   [ -z "$_gw_msg" ] || _gw_y=',"systemMessage":"'"$_gw_msg"'"'
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"%s"%s}%s}\n' "$1" "$2" "$_gw_x" "$_gw_y"
+  # the row after the decision is out: a log that fails loses the row, never the decision
+  [ -z "$_gw_own" ] || _gw_log "$1" || :
 }
 # <<< guard words

@@ -95,7 +95,8 @@ def ref_verb(command, tool):
     if not re.fullmatch(r"[a-z][a-z0-9._-]{0,23}", first) or sum(c.isdigit() for c in first) >= 7:
         return None
     second = words[1] if len(words) > 1 else ""
-    return "%s %s" % (first, second) if first in ("git", "gh", "pass", "podman", "docker") and re.fullmatch(r"[a-z][a-z-]{0,23}", second) else first
+    # a second word only when the table lists it as a subcommand (never an entry, a branch or a value)
+    return "%s %s" % (first, second) if second in WORDS["verbs"].get(first, ()) else first
 
 
 def ref_row(decision, reason, tool, command):
@@ -269,12 +270,12 @@ def find_bin(arg):
     sys.exit("guard-fixtures: no ai-gent binary (cargo build in rust/, or --bin / AI_GENT_BIN)")
 
 
-def run_mjs(items):
+def run_mjs(items, env=None):
     rt = shutil.which("node") or shutil.which("bun")
     if not rt:
         sys.exit("guard-fixtures: neither node nor bun on PATH")
     payload = [{"guard": g, "tool": c["tool"], "cwd": ev["cwd"], "command": ev["tool_input"].get("command"), "tool_input": ev["tool_input"]} for g, c, ev, _ in items]
-    r = subprocess.run([rt, os.path.join(REPO, "scripts", "guard-fixtures-mjs.mjs")], input=json.dumps(payload), capture_output=True, text=True)
+    r = subprocess.run([rt, os.path.join(REPO, "scripts", "guard-fixtures-mjs.mjs")], input=json.dumps(payload), capture_output=True, text=True, env=env)
     if r.returncode:
         sys.exit("guard-fixtures: mjs runner failed: " + r.stderr)
     return [(x["decision"], x["reason"], x.get("words"), x.get("row")) for x in json.loads(r.stdout)]
@@ -396,12 +397,14 @@ def cmd_run(a):
     logdir = tempfile.mkdtemp(prefix="ai-gent-fx-log-")
     try:
         if a.impl == "mjs":
-            results = run_mjs(items)
+            results = run_mjs(items, {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE_PLUGIN_OPTION_")})
         else:
             binpath = find_bin(a.bin) if a.impl in ("bin", "launcher") else None
             if a.impl == "launcher":
                 pkg = Package(binpath)
-            env = dict(pkg.env if pkg else os.environ, AI_GENT_GUARD_LOG_DIR=logdir)
+            # the plugin options are the defaults here; options_off checks them
+            env = {k: v for k, v in (pkg.env if pkg else os.environ).items() if not k.startswith("CLAUDE_PLUGIN_OPTION_")}
+            env["AI_GENT_GUARD_LOG_DIR"] = logdir
             for n, (g, c, ev, shell) in enumerate(items):
                 if a.impl == "sh":
                     argv = ["sh", os.path.join(REPO, GUARDS[g])]
@@ -413,16 +416,13 @@ def cmd_run(a):
                 r = subprocess.run(argv, input=json.dumps(dict(ev, session_id=session)), capture_output=True, text=True, env=env)
                 got, reason = parse_hook(r.stdout)
                 results.append((got, reason, hook_words(r.stdout), logged_row(logdir, session)))
-            if items and a.impl in ("sh", "launcher"):
-                results_off = options_off(a, items, pkg, logdir)
-            else:
-                results_off = 0
+        results_off = options_off(a, items, pkg, logdir) if items else 0
     finally:
         sb.close()
         if pkg:
             pkg.close()
         shutil.rmtree(logdir, ignore_errors=True)
-    failures = results_off if a.impl != "mjs" else 0
+    failures = results_off
     for (g, c, ev, shell), (got, reason, words, row) in zip(items, results):
         label = (ev["tool_input"].get("command") or "%s %s" % (c["tool"], json.dumps(c.get("tool_input")))).replace("\n", "⏎")
         want = c["want"]
@@ -441,20 +441,52 @@ def cmd_run(a):
     return 1 if failures else 0
 
 
+OPTION_SETS = (
+    # (guardUx, guardLog, the env that sets them, written both ways the guards accept)
+    (False, False, {"CLAUDE_PLUGIN_OPTION_guardUx": "false", "CLAUDE_PLUGIN_OPTION_GUARDLOG": "false"}),
+    (False, True, {"CLAUDE_PLUGIN_OPTION_GUARDUX": "false"}),
+    (True, False, {"CLAUDE_PLUGIN_OPTION_guardLog": "false"}),
+    (True, True, {}),
+)
+
+
 def options_off(a, items, pkg, logdir):
-    """With the plugin options guardUx and guardLog false, a decision carries no words and logs no row."""
-    g, c, ev, _ = next((i for i in items if i[1]["want"] != "none"), (None, None, None, None))
-    if g is None:
-        return 0
-    argv = ["sh", pkg.guard(g) if pkg else os.path.join(REPO, GUARDS[g])]
-    env = dict(pkg.env if pkg else os.environ, AI_GENT_GUARD_LOG_DIR=logdir, CLAUDE_PLUGIN_OPTION_guardUx="false", CLAUDE_PLUGIN_OPTION_GUARDLOG="false")
-    r = subprocess.run(argv, input=json.dumps(dict(ev, session_id="fx-off")), capture_output=True, text=True, env=env)
-    got, _ = parse_hook(r.stdout)
-    if got == c["want"] and hook_words(r.stdout) == (None, None) and logged_row(logdir, "fx-off") is None:
-        print("      ok    options guardUx and guardLog off: no words, no row (%s)" % c["id"])
-        return 0
-    print("      FAIL  options guardUx and guardLog off: %s" % r.stdout.strip())
-    return 1
+    """The plugin options guardUx and guardLog, each on and off: words only with guardUx on, a row
+    only with guardLog on. The case is one whose decision has words, context and a row, so a guard
+    that ignores an option fails here."""
+    pick = next((i for i in items if i[1]["want"] in ("deny", "ask") and all(ref_words(i[1]["want"], i[1].get("reason")))
+                 and ref_row(i[1]["want"], i[1].get("reason"), i[2]["tool_name"], i[2]["tool_input"].get("command"))), None)
+    if pick is None:
+        print("      FAIL  options: no case with words, context and a row for impl %s" % a.impl)
+        return 1
+    g, c, ev, shell = pick
+    want_words = ref_words(c["want"], c["reason"])
+    want_row = ref_row(c["want"], c["reason"], ev["tool_name"], ev["tool_input"].get("command"))
+    failures = 0
+    for n, (ux, log, opts) in enumerate(OPTION_SETS):
+        session = "fx-opt-%d" % n
+        if a.impl == "mjs":
+            env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDE_PLUGIN_OPTION_")}
+            got, _, words, row = run_mjs([pick], dict(env, **opts))[0]
+            words = tuple(words) if words else (None, None)
+        else:
+            if a.impl == "bin":
+                argv = [find_bin(a.bin), "guard", "--guard", g, "--shell", shell]
+            else:
+                argv = ["sh", pkg.guard(g) if pkg else os.path.join(REPO, GUARDS[g])]
+            env = {k: v for k, v in (pkg.env if pkg else os.environ).items() if not k.startswith("CLAUDE_PLUGIN_OPTION_")}
+            r = subprocess.run(argv, input=json.dumps(dict(ev, session_id=session)), capture_output=True, text=True,
+                               env=dict(env, AI_GENT_GUARD_LOG_DIR=logdir, **opts))
+            got, _ = parse_hook(r.stdout)
+            words, row = hook_words(r.stdout), logged_row(logdir, session)
+        want = (want_words if ux else (None, None), want_row if log else None)
+        what = "guardUx %s, guardLog %s" % ("on" if ux else "off", "on" if log else "off")
+        if got == c["want"] and (words, row) == want:
+            print("      ok    options %s (%s)" % (what, c["id"]))
+        else:
+            failures += 1
+            print("      FAIL  options %s (%s): want %s, got %s %s %s" % (what, c["id"], want, got, words, row))
+    return failures
 
 
 MUTATIONS = (

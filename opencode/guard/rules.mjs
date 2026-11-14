@@ -11,7 +11,8 @@
 // function returns { decision: "deny" | "ask" | "none", reason?: string }.
 
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants as FS, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 
 // The autonomy grant: .ai-gent/autonomy at the repository root, key: value lines the user writes
@@ -591,9 +592,8 @@ export function guardWords(decision, reason) {
   return { message: `${name} asks: ${e.say}${e.allowIf ? ` ${e.allowIf}` : ""} (${o.guard.skill})`, context: null };
 }
 
-const TWO_WORDS = new Set(["git", "gh", "pass", "podman", "docker"]);
-
-// The command's verb: never a value, an argument or a path.
+// The command's verb: the first word and, for a first word the table's verbs lists, the second
+// word when it is a listed subcommand. Never a value, an entry, a branch or a path.
 export function guardVerb(command, tool) {
   if (typeof command !== "string" || tool !== "Bash") return null;
   const words = command.trim().split(/[ \t\n\r]+/);
@@ -602,7 +602,7 @@ export function guardVerb(command, tool) {
   const first = raw.slice(raw.lastIndexOf("/") + 1);
   if (!/^[a-z][a-z0-9._-]{0,23}$/.test(first) || first.replace(/[^0-9]/g, "").length >= 7) return null;
   const second = words[1] ?? "";
-  return TWO_WORDS.has(first) && /^[a-z][a-z-]{0,23}$/.test(second) ? `${first} ${second}` : first;
+  return Object.hasOwn(WORDS.verbs, first) && WORDS.verbs[first].includes(second) ? `${first} ${second}` : first;
 }
 
 // The log row of a deny or ask a guard owns, or null.
@@ -622,20 +622,135 @@ export function guardLogDir(env = process.env) {
   return null;
 }
 
-// Append a row to <dir>/<session>.jsonl; past twice the limit, keep the newest rows. Never throws.
+// Whether a plugin option is set to false (CLAUDE_PLUGIN_OPTION_<key>, as written or upper-cased),
+// read the way the binary and guard.sh read it.
+export function optionOff(key, env = process.env) {
+  return env[`CLAUDE_PLUGIN_OPTION_${key}`] === "false" || env[`CLAUDE_PLUGIN_OPTION_${key.toUpperCase()}`] === "false";
+}
+
+// What OpenCode shows for a decision: the person's line, the guard's reason and, on a deny, the
+// line for the agent (OpenCode has one message for both, where Claude Code has systemMessage and
+// additionalContext), and whether to log it. guardUx false leaves the reason alone; guardLog
+// false writes no row.
+export function guardPresent(decision, reason, env = process.env) {
+  const { message, context } = optionOff("guardUx", env) ? { message: null, context: null } : guardWords(decision, reason);
+  return { message: [message, reason, context].filter(Boolean).join("\n\n"), log: !optionOff("guardLog", env) };
+}
+
+const OWN = typeof process.getuid === "function" ? process.getuid() : null;
+const NOFOLLOW = FS.O_NOFOLLOW ?? 0;
+const NONBLOCK = FS.O_NONBLOCK ?? 0;
+
+// Open the log without following a symlink or blocking on a FIFO; anything but a regular file is
+// refused (throws).
+function openLog(file, flags) {
+  if (!NOFOLLOW) {
+    try {
+      if (!lstatSync(file).isFile()) throw new Error("not a regular file");
+    } catch (e) {
+      if (e.code !== "ENOENT") throw e;
+    }
+  }
+  const fd = openSync(file, flags | NOFOLLOW | NONBLOCK, 0o600);
+  const st = fstatSync(fd);
+  if (!st.isFile()) {
+    closeSync(fd);
+    throw new Error("not a regular file");
+  }
+  return { fd, st };
+}
+
+// The last `cap` bytes of an open file.
+function readTail(fd, size, cap) {
+  const n = Math.min(size, cap);
+  const buf = Buffer.alloc(n);
+  let got = 0;
+  while (got < n) {
+    const r = readSync(fd, buf, got, n - got, size - n + got);
+    if (r <= 0) break;
+    got += r;
+  }
+  return buf.subarray(0, got).toString("utf8");
+}
+
+// Append a row to <dir>/<session>.jsonl (directory 0700, file 0600; one we own is tightened), only
+// to a regular file, never through a symlink. Past twice the row limit (or maxBytes) the file is
+// cut to its newest rows, read from its last maxBytes only, under <session>.jsonl.trim (created
+// exclusively; held by another writer, the cut waits for the next row). Never throws.
 export function appendGuardRow(dir, session, row) {
   if (!dir || !row || typeof session !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(session)) return;
   try {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const d = statSync(dir);
+    if (OWN !== null && d.uid === OWN && (d.mode & 0o077) !== 0) chmodSync(dir, 0o700);
     const file = join(dir, `${session}.jsonl`);
-    appendFileSync(file, JSON.stringify(row) + "\n", { mode: 0o600 });
-    const lines = readFileSync(file, "utf8").split("\n").filter(Boolean);
-    if (lines.length > 2 * WORDS.maxRows) {
-      const tmp = `${file}.${process.pid}`;
-      writeFileSync(tmp, lines.slice(-WORDS.maxRows).join("\n") + "\n", { mode: 0o600 });
-      renameSync(tmp, file);
+    const { fd, st } = openLog(file, FS.O_WRONLY | FS.O_APPEND | FS.O_CREAT);
+    let size;
+    try {
+      if (OWN !== null && st.uid === OWN && (st.mode & 0o077) !== 0) chmodSync(file, 0o600);
+      writeSync(fd, JSON.stringify(row) + "\n");
+      size = fstatSync(fd).size;
+    } finally {
+      closeSync(fd);
     }
+    const cap = WORDS.maxBytes;
+    let text = null;
+    if (size <= cap) {
+      const r = openLog(file, FS.O_RDONLY);
+      try {
+        text = readTail(r.fd, r.st.size, cap);
+      } finally {
+        closeSync(r.fd);
+      }
+      if (text.split("\n").filter(Boolean).length <= 2 * WORDS.maxRows) return;
+    }
+    trimGuardLog(dir, session, file, cap);
   } catch {
     // a row that cannot be written is lost, never the decision
+  }
+}
+
+function trimGuardLog(dir, session, file, cap) {
+  const lock = join(dir, `${session}.jsonl.trim`);
+  let lfd;
+  for (let tries = 0; ; tries++) {
+    try {
+      lfd = openSync(lock, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | NOFOLLOW, 0o600);
+      break;
+    } catch (e) {
+      if (e.code !== "EEXIST" || tries >= 1) return;
+      // a lock left by a writer that died is stale after 30 s
+      try {
+        if (Date.now() - lstatSync(lock).mtimeMs < 30_000) return;
+        unlinkSync(lock);
+      } catch {
+        return;
+      }
+    }
+  }
+  let tmp = null;
+  try {
+    const r = openLog(file, FS.O_RDONLY);
+    let text;
+    try {
+      text = readTail(r.fd, r.st.size, cap);
+    } finally {
+      closeSync(r.fd);
+    }
+    const lines = text.split("\n").filter(Boolean);
+    if (r.st.size > cap) lines.shift(); // a cut from the middle starts on a partial line
+    tmp = join(dir, `.${session}.jsonl.${randomBytes(8).toString("hex")}`);
+    const tfd = openSync(tmp, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | NOFOLLOW, 0o600);
+    try {
+      writeSync(tfd, lines.slice(-WORDS.maxRows).join("\n") + "\n");
+    } finally {
+      closeSync(tfd);
+    }
+    renameSync(tmp, file);
+    tmp = null;
+  } finally {
+    if (tmp) try { unlinkSync(tmp); } catch {}
+    closeSync(lfd);
+    try { unlinkSync(lock); } catch {}
   }
 }

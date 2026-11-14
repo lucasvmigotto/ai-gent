@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate, appendGuardRow, guardRow, guardVerb, guardWords } from "../rules.mjs"
+import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate, appendGuardRow, guardPresent, guardRow, guardVerb, guardWords } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
 // guards (plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh) decide for
@@ -10,6 +10,7 @@ import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuar
 // (shared/guard-fixtures/*.json, spec 033), which the shell test suites and
 // scripts/guard-fixtures.py read too, so the implementations cannot drift.
 
+const WORDS_MAX_BYTES = JSON.parse(readFileSync(new URL("../words.json", import.meta.url), "utf8")).maxBytes
 const REPO = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const GIT_GUARD = join(REPO, "plugins/git/hooks/guard.sh")
 const DB_GUARD = join(REPO, "plugins/db/hooks/guard.sh")
@@ -340,6 +341,44 @@ console.log("    guardWords(), guardRow(), appendGuardRow()")
   check("log: cut to the newest 200", "200 400", `${kept.length} ${JSON.parse(kept.at(-1)).at}`)
   appendGuardRow(dir, "../x", { at: 1 })
   check("log: an unsafe session id writes nothing", false, existsSync(join(sandbox, "x.jsonl")))
+  check("log: no temporary or lock file left", "s-1.jsonl", readdirSync(dir).join(" "))
+  check("verb: an entry name is not a subcommand", "pass", guardVerb("pass example-entry", "Bash"))
+  check("verb: a branch name is not a subcommand", "git", guardVerb("git feature-x", "Bash"))
+  check("verb: a listed subcommand", "pass show", guardVerb("pass show a/b", "Bash"))
+  // never through a link, never a FIFO, never a hang; loose modes we own are tightened
+  const target = join(sandbox, "target")
+  writeFileSync(target, "x\n")
+  symlinkSync(target, join(dir, "s-link.jsonl"))
+  appendGuardRow(dir, "s-link", { at: 1 })
+  check("log: a symlinked log is refused", "x\n", readFileSync(target, "utf8"))
+  if (process.platform !== "win32") {
+    execFileSync("mkfifo", [join(dir, "s-fifo.jsonl")])
+    const t0 = Date.now()
+    appendGuardRow(dir, "s-fifo", { at: 1 })
+    check("log: a FIFO is refused without blocking", true, Date.now() - t0 < 2000)
+    writeFileSync(join(dir, "s-loose.jsonl"), "")
+    chmodSync(join(dir, "s-loose.jsonl"), 0o644)
+    chmodSync(dir, 0o755)
+    appendGuardRow(dir, "s-loose", { at: 1 })
+    check("log: modes tightened", "700 600", `${(statSync(dir).mode & 0o777).toString(8)} ${(statSync(join(dir, "s-loose.jsonl")).mode & 0o777).toString(8)}`)
+  }
+  // a large log is read from its tail only
+  const pad = JSON.stringify({ at: 0, pad: "x".repeat(100) }) + "\n"
+  writeFileSync(join(dir, "s-big.jsonl"), pad.repeat(Math.ceil((2 * WORDS_MAX_BYTES) / pad.length)))
+  appendGuardRow(dir, "s-big", { at: 1 })
+  const big = readFileSync(join(dir, "s-big.jsonl"), "utf8").trim().split("\n")
+  check("log: a large log cut from its tail", "200 1", `${big.length} ${JSON.parse(big.at(-1)).at}`)
+  // a trim another writer holds is skipped: no row is lost
+  writeFileSync(join(dir, "s-held.jsonl.trim"), "")
+  for (let i = 0; i < 401; i++) appendGuardRow(dir, "s-held", { at: i })
+  check("log: a held trim loses no row", 401, readFileSync(join(dir, "s-held.jsonl"), "utf8").trim().split("\n").length)
+  // OpenCode's message: words, reason and the agent's line; the options turn each off
+  const deny = "git:workflow guard: hooks must not be bypassed (--no-verify); fix the hook failure instead"
+  const w = guardWords("deny", deny)
+  check("present: words, reason, context", [w.message, deny, w.context].join("\n\n"), guardPresent("deny", deny, {}).message)
+  check("present: guardUx off leaves the reason", deny, guardPresent("deny", deny, { CLAUDE_PLUGIN_OPTION_guardUx: "false" }).message)
+  check("present: guardLog off writes no row", false, guardPresent("deny", deny, { CLAUDE_PLUGIN_OPTION_GUARDLOG: "false" }).log)
+  check("present: logs by default", true, guardPresent("deny", deny, {}).log)
 }
 
 console.log(`\n    ${count} checks, ${failures} failed`)

@@ -55,7 +55,9 @@ dependencies = [
 name = "ai-gent-core"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "regex",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",

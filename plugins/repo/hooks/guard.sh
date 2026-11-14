@@ -111,15 +111,33 @@ _gw_verb() { # _gw_verb <command, JSON-escaped>: its verb, or nothing (never a v
   printf '%s\n' "$_gw_w" | grep -Eq '^[a-z][a-z0-9._-]{0,23}$' || return 0
   _gw_n="$(printf '%s' "$_gw_w" | tr -cd '0-9')"
   [ "${#_gw_n}" -lt 7 ] || return 0
-  case "$_gw_w" in
-    git | gh | pass | podman | docker)
-      if printf '%s\n' "$_gw_2" | grep -Eq '^[a-z][a-z-]{0,23}$'; then
-        printf '%s %s' "$_gw_w" "$_gw_2"
-        return 0
-      fi
+  # a second word only when the table lists it as a subcommand of the first (never an entry or a branch)
+  case "$_gw_w:$_gw_2" in
+    git:add | git:am | git:apply | git:bisect | git:blame | git:branch | git:checkout | git:cherry-pick | git:clean | git:clone | git:commit | git:config | git:diff | git:fetch | git:filter-branch | git:filter-repo | git:gc | git:init | git:log | git:merge | git:mv | git:notes | git:pull | git:push | git:rebase | git:reflog | git:remote | git:replace | git:reset | git:restore | git:revert | git:rm | git:show | git:stash | git:status | git:submodule | git:switch | git:tag | git:update-ref | git:worktree)
+      printf '%s %s' "$_gw_w" "$_gw_2"
+      return 0
+      ;;
+    gh:api | gh:auth | gh:gist | gh:issue | gh:pr | gh:release | gh:repo | gh:run | gh:secret | gh:ssh-key | gh:variable | gh:workflow)
+      printf '%s %s' "$_gw_w" "$_gw_2"
+      return 0
+      ;;
+    pass:cp | pass:edit | pass:find | pass:generate | pass:git | pass:grep | pass:init | pass:insert | pass:ls | pass:mv | pass:otp | pass:rm | pass:show)
+      printf '%s %s' "$_gw_w" "$_gw_2"
+      return 0
+      ;;
+    podman:build | podman:builder | podman:buildx | podman:compose | podman:container | podman:cp | podman:create | podman:exec | podman:image | podman:images | podman:inspect | podman:kill | podman:load | podman:login | podman:logout | podman:logs | podman:network | podman:pause | podman:pod | podman:ps | podman:pull | podman:push | podman:rm | podman:rmi | podman:run | podman:save | podman:start | podman:stop | podman:system | podman:tag | podman:volume)
+      printf '%s %s' "$_gw_w" "$_gw_2"
+      return 0
+      ;;
+    docker:build | docker:builder | docker:buildx | docker:compose | docker:container | docker:cp | docker:create | docker:exec | docker:image | docker:images | docker:inspect | docker:kill | docker:load | docker:login | docker:logout | docker:logs | docker:network | docker:pause | docker:pod | docker:ps | docker:pull | docker:push | docker:rm | docker:rmi | docker:run | docker:save | docker:start | docker:stop | docker:system | docker:tag | docker:volume)
+      printf '%s %s' "$_gw_w" "$_gw_2"
+      return 0
       ;;
   esac
   printf '%s' "$_gw_w"
+}
+_gw_mine() { # _gw_mine <path>: it belongs to the current user (POSIX has no test -O)
+  [ -n "$(find "$1" -prune -user "$(id -u)" -print 2>/dev/null)" ]
 }
 _gw_log() { # _gw_log deny|ask: one row (entry and verb only) in <log dir>/<session>.jsonl
   _gw_off guardLog GUARDLOG && return 0
@@ -139,18 +157,41 @@ _gw_log() { # _gw_log deny|ask: one row (entry and verb only) in <log dir>/<sess
   if [ -n "$_gw_v" ]; then _gw_v="\"$_gw_v\""; else _gw_v=null; fi
   if [ "$1" = ask ]; then _gw_o='"asked"'; else _gw_o=null; fi
   _gw_f="$_gw_dir/$_gw_sid.jsonl"
-  (umask 077 && mkdir -p "$_gw_dir" &&
+  # A subshell with umask 077: the directory 0700, the file and the cut copy 0600 (one we own is
+  # tightened). Only a regular file is written or read, never a link, a FIFO or a device, and at
+  # most the last 262144 bytes are read. The cut runs under flock on <file>.lock, skipped when
+  # flock is missing or another writer holds it (the file then grows until the next cut).
+  (
+    umask 077
+    mkdir -p "$_gw_dir" || exit 0
+    if _gw_mine "$_gw_dir"; then chmod 700 "$_gw_dir" || :; fi
+    if [ -e "$_gw_f" ] || [ -L "$_gw_f" ]; then
+      [ -f "$_gw_f" ] && [ ! -L "$_gw_f" ] || exit 0
+    fi
     printf '{"at":%s000,"guard":"%s","decision":"%s","entry":"%s","tool":"%s","verb":%s,"outcome":%s}\n' \
-      "$(date +%s)" "$_gw_id" "$1" "$_gw_match" "$_gw_tool" "$_gw_v" "$_gw_o" >>"$_gw_f") 2>/dev/null || return 0
-  if [ "$(wc -l <"$_gw_f")" -gt 400 ]; then
-    tail -n 200 "$_gw_f" >"$_gw_f.$$" 2>/dev/null && mv "$_gw_f.$$" "$_gw_f" 2>/dev/null
-  fi
+      "$(date +%s)" "$_gw_id" "$1" "$_gw_match" "$_gw_tool" "$_gw_v" "$_gw_o" >>"$_gw_f" || exit 0
+    if _gw_mine "$_gw_f"; then chmod 600 "$_gw_f" || :; fi
+    _gw_size=$(($(wc -c <"$_gw_f")))
+    [ "$_gw_size" -gt 262144 ] || [ $(($(tail -c 262144 "$_gw_f" | wc -l))) -gt 400 ] || exit 0
+    command -v flock >/dev/null 2>&1 && command -v mktemp >/dev/null 2>&1 || exit 0
+    if [ -e "$_gw_f.lock" ] || [ -L "$_gw_f.lock" ]; then
+      [ -f "$_gw_f.lock" ] && [ ! -L "$_gw_f.lock" ] || exit 0
+    fi
+    (
+      flock -n 9 || exit 0
+      _gw_t="$(mktemp "$_gw_dir/.$_gw_sid.jsonl.XXXXXXXX")" || exit 0
+      # a cut from the middle of a large file starts on a partial line: drop it
+      if tail -c 262144 "$_gw_f" | if [ "$_gw_size" -gt 262144 ]; then sed 1d; else cat; fi |
+        tail -n 200 >"$_gw_t" && mv -f "$_gw_t" "$_gw_f"; then :; else rm -f "$_gw_t"; fi
+    ) 9>>"$_gw_f.lock"
+  ) 2>/dev/null
   return 0
 }
 guard_emit() { # guard_emit deny|ask "<marker> <reason>"
   _gw_msg='' _gw_ctx=''
+  _gw_own=''
   if _gw_find "$2"; then
-    _gw_log "$1" || :
+    _gw_own=1
     if ! _gw_off guardUx GUARDUX; then
       _gw_name="${_gw_marker%:}"
       if [ "$1" = deny ]; then
@@ -173,6 +214,8 @@ guard_emit() { # guard_emit deny|ask "<marker> <reason>"
   [ -z "$_gw_ctx" ] || _gw_x=',"additionalContext":"'"$_gw_ctx"'"'
   [ -z "$_gw_msg" ] || _gw_y=',"systemMessage":"'"$_gw_msg"'"'
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"%s"%s}%s}\n' "$1" "$2" "$_gw_x" "$_gw_y"
+  # the row after the decision is out: a log that fails loses the row, never the decision
+  [ -z "$_gw_own" ] || _gw_log "$1" || :
 }
 # <<< guard words
 

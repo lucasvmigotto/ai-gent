@@ -1,7 +1,15 @@
 {
-  "//": "The guards friendly words and guard-log rules (specs/015-guard-ux, specs/024-guard-log): each guard prints them itself (ai-gent guard, the shell fallback in plugins/*/hooks/guard.sh, opencode/guard/rules.mjs). Copies: rust/crates/ai-gent-core/src/guard/words.json, opencode/guard/words.json and the generated block in each guard.sh; python3 scripts/consistency.py --sync-shared-code rewrites them.",
+  "//": "The guards friendly words and guard-log rules (specs/015-guard-ux, specs/024-guard-log): each guard prints them itself (ai-gent guard, the shell fallback in plugins/*/hooks/guard.sh, opencode/guard/rules.mjs). A row keeps the first word of a Bash command and, for a first word listed under verbs, a second word only when it is a listed subcommand (never an entry, a branch or a value); a log file larger than maxBytes is read from its last maxBytes only. Copies: rust/crates/ai-gent-core/src/guard/words.json, opencode/guard/words.json and the generated block in each guard.sh; python3 scripts/consistency.py --sync-shared-code rewrites them.",
   "schema": 1,
   "maxRows": 200,
+  "maxBytes": 262144,
+  "verbs": {
+    "git": ["add", "am", "apply", "bisect", "blame", "branch", "checkout", "cherry-pick", "clean", "clone", "commit", "config", "diff", "fetch", "filter-branch", "filter-repo", "gc", "init", "log", "merge", "mv", "notes", "pull", "push", "rebase", "reflog", "remote", "replace", "reset", "restore", "revert", "rm", "show", "stash", "status", "submodule", "switch", "tag", "update-ref", "worktree"],
+    "gh": ["api", "auth", "gist", "issue", "pr", "release", "repo", "run", "secret", "ssh-key", "variable", "workflow"],
+    "pass": ["cp", "edit", "find", "generate", "git", "grep", "init", "insert", "ls", "mv", "otp", "rm", "show"],
+    "podman": ["build", "builder", "buildx", "compose", "container", "cp", "create", "exec", "image", "images", "inspect", "kill", "load", "login", "logout", "logs", "network", "pause", "pod", "ps", "pull", "push", "rm", "rmi", "run", "save", "start", "stop", "system", "tag", "volume"],
+    "docker": ["build", "builder", "buildx", "compose", "container", "cp", "create", "exec", "image", "images", "inspect", "kill", "load", "login", "logout", "logs", "network", "pause", "pod", "ps", "pull", "push", "rm", "rmi", "run", "save", "start", "stop", "system", "tag", "volume"]
+  },
   "guards": {
     "git": {
       "marker": "git:workflow guard:",

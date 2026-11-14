@@ -47,6 +47,11 @@ pub struct Table {
     /// Rows a log keeps.
     #[serde(rename = "maxRows")]
     pub max_rows: usize,
+    /// The most bytes read from a log (its tail) when trimming it.
+    #[serde(rename = "maxBytes")]
+    pub max_bytes: u64,
+    /// The subcommands kept as a second word, by first word.
+    pub verbs: BTreeMap<String, Vec<String>>,
     /// By guard id.
     pub guards: BTreeMap<String, Guard>,
 }
@@ -135,8 +140,8 @@ pub fn hook_line(d: &Decision, w: &Words) -> Option<String> {
 }
 
 /// The verb of a Bash command: the first word (a path reduced to its last segment), only a plain
-/// lowercase word with fewer than seven digits; for git, gh, pass, podman and docker also a plain
-/// second word. Never a value, an argument or a path.
+/// lowercase word with fewer than seven digits, and for a first word the table's `verbs` lists, the
+/// second word when it is one of its listed subcommands. Never a value, an entry, a branch or a path.
 #[must_use]
 pub fn verb(command: Option<&str>, tool: &str) -> Option<String> {
     if tool != "Bash" {
@@ -158,13 +163,11 @@ pub fn verb(command: Option<&str>, tool: &str) -> Option<String> {
         return None;
     }
     let second = words.next().unwrap_or("");
-    let second_ok = second.len() <= 24
-        && second
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_lowercase())
-        && second.chars().all(|c| c.is_ascii_lowercase() || c == '-');
-    if matches!(first, "git" | "gh" | "pass" | "podman" | "docker") && second_ok {
+    if table()
+        .verbs
+        .get(first)
+        .is_some_and(|subs| subs.iter().any(|v| v == second))
+    {
         Some(format!("{first} {second}"))
     } else {
         Some(first.to_string())
@@ -225,45 +228,175 @@ pub fn is_session_id(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-/// Append a row to `<dir>/<session>.jsonl` (0700 directory, 0600 file on Unix); past twice the
-/// row limit the file is cut to the newest rows.
+/// Append a row to `<dir>/<session>.jsonl`. The directory is created 0700 and the file 0600 on
+/// Unix (an existing one we own is tightened to that); the file is opened without following a
+/// symlink and without blocking, and anything but a regular file is refused. Past twice the row
+/// limit (or `maxBytes`) the file is cut to its newest rows, read from its last `maxBytes` only,
+/// under a lock on `<session>.jsonl.lock`; a lock held by another writer skips the cut this time.
 ///
 /// # Errors
-/// When the directory or file cannot be created or written.
+/// When the directory or file cannot be created or written, or the path is not a regular file.
 pub fn append(dir: &Path, session: &str, row: &Value) -> std::io::Result<()> {
     if !is_session_id(session) {
         return Ok(());
     }
+    make_dir(dir)?;
+    let path = dir.join(format!("{session}.jsonl"));
+    let mut file = open_log(&path, true)?;
+    let mut line = row.to_string();
+    line.push('\n');
+    file.write_all(line.as_bytes())?;
+    let len = file.metadata()?.len();
+    drop(file);
+    let t = table();
+    // Past maxBytes it is cut without counting; under it, its rows are counted (at most maxBytes read).
+    if len > t.max_bytes || count_lines(&path, t.max_bytes)? > 2 * t.max_rows {
+        trim(dir, session, &path, t.max_rows, t.max_bytes)?;
+    }
+    Ok(())
+}
+
+fn make_dir(dir: &Path) -> std::io::Result<()> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::DirBuilderExt;
+        use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
         std::fs::DirBuilder::new()
             .recursive(true)
             .mode(0o700)
             .create(dir)?;
+        let meta = std::fs::metadata(dir)?;
+        if meta.permissions().mode() & 0o077 != 0 && owned(&meta) {
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        }
     }
     #[cfg(not(unix))]
     std::fs::create_dir_all(dir)?;
-    let path = dir.join(format!("{session}.jsonl"));
+    Ok(())
+}
+
+#[cfg(unix)]
+fn owned(meta: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    meta.uid() == rustix::process::getuid().as_raw()
+}
+
+/// Open the log (to append, or to read) without following a symlink or blocking on a FIFO; refuse
+/// anything that is not a regular file, and tighten a file we own to 0600.
+fn open_log(path: &Path, write: bool) -> std::io::Result<std::fs::File> {
     let mut opts = std::fs::OpenOptions::new();
-    opts.create(true).append(true);
+    if write {
+        opts.create(true).append(true);
+    } else {
+        opts.read(true);
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
+        opts.mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
-    let mut line = row.to_string();
-    line.push('\n');
-    opts.open(&path)?.write_all(line.as_bytes())?;
-    let max = table().max_rows;
-    let text = std::fs::read_to_string(&path)?;
-    let lines: Vec<&str> = text.lines().collect();
-    if lines.len() > 2 * max {
-        let tmp = dir.join(format!("{session}.jsonl.{}", std::process::id()));
-        std::fs::write(&tmp, lines[lines.len() - max..].join("\n") + "\n")?;
-        std::fs::rename(&tmp, &path)?;
+    #[cfg(not(unix))]
+    if std::fs::symlink_metadata(path).is_ok_and(|m| !m.file_type().is_file()) {
+        return Err(not_regular(path));
     }
+    let file = opts.open(path)?;
+    let meta = file.metadata()?;
+    if !meta.file_type().is_file() {
+        return Err(not_regular(path));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if write && meta.permissions().mode() & 0o077 != 0 && owned(&meta) {
+            file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+        }
+    }
+    Ok(file)
+}
+
+fn not_regular(path: &Path) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        format!("{} is not a regular file", path.display()),
+    )
+}
+
+/// The last `cap` bytes of the log.
+fn read_tail(path: &Path, cap: u64) -> std::io::Result<Vec<u8>> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut file = open_log(path, false)?;
+    let len = file.metadata()?.len();
+    file.seek(SeekFrom::Start(len.saturating_sub(cap)))?;
+    let mut buf = Vec::new();
+    file.take(cap).read_to_end(&mut buf)?;
+    Ok(buf)
+}
+
+#[allow(clippy::naive_bytecount)] // at most maxBytes, once per row; no crate for it
+fn count_lines(path: &Path, cap: u64) -> std::io::Result<usize> {
+    Ok(read_tail(path, cap)?
+        .iter()
+        .filter(|b| **b == b'\n')
+        .count())
+}
+
+fn trim(dir: &Path, session: &str, path: &Path, max: usize, cap: u64) -> std::io::Result<()> {
+    let lock_path = dir.join(format!("{session}.jsonl.lock"));
+    let lock = open_log(&lock_path, true)?;
+    match lock.try_lock() {
+        Ok(()) => {}
+        Err(std::fs::TryLockError::WouldBlock) => return Ok(()),
+        Err(std::fs::TryLockError::Error(e)) => return Err(e),
+    }
+    let tail = read_tail(path, cap)?;
+    let text = String::from_utf8_lossy(&tail);
+    let mut lines: Vec<&str> = text.lines().collect();
+    if tail.len() as u64 >= cap && !lines.is_empty() {
+        lines.remove(0); // the first line read from the middle of the file may be cut
+    }
+    let keep = &lines[lines.len().saturating_sub(max)..];
+    let (tmp, mut file) = temp_file(dir, session)?;
+    let body = keep.join("\n") + "\n";
+    if let Err(e) = file
+        .write_all(body.as_bytes())
+        .and_then(|()| std::fs::rename(&tmp, path))
+    {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    drop(lock);
     Ok(())
+}
+
+/// A new file `<dir>/.<session>.jsonl.<random>` (`create_new`, 0600, never through a symlink).
+fn temp_file(dir: &Path, session: &str) -> std::io::Result<(PathBuf, std::fs::File)> {
+    use std::hash::{BuildHasher, Hasher};
+    for _ in 0..8 {
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u32(std::process::id());
+        h.write_u128(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos()),
+        );
+        let tmp = dir.join(format!(".{session}.jsonl.{:016x}", h.finish()));
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600).custom_flags(libc::O_NOFOLLOW);
+        }
+        match opts.open(&tmp) {
+            Ok(f) => return Ok((tmp, f)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "no free temporary name",
+    ))
 }
 
 /// Whether a plugin option is set to false in the hook's environment (`CLAUDE_PLUGIN_OPTION_<key>`,
@@ -361,6 +494,16 @@ mod tests {
         assert_eq!(verb(Some("abc1234567 x"), "Bash"), None);
         assert_eq!(verb(Some("git push"), "Read"), None);
         assert_eq!(verb(Some("gh pr create"), "Bash"), Some("gh pr".into()));
+        // a second word that is not a listed subcommand (an entry, a branch) is never kept
+        assert_eq!(
+            verb(Some("pass example-entry"), "Bash"),
+            Some("pass".into())
+        );
+        assert_eq!(verb(Some("git feature-x"), "Bash"), Some("git".into()));
+        assert_eq!(
+            verb(Some("pass show x/y"), "Bash"),
+            Some("pass show".into())
+        );
     }
 
     #[test]
@@ -375,6 +518,65 @@ mod tests {
         assert!(text.ends_with(&format!("{{\"at\":{}}}\n", 2 * max)));
         append(dir.path(), "../x", &json!({})).unwrap();
         assert!(!dir.path().join("../x.jsonl").exists());
+        // no temporary file is left behind
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn append_refuses_links_and_fifos_and_tightens_modes() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target");
+        std::fs::write(&target, "x\n").unwrap();
+        std::os::unix::fs::symlink(&target, dir.path().join("s-link.jsonl")).unwrap();
+        assert!(append(dir.path(), "s-link", &json!({})).is_err());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "x\n");
+        let fifo = dir.path().join("s-fifo.jsonl");
+        assert!(
+            std::process::Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let start = std::time::Instant::now();
+        assert!(append(dir.path(), "s-fifo", &json!({})).is_err());
+        assert!(start.elapsed() < std::time::Duration::from_secs(2));
+        let loose = dir.path().join("s-loose.jsonl");
+        std::fs::write(&loose, "").unwrap();
+        std::fs::set_permissions(&loose, std::fs::Permissions::from_mode(0o644)).unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        append(dir.path(), "s-loose", &json!({})).unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&loose), 0o600);
+        assert_eq!(mode(dir.path()), 0o700);
+    }
+
+    #[test]
+    fn a_large_log_is_read_from_its_tail_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("s-big.jsonl");
+        let row = format!("{}\n", json!({ "at": 0, "pad": "x".repeat(100) }));
+        let big = row.repeat(usize::try_from(2 * table().max_bytes).unwrap() / row.len());
+        std::fs::write(&path, big).unwrap();
+        append(dir.path(), "s-big", &json!({ "at": 1 })).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text.lines().count(), table().max_rows);
+        assert!(text.ends_with("{\"at\":1}\n"));
+    }
+
+    #[test]
+    fn a_held_lock_skips_the_cut_and_loses_no_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let max = table().max_rows;
+        let lock = std::fs::File::create(dir.path().join("s-l.jsonl.lock")).unwrap();
+        lock.lock().unwrap();
+        for i in 0..=(2 * max) {
+            append(dir.path(), "s-l", &json!({ "at": i })).unwrap();
+        }
+        let text = std::fs::read_to_string(dir.path().join("s-l.jsonl")).unwrap();
+        assert_eq!(text.lines().count(), 2 * max + 1);
     }
 
     #[test]

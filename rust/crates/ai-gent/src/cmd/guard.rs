@@ -142,36 +142,53 @@ fn evaluate_input(a: &GuardArgs, input: &str) -> Result<Option<String>, String> 
 }
 
 /// The hook line with the guard's own words, and the decision appended to the session's guard
-/// log (specs 015 and 024): the plugin options `guardUx` and `guardLog` (false) turn each off. A
-/// log that cannot be written loses the row, never the decision.
+/// log (specs 015 and 024): the plugin options `guardUx` and `guardLog` (false) turn each off. The
+/// line is built first; the row is written after it, on a thread given at most `LOG_DEADLINE`, so a
+/// log that is slow or cannot be written loses the row, never changes or holds up the decision.
 fn say(d: &Decision, ev: &Event, input: &str) -> Option<String> {
     let env = |k: &str| std::env::var(k).ok();
-    if !words::option_off(env, "guardLog") {
-        let session = serde_json::from_str::<Value>(input)
-            .ok()
-            .and_then(|v| v["session_id"].as_str().map(str::to_string))
-            .unwrap_or_default();
-        let at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |t| u64::try_from(t.as_millis()).unwrap_or(u64::MAX));
-        let dir = words::log_dir(|k| {
-            std::env::var_os(k)
-                .filter(|v| !v.is_empty())
-                .map(std::path::PathBuf::from)
-        });
-        if let (Some(row), Some(dir)) = (words::row(d, &ev.tool_name, ev.command(), at), dir)
-            && words::is_session_id(&session)
-            && let Err(e) = words::append(&dir, &session, &row)
-        {
-            eprintln!("ai-gent guard: cannot write the guard log: {e}");
-        }
-    }
     let w = if words::option_off(env, "guardUx") {
         words::Words::default()
     } else {
         words::words(d)
     };
-    words::hook_line(d, &w)
+    let line = words::hook_line(d, &w);
+    if !words::option_off(env, "guardLog") {
+        log_row(d, ev, input);
+    }
+    line
+}
+
+const LOG_DEADLINE: std::time::Duration = std::time::Duration::from_millis(500);
+
+fn log_row(d: &Decision, ev: &Event, input: &str) {
+    let session = serde_json::from_str::<Value>(input)
+        .ok()
+        .and_then(|v| v["session_id"].as_str().map(str::to_string))
+        .unwrap_or_default();
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |t| u64::try_from(t.as_millis()).unwrap_or(u64::MAX));
+    let dir = words::log_dir(|k| {
+        std::env::var_os(k)
+            .filter(|v| !v.is_empty())
+            .map(std::path::PathBuf::from)
+    });
+    let (Some(row), Some(dir)) = (words::row(d, &ev.tool_name, ev.command(), at), dir) else {
+        return;
+    };
+    if !words::is_session_id(&session) {
+        return;
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(words::append(&dir, &session, &row));
+    });
+    match rx.recv_timeout(LOG_DEADLINE) {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => eprintln!("ai-gent guard: cannot write the guard log: {e}"),
+        Err(_) => eprintln!("ai-gent guard: the guard log took too long; the row is lost"),
+    }
 }
 
 fn list_reasons(json_out: bool) -> Exit {

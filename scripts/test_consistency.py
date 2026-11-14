@@ -244,7 +244,7 @@ class StageNames(unittest.TestCase):
 
 
 class GuardWords(unittest.TestCase):
-    WORDS = json.dumps({"schema": 1, "maxRows": 200, "guards": {"git": {"marker": "git:workflow guard:", "skill": "git:workflow",
+    WORDS = json.dumps({"schema": 1, "maxRows": 200, "maxBytes": 262144, "verbs": {"git": ["push"]}, "guards": {"git": {"marker": "git:workflow guard:", "skill": "git:workflow",
                         "entries": [{"match": "hooks must not be bypassed", "say": "x", "instead": "y"}]}}})
     GUARD = 'decide deny "hooks must not be bypassed (--no-verify); fix it"\n'
 

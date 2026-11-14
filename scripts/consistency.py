@@ -531,8 +531,11 @@ def words_block(root: Path) -> str:
             vals += f" _gw_do={_sq(_js(e['instead']))}" if e.get("instead") else ""
             vals += f" _gw_if={_sq(_js(e['allowIf']))}" if e.get("allowIf") else ""
             entries.append(f"    {gid}:*{_sq(e['match'])}*) {vals} ;;")
+    # one case pattern per first word; a table with none still yields a valid (never matching) case
+    verbs = [" | ".join(f"{first}:{sub}" for sub in subs) + ")" for first, subs in table.get("verbs", {}).items() if subs] or ["'':)"]
     text = (root / "shared" / "guard-words.sh").read_text(encoding="utf-8")
-    return (text.replace("@MAX_ROWS@", str(table["maxRows"])).replace("@TRIM_AT@", str(2 * table["maxRows"]))
+    text = text.replace("    @VERBS@\n", "".join(f"    {v}\n" if i == len(verbs) - 1 else f"    {v}\n      printf '%s %s' \"$_gw_w\" \"$_gw_2\"\n      return 0\n      ;;\n" for i, v in enumerate(verbs)))
+    return (text.replace("@MAX_BYTES@", str(table.get("maxBytes", 262144))).replace("@MAX_ROWS@", str(table["maxRows"])).replace("@TRIM_AT@", str(2 * table["maxRows"]))
             .replace("    @GUARDS@\n", "\n".join(guards) + "\n").replace("    @ENTRIES@\n", "\n".join(entries) + "\n"))
 
 
