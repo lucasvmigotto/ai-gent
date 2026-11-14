@@ -427,11 +427,16 @@ mod sqlite {
         assert_eq!(rows(&t), 3);
     }
 
+    const USER: &str = "backup_user_q";
+    const HOST: &str = "backup-host.example";
+
     fn failed(r: Result<impl std::fmt::Debug, BackupError>, needle: &str) -> String {
         match r {
             Err(BackupError::Failed(m)) => {
                 assert!(m.contains(needle), "{m}");
-                assert!(!m.contains(PW), "{m}");
+                for secret in [PW, USER, HOST, "app.db", "pipe.db", "/"] {
+                    assert!(!m.contains(secret), "{secret} in: {m}");
+                }
                 m
             }
             other => panic!("expected a failure containing {needle:?}, got {other:?}"),
@@ -440,7 +445,83 @@ mod sqlite {
 
     fn secret(mut t: BackupTarget) -> BackupTarget {
         t.password = Some(PW.into());
+        t.user = Some(USER.into());
+        t.host = Some(HOST.into());
         t
+    }
+
+    fn leftovers(dir: &Path) -> Vec<String> {
+        std::fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains("restoring"))
+            .collect()
+    }
+
+    fn wipe(t: &BackupTarget) {
+        Connection::open(t.path.as_deref().unwrap())
+            .unwrap()
+            .execute_batch("DELETE FROM c")
+            .unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_sqlite_database_or_backup_behind_a_link_is_neither_backed_up_nor_restored() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = tempfile::tempdir().unwrap();
+        let good = secret(db(dir.path()));
+        let fake = Fake::ok();
+        let b = EngineBackup::new(&fake);
+        let loc = b.take(&good, ID, backups.path()).unwrap();
+        // The database path is a link (to the real database): refused both ways, nothing written.
+        let link = dir.path().join("link.db");
+        std::os::unix::fs::symlink(good.path.as_deref().unwrap(), &link).unwrap();
+        let mut t = good.clone();
+        t.path = Some(link.to_string_lossy().into());
+        failed(
+            b.take(&t, "20260101-120000-cd34", backups.path()),
+            "symbolic link",
+        );
+        failed(b.restore(&t, ID, &loc, backups.path()), "symbolic link");
+        // The backup file is swapped for a link to another valid database: refused, the database untouched.
+        let other = dir.path().join("other.db");
+        Connection::open(&other)
+            .unwrap()
+            .execute_batch("CREATE TABLE c (id INTEGER)")
+            .unwrap();
+        std::fs::remove_file(&loc).unwrap();
+        std::os::unix::fs::symlink(&other, &loc).unwrap();
+        failed(b.restore(&good, ID, &loc, backups.path()), "symbolic link");
+        assert_eq!(rows(&good), 3);
+        assert!(leftovers(backups.path()).is_empty());
+    }
+
+    #[test]
+    fn a_sqlite_restore_copies_from_a_private_snapshot_and_leaves_none_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let backups = tempfile::tempdir().unwrap();
+        let t = secret(db(dir.path()));
+        let fake = Fake::ok();
+        let mut b = EngineBackup::new(&fake);
+        let loc = b.take(&t, ID, backups.path()).unwrap();
+        wipe(&t);
+        b.restore(&t, ID, &loc, backups.path()).unwrap();
+        assert_eq!(rows(&t), 3);
+        assert!(
+            leftovers(backups.path()).is_empty(),
+            "snapshot removed after success"
+        );
+        // A failing restore (cap below the backup) removes its snapshot too, and writes nothing.
+        wipe(&t);
+        b.max_bytes = 100;
+        failed(b.restore(&t, ID, &loc, backups.path()), "size cap");
+        assert_eq!(rows(&t), 0);
+        assert!(
+            leftovers(backups.path()).is_empty(),
+            "snapshot removed after failure"
+        );
     }
 
     fn files_in(dir: &Path) -> usize {

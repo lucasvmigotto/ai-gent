@@ -49,7 +49,7 @@ tokio-postgres-rustls = { version = "0.14", default-features = false, features =
 mysql = { version = "28", default-features = false, features = ["minimal-rust", "rustls-tls-ring"], optional = true }
 mysql_common = { version = "0.37", default-features = false, optional = true }
 tempfile = { workspace = true, optional = true }
-rusqlite = { version = "0.41", features = ["bundled", "hooks", "backup"], optional = true }
+rusqlite = { version = "0.41", features = ["bundled", "hooks", "backup", "limits"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

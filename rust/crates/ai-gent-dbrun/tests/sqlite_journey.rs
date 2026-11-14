@@ -143,6 +143,16 @@ fn no_secret(texts: &[&str]) {
     }
 }
 
+/// Neither the repository's nor the outside database's path appears: messages name roles, not paths.
+fn no_path(r: &Sandbox, texts: &[&str]) {
+    for t in texts {
+        for p in [&r.repo, &r.outside] {
+            let p = p.to_string_lossy();
+            assert!(!t.contains(p.as_ref()), "{p} in: {t}");
+        }
+    }
+}
+
 fn refused(r: Result<Done, Fail>, needle: &str) {
     match r {
         Err(f @ Fail::Refused(_)) => {
@@ -241,6 +251,7 @@ fn a_file_inside_the_repository_plans_applies_and_restores_with_the_real_clock()
     );
     assert_eq!(statuses(&db), ["active", "active", "blocked"]);
     no_secret(&[&d.out, &r.written()]);
+    no_path(&r, &[&d.out, &r.written()]);
 }
 
 #[test]
@@ -285,6 +296,7 @@ fn a_file_outside_the_repository_or_behind_a_link_is_never_planned_applied_or_re
     }
     assert_eq!(snapshot(&prod), before, "the outside database is unchanged");
     no_secret(&[&r.written()]);
+    no_path(&r, &[&r.written()]);
 }
 
 #[test]
@@ -322,15 +334,36 @@ fn a_file_swapped_for_a_link_after_its_plan_is_refused_by_the_proof_and_by_the_c
         run.apply(&now, &id, true, 30.0),
         "needs a proven local database",
     );
-    // A stale proof reaches the connector anyway: the write is refused there, nothing is written outside.
-    let d = run.apply(&proven, &id, true, 30.0).unwrap();
-    assert_ne!(d.code, EXIT_OK, "{}", d.out);
+    // A stale proof gets past the policy: the backup before the write refuses the link (the connector would
+    // refuse it too), nothing runs and nothing is written outside.
+    let shown = match run.apply(&proven, &id, true, 30.0) {
+        Ok(d) => {
+            assert_ne!(d.code, EXIT_OK, "{}", d.out);
+            format!("{}{}", d.out, d.err)
+        }
+        Err(f) => {
+            assert_ne!(f.code(), EXIT_OK);
+            f.report(&redactor())
+        }
+    };
+    assert!(shown.contains("symbolic link"), "{shown}");
+    // The connector's own refusal, on the same stale target.
+    let mut req = ai_gent_dbrun::connector::Request::new(
+        "sqlite",
+        proven.conn.clone(),
+        ai_gent_dbrun::connector::Mode::Write,
+        vec!["DELETE FROM customer".into()],
+    );
+    req.expect = vec![Some(3)];
+    let got = ai_gent_dbrun::connector::Connector::run(&SqliteConnector, &req);
     assert!(
-        d.out.contains("symbolic link") || d.err.contains("symbolic link"),
-        "{d:?}"
+        !got.ok && got.error.as_deref().unwrap_or("").contains("symbolic link"),
+        "{got:?}"
     );
     // And a restore through the link is refused by the backup layer too.
     assert!(run.restore(&proven, &id, true).is_err());
     assert_eq!(snapshot(&prod), before, "the outside database is unchanged");
-    no_secret(&[&d.out, &d.err, &r.written()]);
+    let line = got.to_line();
+    no_secret(&[&shown, &line, &r.written()]);
+    no_path(&r, &[&shown, &line, &r.written()]);
 }

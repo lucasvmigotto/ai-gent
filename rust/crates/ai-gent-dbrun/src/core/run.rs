@@ -642,8 +642,10 @@ impl Runner<'_> {
             {
                 Ok(l) => {
                     location = l;
-                    self.log
-                        .result(&entry, &format!("backup taken: {location}"))?;
+                    self.log.result(
+                        &entry,
+                        &format!("backup taken: the backup file of plan {}", plan.id),
+                    )?;
                 }
                 Err(e) => {
                     release_apply(&self.plans_dir, plan_id);
@@ -791,7 +793,7 @@ impl Runner<'_> {
             "restore",
             &format!("restore plan {}", plan.id),
             &[],
-            &format!("from {location}"),
+            &format!("from the backup file of plan {}", plan.id),
         )?;
         match self
             .backup
@@ -801,7 +803,10 @@ impl Runner<'_> {
                 self.log.result(&entry, "restored")?;
                 Ok(Done {
                     code: EXIT_OK,
-                    out: format!("RESTORED {} from {location}\n", t.name),
+                    out: format!(
+                        "RESTORED {} from the backup file of plan {}\n",
+                        t.name, plan.id
+                    ),
                     err: String::new(),
                 })
             }

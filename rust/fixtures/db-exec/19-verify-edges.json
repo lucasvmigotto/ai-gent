@@ -109,16 +109,19 @@
           1
         ]
       },
-      "difference": "Q-001",
+      "difference": "D-017",
       "expected": {
-        "ok": true,
-        "committed": true,
-        "results": [
-          {
-            "rowcount": 1
-          }
-        ]
-      }
+        "ok": false,
+        "stage": "connect",
+        "error_contains": "invalid expect: 3 entries for 1 statements"
+      },
+      "only": "port",
+      "absent": [
+        "results",
+        "committed",
+        "seconds"
+      ],
+      "note": "dbrun.py ignored the extra entries and committed (D-017, Python column); the port refuses before running, so the step is port only, as the bad-timeout steps of fixture 18"
     },
     {
       "request": {
@@ -135,7 +138,7 @@
           {
             "rows": [
               [
-                11
+                10
               ],
               [
                 20

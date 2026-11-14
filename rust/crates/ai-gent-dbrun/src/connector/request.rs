@@ -12,8 +12,9 @@
 //! - [`rowcount`]: the row count of a statement, always the server's own (never read from the
 //!   statement text, PostgreSQL review finding 1): rows returned `-1`, DDL `0`, DML the server count.
 //! - [`verify_counts`]: the write-mode check of the counts against `expect`, with the Python message.
-use super::{ExecResult, Request, Stage};
+use super::{ExecResult, Mode, Request, Stage};
 use crate::core::fields;
+use std::fmt::Write as _;
 use std::time::Duration;
 
 /// Timeout used when a request names none.
@@ -55,6 +56,30 @@ pub fn text_value(bytes: &[u8]) -> String {
     }
 }
 
+/// Most bytes of one text value a result carries; a longer value is cut there and marked.
+pub const MAX_VALUE_BYTES: usize = 1024 * 1024;
+/// Most bytes of values one result carries in all (the request line limit): past it the execution fails.
+pub const MAX_RESULT_BYTES: usize = MAX_REQUEST_LINE;
+
+/// [`text_value`] of at most [`MAX_VALUE_BYTES`] bytes: a longer value keeps its first whole characters
+/// within the cap and ends with ` <truncated: N bytes in all>`, so a cut is never mistaken for the value.
+#[must_use]
+pub fn text_value_capped(bytes: &[u8], cap: usize) -> String {
+    if bytes.len() <= cap {
+        return text_value(bytes);
+    }
+    let mut head = &bytes[..cap];
+    // Do not split a character at the cut: an incomplete sequence at the end is dropped, not replaced.
+    if let Err(e) = std::str::from_utf8(head)
+        && e.error_len().is_none()
+    {
+        head = &head[..e.valid_up_to()];
+    }
+    let mut text = text_value(head);
+    let _ = write!(text, " <truncated: {} bytes in all>", bytes.len());
+    text
+}
+
 /// The request timeout as a duration.
 ///
 /// # Errors
@@ -76,6 +101,16 @@ pub fn validate(req: &Request) -> Result<(), String> {
     if req.max_rows > MAX_ROWS_LIMIT {
         return Err(format!(
             "invalid max_rows: it must be at most {MAX_ROWS_LIMIT}"
+        ));
+    }
+    // Owner decision (chat 2026-11-14), D-017: one entry per statement (`null` skips one); an empty list
+    // leaves every statement unchecked, as Python's plan with no `--expect`.
+    if req.mode == Mode::Write && !req.expect.is_empty() && req.expect.len() != req.statements.len()
+    {
+        return Err(format!(
+            "invalid expect: {} entries for {} statements; give one per statement (null skips one)",
+            req.expect.len(),
+            req.statements.len()
         ));
     }
     if STRING_BUILDING_ENGINES.contains(&req.engine.as_str()) {
@@ -142,9 +177,8 @@ pub fn rowcount(kind: CountKind, server_count: Option<i64>) -> Result<i64, &'sta
 }
 
 /// Compares a write's row counts with the plan's `expect`; `None` skips a statement. Returns the
-/// failure message (stage `verify`) or `None` when every checked statement matches. An `expect`
-/// entry with no statement behind it is ignored, as the Python runner does (listed in
-/// `differences.md` as a question).
+/// failure message (stage `verify`) or `None` when every checked statement matches. A length mismatch never
+/// gets here: [`validate`] refuses it before the connector runs (D-017).
 #[must_use]
 pub fn verify_counts(expect: &[Option<i64>], counts: &[i64]) -> Option<String> {
     let mismatches: Vec<String> = expect
@@ -289,6 +323,48 @@ mod tests {
             format!("caf\u{FFFD} \u{FFFD}{INVALID_UTF8_MARK}")
         );
         assert_eq!(text_value(b""), "");
+    }
+
+    #[test]
+    fn a_long_value_is_cut_on_a_character_boundary_and_marked() {
+        assert_eq!(text_value_capped(b"abc", 3), "abc");
+        assert_eq!(
+            text_value_capped(b"abcd", 3),
+            "abc <truncated: 4 bytes in all>"
+        );
+        // `é` is two bytes: a cut inside it drops it whole.
+        assert_eq!(
+            text_value_capped("aé".as_bytes(), 2),
+            "a <truncated: 3 bytes in all>"
+        );
+        let big = vec![b'x'; 20 * 1024 * 1024];
+        let out = text_value_capped(&big, MAX_VALUE_BYTES);
+        assert!(out.len() < MAX_VALUE_BYTES + 64);
+        assert!(out.ends_with(" <truncated: 20971520 bytes in all>"));
+    }
+
+    #[test]
+    fn an_expect_of_another_length_than_the_statements_is_refused_both_ways() {
+        let mut req = Request::new(
+            "sqlite",
+            ConnFacts::default(),
+            Mode::Write,
+            vec!["UPDATE t SET n = 1".into(), "DELETE FROM t".into()],
+        );
+        for (expect, ok) in [
+            (vec![Some(1)], false),
+            (vec![Some(1), None, Some(3)], false),
+            (vec![Some(1), None], true),
+            (vec![None, None], true),
+            (vec![], true),
+        ] {
+            req.expect.clone_from(&expect);
+            let got = validate(&req);
+            assert_eq!(got.is_ok(), ok, "{expect:?}: {got:?}");
+            if let Err(m) = got {
+                assert!(m.starts_with("invalid expect: "), "{m}");
+            }
+        }
     }
 
     #[test]
