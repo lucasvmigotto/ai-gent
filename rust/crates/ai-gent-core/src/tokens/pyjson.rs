@@ -118,14 +118,26 @@ pub fn obj(pairs: Vec<(&str, J)>) -> J {
 struct P<'a> {
     b: &'a [u8],
     i: usize,
+    unique: bool,
 }
 
 /// Parse one JSON document; `None` on any error (like a `JSONDecodeError`).
 #[must_use]
 pub fn parse(text: &str) -> Option<J> {
+    parse_with(text, false)
+}
+
+/// Like [`parse`], but an object that repeats a key is an error too (servers disagree on which wins).
+#[must_use]
+pub fn parse_unique(text: &str) -> Option<J> {
+    parse_with(text, true)
+}
+
+fn parse_with(text: &str, unique: bool) -> Option<J> {
     let mut p = P {
         b: text.as_bytes(),
         i: 0,
+        unique,
     };
     p.ws();
     let v = p.value(0)?;
@@ -170,6 +182,9 @@ impl P<'_> {
                     }
                     self.ws();
                     let x = self.value(depth + 1)?;
+                    if self.unique && v.get(&k).is_some() {
+                        return None;
+                    }
                     v.set(&k, x);
                     self.ws();
                     if self.eat(",") {
@@ -247,6 +262,9 @@ impl P<'_> {
 
     fn hex4(&mut self) -> Option<u32> {
         let h = self.b.get(self.i..self.i + 4)?;
+        if !h.iter().all(u8::is_ascii_hexdigit) {
+            return None; // from_str_radix would take a sign
+        }
         self.i += 4;
         u32::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok()
     }

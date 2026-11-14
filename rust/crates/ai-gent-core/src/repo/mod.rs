@@ -25,6 +25,7 @@ pub mod chain;
 pub mod cli;
 pub mod detect;
 pub mod entry;
+pub mod graphql;
 pub mod http;
 pub mod platforms;
 pub mod project_status;

@@ -36,7 +36,10 @@ REPORUN="python3 <plugin>/scripts/reporun.py"     # <plugin> = this plugin's dir
 
 - **Reads run freely**: list, view, show, status, checks, diff, search,
   query, and `GET`. A `POST` that only queries counts as a read: GitHub
-  and GitLab GraphQL without `mutation`, Azure Boards WIQL, Jira search.
+  and GitLab GraphQL whose JSON body runs a `query` operation (the one
+  `operationName` names, if there are several; a mutation, a subscription
+  or a body the runner can't read is a write), Azure Boards WIQL, Jira
+  search.
 - **Everything else is a write** — create, comment, edit, label, assign,
   transition, approve, merge, close, re-run — and unknown subcommands are
   writes too. A write needs `--write`, which reporun requires and the

@@ -156,11 +156,7 @@ pub fn api_is_write(platform: &str, method: &str, path: &str, body: Option<&[u8]
     if method == "GET" || method == "HEAD" {
         return false;
     }
-    if method == "POST" && has_read_posts(platform) && is_read_post(platform, path) {
-        return matches!(platform, "github" | "gitlab")
-            && body.is_some_and(|b| b.windows(8).any(|w| w == b"mutation"));
-    }
-    true
+    !(method == "POST" && has_read_posts(platform) && is_read_post(platform, path, body))
 }
 
 fn next_link(platform: &str, link: &str, data: &J) -> String {

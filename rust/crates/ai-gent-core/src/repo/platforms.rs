@@ -120,13 +120,14 @@ pub fn url_path(target: &str) -> String {
     super::py::urlparse(target).path
 }
 
-/// POSTs that only read (query languages over POST): the path matches the platform's search pattern.
+/// POSTs that only read (query languages over POST): the path matches the platform's search pattern,
+/// and for GitHub and GitLab GraphQL the body runs a `query` operation (`graphql::is_read_body`).
 #[must_use]
-pub fn is_read_post(platform: &str, path: &str) -> bool {
+pub fn is_read_post(platform: &str, path: &str, body: Option<&[u8]>) -> bool {
     let p = url_path(path);
     match platform {
-        "github" => p == "/graphql",
-        "gitlab" => p == "/api/graphql" || p == "/graphql",
+        "github" => p == "/graphql" && super::graphql::is_read_body(body),
+        "gitlab" => (p == "/api/graphql" || p == "/graphql") && super::graphql::is_read_body(body),
         "azure-devops" => p.find("/_apis/wit/wiql").is_some_and(|i| {
             let tail = &p[i + "/_apis/wit/wiql".len()..];
             tail.is_empty() || tail.starts_with('/')
