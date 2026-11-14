@@ -205,3 +205,102 @@ Ids carry `MY` so they cannot clash with the other groups' rows. `D` rows are in
 | Q-MY-12 | License `CDLA-Permissive-2.0` (`webpki-roots`, the CA list the `mysql` crate bundles) | n/a | added to `rust/deny.toml`: a permissive license like MIT and ISC (use and redistribution with a notice, no copyleft condition), so it is the same family already allowed | `cargo deny check licenses` |
 | Q-MY-13 | The connection character set and SQL modes | PyMySQL: utf8mb4; the server's `sql_mode` | `SET NAMES utf8mb4`; `NO_BACKSLASH_ESCAPES` and `ANSI_QUOTES` are removed from the session so that the connector's lexer and the server read text the same way; a statement that names `sql_mode` or the connection character set is refused | `the_timeout_variable_follows_the_server_family`, live `the_session_reads_text_as_the_lexer_assumes` |
 | Q-MY-14 | Images and containers of the live tests | n/a | pinned by tag (`mysql:8.4`, `mariadb:11.4`); TODO pin by digest. Containers carry `me.lucasvmigotto.ai-gent.project=ai-gent` and are removed by ID | `tests/mysql_engine.rs` |
+
+## Worker A3 entries (T006, T009, T008, T012)
+
+### T006: classifier, scanner, cost rules, system databases (parity list)
+
+Behaviors of `dbrun.py` listed before the tests, one test each (all in `rust/crates/ai-gent-dbrun/tests/golden.rs`, data made by the committed generators `rust/spikes/dbrun/gen_golden.py` and `rust/fixtures/db-core/gen_writes.py`):
+
+| Behavior of `dbrun.py` | Test |
+|---|---|
+| The 16 driver-free tests of `test_dbrun.py`, every call and refusal text recorded from the original | `core_original_sixteen_tests_match_python` |
+| Verdict and reason text of `classify_statement`, 6 engines, 1026 read-heavy strings | `classify_matches_python` |
+| `split_statements` (including the backslash refusal), `is_ddl`, `cost_rules` on the same corpus | `split_ddl_cost_match_python` |
+| Write side: 203 write and look-alike statements (comment-split keywords, mixed case, hidden literals, locks, sequences, side-effect functions, PRAGMA, EXPLAIN ANALYZE, DO/CALL/COPY/ATTACH, statements after a quote trick, empty) x 6 engines: verdict, reason, split result and refusal text, `is_ddl`, `cost_rules` for production, staging, local and with `--allow-full-count`, `explain_sql` | `core_writes_classify_split_ddl_cost_match_python` |
+| `require_user_database` matrix (36 cases: system names in any case, unset and empty database on SQL Server, names with surrounding spaces, other engines) with the refusal text | `core_writes_system_databases_match_python` |
+| Masking, redaction labels, `network_args` | `mask_redact_network_match_python` |
+| Refusals name the rule and never echo the input | `core_refusals_name_the_rule_and_never_echo_the_input` |
+
+- Found by this corpus and fixed (a parity bug, not a difference): `require_user_database` treated an EMPTY database name as a named one, so a SQL Server profile with `DATABASE=` (which connects to `master`) passed. Python uses `p.get("database") or "master"`; Rust now does the same.
+- D-A3-01. Not copied from Python: the refusal text uses `'name'` quoting like Python's `{db!r}` only for names without a quote; a system name never has one, so the text is equal in every case that can be refused.
+
+### T008: backup and restore interface (decision and parity list)
+
+Decision recorded (plan decision 5, FR-018): `Backup` is a trait in `core/backup.rs` (re-exported as `connector::Backup`), with `take` and `restore` and a `supported(engine)` default equal to `BACKUP_SUPPORT`. The one real implementation, `EngineBackup`, runs the same shell scripts as `dbrun.py` through an `Exec` trait (the container exec; the real `ContainerExec` runs `<engine> exec -i <container> sh -c <script> sh <user> <database>`, T014 builds the profile-driven selection on it). SQLite uses the backup API on the file. No Python, no Rust logical dump.
+
+| Behavior of `dbrun.py` | Test (`tests/backup.rs`) |
+|---|---|
+| PostgreSQL: `pg_dump -Fc -h 127.0.0.1 -U $1 -d $2`, password on the first stdin line, dump to `<id>.pgdump` mode 600 | `postgres_backup_drives_pg_dump_with_the_password_on_stdin_only`, `real_exec::arguments_carry_no_password_and_stdin_reaches_the_tool` |
+| MySQL/MariaDB: `mysqldump` or `mariadb-dump` with `--single-transaction --routines --triggers --events --add-drop-database --databases $2`; no database is an error | `mysql_and_mariadb_use_their_dump_tool_and_need_a_database` |
+| Restore: `pg_restore --clean --create --if-exists --no-owner ... -d template1`, the `mysql`/`mariadb` client for SQL dumps, the file after the password line | `restore_streams_the_recorded_file_and_refuses_any_other_location` |
+| SQLite backup and restore through the backup API, file mode 600 | `sqlite::sqlite_roundtrip_through_the_backup_api` |
+| A failing tool: `backup/restore command failed: <last 400 characters of stderr>`, redacted | `a_failed_tool_is_an_error_without_secrets_and_leaves_no_backup_file` |
+| System databases refused (`require_user_database`) | `a_system_database_is_refused_for_backup_and_restore_and_nothing_runs` |
+| Oracle has no backup; `apply` stays refused there | `engines_without_a_method_are_refused_not_guessed` |
+| 1800 s deadline of `container_shell` | `real_exec::a_hang_is_killed_at_the_deadline_and_leaves_no_file` |
+
+Differences (Python did none of these):
+
+- D-A3-02. `take` and `restore` refuse a system database themselves (Python checked it in `cmd_plan` and `cmd_apply` only; `cmd_restore` never did, so a plan file with a system profile could restore over `master`).
+- D-A3-03. `restore` recomputes the backup location from the plan id and refuses a recorded `backup_location` that differs. Python read whatever path the (editable) plan file named and fed it to `pg_restore` or `mysql`.
+- D-A3-04. User, database and container name are matched against an allowlist (letters, digits, `_ - . $ #`, no leading `-`) before they become arguments; Python passed any string (`postgresql://...` as the database made `pg_dump -d` connect to another host). A password with a line break is refused (it would put a second line on the tool's stdin). Question: a user such as `app@host` is refused by the allowlist; is that acceptable for local container profiles?
+- D-A3-05. Every exec has a deadline and a size cap (64 GiB, a bound chosen here; Q-003 style), stdout streams to the file instead of memory, restore streams the file instead of `read_bytes()`, a failed or capped dump is deleted, and the readers get a 2 s grace after the engine client is killed (a grandchild holding the pipes cannot hang the runner).
+- D-A3-06. SQL Server: refused until its connector offers the autocommit path (FR-019); Python used a one-off `pymssql` script. `BackupError::Refused` says so; no backup is attempted, so `apply` on SQL Server stops before writing.
+- D-A3-07. SQLite restore checks the 16-byte SQLite header of the backup file first and refuses anything else.
+- Windows: the kill is by child handle, never by name; the removal of a partial dump after a kill can fail while a leaked grandchild still holds the file open (the file is then left, with the plan not recorded as backed up).
+
+### T009: plan, apply, restore, script, query and the command log (parity list)
+
+Behaviors of `dbrun.py` listed before the tests (`rust/crates/ai-gent-dbrun/tests/run.rs`; golden data from `rust/fixtures/db-core/gen_writes.py`):
+
+| Behavior of `dbrun.py` | Test |
+|---|---|
+| `test_read_masks_and_logs`, `test_row_cap`, `test_remote_refusals`, `test_remote_read_is_read_only_even_past_the_classifier`, `test_plan_apply_restore`, `test_apply_rolls_back_on_count_mismatch`, `test_tampered_plan_refused`, `test_script_never_executes` (the 8 `SqliteEndToEndTest` cases) | `e2e_1` .. `e2e_8` |
+| The plan record keys and values (`profile`, `engine`, `reason`, `statements`, `expect`, `ddl`, `backup`, `sha256`, `evidence`), the text `plan` prints, and the command-log entry (heading, engine line, evidence, reason, plan line, fenced statements, `status: started`, result line), 7 plans over 5 engines | `parity_plan_record_text_and_log_entry_match_the_original` |
+| The change script text and its refusals (UPDATE or DELETE without WHERE, backslash split, no statements), 17 scripts | `parity_change_script_text_and_refusals_match_the_original` |
+| `print_table` (cut at 120, `NULL`, newline as a symbol), `--format json` separators and `ensure_ascii`, `--format csv` | `parity_query_output_formats_match_the_original` |
+| `--expect` parsing (`1,,x,-2` gives 1, skip, skip, -2) and the exit codes 0 to 4 | `parity_expect_parsing_and_exit_codes` |
+| Log entry written before the statement runs (checked from inside the connector at the write request) | `e2e_5_...` |
+| `apply` needs `--confirmed`, re-proves local, system database refused, probe fails with exit 4, links make it non-local, rollback prints `ROLLED BACK (stage)` and exits 1, MySQL DDL warning, `restore` needs a backup | `e2e_5`, `e2e_6`, `system_databases_and_links_and_missing_proof_are_refused`, `exit_codes_...`, `restore_refuses_...` |
+| `--allow-full-count` lifts the COUNT rule and nothing else | `e2e_3_...` |
+
+Differences (each with its test; Python did none of these):
+
+- D-A3-08. A second `apply` of the same plan is refused (an exclusive `<id>.applied` claim file; two concurrent applies get exactly one claim). The claim is given back only when the connector confirmed a rollback (`verify` stage) or the backup failed before any write; any other failure (a killed driver, MySQL's implicit DDL commit, `ok` without `committed`) keeps it and says so, because the database may have changed. The user makes a new plan. Question: should a failed `execute` with no DDL release the claim too?
+- D-A3-09. The plan carries a `seal`: SHA-256 over id, profile, engine, `expect`, `ddl`, backup mode and statements. Python's `sha256` (statements only, kept for compatibility) let `expect` be edited to `[null]` and the count check disappear. A plan without a seal, which includes every plan the Python runner recorded, is refused with "make a new plan". The seal is tamper evidence against accidental or agent edits, not a MAC: someone who can write the plans directory can recompute it, exactly as with the Python hash. Question: sign with a key kept outside the plans directory?
+- D-A3-10. `apply` also refuses a plan whose engine differs from the profile's, runs the connect probe only after the tamper check (a tampered plan causes no connection), and treats a result as committed only if it says `ok` AND `committed` with one count per statement.
+- D-A3-11. The command log: user text cannot forge structure (a line starting `## `, a code fence or, after the first line, `- ` gets a tab; control characters become U+FFFD); the log path may not be a symbolic link (`O_NOFOLLOW`) or a non-file; an entry above 32 MiB is refused; every entry is redacted (password, host, user) including the reason and the statements. A log that cannot be written stops the command before anything runs (Python let the exception propagate, which had the same effect, but nothing tested it). `plan` removes its plan file when its entry cannot be logged.
+- D-A3-12. Times are UTC (`...+00:00`, log file date and plan id from UTC); Python used local time. The standard library has no local-zone lookup and the crate forbids `unsafe`. Question: add a time crate for local time?
+- D-A3-13. `--expect` entries Python crashes on (`--5`, a number that does not fit 64 bits) are refused with a message; a non-numeric entry still means "skip" as in Python (a typo such as `2x` silently skips that count; Question: refuse it?). Plan SQL and script SQL above 16 MiB are refused.
+- D-A3-14. `script` creates its file exclusively (Python checked `exists()` and then wrote, which races and follows a symbolic link) and removes it if its log entry cannot be written. `--format json` writes the `masked` object with sorted keys; Python keeps column order.
+- D-A3-15. Not in this task: reading the SQL from `--sql -` or a file (bounded read), the CLI flags, the profile-to-`Target` wiring beyond `Target::from_profile` (T011), `session`, `secrets migrate` log entries (`MigrateReport::log_line` is for the CLI to log), the container-exec route (T014).
+
+### T012: connector isolation (parity list and decisions)
+
+`dbrun.py` ran the driver in a separate process too (`driver_process`: `uv run ... _exec`, request on stdin, last stdout line parsed, a timeout of `req.timeout * statements + 180` s, `driver process failed: <last 5 lines of stderr>` as a connect failure). Parity items and their tests (`rust/crates/ai-gent-dbrun/tests/isolate.rs`, a test executable without libtest because the child is that same executable; names contain `isolate`):
+
+| Behavior of `dbrun.py` | Test |
+|---|---|
+| Request on stdin, one JSON line out | `isolate_a_round_trip_carries_the_password_on_stdin_only` |
+| A child that dies or prints no result line: a connect-stage failure with a bounded, redacted excerpt | `isolate_an_abort_...`, `isolate_garbage_output_...` |
+| A timeout kills the driver process; wall limit scales with the statement count | `isolate_a_hang_is_killed_at_the_deadline_and_the_child_is_gone` (limit scaling: `process` unit test) |
+| `_exec` reads the request from stdin and prints `execute()`'s result | `isolate_the_exec_reader_...` |
+
+Differences:
+
+- D-A3-16. `serve_exec` (the `_exec` reader) bounds its own read at the 16 MiB request limit plus the newline: it stops reading an endless stdin (the old reader was `json.load(sys.stdin)`, unbounded). Malformed, non-UTF-8 and empty input each get one `request`-stage line that names no value.
+- D-A3-17. The child's environment is rebuilt, not inherited: `PATH`, system and temp variables, locale, `SSL_CERT_FILE` and `SSL_CERT_DIR`, and what the caller adds. `PGPASSWORD`, `MYSQL_PWD`, `ORACLE_*`, tokens and the rest are dropped. `dbrun.py` passed its whole environment on (and added `LD_LIBRARY_PATH` for Oracle thick mode, which T070 must add through `with_env`). `HOME` is not inherited either (no `~/.pgpass` or `~/.my.cnf` read by a driver: a profile is the only source of credentials). Question: does any driver need `HOME`?
+- D-A3-18. A panic that unwinds is caught inside the child and becomes an `execute`-stage line with a fixed message (the panic text may hold a credential and is never shown); an abort ends the child and the parent reports it. During a `write` request a child that gave no result is an `execute` failure that says the commit is unconfirmed (the process connector said `connect`), and `apply` keeps the plan claimed (D-A3-08).
+- D-A3-19. The release profile still reads `panic = "unwind"` in `rust/Cargo.toml` while plan decision 5 says `panic = "abort"` stays; with this change both work (unwind is caught in the child, abort is contained by the process boundary). Left to the owner and T091.
+- D-A3-20. Kill is by child handle on every platform (no pattern kill). A grandchild that inherited the pipes can outlive the kill (the process connector's recorded limitation); the readers are bounded so the runner does not wait for it.
+- Not in this task: the `ai-gent db _exec` subcommand itself (T011 wires `serve_exec` and the real connectors; `IsolatedConnector::current_exe` gives it `db _exec`).
+
+### Review round on T006-T012 (fixes, intended differences and recorded questions)
+
+- D-A3-21 (intended, owner decision 2026-11-14). A non-numeric `--expect` entry is REFUSED, naming its position and never its text; `skip` (or an empty entry) means no count check; only ASCII digits count (Python read any non-number as skip). An `expect` list whose length differs from the statements is refused at verify (the T005 contract), and old unsealed Python plans stay refused (D-A3-09). Pinned by `parity_expect_parsing_and_exit_codes`. This replaces the open question in D-A3-13.
+- D-A3-22. `apply` labels outcomes by what is known: `ROLLED BACK` only for a verify failure the connector confirmed and not on MySQL/MariaDB with DDL in the plan (implicit commit: claim and backup kept, `OUTCOME UNKNOWN`); `NOT APPLIED` for a connect-stage failure (nothing ran: claim and backup given back); `OUTCOME UNKNOWN` for an `ok` result without a commit report, a commit with a different number of counts, or a failure after the write began. A committed result from a child that was killed for not exiting is kept as `COMMITTED` with a warning (`ExecResult.warning`, never on the wire); any other result of a killed child stays a failure. A spawn failure is a plain connect failure and is not relabelled "not confirmed committed".
+- D-A3-23. A plan file whose inner `id` differs from its file name is refused (a copied plan could bypass the claim). The restore refuses a missing, non-regular or empty backup, and the container exec opens the backup before starting the tool and fails if it cannot be streamed whole.
+- D-A3-24. `apply` writes its start entry after taking the claim (a refused second apply leaves no `started` entry; a log failure gives the claim back). The log also replaces Unicode format and bidi characters (U+200B..U+200F, U+202A..U+202E, U+2066..U+2069, U+FEFF). Of the two symlink guards of the log append, the `symlink_metadata` check is tested (directory, live and dangling link); `O_NOFOLLOW` only closes the swap between check and open and cannot be tested deterministically.
+- Q-A3-01 (recorded, not decided). `--format json` (`py_json`) differs from Python's `json.dumps` for `\b` and `\f` (Python writes `\b` and `\f`, Rust `\u0008` and `\u000c`) and for float exponent formatting (`1e-07` against `1e-7`).
+- Q-A3-02 (recorded, not decided). `rust/Cargo.toml` release profile says `panic = "unwind"`, plan decision 5 says `panic = "abort"` stays (see D-A3-19).

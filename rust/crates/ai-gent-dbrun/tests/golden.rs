@@ -233,3 +233,149 @@ fn core_original_sixteen_tests_match_python() {
         }
     }
 }
+
+fn golden_writes() -> Value {
+    serde_json::from_str(
+        &std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/db-core/golden-writes.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+/// T006 write side: `rust/fixtures/db-core/gen_writes.py` runs the ORIGINAL on statements that change
+/// data, schema, sessions and the server (comment-split keywords, mixed case, hidden literals, every
+/// engine). Each of the four verdicts must agree, reason text included: the reason is the contract.
+#[test]
+fn core_writes_classify_split_ddl_cost_match_python() {
+    let g = golden_writes();
+    let mut bad = vec![];
+    let mut writes = 0;
+    for r in g["classify"].as_array().unwrap() {
+        let (e, s) = (r[0].as_str().unwrap(), r[1].as_str().unwrap());
+        let (k, why) = classify_statement(s, e);
+        writes += usize::from(k == "write");
+        if k != r[2] || why != r[3].as_str().unwrap() {
+            bad.push(format!(
+                "classify {e} {s:?}: py={} / {} rust={k} / {why}",
+                r[2], r[3]
+            ));
+        }
+    }
+    assert!(
+        writes > 1000,
+        "the corpus must be mostly writes, got {writes}"
+    );
+    for r in g["split"].as_array().unwrap() {
+        let (e, s) = (r[0].as_str().unwrap(), r[1].as_str().unwrap());
+        match (split_statements(s, e), r[2].as_str().unwrap()) {
+            (Ok(v), "ok") => {
+                let exp: Vec<&str> = r[3]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|x| x.as_str().unwrap())
+                    .collect();
+                if v != exp {
+                    bad.push(format!("split {e} {s:?}: {v:?} != {exp:?}"));
+                }
+            }
+            (Err(m), "refused") => {
+                if m.0 != r[3].as_str().unwrap() {
+                    bad.push(format!("split reason {e} {s:?}"));
+                }
+            }
+            _ => bad.push(format!("split verdict {e} {s:?}")),
+        }
+    }
+    for r in g["ddl"].as_array().unwrap() {
+        let (e, s) = (r[0].as_str().unwrap(), r[1].as_str().unwrap());
+        if is_ddl(s, e) != r[2].as_bool().unwrap() {
+            bad.push(format!("ddl {e} {s:?}"));
+        }
+    }
+    for r in g["cost"].as_array().unwrap() {
+        let (e, s, c, a) = (
+            r[0].as_str().unwrap(),
+            r[1].as_str().unwrap(),
+            r[2].as_str().unwrap(),
+            r[3].as_bool().unwrap(),
+        );
+        if serde_json::to_value(cost_rules(s, c, a, e)).unwrap() != r[4] {
+            bad.push(format!("cost {e} {c} {a} {s:?}"));
+        }
+    }
+    for r in g["explain"].as_array().unwrap() {
+        assert_eq!(
+            explain_sql(r[0].as_str().unwrap(), r[1].as_str().unwrap()),
+            r[2]
+        );
+    }
+    for b in bad.iter().take(25) {
+        eprintln!("  {b}");
+    }
+    assert!(
+        bad.is_empty(),
+        "{} differences from the original",
+        bad.len()
+    );
+}
+
+#[test]
+fn core_writes_system_databases_match_python() {
+    let g = golden_writes();
+    let (mut refused, mut ok) = (0, 0);
+    for r in g["system_db"].as_array().unwrap() {
+        let e = r[0].as_str().unwrap();
+        let got = require_user_database(e, r[1].as_str(), "plan");
+        match (got, r[2].as_str().unwrap()) {
+            (Ok(()), "ok") => ok += 1,
+            (Err(m), "refused") => {
+                refused += 1;
+                assert_eq!(m.0, r[3].as_str().unwrap(), "{r}");
+            }
+            (got, want) => panic!("{r}: rust {got:?}, python {want}"),
+        }
+    }
+    assert!(
+        refused >= 15 && ok >= 10,
+        "{refused} refused, {ok} accepted"
+    );
+}
+
+/// The inputs the core must refuse (the backslash split trick, a write on a system database, `SELECT *` and an
+/// unfiltered `COUNT` on production): each is refused AND no text of the input, a fake password in it
+/// included, comes back in the refusal.
+#[test]
+fn core_refusals_name_the_rule_and_never_echo_the_input() {
+    let secret = "pw-FAKE-s3cr3t";
+    let trick = format!("SELECT '{secret}\\'; DELETE FROM t; SELECT '");
+    for engine in ["postgresql", "mysql"] {
+        let err = split_statements(&trick, engine).unwrap_err();
+        assert!(err.0.contains("split differently"), "{engine}: {err:?}");
+        assert!(
+            !err.0.contains(secret) && !err.0.contains("DELETE"),
+            "{err:?}"
+        );
+    }
+    // The statement is a write however it is dressed; the verdict names a keyword, never the literal.
+    let (kind, why) =
+        classify_statement(&format!("DELETE FROM t WHERE p = '{secret}'"), "postgresql");
+    assert_eq!(kind, "write");
+    assert!(!why.contains(secret), "{why}");
+    let sys =
+        require_user_database("sqlserver", Some("MASTER"), &format!("plan {secret}")).unwrap_err();
+    assert!(sys.0.contains("system database 'master'"), "{sys:?}");
+    for sql in [
+        format!("SELECT * FROM orders WHERE note = '{secret}'"),
+        format!("SELECT count(*) FROM orders -- {secret}"),
+    ] {
+        let rule = cost_rules(&sql, "production", false, "postgresql").expect("must be refused");
+        assert!(!rule.contains(secret), "{rule}");
+    }
+    // Empty statements are writes: nothing runs by accident.
+    assert_eq!(classify_statement("", "postgresql").0, "write");
+    assert_eq!(classify_statement(";", "postgresql").0, "write");
+}

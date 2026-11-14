@@ -21,7 +21,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::fmt;
 
+pub use crate::core::backup::Backup;
 pub mod contract;
+pub mod isolate;
 #[cfg(feature = "mysql")]
 pub mod mysql;
 #[cfg(feature = "postgres")]
@@ -225,6 +227,10 @@ pub struct ExecResult {
     /// Wall time of the execution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seconds: Option<f64>,
+    /// A note from the layer that ran the connector (never on the wire): the result is valid but something
+    /// around it was not clean, for example the child did not exit in time after printing it.
+    #[serde(skip)]
+    pub warning: Option<String>,
 }
 
 impl ExecResult {
@@ -240,6 +246,7 @@ impl ExecResult {
             results: Some(Vec::new()),
             committed: None,
             seconds: None,
+            warning: None,
         }
     }
 
@@ -255,6 +262,7 @@ impl ExecResult {
             results: None,
             committed: None,
             seconds: None,
+            warning: None,
         }
     }
 
