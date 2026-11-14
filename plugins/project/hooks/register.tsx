@@ -18,7 +18,7 @@ import type { NextStageOptions } from './nextstage'
 import { contextExtras, contextTail, readUsage, recordContext } from './context'
 import { recordLimits } from './usage'
 import type { ContextOptions } from './context'
-import { nudgeAtTurnEnd, nudgeBeforeCompact } from './handoff'
+import { nudgeAtTurnEnd, nudgeOnCompactCommand } from './handoff'
 import type { HandoffOptions } from './handoff'
 import { PANE, close, open, press, readExpanded, readIsOpen, readPaneState, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
 import { drawDashboard } from './pipeline-draw'
@@ -181,10 +181,11 @@ export const register: Register = (on, options: Options) => {
     return next(e)
   })
 
-  // Before a compaction the summary loses what the checkpoint keeps: say so, once,
-  // and pass the event on unchanged, whatever the trigger.
-  on('session.compact', async ($, e, next) => {
-    await nudgeBeforeCompact($, e.trigger, options, () => readCheckpoint($)).catch(() => undefined)
+  // Before a manual /compact the summary loses what the checkpoint keeps: say so, once,
+  // and pass the prompt on unchanged. Caught here, not at session.compact, which is
+  // passed over where cc-plugin-sec-default is seated (spec 021 FR-008, 2026-11-14).
+  on('prompt.submit', async ($, e, next) => {
+    if (e.command?.name === 'compact') await nudgeOnCompactCommand($, options, () => readCheckpoint($)).catch(() => undefined)
     return next(e)
   }).catch(($, e, next) => next(e))
 
