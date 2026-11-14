@@ -4,9 +4,9 @@
 //  - release readiness (specs/028): a band with the next release from
 //    scripts/release.py --dry-run --json, on a chain branch.
 //  - repo hygiene (specs/017): a band when local main or dev lag their remote
-//    (after a release, "git pull --ff-only on both"), a toast for the update
-//    notice only the model saw, and /release-preview. None of it fetches,
-//    pulls, commits or tags.
+//    (after a release, "git pull --ff-only on both"), and /release-preview.
+//    None of it fetches, pulls, commits or tags. The update notice is shown by
+//    hooks/session-start.sh itself.
 
 import type { Register } from 'claude-code'
 
@@ -15,9 +15,9 @@ import { bandsText, plan } from './bands'
 import type { Options as BandOptions } from './bands'
 import { MOVES_RELEASE } from './release-model'
 import { hideRelease, refreshAndRecord, releaseLine } from './release'
-import { readHygiene, recordHygieneBand, refreshHygiene, refreshHygieneThrottled, relayUpdate, releasePreview } from './hygiene'
+import { readHygiene, recordHygieneBand, refreshHygiene, refreshHygieneThrottled, releasePreview } from './hygiene'
 
-type Options = BandOptions & { hygieneBand?: boolean; sessionToasts?: boolean; releasePreview?: boolean; releaseBand?: boolean }
+type Options = BandOptions & { hygieneBand?: boolean; releasePreview?: boolean; releaseBand?: boolean }
 
 // The band's id in the `bands` atom (priority normal).
 const HYGIENE = 'hygiene'
@@ -103,17 +103,6 @@ export const register: Register = (on, options: Options) => {
         </Box>
       )
     })
-  }
-
-  // The update-check hook's line reaches only the model; this shows it to the person.
-  if (options.sessionToasts !== false) {
-    on('session.append', async ($, e, next) => {
-      const origin = e.origin as { kind?: string; event?: string }
-      if (e.door === 'hook-context' && origin.kind === 'hook' && origin.event === 'SessionStart') {
-        await relayUpdate($, e.message).catch(() => undefined)
-      }
-      return next(e)
-    }).catch(($, e, next) => next(e))
   }
 
   if (options.bandsCommand !== false) {

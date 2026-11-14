@@ -1,13 +1,9 @@
-// The devcontainer plugin's Claude Code mod, optional features that only make
-// visible what the plugin already says:
-//  - leftovers toast (specs/017): the report leftovers.sh prints at session
-//    start, which only the model saw, shown to the person once.
-//  - the container and disk band (specs/025): the same findings as JSON, kept
-//    above the prompt and refreshed after container work, and /containers.
-//    Read only: nothing here removes, stops or builds anything.
-// Each is gated on its own option (leftoversToast, containersBand,
-// containersCommand); one session.start handler serves the band and the command.
-// The containers guard's own words are printed by hooks/guard.sh itself.
+// The devcontainer plugin's Claude Code mod: the container and disk band
+// (specs/025), the findings of leftovers.sh --json kept above the prompt and
+// refreshed after container work, and /containers. Read only: nothing here
+// removes, stops or builds anything. Each is gated on its own option
+// (containersBand, containersCommand); one session.start handler serves both.
+// The session-start report is shown by hooks/session-start.sh itself.
 
 import type { Register } from 'claude-code'
 
@@ -16,22 +12,10 @@ import type { Options as BandOptions } from './bands'
 import { CONTAINERS, containersHooks, containersReport, readContainers, startReading } from './containers'
 import type { Options as ContainersOptions } from './containers'
 import { bandText } from './containers-model'
-import { relayLeftovers } from './leftovers'
 
-type Options = BandOptions & ContainersOptions & { leftoversToast?: boolean }
-
+type Options = BandOptions & ContainersOptions
 
 export const register: Register = (on, options: Options) => {
-  if (options.leftoversToast !== false) {
-    on('session.append', async ($, e, next) => {
-      const origin = e.origin as { kind?: string; event?: string }
-      if (e.door === 'hook-context' && origin.kind === 'hook' && origin.event === 'SessionStart') {
-        await relayLeftovers($, e.message).catch(() => undefined)
-      }
-      return next(e)
-    }).catch(($, e, next) => next(e))
-  }
-
   const hasBand = options.containersBand !== false
   const hasCommand = options.containersCommand !== false
 

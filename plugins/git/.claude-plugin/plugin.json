@@ -35,7 +35,7 @@
     "sessionToasts": {
       "type": "boolean",
       "title": "Show the update notice",
-      "description": "Show ai-gent's update notice (printed by the session-start hook, which only the model sees) as a toast",
+      "description": "Show ai-gent's update notice to you at session start: the session-start hook prints it as a message the engine shows, besides the copy the model reads",
       "default": true
     },
     "releasePreview": {

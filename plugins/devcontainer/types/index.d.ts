@@ -26,8 +26,6 @@ export type ContainersState = {
 declare module 'claude-code' {
   interface PluginState {
     devcontainer: {
-      // What was already shown this session, by name, so a reload repeats nothing.
-      toasted: Record<string, boolean>
       'containers.state': Shaped<ContainersState | null>
       // The bands active now, for band priority (hooks/bands.ts); other plugins may read it.
       bands: Band[]

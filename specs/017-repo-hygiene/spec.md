@@ -81,8 +81,8 @@ After a push to `main`, the release job lands `chore(release): X.Y.Z` on `origin
 - **FR-001**: The band MUST compare only local refs against remote-tracking refs already present, through `$.process.run` git calls, and MUST NOT fetch, pull or change refs.
 - **FR-002**: A release commit MUST be recognized by subject only: `^chore\(release\): \d+\.\d+\.\d+$` on `main`/`master`, `^chore\(release\): merge \d+\.\d+\.\d+ back into (dev|develop)$` on the dev branch — the subjects `.github/workflows/release.yml` writes (`chore(release): $version`, `chore(release): merge $version back into $integ`) and `shared/release-platforms.md` prescribes for other projects.
 - **FR-003**: The band MUST suggest `git pull --ff-only` only when the local branch has no commits of its own past its remote; otherwise "diverged".
-- **FR-004**: Toasts MUST relay the scripts' own lines, never compute an update or leftovers check of their own, and fire once per session.
-- **FR-005**: Reading the SessionStart output MUST use the transcript row the engine stores for the hook (`session.append`, door `hook-context`, origin `{ kind: 'hook', event: 'SessionStart' }`, text `SessionStart:startup hook success: <stdout>`). `classic.SessionStart`'s `next(e)` returns `{}` for it, and the scripts MUST NOT be run a second time.
+- **FR-004** (amended 2026-11-14: the SessionStart hook prints the person's line itself as `systemMessage`; no module relays it): Toasts MUST relay the scripts' own lines, never compute an update or leftovers check of their own, and fire once per session.
+- **FR-005** (superseded 2026-11-14): Reading the SessionStart output MUST use the transcript row the engine stores for the hook (`session.append`, door `hook-context`, origin `{ kind: 'hook', event: 'SessionStart' }`, text `SessionStart:startup hook success: <stdout>`). `classic.SessionStart`'s `next(e)` returns `{}` for it, and the scripts MUST NOT be run a second time.
 - **FR-006**: `/release-preview` MUST run `python3 scripts/release.py --dry-run` with the repository root as `cwd` and MUST NOT run it without `--dry-run`.
 - **FR-007**: `userConfig` booleans: `hygieneBand`, `sessionToasts`, `releasePreview` on `git`; `leftoversToast` on `devcontainer`; all default true.
 
@@ -113,3 +113,8 @@ After a push to `main`, the release job lands `chore(release): X.Y.Z` on `origin
 ## Assumptions
 
 - [ASSUMPTION: The release job keeps the commit subjects `plugins/git/skills/workflow/SKILL.md` documents.]
+
+## Amendment (2026-11-14, the owner, via chat)
+
+- Where the built-in `cc-plugin-sec-default` plugin is seated (machines with managed settings, Team and Enterprise orgs) it sends `classic.*` events, `session.compact`, `skill.prompt` and `session.append` on the `hook-context` door on past every person-installed mod, so those hooks never ran there and Claude Code told the person each one was skipped.
+- The SessionStart hooks print their own line for the person: `plugins/git/hooks/session-start.sh` (the update notice) and `plugins/devcontainer/hooks/session-start.sh` (the `leftovers.sh` report on one line) print JSON with `systemMessage` and the full text as `additionalContext`. The `session.append` relays, `shared/hook-lines.ts` and its copies and `plugins/devcontainer/hooks/leftovers.ts` are gone. `sessionToasts` and `leftoversToast` (false) keep the text for the model only, printed plain as before.

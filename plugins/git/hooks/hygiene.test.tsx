@@ -1,6 +1,5 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { hookLines, leftoversBlock, updateLine } from './hook-lines'
 import { MOVES_REFS, branchesWithRemote, parseCounts, releasesIn, sentence, summaryOf } from './hygiene-model'
 import type { BranchState } from '../types'
 
@@ -52,16 +51,6 @@ test('commands that move refs are told apart from the rest', () => {
   for (const no of ['git status', 'git log --oneline', 'echo git pull', 'ls', 'git diff']) {
     expect(MOVES_REFS.test(no), no).toBe(false)
   }
-})
-
-const UPDATE_ROW = 'SessionStart:startup hook success: [ai-gent] update available: 2.20.0 → 2.21.0 — run scripts/ai-gent-update.sh\n</system-reminder>'
-const LEFTOVERS_ROW = 'ai-gent containers (report only, nothing removed):\ndisk: 12 GB free\n2 dangling images'
-
-test('the session-start hooks\' lines are read from the stored row, not recomputed', () => {
-  expect(updateLine(hookLines(UPDATE_ROW))).toBe('[ai-gent] update available: 2.20.0 → 2.21.0 — run scripts/ai-gent-update.sh')
-  expect(updateLine(hookLines('SessionStart:startup hook success: something else'))).toBeNull()
-  expect(leftoversBlock(hookLines(`hook success: ${LEFTOVERS_ROW}`))).toBe('ai-gent containers (report only, nothing removed): disk: 12 GB free · 2 dangling images')
-  expect(leftoversBlock(hookLines('hook success: nothing'))).toBeNull()
 })
 
 // ------------------------------------------------------------------ the band
@@ -191,25 +180,11 @@ test('the last fetch\'s age is said, and nothing ever fetches or changes anythin
 
 // ------------------------------------------------------------ session notice
 
-const row = (text: string) =>
-  ({ message: { type: 'attachment', name: 'hook_success', role: 'user', content: [{ type: 'text', text }] }, door: 'hook-context', origin: { kind: 'hook', event: 'SessionStart' }, uuid: 'u1' }) as never
-
-test('the update notice is shown once, in the script\'s own words, and other rows are left alone', async ($, on) => {
+test('the module relays no SessionStart row: the hook script shows the update notice itself', async ($, on) => {
   const w = world(on)
   await $.session.start(START)
-  await $.session.append(row(UPDATE_ROW))
-  await $.session.append(row(UPDATE_ROW))
-  expect(w.toasts).toEqual(['[ai-gent] update available: 2.20.0 → 2.21.0 — run scripts/ai-gent-update.sh'])
-
-  const other = { message: { type: 'user', role: 'user', content: [{ type: 'text', text: UPDATE_ROW }] }, door: 'prompt', origin: { kind: 'unclassified' }, uuid: 'u2' } as never
-  await $.session.append(other)
-  expect(w.toasts.length).toBe(1)
-})
-
-test('sessionToasts off shows nothing', { options: { sessionToasts: false } }, async ($, on) => {
-  const w = world(on)
-  await $.session.start(START)
-  await $.session.append(row(UPDATE_ROW))
+  const row = { message: { type: 'attachment', name: 'hook_success', role: 'user', content: [{ type: 'text', text: 'SessionStart:startup hook success: [ai-gent] update available: 2.20.0 → 2.21.0' }] }, door: 'hook-context', origin: { kind: 'hook', event: 'SessionStart' }, uuid: 'u1' } as never
+  await $.session.append(row)
   expect(w.toasts).toEqual([])
 })
 

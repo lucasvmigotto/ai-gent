@@ -52,6 +52,20 @@ out="$(AI_GENT_NO_LEFTOVERS_CHECK=1 FAKE_DANGLING=1 leftovers)"
 check "AI_GENT_NO_LEFTOVERS_CHECK=1 disables it" test -z "$out"
 
 
+# session-start.sh (the SessionStart hook): the report as additionalContext for the model and one
+# systemMessage line the engine shows the person (no hooks module relays it, decided 2026-11-14).
+session_start() { (cd "$tmp/shop" && CONTAINER_ENGINE="$tmp/engine" FAKE_LOG="$tmp/log" FAKE_STORE="$tmp" sh "$REPO_DIR/plugins/devcontainer/hooks/session-start.sh" </dev/null); }
+# shellcheck disable=SC2329 # called through check
+hookjson() { python3 -c 'import json,sys; d=json.load(sys.stdin); exec(sys.argv[1])' "$1"; }
+: >"$tmp/log"
+out="$(FAKE_DANGLING=1 session_start)"
+check "session start: one JSON line with the report for the model" hookjson 'h=d["hookSpecificOutput"]; assert h["hookEventName"]=="SessionStart" and "2 dangling image(s) of shop" in h["additionalContext"] and "\n" in h["additionalContext"], d' <<<"$out"
+check "session start: the person gets one line, header then findings" hookjson 'm=d["systemMessage"]; assert m.startswith("ai-gent containers (report only, nothing removed): ") and "\n" not in m and " · " in m, m' <<<"$out"
+out="$(FAKE_DANGLING=1 CLAUDE_PLUGIN_OPTION_leftoversToast=false session_start)"
+check "session start: leftoversToast off prints the plain report" grep -q '^ai-gent containers (report only' <<<"$out"
+out="$(AI_GENT_NO_LEFTOVERS_CHECK=1 FAKE_DANGLING=1 session_start)"
+check "session start: silent with nothing to say" test -z "$out"
+
 # --json: one object whenever it ran; the default text output is unchanged.
 leftovers_json() { (cd "$tmp/shop" && CONTAINER_ENGINE="$tmp/engine" FAKE_LOG="$tmp/log" FAKE_STORE="$tmp" sh "$LEFTOVERS" --json </dev/null); }
 # shellcheck disable=SC2329 # called through check

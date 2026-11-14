@@ -33,8 +33,6 @@ declare module 'claude-code' {
   interface PluginState {
     git: {
       hygiene: Shaped<Hygiene | null>
-      // What was already shown this session, by name, so a reload repeats nothing.
-      toasted: Record<string, boolean>
       // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
       bands: Band[]
       // The release band's plan, or the failure line; null when nothing is releasable or the branch is not a chain branch.
