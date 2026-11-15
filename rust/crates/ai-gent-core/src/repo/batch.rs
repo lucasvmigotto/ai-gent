@@ -135,7 +135,13 @@ fn step_is_write(plat: &str, step: &J) -> R<bool> {
             .unwrap_or("GET")
             .to_uppercase();
         let path = a.get("path").and_then(J::as_str).unwrap_or("");
-        return Ok(api_is_write(plat, &method, path, body.as_deref()));
+        let query = match a.get("query") {
+            Some(J::Obj(m)) => m.iter().map(|(k, v)| (k.clone(), py_str(v))).collect(),
+            // any other non-empty value still rides in the URL
+            Some(q) if q.truthy() => vec![(String::new(), String::new())],
+            _ => Vec::new(),
+        };
+        return Ok(api_is_write(plat, &method, path, body.as_deref(), &query));
     }
     if let Some(c) = step.get("cli") {
         return Ok(cli_is_write(
