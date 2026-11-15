@@ -1,6 +1,6 @@
 [package]
 name = "ai-gent"
-version = "0.1.0"
+version = "2.28.0"
 description = "Command line of ai-gent: skills and plugins for AI coding agents"
 edition.workspace = true
 rust-version.workspace = true
@@ -29,7 +29,7 @@ name = "ai-gent-fake-agent"
 path = "examples/fake_agent.rs"
 
 [dependencies]
-ai-gent-core = { path = "../ai-gent-core", version = "0.1.0" }
+ai-gent-core = { path = "../ai-gent-core", version = "0.1.1" }
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "ai-gent-dbrun"
-version = "0.1.0"
+version = "0.1.1"
 description = "Database runner core of ai-gent: statement classification, masking and redaction, and a connector trait with a bundled-SQLite connector"
 edition.workspace = true
 rust-version.workspace = true

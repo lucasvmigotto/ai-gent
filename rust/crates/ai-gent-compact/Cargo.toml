@@ -1,6 +1,6 @@
 [package]
 name = "ai-gent-compact"
-version = "0.1.0"
+version = "0.1.1"
 description = "Token-lean source code reader of ai-gent: compact views and outlines of source files"
 edition.workspace = true
 rust-version.workspace = true

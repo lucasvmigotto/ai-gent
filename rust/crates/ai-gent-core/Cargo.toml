@@ -1,6 +1,6 @@
 [package]
 name = "ai-gent-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "Shared library of the ai-gent command line: output envelope, exit codes, paths and version"
 edition.workspace = true
 rust-version.workspace = true
