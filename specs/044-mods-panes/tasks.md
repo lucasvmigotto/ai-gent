@@ -2,11 +2,11 @@
 
 Slice 1 - Workers (`plugins/project/`)
 
-- [ ] T001 Exclude attention workers from the active list and give each group its own row budget, in `plugins/project/hooks/workers-model.ts` (`build`); test in `workers-model.test.ts`: 2 failed + 32 done + 1 taken back leaves counts, header and History as before and each failure once; acceptance US1.1, US1.8; FR-001, FR-002
-- [ ] T002 `Idle reason: not recorded`, `Cause: not recorded`, separate `State`/`Verdict` lines, `Tokens` omitted when null, in `workers-model.ts` (`build`, `details`); tests for failed+accepted, null reason, null tokens, nothing running; US1.2 to US1.4; FR-003, FR-004
-- [ ] T003 Marks on the glyph and state word of ATTENTION and WORKERS rows, drawn as `Text` segments inside one `Button`, in `workers-model.ts` and `workers-draw.tsx`; tests in `workers.test.tsx`: tones on the segments, segments join to the text, one press target per row, the press writes the toggle atom only; US1.6; FR-005
-- [ ] T004 Fixtures (`workers-fixtures.ts`): long shared-prefix tracks, failed+accepted, null cap; test that the opened `Track:` line is whole and the collapsed one is cut; update the old goldens one by one; US1.5, US1.7; FR-006
-- [ ] T005 Mutation pass, `claude plugin test plugins/project`, `claude plugin validate plugins/project`; README project-mod row and CHANGELOG `## Unreleased` line; `scripts/check.sh`; commit by path; Codex review; PR body notes `/reload-plugins`
+- [x] T001 Exclude attention workers from the active list and give each group its own row budget, in `plugins/project/hooks/workers-model.ts` (`build`); test in `workers-model.test.ts`: 2 failed + 32 done + 1 taken back leaves counts, header and History as before and each failure once; acceptance US1.1, US1.8; FR-001, FR-002
+- [x] T002 `Idle reason: not recorded`, `Cause: not recorded`, separate `State`/`Verdict` lines, `Tokens` omitted when null, in `workers-model.ts` (`build`, `details`); tests for failed+accepted, null reason, null tokens, nothing running; US1.2 to US1.4; FR-003, FR-004
+- [x] T003 Marks on the glyph and state word of ATTENTION and WORKERS rows, drawn as `Text` segments inside one `Button`, in `workers-model.ts` and `workers-draw.tsx`; tests in `workers.test.tsx`: tones on the segments, segments join to the text, one press target per row, the press writes the toggle atom only; US1.6; FR-005
+- [x] T004 Fixtures (`workers-fixtures.ts`): long shared-prefix tracks, failed+accepted, null cap; test that the opened `Track:` line is whole and the collapsed one is cut; update the old goldens one by one; US1.5, US1.7; FR-006
+- [x] T005 Mutation pass, `claude plugin test plugins/project`, `claude plugin validate plugins/project`; README project-mod row and CHANGELOG `## Unreleased` line; `scripts/check.sh`; commit by path; Codex review; PR body notes `/reload-plugins`
 
 Slice 2 - Worktrees (`plugins/agents/`)
 

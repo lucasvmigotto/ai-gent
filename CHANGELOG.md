@@ -8,6 +8,7 @@ changes.
 
 ### Changed
 
+- **project:** the Workers pane lists a failed or stalled worker under ATTENTION only (it no longer repeats in WORKERS; the counts, header and History are unchanged), gives ATTENTION and WORKERS their own row budgets, shows `Idle reason: not recorded` when nothing runs or waits and `Cause: not recorded` on a failed worker without a verdict reason, and tones only the glyph and the state word of a row (one press target per row); `/reload-plugins` is needed after the merge (spec 044, Workers slice)
 - **Integration branch:** `dev` is renamed `develop` (the owner's decision: no alias, 3.0.0 ships with `main` and `develop` only). The release job's back-merge targets `develop` and, when the protected branch refuses the push, warns that a pull request from `main` to `develop` is needed; Docs CI runs on pushes to `main` and `develop`; the git:workflow skill and its references, the README, `shared/releasing.md` and the docs site name `develop`; `ai-gent tokens` and `token_report.py` read stage markers from `origin/develop` first, and the delegate review base tries `develop` before `main`. The guards, the branch chain and the worktree tools still accept `dev` as well, so a repository that keeps it works unchanged.
 
 ## 2.28.0 — 2026-11-15

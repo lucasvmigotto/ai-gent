@@ -56,3 +56,18 @@ export const AGENTS: AgentInfo[] = [
   { id: 'r2', description: 'review it', type: 'code-reviewer', status: 'completed' },
   { id: 'f3', description: 'x', type: 'general-purpose', status: 'failed' },
 ]
+
+// Spec 044: 2 failed, 32 done and 1 taken back, so the counts and the History line stay as they were.
+export const MANY_DONE: Record<string, string> = {
+  'feat-a': track('feat-a', 'failed', { updated: 1_700_000_300 }),
+  'feat-b': track('feat-b', 'failed', { updated: 1_700_000_290, verdict: { result: 'accepted' } }),
+  'feat-back': track('feat-back', 'taken-back', { updated: 1_700_000_100 }),
+  ...Object.fromEntries(Array.from({ length: 32 }, (_, i) => [`done-${i}`, track(`done-${i}`, 'done', { updated: 1_700_000_200 - i })])),
+}
+
+// Two tracks that share a long prefix: only the tail tells them apart.
+export const LONG_PREFIX = 'feature-with-a-very-long-shared-prefix-for-the-checkout-flow-and-payments'
+export const SHARED_PREFIX: Record<string, string> = {
+  [`${LONG_PREFIX}-alpha`]: track(`${LONG_PREFIX}-alpha`, 'running'),
+  [`${LONG_PREFIX}-omega`]: track(`${LONG_PREFIX}-omega`, 'failed', { verdict: { result: 'accepted' } }),
+}
