@@ -198,6 +198,46 @@ def cases():
     s.run("api", "github", "POST", "/repos/o/r/issues", "--data", "-", "--write", stdin='{"title": "stdin"}')
     s.run("api", "github", "BREW", "/x")
     add("api-write-needs-flag", "ApiTest::test_write_needs_flag", s)
+    # A GraphQL POST reads only when its body runs a query operation (ClassifyTest::test_graphql_body).
+    s = Scn()
+    gql_reads = [r'{"query":"query { viewer { login } }"}', r'{"query":"{ viewer { login } }"}',
+                 r'{"query":"query A { a } query B { b }","operationName":"A"}',
+                 r'{"query":"query { a(x: 0) b(y: -0.5e1) }","variables":{"n":0,"m":-0}}',
+                 r'{"query":"# mutation\nquery { search(query: \"mutation\") { n } }"}']
+    gql_writes = [r'{"query":"mutation { x }"}', r'{"query":"mutation { x }"}', r'{"query":"subscription { x }"}',
+                  r'{"query":"query A { a } mutation B { b }","operationName":"B"}',
+                  r'{"query":"query A { a } query B { b }"}', r'{"query":"# query\nmutation { x }"}',
+                  r'[{"query":"query { a }"},{"query":"mutation { x }"}]', r'{"query":"query { a }","query":"mutation { x }"}',
+                  r'{"query":"query { a } ​mutation { b }"}', "not json", "",
+                  # a mutation or subscription anywhere is a write, even when operationName picks a query
+                  r'{"query":"query A { a } mutation B { b }","operationName":"A"}',
+                  r'{"query":"query A { a } subscription B { b }","operationName":"A"}',
+                  # strict JSON: no leading zeros; nesting beyond 200 is a write
+                  r'{"query":"query { a }","variables":{"n":01}}', r'{"query":"query { a }","variables":{"n":-01}}',
+                  '{"query":"query { a }","v":' + "[" * 201 + "]" * 201 + "}"]
+    gql_reads.append('{"query":"query { a }","v":' + "[" * 200 + "]" * 200 + "}")
+    for i, b in enumerate(gql_reads + gql_writes):
+        s.put(f"g{i}.json", b)
+        s.run("api", "github", "POST", "/graphql", "--data", f"<ROOT>/g{i}.json")
+    s.run("api", "github", "POST", "/graphql")
+    add("api-graphql-body-decides", "ClassifyTest::test_graphql_body", s)
+    # The URL decides too: a query string in the path or --query on a GraphQL POST is a write, and so is a GET
+    # that carries a query or operationName (GitLab reads them from the URL before the body).
+    s = Scn()
+    s.put("q.json", '{"query":"query { viewer { login } }"}')
+    s.put("two.json", '{"query":"query A { a } query B { b }"}')
+    d = ("--data", "<ROOT>/q.json")
+    s.run("api", "github", "POST", "/graphql", *d)
+    s.run("api", "github", "POST", "/graphql?query=mutation%7Bx%7D", *d)
+    s.run("api", "github", "POST", "/graphql", *d, "--query", "query=mutation{x}")
+    s.run("api", "github", "POST", "/graphql?operationName=B", "--data", "<ROOT>/two.json")
+    s.run("api", "github", "POST", "/graphql?_json[][query]=mutation{x}", *d)
+    s.run("api", "github", "POST", "/graphql", *d, "--query", "first=1")
+    s.run("api", "github", "GET", "/graphql?query=mutation%7Bx%7D")
+    s.run("api", "github", "GET", "/graphql", "--query", "operationName=B")
+    s.run("api", "github", "GET", "/search/issues", "--query", "query=x")
+    s.run("api", "github", "POST", "/graphql?query=mutation%7Bx%7D", *d, "--write")
+    add("api-graphql-url-decides", "ClassifyTest::test_graphql_url_decides", s)
     s = Scn(remote="https://dev.azure.com/org/proj/_git/app", token=False).entry("ai-gent/azure-devops/pat", f"{TOKEN}\n")
     s.put("w.json", '[{"op": "add", "path": "/fields/System.Title", "value": "t"}]')
     s.run("api", "azure-devops", "GET", "/{project}/_apis/wit/workitems/12")
@@ -289,19 +329,29 @@ def cases():
     s = Scn(token=False, stub=False)
     api_steps = {
         "github": [("GET", "/repos/o/r/issues", None), ("POST", "/graphql", {"query": "query { viewer { login } }"}),
-                   ("POST", "/graphql", {"query": "mutation { x }"}), ("POST", "/repos/o/r/issues", {}), ("HEAD", "/x", None)],
+                   ("POST", "/graphql", {"query": "mutation { x }"}), ("POST", "/repos/o/r/issues", {}), ("HEAD", "/x", None),
+                   ("POST", "/graphql", {"query": "subscription { x }"}), ("POST", "/graphql", None), ("POST", "/graphql", ["query { a }"]),
+                   ("POST", "/graphql", {"query": "query A { a } mutation B { b }", "operationName": "A"}),
+                   ("POST", "/graphql", {"query": "query A { a } query B { b }", "operationName": "A"}),
+                   ("POST", "/graphql?query=mutation%7Bx%7D", {"query": "query { a }"}),
+                   ("POST", "/graphql", {"query": "query { a }"}, {"query": "mutation{x}"}),
+                   ("POST", "/graphql", {"query": "query { a }"}, {"operationName": "B"}),
+                   ("GET", "/graphql", None, {"query": "{a}"})],
         "azure-devops": [("POST", "/proj/_apis/wit/wiql", {}), ("POST", "/proj/_apis/wit/wiql/abc", {}), ("PATCH", "/proj/_apis/wit/workitems/1", {})],
         "jira": [("POST", "/rest/api/3/search/jql", {}), ("POST", "/rest/api/3/search", {}), ("POST", "/rest/api/3/issue", {}),
                  ("POST", "/rest/agile/1.0/board/5/search", {}), ("POST", "/rest/agile/1.0/search", {})],
         "bitbucket": [("DELETE", "/repositories/w/r/pullrequests/1", None), ("POST", "/graphql", {})],
-        "gitlab": [("POST", "/api/graphql", {"query": "{ a }"}), ("POST", "/graphql", {"query": "mutation { a }"}), ("PUT", "/x", {})],
+        "gitlab": [("POST", "/api/graphql", {"query": "{ a }"}), ("POST", "/graphql", {"query": "mutation { a }"}), ("PUT", "/x", {}),
+                   ("POST", "/api/graphql", {"query": "subscription { a }"}), ("POST", "/graphql", {"query": "query { a }"})],
     }
     for plat, steps in api_steps.items():
         body = []
-        for i, (m, p, d) in enumerate(steps):
+        for i, (m, p, d, *qq) in enumerate(steps):
             a = {"method": m, "path": p}
             if d is not None:
                 a["data"] = d
+            if qq:
+                a["query"] = qq[0]
             body.append({"name": f"s{i}", "api": a})
         s.put(f"{plat}.json", json.dumps({"platform": plat, "steps": body}))
         s.run("batch", f"<ROOT>/{plat}.json", "--dry-run")

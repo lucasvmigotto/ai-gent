@@ -271,6 +271,15 @@ rm -f "${TMPDIR:-/tmp}/ai-gent-fixtures.out"
 # The same fixtures through the package path (spec 033 T052): the launcher head of each guard.sh with
 # the real binary, and the binary directly, with as many cases as the shell guards ran (--parity leaves
 # out the `new` cases only the binary decides). Needs a built binary (cargo build in rust/ or AI_GENT_BIN).
+#
+# The binary is built here first (a no-op when current), so these fixtures never run against a stale
+# `rust/target` restored from a CI cache (a Cargo.lock change falls back to an older cache).
+if [[ -z "${AI_GENT_BIN:-}" && -z "${CHECK_SKIP_RUST:-}" ]] && command -v cargo >/dev/null 2>&1 &&
+  [[ -f rust/Cargo.toml ]]; then
+  (cd rust && cargo build --locked -p ai-gent >"${TMPDIR:-/tmp}/ai-gent-fxbuild.out" 2>&1) ||
+    { tail -n 20 "${TMPDIR:-/tmp}/ai-gent-fxbuild.out"; fail "cargo build -p ai-gent (guard fixtures need a current binary)"; }
+  [[ -n "${CARGO_TARGET_DIR:-}" && -x "$CARGO_TARGET_DIR/debug/ai-gent" ]] && export AI_GENT_BIN="$CARGO_TARGET_DIR/debug/ai-gent"
+fi
 if [[ -x "${AI_GENT_BIN:-rust/target/release/ai-gent}" || -x "${AI_GENT_BIN:-rust/target/debug/ai-gent}" ]]; then
   fx="${TMPDIR:-/tmp}/ai-gent-fixtures3.out"
   : >"$fx"

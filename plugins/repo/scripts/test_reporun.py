@@ -127,6 +127,124 @@ class ClassifyTest(unittest.TestCase):
         self.assertFalse(reporun.api_is_write("jira", "POST", "/rest/api/3/search/jql", b"{}"))
         self.assertTrue(reporun.api_is_write("jira", "POST", "/rest/api/3/issue", b"{}"))
         self.assertTrue(reporun.api_is_write("bitbucket", "DELETE", "/repositories/w/r/pullrequests/1", None))
+        self.assertFalse(reporun.api_is_write("azure-devops", "POST", "/proj/_apis/wit/wiql", None))
+        q, s = b'{"query":"query { viewer { login } }"}', b'{"query":"subscription { x }"}'
+        for plat, path in (("github", "/graphql"), ("gitlab", "/api/graphql"), ("gitlab", "/graphql")):
+            with self.subTest(plat=plat, path=path):
+                self.assertFalse(reporun.api_is_write(plat, "POST", path, q))
+                self.assertTrue(reporun.api_is_write(plat, "POST", path, s))
+                self.assertTrue(reporun.api_is_write(plat, "POST", path, None))
+                self.assertTrue(reporun.api_is_write(plat, "POST", path, b""))
+        self.assertTrue(reporun.api_is_write("bitbucket", "POST", "/graphql", q))
+
+    # Twin of the tests in rust/crates/ai-gent-core/src/repo/graphql.rs.
+    GRAPHQL_READS = [
+        r'{"query":"query { viewer { login } }"}',
+        r'{"query":"{ viewer { login } }"}',
+        r'{"query":"query Q($n: Int = 3, $o: In = {a: [1, 2]}) @d(x: \"}\") { a(n: $n) { ...F } } fragment F on A { b }","variables":{"n":1}}',
+        r'{"query":"# mutation\nquery { search(query: \"mutation testing\") { mutation } }"}',
+        r'{"query":"query A { a } query B { b }","operationName":"A"}',
+        r'{"query":"query { a(x: 0) b(y: -0.5e1) }","variables":{"n":0,"m":-0}}',
+    ]
+    GRAPHQL_NOT_READS = [
+        # fail closed: a mutation or subscription anywhere is a write, even when operationName picks a query
+        r'{"query":"query A { a } mutation B { b }","operationName":"A"}',
+        r'{"query":"query A { a } subscription B { b }","operationName":"A"}',
+        r'{"query":"query { a }","variables":{"n":01}}',
+        r'{"query":"query { a }","variables":{"n":-01}}',
+        r'{"query":"query { a }","variables":{"n":[00]}}',
+        '{"query":"query { a }","v":' + "[" * 201 + "]" * 201 + "}",
+        '{"query":"query { a }","v":' + "[" * 300 + "]" * 300 + "}",
+        r'{"query":"mutation { x }"}',
+        r'{"query":"subscription { x }"}',
+        r'{"query":"subscription S { x }"}',
+        r'{"query":"query A { a } mutation B { b }","operationName":"B"}',
+        r'{"query":"query A { a } \u006dutation B { b }","operationName":"B"}',
+        r'{"query":"query A { a } mutation B { b }"}',
+        r'{"query":"query A { a } subscription B { b }","operationName":"C"}',
+        r'{"query":"query A { a } query A { b }","operationName":"A"}',
+        r'{"query":"{ a } query B { b }","operationName":"B"}',
+        r'{"query":"# query\n\u006dutation { x }"}',
+        r'{"query":"\u006dutation { x }"}',
+        r'{"query":"query { a }","operationName":""}',
+        r'{"query":"query { a }","operationName":3}',
+        r'{"query":"query { a }","query":"\u006dutation { x }"}',
+        r'[{"query":"query { a }"},{"query":"\u006dutation { x }"}]',
+        r'[{"query":"query { a }"}]',
+        r'{"query":"query { a }"} x',
+        r'{"variables":{}}',
+        r'{"query":null}',
+        r'{"query":["query { a }"]}',
+        r'{"query":""}',
+        r'{"query":"   "}',
+        r'{"query":"query { a"}',
+        r'{"query":"query { a }}"}',
+        r'{"query":"Query { a }"}',
+        r'{"query":"MUTATION { a }"}',
+        r'{"query":"type Query { a: Int }"}',
+        r'{"query":"query { a } \u00a0mutation { b }"}',
+        r'{"query":"# x\u2028\u006dutation { b }"}',
+        r'{"query":"query { a } \u200bmutation { b }"}',
+        r'{"query":"query { a(x: \"\\q\") }"}',
+        r'{"query":"query { a(x: 01) }"}',
+        r'{"query":"query { a(x: 1x) }"}',
+        r'{"query":"query { a(x: \"unterminated) }"}',
+        r'{"query":"query { a(x: \"\"\"open) }"}',
+        '{"query":"query { a }", "x": NaN}',
+        '\ufeff{"query":"query { a }"}',
+        "not json",
+        "",
+    ]
+
+    def test_graphql_body(self):
+        for body in self.GRAPHQL_READS:
+            with self.subTest(read=body):
+                self.assertTrue(reporun.graphql_is_read(body.encode()))
+        for body in self.GRAPHQL_NOT_READS:
+            with self.subTest(not_read=body):
+                self.assertFalse(reporun.graphql_is_read(body.encode()))
+                self.assertTrue(reporun.api_is_write("github", "POST", "/graphql", body.encode()))
+        self.assertFalse(reporun.graphql_is_read(None))
+        self.assertFalse(reporun.graphql_is_read(b'{"query":"query { a \xff }"}'))
+        # nesting up to the cap (the document is depth 0) still parses
+        self.assertTrue(reporun.graphql_is_read(('{"query":"query { a }","v":' + "[" * 200 + "]" * 200 + "}").encode()))
+
+    def test_graphql_url_decides(self):
+        q = b'{"query":"query { viewer { login } }"}'
+        two = b'{"query":"query A { a } query B { b }"}'
+        w = reporun.api_is_write
+        for plat, path in (("github", "/graphql"), ("gitlab", "/api/graphql"), ("gitlab", "/graphql")):
+            with self.subTest(plat=plat, path=path):
+                self.assertFalse(w(plat, "POST", path, q, {}))
+                self.assertTrue(w(plat, "POST", path + "?query=mutation%7Bx%7D", q))
+                self.assertTrue(w(plat, "POST", path + "?operationName=B", two))
+                self.assertTrue(w(plat, "POST", path + "?_json[][query]=mutation{x}", q))
+                self.assertTrue(w(plat, "POST", path + "?", q))
+                self.assertTrue(w(plat, "POST", path, q, {"query": "mutation{x}"}))
+                self.assertTrue(w(plat, "POST", path, q, {"operationName": "B"}))
+                self.assertTrue(w(plat, "POST", path, q, {"anything": "1"}))
+                self.assertTrue(w(plat, "GET", path + "?query=mutation%7Bx%7D", None))
+                self.assertTrue(w(plat, "GET", path + "?a=1&operationName=B", None))
+                self.assertTrue(w(plat, "GET", path + "?%71uery=x", None))
+                self.assertTrue(w(plat, "GET", path, None, {"query": "{a}"}))
+                self.assertTrue(w(plat, "GET", path, None, {"operationName": "B"}))
+                self.assertFalse(w(plat, "GET", path, None))
+                self.assertFalse(w(plat, "GET", path + "?first=1", None, {"x": "1"}))
+        self.assertFalse(w("github", "GET", "/repos/o/r/issues", None, {"query": "x"}))
+        self.assertFalse(w("github", "GET", "/search/issues?query=x", None))
+        # WIQL and Jira search keep reading with a query string
+        self.assertFalse(w("azure-devops", "POST", "/p/_apis/wit/wiql", None, {"api-version": "7.1"}))
+        self.assertFalse(w("jira", "POST", "/rest/api/3/search/jql", b"{}", {"expand": "x"}))
+
+    def test_batch_step_query(self):
+        q = {"query": "query { a }"}
+        step = lambda **a: {"name": "s", "api": {"method": "POST", "path": "/graphql", "data": q, **a}}  # noqa: E731
+        self.assertFalse(reporun.step_is_write("github", step()))
+        self.assertTrue(reporun.step_is_write("github", step(query={"query": "mutation{x}"})))
+        self.assertTrue(reporun.step_is_write("github", step(query={"operationName": "B"})))
+        self.assertTrue(reporun.step_is_write("github", step(query=[["query", "mutation{x}"]])))
+        self.assertTrue(reporun.step_is_write("github", step(path="/graphql?query=x")))
+        self.assertFalse(reporun.step_is_write("github", step(query={})))
 
 
 class Stub(http.server.BaseHTTPRequestHandler):

@@ -1,6 +1,6 @@
 //! The REST path: base URLs, auth headers, placeholders, write detection, pagination.
 use super::entry::{check_entry, default_entry, pass_has, read_entry};
-use super::platforms::{has_read_posts, is_read_post};
+use super::platforms::{graphql_params_in_url, has_read_posts, is_graphql_path, is_read_post};
 use super::py::{quote, urlencode, urlparse};
 use super::remote::{Remote, detect_repo, git_config, jira_url};
 use super::{Ctx, Failed, R, note};
@@ -152,15 +152,18 @@ pub fn fill(path: &str, facts: &[(String, String)]) -> R<String> {
 
 /// Whether an API request changes something.
 #[must_use]
-pub fn api_is_write(platform: &str, method: &str, path: &str, body: Option<&[u8]>) -> bool {
+pub fn api_is_write(
+    platform: &str,
+    method: &str,
+    path: &str,
+    body: Option<&[u8]>,
+    query: &[(String, String)],
+) -> bool {
     if method == "GET" || method == "HEAD" {
-        return false;
+        // a GET that carries a GraphQL document or operation is run by GitLab, mutation or not
+        return is_graphql_path(platform, path) && graphql_params_in_url(path, query);
     }
-    if method == "POST" && has_read_posts(platform) && is_read_post(platform, path) {
-        return matches!(platform, "github" | "gitlab")
-            && body.is_some_and(|b| b.windows(8).any(|w| w == b"mutation"));
-    }
-    true
+    !(method == "POST" && has_read_posts(platform) && is_read_post(platform, path, body, query))
 }
 
 fn next_link(platform: &str, link: &str, data: &J) -> String {
@@ -239,7 +242,7 @@ pub fn api_call(ctx: &Ctx, c: &Call<'_>) -> R<Data> {
     if !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].contains(&method.as_str()) {
         return Err(Failed::usage(format!("method {method} isn't supported")));
     }
-    if api_is_write(c.platform, &method, c.path, c.body) && !c.write {
+    if api_is_write(c.platform, &method, c.path, c.body, &c.query) && !c.write {
         return Err(Failed::refused(format!(
             "{method} {} changes something on {}; only when the user asked for this specific change, re-run with --write",
             c.path, c.platform

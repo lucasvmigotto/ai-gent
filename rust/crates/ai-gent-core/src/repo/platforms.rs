@@ -120,13 +120,49 @@ pub fn url_path(target: &str) -> String {
     super::py::urlparse(target).path
 }
 
-/// POSTs that only read (query languages over POST): the path matches the platform's search pattern.
+/// Whether a path is a GitHub or GitLab GraphQL endpoint (`urlparse(path).path`).
 #[must_use]
-pub fn is_read_post(platform: &str, path: &str) -> bool {
+pub fn is_graphql_path(platform: &str, path: &str) -> bool {
     let p = url_path(path);
     match platform {
         "github" => p == "/graphql",
         "gitlab" => p == "/api/graphql" || p == "/graphql",
+        _ => false,
+    }
+}
+
+/// Whether a `query` or `operationName` parameter rides in the URL: in the path's own query string or
+/// in the query pairs (a key such as `query[x]` counts as `query`).
+#[must_use]
+pub fn graphql_params_in_url(path: &str, query: &[(String, String)]) -> bool {
+    let hit = |k: &str| matches!(k.split('[').next(), Some("query" | "operationName"));
+    if query.iter().any(|(k, _)| hit(k)) {
+        return true;
+    }
+    path.split_once('?').is_some_and(|(_, qs)| {
+        qs.split(['&', ';'])
+            .any(|kv| hit(&super::py::unquote(kv.split('=').next().unwrap_or(""))))
+    })
+}
+
+/// POSTs that only read (query languages over POST): the path matches the platform's search pattern,
+/// and for GitHub and GitLab GraphQL the URL carries no query string (GitLab reads `query` from it
+/// before the body) and the body runs a `query` operation (`graphql::is_read_body`).
+#[must_use]
+pub fn is_read_post(
+    platform: &str,
+    path: &str,
+    body: Option<&[u8]>,
+    query: &[(String, String)],
+) -> bool {
+    let p = url_path(path);
+    match platform {
+        "github" | "gitlab" => {
+            is_graphql_path(platform, path)
+                && !path.contains(['?', '#'])
+                && query.is_empty()
+                && super::graphql::is_read_body(body)
+        }
         "azure-devops" => p.find("/_apis/wit/wiql").is_some_and(|i| {
             let tail = &p[i + "/_apis/wit/wiql".len()..];
             tail.is_empty() || tail.starts_with('/')
