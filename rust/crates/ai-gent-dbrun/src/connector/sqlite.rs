@@ -360,14 +360,24 @@ fn run_statement(
         let mut query = statement.query([])?;
         let mut failure = None;
         let ncols = columns.len();
+        let mut seen = 0usize;
         let source = std::iter::from_fn(|| match query.next() {
-            Ok(Some(row)) => match read_row(row, ncols, budget) {
-                Ok(values) => Some(values),
-                Err(e) => {
-                    failure = Some(e);
-                    None
+            Ok(Some(row)) => {
+                // Only a row the result keeps is read and charged: the probe row of a read (the one that
+                // proves truncation) and the rows a write returns past `max_rows` are stepped over.
+                let retained = seen < cap;
+                seen = seen.saturating_add(1);
+                if !retained {
+                    return Some(Vec::new());
                 }
-            },
+                match read_row(row, ncols, budget) {
+                    Ok(values) => Some(values),
+                    Err(e) => {
+                        failure = Some(e);
+                        None
+                    }
+                }
+            }
             Ok(None) => None,
             Err(e) => {
                 failure = Some(e);
@@ -435,9 +445,23 @@ fn column_names(statement: &rusqlite::Statement<'_>) -> rusqlite::Result<Vec<Str
     Ok(names)
 }
 
+/// The bytes `text` takes once serialized as a JSON string (quotes and escapes included, worst case for the
+/// result line): a control character is up to six bytes (`\u0000`), so a value is charged what it will weigh
+/// on the wire, not what it weighs in memory.
+fn json_string_len(text: &str) -> usize {
+    text.bytes().fold(2usize, |n, b| {
+        n.saturating_add(match b {
+            b'"' | b'\\' | b'\n' | b'\r' | b'\t' | 0x08 | 0x0c => 2,
+            0..=0x1f => 6,
+            _ => 1,
+        })
+    })
+}
+
 /// One row as JSON values. A text value keeps at most [`request::MAX_VALUE_BYTES`] bytes (cut and marked), a
-/// blob is only its length; every value is charged to `budget`, and a row that would pass it fails the
-/// statement, so one result never grows past [`request::MAX_RESULT_BYTES`] of values.
+/// blob is only its length; every value is charged to `budget` at its serialized size, and a row that would
+/// pass it fails the statement (a write rolls back before it commits), so the result line never grows past
+/// [`request::MAX_RESULT_BYTES`] of values.
 fn read_row(
     row: &rusqlite::Row<'_>,
     ncols: usize,
@@ -455,7 +479,7 @@ fn read_row(
             ValueRef::Blob(v) => Value::from(format!("<{} bytes>", v.len())),
         };
         let cost = match &value {
-            Value::String(text) => text.len(),
+            Value::String(text) => json_string_len(text).saturating_add(1),
             _ => 24,
         };
         *budget = budget.checked_sub(cost).ok_or_else(|| {
@@ -1031,8 +1055,85 @@ mod tests {
         let got = run_one(&conn, Mode::Read, &["SELECT v FROM m"]);
         assert_refused(&got, Stage::Execute, "larger than 16 MiB", &path);
         // Under the budget, part of the same table is fine.
-        let got = run_one(&conn, Mode::Read, &["SELECT v FROM m LIMIT 10"]);
+        let got = run_one(&conn, Mode::Read, &["SELECT v FROM m LIMIT 2"]);
         assert!(got.ok, "{:?}", got.error);
+    }
+
+    /// A table of `rows` text values of 1 MiB each: `fill` is the SQL expression of one value.
+    fn big_table(dir: &tempfile::TempDir, rows: u32, fill: &str) -> ConnFacts {
+        let path = dir.path().join("big.db");
+        Connection::open(&path)
+            .unwrap()
+            .execute_batch(&format!(
+                "CREATE TABLE w (n, v);
+                 WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < {rows})
+                 INSERT INTO w SELECT 0, {fill} FROM c;"
+            ))
+            .unwrap();
+        secret_facts(&path)
+    }
+
+    const NUL_MIB: &str = "CAST(zeroblob(1024 * 1024) AS TEXT)";
+    const TEXT_MIB: &str = "replace(hex(zeroblob(512 * 1024)), '0', 'a')";
+
+    #[test]
+    fn a_write_whose_escaped_result_passes_the_line_limit_rolls_back_before_the_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        // 12 MiB in memory, 72 MiB once every NUL is written as \u0000.
+        let conn = big_table(&dir, 12, NUL_MIB);
+        let got = run_one(&conn, Mode::Write, &["UPDATE w SET n = 1 RETURNING v"]);
+        assert_refused(
+            &got,
+            Stage::Execute,
+            "larger than 16 MiB",
+            &dir.path().join("big.db"),
+        );
+        assert_ne!(got.committed, Some(true), "{got:?}");
+        let n: i64 = Connection::open(dir.path().join("big.db"))
+            .unwrap()
+            .query_row("SELECT SUM(n) FROM w", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0, "the refused write must not have committed");
+        // Whatever the result holds fits the line it is sent in.
+        let got = run_one(&conn, Mode::Read, &["SELECT v FROM w LIMIT 2"]);
+        assert!(got.ok && got.to_line().len() < request::MAX_REQUEST_LINE);
+    }
+
+    #[test]
+    fn rows_a_write_returns_past_max_rows_are_not_charged() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = big_table(&dir, 17, TEXT_MIB);
+        let mut req = Request::new(
+            "sqlite",
+            conn,
+            Mode::Write,
+            vec!["UPDATE w SET n = 1 RETURNING v".to_string()],
+        );
+        req.max_rows = 0;
+        let got = SqliteConnector.run(&req);
+        assert!(got.ok, "{:?}", got.error);
+        assert_eq!(got.committed, Some(true));
+        let one = &got.results.as_ref().unwrap()[0];
+        assert!(one.rows.as_ref().unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_truncation_probe_row_of_a_read_is_not_charged() {
+        let dir = tempfile::tempdir().unwrap();
+        // 5 retained rows of 3 MiB fit the budget; the 6th (the probe) would not.
+        let conn = big_table(&dir, 6, TEXT_MIB);
+        let mut req = Request::new(
+            "sqlite",
+            conn,
+            Mode::Read,
+            vec!["SELECT v, v, v FROM w".to_string()],
+        );
+        req.max_rows = 5;
+        let got = SqliteConnector.run(&req);
+        assert!(got.ok, "{:?}", got.error);
+        let one = &got.results.as_ref().unwrap()[0];
+        assert_eq!(one.rows.as_ref().unwrap().len(), 5);
+        assert_eq!(one.truncated, Some(true));
     }
 
     #[cfg(unix)]

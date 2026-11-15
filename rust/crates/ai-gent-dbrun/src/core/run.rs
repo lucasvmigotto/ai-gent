@@ -760,8 +760,8 @@ impl Runner<'_> {
         } else {
             let _ = writeln!(
                 done.out,
-                "Backup: {location}. To undo: dbrun restore {} {} --confirmed",
-                t.name, plan.id
+                "Backup: the backup file of plan {}. To undo: dbrun restore {} {} --confirmed",
+                plan.id, t.name, plan.id
             );
         }
         Ok(done)

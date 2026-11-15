@@ -16,7 +16,7 @@
 //!
 //! Limitation: the kill reaches the direct child. A wrapper that forks (`uv run`, a container
 //! client) must forward the signal or exit when its pipes close.
-use super::{ConnFacts, Connector, ExecResult, Request, Stage};
+use super::{ConnFacts, Connector, ExecResult, Mode, Request, Stage};
 use std::ffi::OsString;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
@@ -234,6 +234,21 @@ fn fail(msg: &str) -> ExecResult {
     ExecResult::failure(Stage::Connect, format!("process connector: {msg}"))
 }
 
+/// A failure after the command started. For a write the transaction may have committed before the result
+/// was lost, so it is an `execute` failure that says so, never a `connect` failure (which means nothing ran).
+fn fail_started(req: &Request, msg: &str) -> ExecResult {
+    if req.mode == Mode::Write {
+        ExecResult::failure(
+            Stage::Execute,
+            format!(
+                "process connector: {msg}; the transaction was not confirmed committed, check the database state"
+            ),
+        )
+    } else {
+        fail(msg)
+    }
+}
+
 impl Connector for ProcessConnector {
     fn engines(&self) -> &'static [&'static str] {
         ALL_ENGINES
@@ -292,19 +307,19 @@ impl Connector for ProcessConnector {
                         result
                     }
                     Ok(_) | Err(_) if killed => {
-                        fail("the command did not exit in time and was killed")
+                        fail_started(req, "the command did not exit in time and was killed")
                     }
                     Ok(result) => result,
-                    Err(_) => fail("the command printed an invalid result"),
+                    Err(_) => fail_started(req, "the command printed an invalid result"),
                 }
             }
             Ok(Out::TooLong) => {
                 kill(&mut child);
-                fail("the result is larger than the allowed size")
+                fail_started(req, "the result is larger than the allowed size")
             }
             Err(RecvTimeoutError::Timeout) => {
                 kill(&mut child);
-                fail("the command timed out and was killed")
+                fail_started(req, "the command timed out and was killed")
             }
             Ok(Out::Eof) | Err(RecvTimeoutError::Disconnected) => {
                 let code = finish(&mut child, deadline);
@@ -321,7 +336,7 @@ impl Connector for ProcessConnector {
                 } else {
                     format!(": {shown}")
                 };
-                fail(&format!("the command {status} without a result{tail}"))
+                fail_started(req, &format!("the command {status} without a result{tail}"))
             }
         }
     }
