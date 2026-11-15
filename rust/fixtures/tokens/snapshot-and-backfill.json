@@ -22,7 +22,7 @@
    ],
    "stdin": "2026-10-19T00:00:00+00:00|chore: initial commit\n2026-10-20T00:00:00+00:00|manual one\n2026-10-21T00:00:00+02:00|Merge branch 'feat/x' into dev\n",
    "exit": 0,
-   "stdout": "backfilled 3 markers from origin/dev (3 total)\n"
+   "stdout": "backfilled 3 markers from origin/develop (3 total)\n"
   }
  ],
  "expect_files": {

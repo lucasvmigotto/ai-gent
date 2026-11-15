@@ -419,7 +419,7 @@ export const enUS: Messages = {
 				key: "start",
 				title: "Start",
 				skills: ["project-init"],
-				body: "A product brief from your idea or references. A new repository gets a one-line README as its initial commit and a dev branch; the files you handed in stay uncommitted.",
+				body: "A product brief from your idea or references. A new repository gets a one-line README as its initial commit and a develop branch; the files you handed in stay uncommitted.",
 			},
 			{
 				key: "design",
@@ -471,7 +471,7 @@ export const enUS: Messages = {
 				key: "land",
 				title: "Land",
 				skills: ["git-workflow"],
-				body: "Each branch lands on dev through a pull request the agent opens and merges on the platform once its required checks pass — one at a time, in dependency order; locally only when the platform isn't reachable.",
+				body: "Each branch lands on develop through a pull request the agent opens and merges on the platform once its required checks pass — one at a time, in dependency order; locally only when the platform isn't reachable.",
 				asks: true,
 			},
 			{
@@ -497,7 +497,7 @@ export const enUS: Messages = {
 				key: "release",
 				title: "Release",
 				skills: ["git-workflow", "devsecops-pipeline"],
-				body: "dev is promoted to main through a pull request; the pipeline's release job picks the version from the Conventional Commits, writes the changelog and tags, with no manual tagging, on any CI platform.",
+				body: "develop is promoted to main through a pull request; the pipeline's release job picks the version from the Conventional Commits, writes the changelog and tags, with no manual tagging, on any CI platform.",
 				asks: true,
 			},
 			{
@@ -509,7 +509,7 @@ export const enUS: Messages = {
 		],
 		autonomyTitle: "How autonomous",
 		autonomy:
-			"Questions come first: the stages that shape the product ask theirs before writing — four at a time, as choices with a recommendation, in as many rounds as it takes; whatever you decline to answer, the agent decides and records. Then give permission up front — “build it end to end, you can push” — and the loop runs without stopping: commits, pushes of work branches and dev, tracker batches and CI fixes. Promoting to main and releasing still ask unless that permission names them; force pushes and deletions always do. The guard hooks ask on every push, so a hands-off run also needs pushes allowed in your agent's permission settings.",
+			"Questions come first: the stages that shape the product ask theirs before writing — four at a time, as choices with a recommendation, in as many rounds as it takes; whatever you decline to answer, the agent decides and records. Then give permission up front — “build it end to end, you can push” — and the loop runs without stopping: commits, pushes of work branches and develop, tracker batches and CI fixes. Promoting to main and releasing still ask unless that permission names them; force pushes and deletions always do. The guard hooks ask on every push, so a hands-off run also needs pushes allowed in your agent's permission settings.",
 		supportTitle: "Alongside every step",
 		support: [
 			{

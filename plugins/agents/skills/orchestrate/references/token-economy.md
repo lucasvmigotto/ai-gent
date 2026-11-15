@@ -56,7 +56,7 @@ description (`cards.md`). It writes `used` onto the task lines (`· Tokens:
 projected ~420k | used 391k`), a Tokens block into `specs/<feature>/tracker.md`
 (with the coordinator's share), the ledger's Tokens column and the repo's
 `docs/product/token-history.jsonl`; usage it can't attribute is listed, not
-guessed. Stage markers come from `dev` landings (read from git, or
+guessed. Stage markers come from `develop` landings (read from git, or
 `$TOKREP backfill-git --repo=.`), or by hand with `$TOKREP snapshot
 --label="..."`. `$TOKREP index --scan ~/codes` refreshes the cross-project
 history that `estimate` draws on.

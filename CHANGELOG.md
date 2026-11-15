@@ -4,6 +4,12 @@ Releases are plain SemVer git tags (`1.1.0`). Each plugin also carries its
 own `version` in `.claude-plugin/plugin.json`, bumped when that plugin
 changes.
 
+## Unreleased
+
+### Changed
+
+- **Integration branch:** `dev` is renamed `develop` (the owner's decision: no alias, 3.0.0 ships with `main` and `develop` only). The release job's back-merge targets `develop` and, when the protected branch refuses the push, warns that a pull request from `main` to `develop` is needed; Docs CI runs on pushes to `main` and `develop`; the git:workflow skill and its references, the README, `shared/releasing.md` and the docs site name `develop`; `ai-gent tokens` and `token_report.py` read stage markers from `origin/develop` first, and the delegate review base tries `develop` before `main`. The guards, the branch chain and the worktree tools still accept `dev` as well, so a repository that keeps it works unchanged.
+
 ## 2.28.0 — 2026-11-15
 
 ### Added

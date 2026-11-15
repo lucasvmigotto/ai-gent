@@ -1,12 +1,11 @@
 # Branches — the chain, names, sub-branches, a new repository
 
 - **The chain**, highest first: **`main`/`master` > `homolog`/`staging`
-  (when there is one) > `dev`/`develop` > work branches.** Work enters at
-  `dev` and moves up one level at a time.
-- **Branch off `dev`**, after `git fetch`. Getting `dev` ready (missing,
+  (when there is one) > `develop` > work branches.** Work enters at
+  `develop` and moves up one level at a time.
+- **Branch off `develop`**, after `git fetch`. Getting `develop` ready (missing,
   only on the remote, behind or diverged from it) and the exception for a
-  `dev` far behind the levels above are in `chain.md`. Both
-  `dev` and `develop` exist: ask which one.
+  `develop` far behind the levels above are in `chain.md`.
 - **Names:** `<prefix>/[<id>-]short-description`, kebab-case —
   `feat/`, `fix/`, `hotfix/`, `release/`, `refactor/`, `perf/`, `docs/`,
   `test/`, `build/`, `ci/`, `chore/` (or `feature/`, `bugfix/` where the
@@ -25,7 +24,7 @@
 - **A new repository** starts the same way every time: `git init -b main`
   (or the user's production branch), a single-line `README.md` —
   `# <Project name>` — committed alone as `chore: initial commit` (the
-  guard asks), then `dev` from it. Input documents the user handed in (a
+  guard asks), then `develop` from it. Input documents the user handed in (a
   spec, requirements, references) are never committed unless they say
   so. **No `LICENSE` file unless the user names one.** An unlicensed
   repository is private and all rights reserved by default — never add

@@ -75,7 +75,7 @@ Verified requires green CI on the merged commit (pipeline rule 8); it is never c
 |---|---|
 | Before commit | `scripts/check.sh --quick --quiet`; a change in a script's area also runs that script's test directly |
 | Pull request | `check.yml` (full `check.sh` plus the macOS installer job); `Docs CI` when `docs/site/**` or `docs/product/**` changed; Dependabot PRs go through the same gates |
-| Before promotion `dev` to `main` | Full `scripts/check.sh` (installer and update-check included); evals of the touched plugins only (`run-evals.py <plugin>` and `--behavior` where relevant); the interactive probes for any changed or new mod; `test-dbrun-engines.py` or `test-reporun-github.py` only if `dbrun.py` or `reporun.py` changed; `scripts/release.py --dry-run` to read the predicted bumps |
+| Before promotion `develop` to `main` | Full `scripts/check.sh` (installer and update-check included); evals of the touched plugins only (`run-evals.py <plugin>` and `--behavior` where relevant); the interactive probes for any changed or new mod; `test-dbrun-engines.py` or `test-reporun-github.py` only if `dbrun.py` or `reporun.py` changed; `scripts/release.py --dry-run` to read the predicted bumps |
 | Push to `main` | `check` again, then `release.py`; `Docs CI` deploy after a successful release |
 | Weekly | `scheduled.yml`: full `check`, `dbrun` against five real engines, live docs-site smoke; a failure opens one `CI failing: scheduled on main` issue |
 

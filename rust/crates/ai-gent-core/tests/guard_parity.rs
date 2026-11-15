@@ -50,7 +50,7 @@ fn sandbox() -> Sandbox {
     for (k, b) in [
         ("main", "main"),
         ("staging", "staging"),
-        ("dev", "dev"),
+        ("develop", "develop"),
         ("feat", "feat/x"),
         ("granted", "feat/x"),
         ("expired", "feat/x"),

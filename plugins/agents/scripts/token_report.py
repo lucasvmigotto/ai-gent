@@ -25,7 +25,7 @@ message's final usage - the API's own numbers, never an estimate. Python standar
   token_report.py report   --project=SLUG (--out PATH | --summary) [--top N]
       the project-wide roll-up (by stage, label, agent); --summary prints a few lines, with idle cache rebuilds
   token_report.py snapshot --label "..." [--at ISO8601]  a stage marker by hand
-  token_report.py backfill-git --repo PATH|- [--ref origin/dev]   stage markers from first-parent landings
+  token_report.py backfill-git --repo PATH|- [--ref origin/develop]   stage markers from first-parent landings
 
 Stage markers split the coordinator's (main thread's) usage by landing window; without a snapshots
 file `tasks` reads them from the repo's git history in memory. A project slug starts with '-', so
@@ -869,7 +869,7 @@ def projected_of(g, feats):
 
 def git_markers(ref=None):
     """Stage markers from the current repo's first-parent landings, in memory (nothing written)."""
-    for r in ([ref] if ref else ["origin/dev", "dev", "main", "HEAD"]):
+    for r in ([ref] if ref else ["origin/develop", "develop", "origin/dev", "dev", "main", "HEAD"]):
         try:
             out = subprocess.run(["git", "log", "--first-parent", "--reverse", "--format=%cI|%s", r], check=True,
                                  capture_output=True, text=True).stdout
@@ -1930,7 +1930,7 @@ def build_parser():
     s.set_defaults(fn=cmd_snapshot)
     b = sub.add_parser("backfill-git")
     b.add_argument("--repo", required=True)
-    b.add_argument("--ref", default="origin/dev")
+    b.add_argument("--ref", default="origin/develop")
     b.add_argument("--snapshots", default=DEFAULT_SNAPSHOTS)
     b.set_defaults(fn=cmd_backfill)
     return p

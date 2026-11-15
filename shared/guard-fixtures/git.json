@@ -6,7 +6,7 @@
     "repos": {
       "main": "main",
       "staging": "staging",
-      "dev": "dev",
+      "develop": "develop",
       "feat": "feat/x"
     }
   },
@@ -499,7 +499,7 @@
       "tool": "Bash",
       "cwd": "@staging",
       "shell": "sh",
-      "command": "git merge --no-ff dev",
+      "command": "git merge --no-ff develop",
       "want": "ask",
       "reason": "git:workflow guard: this commits or merges on staging; promotion up the branch chain needs the user's explicit request",
       "source": [
@@ -510,8 +510,8 @@
         "parity"
       ],
       "variants": {
-        "powershell": "git merge --no-ff dev",
-        "cmd": "git merge --no-ff dev"
+        "powershell": "git merge --no-ff develop",
+        "cmd": "git merge --no-ff develop"
       }
     },
     {
@@ -537,11 +537,11 @@
     {
       "id": "git-027",
       "tool": "Bash",
-      "cwd": "@dev",
+      "cwd": "@develop",
       "shell": "sh",
       "command": "git commit -m \"fix: x\"",
       "want": "ask",
-      "reason": "git:workflow guard: this commits directly on dev; work goes on a branch merged into it (conclude a merge with git merge --continue)",
+      "reason": "git:workflow guard: this commits directly on develop; work goes on a branch merged into it (conclude a merge with git merge --continue)",
       "source": [
         "scripts/test-guard.sh",
         "opencode/guard/test/rules.test.mjs:gitVectors"
@@ -557,11 +557,11 @@
     {
       "id": "git-028",
       "tool": "Bash",
-      "cwd": "@dev",
+      "cwd": "@develop",
       "shell": "sh",
       "command": "git merge --no-ff feat/x && git commit -m \"fix: x\"",
       "want": "ask",
-      "reason": "git:workflow guard: this commits directly on dev; work goes on a branch merged into it (conclude a merge with git merge --continue)",
+      "reason": "git:workflow guard: this commits directly on develop; work goes on a branch merged into it (conclude a merge with git merge --continue)",
       "source": [
         "scripts/test-guard.sh",
         "opencode/guard/test/rules.test.mjs:gitVectors"
@@ -579,9 +579,9 @@
       "tool": "Bash",
       "cwd": "@feat",
       "shell": "sh",
-      "command": "git -C {dev} commit -m \"fix: x\"",
+      "command": "git -C {develop} commit -m \"fix: x\"",
       "want": "ask",
-      "reason": "git:workflow guard: this commits directly on dev; work goes on a branch merged into it (conclude a merge with git merge --continue)",
+      "reason": "git:workflow guard: this commits directly on develop; work goes on a branch merged into it (conclude a merge with git merge --continue)",
       "source": [
         "scripts/test-guard.sh",
         "opencode/guard/test/rules.test.mjs:gitVectors"
@@ -590,14 +590,14 @@
         "parity"
       ],
       "variants": {
-        "powershell": "git -C {dev} commit -m \"fix: x\"",
-        "cmd": "git -C {dev} commit -m \"fix: x\""
+        "powershell": "git -C {develop} commit -m \"fix: x\"",
+        "cmd": "git -C {develop} commit -m \"fix: x\""
       }
     },
     {
       "id": "git-030",
       "tool": "Bash",
-      "cwd": "@dev",
+      "cwd": "@develop",
       "shell": "sh",
       "command": "git merge --no-ff feat/x",
       "want": "none",
@@ -616,7 +616,7 @@
     {
       "id": "git-031",
       "tool": "Bash",
-      "cwd": "@dev",
+      "cwd": "@develop",
       "shell": "sh",
       "command": "git merge --ff-only feat/x",
       "want": "none",
@@ -635,7 +635,7 @@
     {
       "id": "git-032",
       "tool": "Bash",
-      "cwd": "@dev",
+      "cwd": "@develop",
       "shell": "sh",
       "command": "git merge --continue",
       "want": "none",

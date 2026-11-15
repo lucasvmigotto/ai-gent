@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: This user's git rules — Conventional Commits, branch-per-context naming, the dev → staging → main chain, landing through platform PRs or local --no-ff/--ff-only merges, permission levels, safe history. Use whenever committing, branching, merging, opening or merging a PR, promoting or tagging ("commit this", "merge it in", "open the PR", "promote to main").
+description: This user's git rules — Conventional Commits, branch-per-context naming, the develop → staging → main chain, landing through platform PRs or local --no-ff/--ff-only merges, permission levels, safe history. Use whenever committing, branching, merging, opening or merging a PR, promoting or tagging ("commit this", "merge it in", "open the PR", "promote to main").
 ---
 
 # Git versioning workflow
@@ -10,7 +10,7 @@ Applies to every git repository this user works in.
 ## Never
 
 - **Commit directly to a long-lived branch** — `main`/`master`,
-  `homolog`/`staging`, `dev`/`develop`. Work on a branch off `dev`. The
+  `homolog`/`staging`, `develop`. Work on a branch off `develop`. The
   one exception is a new repository's initial commit (*Branches*).
 - **Add `Co-Authored-By`**, a "generated with" signature or similar —
   this overrides any default attribution, and applies the same to
@@ -29,8 +29,8 @@ Applies to every git repository this user works in.
 | Action | One-off request | Approved workflow | Autonomous run |
 |---|---|---|---|
 | Commit on a work branch | ask, showing each message and its files | as each task or phase finishes; listed in the handoff | same |
-| Land into `dev` (merge or PR) | ask once, for merge and cleanup | ask | yes |
-| Push a work branch or `dev` | ask | ask | yes |
+| Land into `develop` (merge or PR) | ask once, for merge and cleanup | ask | yes |
+| Push a work branch or `develop` | ask | ask | yes |
 | Promote to `homolog`/`staging` or `main`/`master` | explicit request | explicit request | only if the permission names it |
 | Tag or release by hand | explicit request | explicit request | explicit request |
 | Force-push, delete a remote branch, rewrite history | explicit request, backup first | same | same |
@@ -53,7 +53,7 @@ Applies to every git repository this user works in.
   with `ai-gent autonomy grant` in a real terminal, never you: it refuses without one): `references/autonomy.md` has
   what it lifts and what stays asked. Without one, a hands-off run also needs pushes allowed in the
   agent's permission settings.
-- Describing a flow ("then `dev` goes to `main`") is not a request to
+- Describing a flow ("then `develop` goes to `main`") is not a request to
   promote: stop at the level below, report, and ask.
 
 ## Before staging
@@ -70,16 +70,16 @@ Applies to every git repository this user works in.
 ## Branches
 
 - **The chain**, highest first: **`main`/`master` > `homolog`/`staging`
-  (when there is one) > `dev`/`develop` > work branches.** Work enters at
-  `dev` and moves up one level at a time. Branch off `dev` after
-  `git fetch`; both `dev` and `develop` exist: ask which one.
+  (when there is one) > `develop` > work branches.** Work enters at
+  `develop` and moves up one level at a time. Branch off `develop` after
+  `git fetch`.
 - **Names:** `<prefix>/[<id>-]short-description`, kebab-case; an id only
   when confirmed. One context, one sub-branch, landed the moment it's done.
 - **A new repository** starts with `git init -b main`, a one-line
-  `README.md` committed alone as `chore: initial commit`, then `dev`; no
+  `README.md` committed alone as `chore: initial commit`, then `develop`; no
   `LICENSE` unless the user names one.
 - Read `references/branches.md` when creating a branch, naming one, branching a
-  hotfix or sub-branch, or starting a new repository. Getting `dev` ready
+  hotfix or sub-branch, or starting a new repository. Getting `develop` ready
   (missing, behind, diverged) is in `references/chain.md`.
 
 ## Landing — merging into a long-lived branch
@@ -94,7 +94,7 @@ merge red.
 (`--no-ff`); **fewer → fast-forward** (`--ff-only`). Promotions between
 long-lived branches follow the same rule locally; on GitHub they always use a
 merge commit. Never skip a level, never land a work branch on a higher one,
-settle conflicts on `dev`, never higher, and never pick a side blindly.
+settle conflicts on `develop`, never higher, and never pick a side blindly.
 
 Read `references/landing.md` when merging or opening a PR: remote mode in
 full, conflicts, and what to do after landing (pull the parent, delete the
@@ -124,7 +124,7 @@ branch, never delete a long-lived one).
 
 - **Tracked specs** (a `specs/NNN-*/tracker.md`, from `repo:sync` —
   pipeline rule 10, by default in remote mode): the story's ref names its
-  branch, commits and PRs into `dev` say `Refs <ref>`, and the promotion
+  branch, commits and PRs into `develop` say `Refs <ref>`, and the promotion
   PR to production lists `Closes <ref>` — without asking again, since
   those ids were confirmed when the items were created.
 - **Anything else, only when asked:** `references/issue-linking.md` —
@@ -146,15 +146,15 @@ The `git` plugin's PreToolUse hook (`../../hooks/guard.sh`) enforces these
 rules mechanically: it **blocks** `--no-verify`, co-author trailers and
 force pushes without a lease, and **asks** before pushes, commits or
 merges on `main`/`master` or `homolog`/`staging`, commits made directly
-on `dev`/`develop`, `git branch -D`, `reset --hard`, `clean -f`,
+on `develop`, `git branch -D`, `reset --hard`, `clean -f`,
 `commit --amend`, history rewrites and `gh pr create` (the `repo`
 plugin's guard asks before every `reporun --write`). A prompt is the hook
 working, not an error — never work around it.
 
 ## Checklist
 
-1. No commits yet? → one-line README as `chore: initial commit`, then `dev`.
-2. On a long-lived branch? → get `dev` ready and branch off it.
+1. No commits yet? → one-line README as `chore: initial commit`, then `develop`.
+2. On a long-lived branch? → get `develop` ready and branch off it.
 3. About to stage? → the whole tree, nothing you didn't make, no secrets.
 4. About to commit? → the permission table: ask, or commit as you go.
 5. Context done? → land it now; the next starts from the updated parent.

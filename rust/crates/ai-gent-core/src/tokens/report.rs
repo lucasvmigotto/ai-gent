@@ -75,8 +75,19 @@ pub fn markers_from_log(out: &str) -> Vec<Snap> {
 /// Stage markers from the current repo's first-parent landings, in memory.
 #[must_use]
 pub fn git_markers(reference: Option<&str>) -> Vec<Snap> {
-    let refs: Vec<&str> =
-        reference.map_or_else(|| vec!["origin/dev", "dev", "main", "HEAD"], |r| vec![r]);
+    let refs: Vec<&str> = reference.map_or_else(
+        || {
+            vec![
+                "origin/develop",
+                "develop",
+                "origin/dev",
+                "dev",
+                "main",
+                "HEAD",
+            ]
+        },
+        |r| vec![r],
+    );
     for r in refs {
         let out = std::process::Command::new("git")
             .args(["log", "--first-parent", "--reverse", "--format=%cI|%s", r])

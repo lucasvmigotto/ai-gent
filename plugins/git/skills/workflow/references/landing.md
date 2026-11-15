@@ -19,7 +19,7 @@ rebase merge). **Promotions** between long-lived branches follow the same
 rule locally; on a platform that can't fast-forward (GitHub) they always
 use a merge commit, so the lower branch can still fast-forward to the
 upper one. Never skip a level, never land a work branch on a higher one,
-and settle conflicts on `dev`, never higher.
+and settle conflicts on `develop`, never higher.
 
 **Conflicts** stop the landing: show the files and hunks and resolve them
 with the user — never `-X ours`/`-X theirs` or a side picked blindly. In

@@ -2,7 +2,7 @@ name: Docs CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, develop]
     paths:
       - "docs/site/**"
       - "docs/product/**"

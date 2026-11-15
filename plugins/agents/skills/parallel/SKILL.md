@@ -1,6 +1,6 @@
 ---
 name: parallel
-description: Develop independent work at the same time — several features, or a feature's frontend, backend and QA tracks — each on its own branch in a git worktree under .worktrees/, landed on dev one at a time in dependency order. Use for "build these features in parallel", "use worktrees", "run the tracks at once".
+description: Develop independent work at the same time — several features, or a feature's frontend, backend and QA tracks — each on its own branch in a git worktree under .worktrees/, landed on develop one at a time in dependency order. Use for "build these features in parallel", "use worktrees", "run the tracks at once".
 ---
 
 # Parallel development in worktrees
@@ -64,7 +64,7 @@ it never covers merges, pushes or releases.
 
 ## 2. One worktree per track
 
-`wt.py add <branch>` for each track: a new branch off the chain's `dev`
+`wt.py add <branch>` for each track: a new branch off the chain's `develop`
 (named per `git:workflow`, with the tracker ref when the feature has a
 `tracker.md`), checked out in `.worktrees/<branch-slug>/`. The script
 keeps `.worktrees/` out of git through `.git/info/exclude` — no project
@@ -83,7 +83,7 @@ file changes — and prints the track's isolation:
   can find them (`../../references/containers.md` §9a).
 
 Never put two tracks in one worktree, and leave the main checkout on
-`dev` for landing.
+`develop` for landing.
 
 ## 3. Run the tracks
 
@@ -105,24 +105,24 @@ Each track runs in its own context, inside its worktree only:
   `[UPSTREAM GAP: …]`; it never edits across tracks.
 - Keep a ledger in `.ai-gent/parallel-status.md`: track, branch,
   worktree, state, last commit, checks, blockers. `wt.py list` shows each
-  worktree's commits ahead of `dev` and uncommitted changes.
+  worktree's commits ahead of `develop` and uncommitted changes.
 
 ## 4. Land — one branch at a time
 
 In dependency order, then smallest first, from the main checkout on
-`dev`:
+`develop`:
 
 1. Report the branch: commits, their count, the merge type (`--ff-only`
    under 4, `--no-ff` from 4), its checks. **Ask before each merge**,
    unless the user gave explicit permission beforehand to run the project
    on its own (`git:workflow`).
 2. Merge it — in remote mode through its PR, opened and merged on the
-   platform (`repo:pr`) — then make sure `dev` is green (the project's
+   platform (`repo:pr`) — then make sure `develop` is green (the project's
    checks, or the merge's CI) before the next one: each landing must be
    green on its own.
 3. **A conflict stops the landing.** Report the files and both sides;
    never resolve it on your own. The fix happens in the track's worktree
-   (merge `dev` into its branch there, resolve, re-run its checks), then
+   (merge `develop` into its branch there, resolve, re-run its checks), then
    it lands again.
 4. Update the feature's status columns in `specs/README.md` (the owning
    stage's statuses), run `repo:sync` for a tracked feature, and after a

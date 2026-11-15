@@ -59,7 +59,7 @@ push to main
   same keys; `scripts/consistency.py` checks it.
 - **Back-merge.** The release commit and tag land on the default branch
   only, so the job then merges the release commit back into the
-  integration branch (`dev`/`develop`) with
+  integration branch (`develop`) with
   `git merge --no-ff -m "chore(release): merge X.Y.Z back into <integ>"`
   and pushes it, when the project has one — otherwise the integration
   branch's version and CHANGELOG lag and the next plan counts from an old
@@ -163,7 +163,7 @@ must be reachable on every path to a release: if it lives in a separate
 workflow file, call it with `workflow_call`; if it is inline and the
 repo uses path filters, keep the gate unfiltered — a skipped `needs`
 dependency would skip the release with it. Heavy integration (real
-containers, a GUI, a live database) belongs on `dev` pushes or the
+containers, a GUI, a live database) belongs on `develop` pushes or the
 scheduled pipeline, never in the path that releases.
 
 ## No `release/*` branches
@@ -172,7 +172,7 @@ There is no release-preparation branch in this flow. The automation
 reads commits on `main` since the last tag, so work on an unmerged
 `release/*` branch is invisible to it, and `git:workflow`'s `release/`
 prefix is a naming slot, not a trigger. Prepare the release the way you
-prepare any change: on a working branch off `dev`, with the notes under
+prepare any change: on a working branch off `develop`, with the notes under
 `## Unreleased`, merged up like everything else.
 
 ## How ai-gent itself releases
@@ -196,7 +196,7 @@ prepare any change: on a working branch off `dev`, with the notes under
 
 ### Required checks
 
-The required CI set (spec 039 FR-012) is what the branch protection of `dev` and `main` lists, and
+The required CI set (spec 039 FR-012) is what the branch protection of `develop` and `main` lists, and
 nothing else:
 
 - `check` (Linux: `scripts/check.sh` with `TIER3_SKIP=1`) and `macos` (installer tests on the
