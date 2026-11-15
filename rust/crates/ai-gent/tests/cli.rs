@@ -26,10 +26,14 @@ fn version_json_shape() {
     // snapshot also pins the key order.
     let target = v["data"]["target"].as_str().unwrap();
     let mut shown = text.replace(target, "<target>");
+    // The crate version moves with every release (the release commit bumps Cargo.toml).
+    let krate = v["data"]["crate"].as_str().unwrap();
+    assert_eq!(krate, env!("CARGO_PKG_VERSION"));
+    shown = shown.replace(&format!("\"crate\":\"{krate}\""), "\"crate\":\"<crate>\"");
     if let Some(commit) = v["data"]["commit"].as_str() {
         shown = shown.replace(commit, "<commit>");
     }
-    insta::assert_snapshot!(shown.trim_end(), @r#"{"schema":1,"ok":true,"data":{"crate":"0.1.0","release":"dev","target":"<target>","commit":"<commit>","profile":"debug"}}"#);
+    insta::assert_snapshot!(shown.trim_end(), @r#"{"schema":1,"ok":true,"data":{"crate":"<crate>","release":"dev","target":"<target>","commit":"<commit>","profile":"debug"}}"#);
 }
 
 #[test]
@@ -62,7 +66,8 @@ fn version_flag_line() {
         .clone();
     let text = String::from_utf8(out).unwrap();
     assert!(
-        text.starts_with("ai-gent 0.1.0 (") && text.ends_with(")\n"),
+        text.starts_with(&format!("ai-gent {} (", env!("CARGO_PKG_VERSION")))
+            && text.ends_with(")\n"),
         "{text}"
     );
 }
