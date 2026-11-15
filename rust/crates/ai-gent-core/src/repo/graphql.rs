@@ -40,6 +40,9 @@ pub fn is_read_body(body: Option<&[u8]>) -> bool {
     let Some(ops) = operations(doc) else {
         return false;
     };
+    if ops.iter().any(|(k, _)| *k != Kind::Query) {
+        return false; // fail closed: a mutation or subscription anywhere, even one operationName doesn't pick
+    }
     if ops.len() > 1 && ops.iter().any(|(_, n)| n.is_none()) {
         return false; // an anonymous operation must stand alone
     }
@@ -296,13 +299,32 @@ mod tests {
             r##"{"query":"# mutation\nquery { search(query: \"mutation testing\") { mutation } }"}"##
         ));
         assert!(read(
-            r##"{"query":"query A { a } mutation B { b }","operationName":"A"}"##
+            r##"{"query":"query A { a } query B { b }","operationName":"A"}"##
         ));
+        assert!(read(
+            r##"{"query":"query { a(x: 0) b(y: -0.5e1) }","variables":{"n":0,"m":-0}}"##
+        ));
+        let nest = |n: usize| {
+            format!(
+                r##"{{"query":"query {{ a }}","v":{}{}}}"##,
+                "[".repeat(n),
+                "]".repeat(n)
+            )
+        };
+        assert!(read(&nest(200)));
+        assert!(!read(&nest(201)));
+        assert!(!read(&nest(300)));
     }
 
     #[test]
     fn writes_and_unknowns_do_not_read() {
         for body in [
+            // fail closed: a mutation or subscription anywhere, even when operationName picks a query
+            r##"{"query":"query A { a } mutation B { b }","operationName":"A"}"##,
+            r##"{"query":"query A { a } subscription B { b }","operationName":"A"}"##,
+            r##"{"query":"query { a }","variables":{"n":01}}"##,
+            r##"{"query":"query { a }","variables":{"n":-01}}"##,
+            r##"{"query":"query { a }","variables":{"n":[00]}}"##,
             r##"{"query":"mutation { x }"}"##,
             r##"{"query":"subscription { x }"}"##,
             r##"{"query":"subscription S { x }"}"##,
@@ -359,25 +381,93 @@ mod tests {
             ("gitlab", "/api/graphql"),
             ("gitlab", "/graphql"),
         ] {
-            assert!(!api_is_write(plat, "POST", path, Some(q)));
-            assert!(api_is_write(plat, "POST", path, Some(s)));
-            assert!(api_is_write(plat, "POST", path, None));
-            assert!(api_is_write(plat, "POST", path, Some(b"")));
+            assert!(!api_is_write(plat, "POST", path, Some(q), &[]));
+            assert!(api_is_write(plat, "POST", path, Some(s), &[]));
+            assert!(api_is_write(plat, "POST", path, None, &[]));
+            assert!(api_is_write(plat, "POST", path, Some(b""), &[]));
         }
-        assert!(api_is_write("bitbucket", "POST", "/graphql", Some(q)));
-        assert!(api_is_write("github", "PATCH", "/graphql", Some(q)));
+        assert!(api_is_write("bitbucket", "POST", "/graphql", Some(q), &[]));
+        assert!(api_is_write("github", "PATCH", "/graphql", Some(q), &[]));
         // WIQL and Jira search keep reading whatever the body
         assert!(!api_is_write(
             "azure-devops",
             "POST",
             "/p/_apis/wit/wiql",
-            None
+            None,
+            &[]
         ));
         assert!(!api_is_write(
             "jira",
             "POST",
             "/rest/api/3/search/jql",
-            Some(b"{}")
+            Some(b"{}"),
+            &[]
+        ));
+        let kv = |k: &str, v: &str| vec![(k.to_string(), v.to_string())];
+        assert!(!api_is_write(
+            "azure-devops",
+            "POST",
+            "/p/_apis/wit/wiql",
+            None,
+            &kv("api-version", "7.1")
+        ));
+        assert!(!api_is_write(
+            "jira",
+            "POST",
+            "/rest/api/3/search/jql",
+            Some(b"{}"),
+            &kv("expand", "x")
+        ));
+    }
+
+    #[test]
+    fn the_url_decides_too() {
+        use crate::repo::api::api_is_write;
+        let q: &[u8] = br##"{"query":"query { viewer { login } }"}"##;
+        let two: &[u8] = br##"{"query":"query A { a } query B { b }"}"##;
+        let kv = |k: &str, v: &str| vec![(k.to_string(), v.to_string())];
+        for (plat, path) in [
+            ("github", "/graphql"),
+            ("gitlab", "/api/graphql"),
+            ("gitlab", "/graphql"),
+        ] {
+            let post = |p: &str, b: &[u8], qs: &[(String, String)]| {
+                api_is_write(plat, "POST", p, Some(b), qs)
+            };
+            let get = |p: &str, qs: &[(String, String)]| api_is_write(plat, "GET", p, None, qs);
+            assert!(!post(path, q, &[]));
+            assert!(post(&format!("{path}?query=mutation%7Bx%7D"), q, &[]));
+            assert!(post(&format!("{path}?operationName=B"), two, &[]));
+            assert!(post(
+                &format!("{path}?_json[][query]=mutation{{x}}"),
+                q,
+                &[]
+            ));
+            assert!(post(&format!("{path}?"), q, &[]));
+            assert!(post(path, q, &kv("query", "mutation{x}")));
+            assert!(post(path, q, &kv("operationName", "B")));
+            assert!(post(path, q, &kv("anything", "1")));
+            assert!(get(&format!("{path}?query=mutation%7Bx%7D"), &[]));
+            assert!(get(&format!("{path}?a=1&operationName=B"), &[]));
+            assert!(get(&format!("{path}?%71uery=x"), &[]));
+            assert!(get(path, &kv("query", "{a}")));
+            assert!(get(path, &kv("operationName", "B")));
+            assert!(!get(path, &[]));
+            assert!(!get(&format!("{path}?first=1"), &kv("x", "1")));
+        }
+        assert!(!api_is_write(
+            "github",
+            "GET",
+            "/repos/o/r/issues",
+            None,
+            &kv("query", "x")
+        ));
+        assert!(!api_is_write(
+            "github",
+            "GET",
+            "/search/issues?query=x",
+            None,
+            &[]
         ));
     }
 }

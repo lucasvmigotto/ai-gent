@@ -618,6 +618,23 @@ def _unique_pairs(pairs):
     return dict(pairs)
 
 
+_MAX_JSON_DEPTH = 200  # the Rust parser's cap: both give "write" beyond it
+
+
+def _too_deep(v) -> bool:
+    """Whether any value sits deeper than _MAX_JSON_DEPTH (the document itself is depth 0)."""
+    stack = [(v, 0)]
+    while stack:
+        x, d = stack.pop()
+        if d > _MAX_JSON_DEPTH:
+            return True
+        if isinstance(x, dict):
+            stack.extend((c, d + 1) for c in x.values())
+        elif isinstance(x, list):
+            stack.extend((c, d + 1) for c in x)
+    return False
+
+
 def _no_constant(name):
     raise _Unreadable(name)  # NaN, Infinity aren't JSON
 
@@ -819,7 +836,7 @@ def graphql_is_read(body: bytes | None) -> bool:
         return False
     try:
         v = json.loads(body.decode("utf-8"), object_pairs_hook=_unique_pairs, parse_constant=_no_constant)
-        if not isinstance(v, dict) or not isinstance(v.get("query"), str):
+        if not isinstance(v, dict) or not isinstance(v.get("query"), str) or _too_deep(v):
             return False
         name = v.get("operationName")
         if name is not None and (not isinstance(name, str) or not name):
@@ -827,25 +844,45 @@ def graphql_is_read(body: bytes | None) -> bool:
         ops = _gql_operations(v["query"])
     except (ValueError, RecursionError, _Unreadable):
         return False
+    if any(kind != "query" for kind, _ in ops):
+        return False  # fail closed: a mutation or subscription anywhere, even one operationName doesn't pick
     if len(ops) > 1 and any(n is None for _, n in ops):
         return False  # an anonymous operation must stand alone
     chosen = ops if name is None else [op for op in ops if op[1] == name]
     return len(chosen) == 1 and chosen[0][0] == "query"
 
 
-def is_read_post(platform: str, path: str, body: bytes | None) -> bool:
+def _graphql_path(platform: str, path: str) -> bool:
+    return platform in ("github", "gitlab") and bool(READ_POSTS[platform].search(urllib.parse.urlparse(path).path))
+
+
+def _graphql_params_in(path: str, query: dict | None) -> bool:
+    """Whether a `query` or `operationName` parameter rides in the URL (path or query pairs)."""
+    keys = list((query or {}))
+    if "?" in path:
+        keys += [urllib.parse.unquote_plus(kv.split("=", 1)[0]) for kv in re.split(r"[&;]", path.split("?", 1)[1])]
+    return any(str(k).split("[", 1)[0] in ("query", "operationName") for k in keys)
+
+
+def is_read_post(platform: str, path: str, body: bytes | None, query: dict | None = None) -> bool:
     """POSTs that only read: the path matches the platform's search pattern, and for GitHub
-    and GitLab GraphQL the body runs a query operation."""
+    and GitLab GraphQL the URL carries no query string (GitLab reads `query` from it before
+    the body) and the body runs a query operation."""
     rp = READ_POSTS.get(platform)
     if not rp or not rp.search(urllib.parse.urlparse(path).path):
         return False
-    return graphql_is_read(body) if platform in ("github", "gitlab") else True
+    if platform in ("github", "gitlab"):
+        if "?" in path or "#" in path or query:
+            return False
+        return graphql_is_read(body)
+    return True
 
 
-def api_is_write(platform: str, method: str, path: str, body: bytes | None) -> bool:
-    if method in ("GET", "HEAD"):
-        return False
-    return not (method == "POST" and is_read_post(platform, path, body))
+def api_is_write(platform: str, method: str, path: str, body: bytes | None, query: dict | None = None) -> bool:
+    if method == "GET" or method == "HEAD":
+        # a GET that carries a GraphQL document or operation is run by GitLab, mutation or not
+        return _graphql_path(platform, path) and _graphql_params_in(path, query)
+    return not (method == "POST" and is_read_post(platform, path, body, query))
 
 
 def request(method: str, url: str, headers: dict, body: bytes | None, timeout: float):
@@ -882,7 +919,8 @@ def api_call(platform: str, method: str, path: str, body: bytes | None = None, q
     method = method.upper()
     if method not in ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"):
         raise Failed(f"method {method} isn't supported", EXIT_USAGE)
-    if api_is_write(platform, method, path, body) and not write:
+    query = dict(query or {})
+    if api_is_write(platform, method, path, body, query) and not write:
         raise Refused(f"{method} {path} changes something on {platform}; only when the user asked for this "
                       f"specific change, re-run with --write")
 
@@ -900,7 +938,6 @@ def api_call(platform: str, method: str, path: str, body: bytes | None = None, q
         url = path
     else:
         url = base.rstrip("/") + "/" + path.lstrip("/")
-    query = dict(query or {})
     if platform == "azure-devops" and "api-version" not in url and "api-version" not in query:
         query["api-version"] = "7.1"
     if query:
@@ -1014,7 +1051,9 @@ def step_is_write(platform: str, step: dict) -> bool:
     if "api" in step:
         a = step["api"]
         body = json.dumps(a["data"]).encode() if "data" in a else None
-        return api_is_write(platform, a.get("method", "GET").upper(), a.get("path", ""), body)
+        q = a.get("query")
+        q = q if isinstance(q, dict) else ({"": ""} if q else {})  # any other non-empty value still rides in the URL
+        return api_is_write(platform, a.get("method", "GET").upper(), a.get("path", ""), body, q)
     if "cli" in step:
         return cli_is_write(PLATFORMS[platform]["cli"] or "", list(step["cli"]))
     if "project_status" in step:

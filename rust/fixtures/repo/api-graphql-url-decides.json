@@ -1,0 +1,204 @@
+{
+ "name": "api-graphql-url-decides",
+ "derived_from": "ClassifyTest::test_graphql_url_decides",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "q.json": "{\"query\":\"query { viewer { login } }\"}",
+  "two.json": "{\"query\":\"query A { a } query B { b }\"}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/q.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/graphql",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"query\":\"query { viewer { login } }\"}"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql?query=mutation%7Bx%7D",
+    "--data",
+    "<ROOT>/q.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/q.json",
+    "--query",
+    "query=mutation{x}"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql?operationName=B",
+    "--data",
+    "<ROOT>/two.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql?_json[][query]=mutation{x}",
+    "--data",
+    "<ROOT>/q.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/q.json",
+    "--query",
+    "first=1"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/graphql?query=mutation%7Bx%7D"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/graphql",
+    "--query",
+    "operationName=B"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/search/issues",
+    "--query",
+    "query=x"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/search/issues?query=x",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql?query=mutation%7Bx%7D",
+    "--data",
+    "<ROOT>/q.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/graphql?query=mutation%7Bx%7D",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"query\":\"query { viewer { login } }\"}"
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

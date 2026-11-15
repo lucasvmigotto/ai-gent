@@ -12,19 +12,26 @@
  "files": {
   "g0.json": "{\"query\":\"query { viewer { login } }\"}",
   "g1.json": "{\"query\":\"{ viewer { login } }\"}",
-  "g2.json": "{\"query\":\"query A { a } mutation B { b }\",\"operationName\":\"A\"}",
-  "g3.json": "{\"query\":\"# mutation\\nquery { search(query: \\\"mutation\\\") { n } }\"}",
-  "g4.json": "{\"query\":\"mutation { x }\"}",
-  "g5.json": "{\"query\":\"mutation { x }\"}",
-  "g6.json": "{\"query\":\"subscription { x }\"}",
-  "g7.json": "{\"query\":\"query A { a } mutation B { b }\",\"operationName\":\"B\"}",
-  "g8.json": "{\"query\":\"query A { a } query B { b }\"}",
-  "g9.json": "{\"query\":\"# query\\nmutation { x }\"}",
-  "g10.json": "[{\"query\":\"query { a }\"},{\"query\":\"mutation { x }\"}]",
-  "g11.json": "{\"query\":\"query { a }\",\"query\":\"mutation { x }\"}",
-  "g12.json": "{\"query\":\"query { a } ​mutation { b }\"}",
-  "g13.json": "not json",
-  "g14.json": ""
+  "g2.json": "{\"query\":\"query A { a } query B { b }\",\"operationName\":\"A\"}",
+  "g3.json": "{\"query\":\"query { a(x: 0) b(y: -0.5e1) }\",\"variables\":{\"n\":0,\"m\":-0}}",
+  "g4.json": "{\"query\":\"# mutation\\nquery { search(query: \\\"mutation\\\") { n } }\"}",
+  "g5.json": "{\"query\":\"query { a }\",\"v\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}",
+  "g6.json": "{\"query\":\"mutation { x }\"}",
+  "g7.json": "{\"query\":\"mutation { x }\"}",
+  "g8.json": "{\"query\":\"subscription { x }\"}",
+  "g9.json": "{\"query\":\"query A { a } mutation B { b }\",\"operationName\":\"B\"}",
+  "g10.json": "{\"query\":\"query A { a } query B { b }\"}",
+  "g11.json": "{\"query\":\"# query\\nmutation { x }\"}",
+  "g12.json": "[{\"query\":\"query { a }\"},{\"query\":\"mutation { x }\"}]",
+  "g13.json": "{\"query\":\"query { a }\",\"query\":\"mutation { x }\"}",
+  "g14.json": "{\"query\":\"query { a } ​mutation { b }\"}",
+  "g15.json": "not json",
+  "g16.json": "",
+  "g17.json": "{\"query\":\"query A { a } mutation B { b }\",\"operationName\":\"A\"}",
+  "g18.json": "{\"query\":\"query A { a } subscription B { b }\",\"operationName\":\"A\"}",
+  "g19.json": "{\"query\":\"query { a }\",\"variables\":{\"n\":01}}",
+  "g20.json": "{\"query\":\"query { a }\",\"variables\":{\"n\":-01}}",
+  "g21.json": "{\"query\":\"query { a }\",\"v\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}"
  },
  "runs": [
   {
@@ -101,7 +108,7 @@
       "Content-Type": "application/json",
       "Accept": "application/vnd.github+json"
      },
-     "body": "{\"query\":\"query A { a } mutation B { b }\",\"operationName\":\"A\"}"
+     "body": "{\"query\":\"query A { a } query B { b }\",\"operationName\":\"A\"}"
     }
    ]
   },
@@ -127,7 +134,7 @@
       "Content-Type": "application/json",
       "Accept": "application/vnd.github+json"
      },
-     "body": "{\"query\":\"# mutation\\nquery { search(query: \\\"mutation\\\") { n } }\"}"
+     "body": "{\"query\":\"query { a(x: 0) b(y: -0.5e1) }\",\"variables\":{\"n\":0,\"m\":-0}}"
     }
    ]
   },
@@ -141,10 +148,21 @@
     "<ROOT>/g4.json"
    ],
    "stdin": null,
-   "exit": 3,
-   "stdout": "",
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
    "stderr_has": [],
-   "seen": []
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/graphql",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"query\":\"# mutation\\nquery { search(query: \\\"mutation\\\") { n } }\"}"
+    }
+   ]
   },
   {
    "argv": [
@@ -156,10 +174,21 @@
     "<ROOT>/g5.json"
    ],
    "stdin": null,
-   "exit": 3,
-   "stdout": "",
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
    "stderr_has": [],
-   "seen": []
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/graphql",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"query\":\"query { a }\",\"v\":[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]}"
+    }
+   ]
   },
   {
    "argv": [
@@ -289,6 +318,111 @@
     "/graphql",
     "--data",
     "<ROOT>/g14.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g15.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g16.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g17.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g18.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g19.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g20.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/graphql",
+    "--data",
+    "<ROOT>/g21.json"
    ],
    "stdin": null,
    "exit": 3,

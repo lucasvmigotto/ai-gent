@@ -231,8 +231,12 @@ impl P<'_> {
             }
             p.i > s
         };
+        let int_start = self.i;
         if !digits(self) {
             return None;
+        }
+        if self.b[int_start] == b'0' && self.i - int_start > 1 {
+            return None; // strict JSON, like Python's: no leading zeros
         }
         if self.b.get(self.i) == Some(&b'.') {
             float = true;
