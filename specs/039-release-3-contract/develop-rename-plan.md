@@ -64,6 +64,18 @@ GitHub can rename the branch back (Settings > Branches) and redirects both ways;
 
 | Question | Owner answer |
 |---|---|
-| Direction and exact new name | |
-| Go-ahead and window | |
-| Keep `dev` as an alias (a second branch) or drop it | |
+| Direction and exact new name | `dev` becomes `develop`. |
+| Go-ahead and window | Go, after 2.28.0 shipped and `develop` was created (from `main` at 0cca79b). |
+| Keep `dev` as an alias (a second branch) or drop it | Dropped, no alias: 3.0.0 ships with only `main` and `develop`. |
+
+## Status of the steps
+
+| Step | State |
+|---|---|
+| 1. Freeze | Done by the owner (2.28.0 released first). |
+| 2. Repo changes (release.yml, docs-ci.yml, consistency.py, releasing.md, README, workflow skill, docs, fixtures) | Prepared on `chore/develop-rename`; open until merged into `develop` by PR. The guards, the chain and the worktree tools still accept both names on purpose (harmless; existing grant files list `develop dev`). |
+| 3. GitHub ruleset and default branch | Open, owner-side. `develop` exists on origin and `dev` is gone, but the ruleset for `develop` and the default-branch setting are not done here. |
+| 4. Merge the prepared branch into `develop` | Open (PR). |
+| 5. Local clones and worktrees | Open, each contributor. |
+| 6. Verify (release dry-run, Docs CI on `develop`, next release's back-merge warning) | Open. |
+| 7. `specs/README.md` note and memory notes | Open. |

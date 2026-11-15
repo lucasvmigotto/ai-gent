@@ -16,7 +16,7 @@ handoff says why ("no GitHub token and gh isn't signed in"). A
 repository with no remote is always local.
 
 In remote mode **every merge into a long-lived branch** is a PR: a work
-branch into `dev`/`develop`, and each promotion — `dev` into
+branch into `develop`, and each promotion — `develop` into
 `homolog`/`staging`, that into `main`/`master`. Nothing is merged locally
 into one of them.
 
@@ -35,7 +35,7 @@ into one of them.
    person: report it and move on to other work. **Never self-approve**,
    never bypass branch protection, never merge a red PR.
 4. **Merge on the platform** — asked like any merge, unless the run has
-   the user's up-front permission (which covers `dev`; promotions only
+   the user's up-front permission (which covers `develop`; promotions only
    when it names them). The merge style follows the commit count, as
    locally:
 
@@ -50,7 +50,7 @@ into one of them.
    A method the repository disallows (GitHub's *Allow rebase merging*
    off, say): use the closest allowed one and say so in the report.
 
-   **Promotions between long-lived branches** (`dev` → `staging` →
+   **Promotions between long-lived branches** (`develop` → `staging` →
    `main`): a rebase merge rewrites the commits, so the lower branch
    could no longer catch up by fast-forward and the two would drift
    apart — never use it here, on any platform. Azure Repos, GitLab

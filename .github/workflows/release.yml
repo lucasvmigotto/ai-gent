@@ -6,7 +6,7 @@ name: release
 # release. A release bumps the changed plugins' versions, promotes
 # CHANGELOG.md's "## Unreleased" (or generates a section), commits
 # "chore(release): X.Y.Z", tags X.Y.Z, publishes a GitHub Release and merges
-# the release back into dev. The Rust binaries are built for six targets after the
+# the release back into develop. The Rust binaries are built for six targets after the
 # tag exists (rust-build), packaged one archive per target beside the content-only
 # package, attested and attached before the release is published (package), and
 # the crates are published to crates.io only when the repository variable
@@ -86,18 +86,18 @@ jobs:
           # installer and update-check resolve "latest" to published releases only.
           gh release create "$version" --draft --title "$version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
           echo "version=$version" >>"$GITHUB_OUTPUT"
-          # Back-merge: bring the release commit and tag into dev, so its
-          # plugin versions and CHANGELOG don't lag. dev's ruleset requires
+          # Back-merge: bring the release commit and tag into develop, so its
+          # plugin versions and CHANGELOG don't lag. develop's ruleset requires
           # pull requests and a personal-account repo can't let
-          # github-actions bypass it, so this push is refused and warns with
-          # the command the owner runs (on purpose: no deploy key or PAT).
-          integ=dev
+          # github-actions bypass it, so this push is refused and warns that a
+          # pull request from main to develop is needed (on purpose: no deploy key or PAT).
+          integ=develop
           if git ls-remote --exit-code --heads origin "$integ" >/dev/null 2>&1; then
             git fetch -q origin "$integ"
             git switch -q -C "$integ" "origin/$integ"
             if ! { git merge --no-ff -m "chore(release): merge $version back into $integ" "$version" && git push origin "$integ"; }; then
               git merge --abort 2>/dev/null || true
-              echo "::warning::back-merge of $version into $integ failed; run: git switch $integ && git merge --no-ff $version && git push"
+              echo "::warning::back-merge of $version into $integ failed (the branch is protected); open a pull request from main to $integ so the release commit and tag reach it"
             fi
           fi
 

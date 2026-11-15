@@ -38,7 +38,7 @@ Contexts meet only through files and process boundaries: Credentials is a librar
 
 - **dbrun plan**: recorded → backed up → committed | rolled back → (restored) — `specs/008-db-runner/data-model.md`.
 - **Tracker item**: todo → doing → review → done — `specs/010-spec-sync/data-model.md`.
-- **Track**: added → (work, land on dev) → removed; removal refused while dirty or unlanded — `specs/011-worktrees/spec.md`.
+- **Track**: added → (work, land on develop) → removed; removal refused while dirty or unlanded — `specs/011-worktrees/spec.md`.
 
 ## Personal data
 

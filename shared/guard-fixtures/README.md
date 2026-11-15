@@ -5,7 +5,7 @@ The shared corpus of the guard evaluator (spec `specs/033-guard-evaluator/`, con
 `containers`), `adapter.json` for the opencode event adapter, and `manifest.json` with the counts.
 
 - `want` and `reason` are what `plugins/*/hooks/guard.sh` printed when the cases were extracted.
-- `command` is the decoded command string; `{main}`, `{staging}`, `{dev}` and `{feat}` in a command
+- `command` is the decoded command string; `{main}`, `{staging}`, `{develop}` and `{feat}` in a command
   and `@main` ... `@feat` in `cwd` stand for sandbox repositories on those branches.
 - `variants` give the same intent in `powershell` and `cmd`; `skip_in` lists harnesses that must skip a case.
 

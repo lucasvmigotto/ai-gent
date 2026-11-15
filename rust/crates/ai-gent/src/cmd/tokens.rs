@@ -234,7 +234,7 @@ enum Action {
         #[arg(long)]
         repo: String,
         /// The ref.
-        #[arg(long = "ref", default_value = "origin/dev")]
+        #[arg(long = "ref", default_value = "origin/develop")]
         git_ref: String,
         /// Stage markers file.
         #[arg(long, default_value = DEFAULT_SNAPSHOTS)]

@@ -25,7 +25,7 @@ const sandbox = mkdtempSync(join(tmpdir(), "ai-gent-guard-"))
 process.on("exit", () => rmSync(sandbox, { recursive: true, force: true }))
 
 const dirs = {}
-for (const b of ["main", "staging", "dev", "feat/x"]) {
+for (const b of ["main", "staging", "develop", "feat/x"]) {
   const d = join(sandbox, b.replace("/", "-"))
   execFileSync("git", ["init", "-q", "-b", b, d])
   dirs[b] = d
@@ -45,7 +45,7 @@ for (const [k, text] of Object.entries(GRANTS)) {
 }
 const main = dirs["main"]
 const staging = dirs["staging"]
-const dev = dirs["dev"]
+const dev = dirs["develop"]
 const feat = dirs["feat/x"]
 
 const branchOf = (dir) => {
@@ -94,8 +94,8 @@ function shellDecision(guard, tool, cwd, toolInput, env = null) {
 // ------------------------------------------------------- fixtures
 
 const GUARD_FILES = { git: GIT_GUARD, db: DB_GUARD, secrets: SECRETS_GUARD, repo: REPO_GUARD, containers: CONTAINERS_GUARD }
-const branchDirs = { main, staging, dev, feat, granted: dirs.granted, expired: dirs.expired, partial: dirs.partial }
-const subst = (s) => s.replace(/\{(main|staging|dev|feat|granted|expired|partial)\}/g, (_, k) => branchDirs[k])
+const branchDirs = { main, staging, develop: dev, feat, granted: dirs.granted, expired: dirs.expired, partial: dirs.partial }
+const subst = (s) => s.replace(/\{(main|staging|develop|feat|granted|expired|partial)\}/g, (_, k) => branchDirs[k])
 const cwdOf = (c) => (c.startsWith("@") ? branchDirs[c.slice(1)] : c)
 const sample = (c) => (c.command ?? `${c.tool} ${JSON.stringify(c.tool_input)}`).replace(/\n/g, "⏎")
 

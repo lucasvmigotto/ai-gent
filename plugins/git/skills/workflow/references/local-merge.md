@@ -18,8 +18,8 @@ reachable, work lands through PRs instead (`repo:pr`).
      a branch **never pushed** is rebased onto the parent
      (`git rebase <parent>` on the branch) and merged again; a branch
      already pushed — ask how to proceed.
-   - **Promotions** (`dev` → `homolog`/`staging` → `main`) use the same
-     rule: `git switch main && git merge --no-ff dev`, or `--ff-only`
+   - **Promotions** (`develop` → `homolog`/`staging` → `main`) use the same
+     rule: `git switch main && git merge --no-ff develop`, or `--ff-only`
      under 4 commits.
 4. **Conflicts:** stop and show them (files and hunks). Never resolve by
    blanket `-X ours`/`-X theirs` or by picking a side without understanding
@@ -32,5 +32,5 @@ reachable, work lands through PRs instead (`repo:pr`).
      publishes a change: ask separately; once it's gone, `git fetch
      --prune` so the local checkout's `<remote>/<branch>` doesn't linger
      as a stale ref;
-   - never delete the parent, `main`/`master`, `dev`/`develop`, or any
+   - never delete the parent, `main`/`master`, `develop`, or any
      branch other than the one just landed.

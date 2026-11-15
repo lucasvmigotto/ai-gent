@@ -35,7 +35,7 @@
      `--sync-shared-code` too; spec 033).
  10. The git plugin's repo-hygiene band recognizes a release by the subjects
      .github/workflows/release.yml and shared/release-platforms.md write
-     (`chore(release): X.Y.Z`, `chore(release): merge X.Y.Z back into dev`).
+     (`chore(release): X.Y.Z`, `chore(release): merge X.Y.Z back into develop`).
  11. The JSON keys and finding kinds `leftovers.sh --json` prints are the ones
      specs/025-container-disk-band/data-model.md documents (the band reads them).
 
@@ -663,7 +663,7 @@ def check_release_subjects(root: Path) -> list[str]:
         path = root / rel
         if not path.is_file():
             continue
-        samples = [s.replace("$version", "1.2.3").replace("X.Y.Z", "1.2.3").replace("$integ", "dev").replace("<integ>", "dev")
+        samples = [s.replace("$version", "1.2.3").replace("X.Y.Z", "1.2.3").replace("$integ", "develop").replace("<integ>", "develop")
                    for s in re.findall(r'"(chore\(release\): [^"]*)"', path.read_text(encoding="utf-8"))]
         for sample in samples:
             if not (main.match(sample) or back.match(sample)):

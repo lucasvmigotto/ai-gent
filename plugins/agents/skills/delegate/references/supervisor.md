@@ -41,7 +41,7 @@ the supervisor's own); OpenCode by model. The prompt is built from the
 worktree: the standing instructions (read-only, severity-ranked findings with
 file:line and a failure scenario, recount every number, no credentials), the
 `check` findings, the spec files and the diff text
-against `--base` (default: merge base with dev, main or master); the whole prompt
+against `--base` (default: merge base with develop, dev, main or master); the whole prompt
 is capped at 100 KiB (one argument cannot exceed the OS limit), the spec and
 diff blocks are cut with a "[truncated: N bytes left out]" note, and a prompt
 that cannot fit even with minimal context is refused. The builder's

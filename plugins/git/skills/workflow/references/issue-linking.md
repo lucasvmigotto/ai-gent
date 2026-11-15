@@ -33,6 +33,6 @@ Tracked specs carry their refs on their own (`git:workflow` → *Issues and work
   - **Azure DevOps:** `AB#N` links a work item from GitHub-hosted code; in Azure Repos, `#N` mentions link work items, and closing on completion is a PR setting — check how the organization has it configured.
   - **Jira:** the issue key (`PROJ-123`) links; transitions (`PROJ-123 #done`) work only if smart commits are enabled.
   - `Refs #N` (or just `#N`) links without closing.
-- **When it closes:** closing keywords act only when the commit or PR reaches the repository's **default branch**. Merging into `dev` or a feature branch links the issue but won't close it — say so whenever the target isn't the default branch.
+- **When it closes:** closing keywords act only when the commit or PR reaches the repository's **default branch**. Merging into `develop` or a feature branch links the issue but won't close it — say so whenever the target isn't the default branch.
 - If the user asks for a PR, put the same `Closes #N` lines in the PR description (the most reliable place for closing on merge).
 - Never close, comment on, label, assign or otherwise change an issue through a CLI or API unless the user asks for that specific action.

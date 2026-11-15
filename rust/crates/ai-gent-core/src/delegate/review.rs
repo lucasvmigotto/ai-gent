@@ -151,11 +151,11 @@ pub fn review_track(builder: &str) -> Res<String> {
     }
 }
 
-/// The revision a worktree's work started from: the merge base with the first of `dev`, `main`,
+/// The revision a worktree's work started from: the merge base with the first of `develop`, `dev`, `main`,
 /// `master` that exists, else `HEAD`.
 #[must_use]
 pub fn default_base(worktree: &Path) -> String {
-    for cand in ["dev", "main", "master"] {
+    for cand in ["develop", "dev", "main", "master"] {
         if let Ok(h) = gitx::git(worktree, &["merge-base", "HEAD", cand]) {
             let h = h.trim();
             if !h.is_empty() {

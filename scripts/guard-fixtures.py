@@ -46,7 +46,7 @@ GUARDS = {
 }
 SHELLS = ("sh", "powershell", "cmd")
 WANTS = ("deny", "ask", "none")
-BRANCHES = {"main": "main", "staging": "staging", "dev": "dev", "feat": "feat/x",
+BRANCHES = {"main": "main", "staging": "staging", "develop": "develop", "feat": "feat/x",
             "granted": "feat/x", "expired": "feat/x", "partial": "feat/x"}
 # The autonomy grant (.ai-gent/autonomy) a sandbox repository carries, as the user would write it.
 GRANTS = {
@@ -240,7 +240,7 @@ class Sandbox:
                     f.write(GRANTS[k])
 
     def sub(self, s):
-        return re.sub(r"\{(main|staging|dev|feat|granted|expired|partial)\}", lambda m: self.paths[m.group(1)], s)
+        return re.sub(r"\{(main|staging|develop|feat|granted|expired|partial)\}", lambda m: self.paths[m.group(1)], s)
 
     def cwd(self, c):
         return self.paths[c[1:]] if c.startswith("@") else c
