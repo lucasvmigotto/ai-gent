@@ -174,6 +174,15 @@ pub fn create_plan(dir: &Path, new: &NewPlan<'_>) -> Result<Plan, PlanError> {
     if statements.is_empty() {
         return Err(PlanError::Failed("no statements".into()));
     }
+    // Owner decision (chat 2026-11-14), D-017: one `--expect` entry per statement (`skip` for no check);
+    // none at all leaves every statement unchecked, as Python.
+    if !new.expect.is_empty() && new.expect.len() != statements.len() {
+        return Err(PlanError::Refused(format!(
+            "--expect has {} entries for {} statements; give one per statement (`skip` for no check)",
+            new.expect.len(),
+            statements.len()
+        )));
+    }
     let ddl: Vec<usize> = statements
         .iter()
         .enumerate()

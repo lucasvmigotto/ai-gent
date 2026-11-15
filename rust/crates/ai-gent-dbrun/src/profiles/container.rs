@@ -497,7 +497,8 @@ pub fn classify(
         let path = super::expand_home(p.path.as_deref().unwrap_or(""), env);
         if !path.is_file() {
             return Err(ProfileError::with_code(
-                format!("sqlite file {} doesn't exist", path.display()),
+                // The role, not the path (D-SQ-07): a path can name a person or a host.
+                format!("the SQLite file of profile {} doesn't exist", p.name),
                 EXIT_CONNECT,
             ));
         }

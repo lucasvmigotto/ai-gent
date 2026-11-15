@@ -295,3 +295,31 @@ fn a_plan_file_copied_to_another_id_is_refused_and_every_sealed_field_matters() 
         Err(PlanError::Refused(m)) if m.contains("modified")
     ));
 }
+
+#[test]
+fn a_plan_whose_expect_has_another_length_than_its_statements_is_refused_both_ways() {
+    let sql = "UPDATE customer SET status = 'x' WHERE id = 1; DELETE FROM customer WHERE id = 2";
+    for (expect, ok) in [
+        (vec![Some(1)], false),
+        (vec![Some(1), Some(1), Some(1)], false),
+        (vec![Some(1), None], true),
+        (vec![], true),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut new = new_plan(sql);
+        new.expect.clone_from(&expect);
+        match create_plan(dir.path(), &new) {
+            Ok(_) => assert!(ok, "{expect:?} accepted"),
+            Err(PlanError::Refused(m)) => {
+                assert!(!ok, "{expect:?}: {m}");
+                assert!(m.contains("entries for 2 statements"), "{m}");
+                assert_eq!(
+                    std::fs::read_dir(dir.path()).unwrap().count(),
+                    0,
+                    "no plan file"
+                );
+            }
+            Err(e) => panic!("{expect:?}: {e:?}"),
+        }
+    }
+}

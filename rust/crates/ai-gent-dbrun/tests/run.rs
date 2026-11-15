@@ -582,7 +582,7 @@ fn golden() -> Value {
 #[test]
 fn parity_plan_record_text_and_log_entry_match_the_original() {
     let g = golden();
-    let mut ran = 0;
+    let (mut ran, mut mismatched) = (0, 0);
     for case in g["plan"].as_array().unwrap() {
         let fx = Fx::new();
         let engine = case["engine"].as_str().unwrap();
@@ -606,6 +606,27 @@ fn parity_plan_record_text_and_log_entry_match_the_original() {
                 Err(Fail::Refused(m)) => assert_eq!(m, why.as_str().unwrap()),
                 other => panic!("{case}: {other:?}"),
             }
+            continue;
+        }
+        // D-017 (owner decision 2026-11-14): Python recorded an `--expect` of another length than the
+        // statements; the port refuses it, naming both numbers.
+        let given = case["expect"].as_str().unwrap();
+        let entries = if given.is_empty() {
+            0
+        } else {
+            given.split(',').count()
+        };
+        let statements = case["record"]["statements"].as_array().map_or(0, Vec::len);
+        if entries != 0 && entries != statements {
+            match got {
+                Err(Fail::Refused(m)) => assert!(
+                    m.contains(&format!("{entries} entries for {statements} statements")),
+                    "{m}"
+                ),
+                other => panic!("{case}: {other:?}"),
+            }
+            assert!(fx.log_text().is_empty(), "a refused plan logs nothing");
+            mismatched += 1;
             continue;
         }
         let d = got.unwrap();
@@ -634,7 +655,11 @@ fn parity_plan_record_text_and_log_entry_match_the_original() {
         assert_eq!(log, case["log"].as_str().unwrap(), "{case}");
         ran += 1;
     }
-    assert_eq!(ran, 7);
+    assert_eq!(
+        (ran, mismatched),
+        (5, 2),
+        "7 golden plans: 5 equal, 2 refused by D-017"
+    );
 }
 
 /// The 8-hex id after the last ` · ` of the entry's heading.

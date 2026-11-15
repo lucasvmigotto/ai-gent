@@ -9,7 +9,7 @@
 //! {
 //!   "name": "short-kebab-name",
 //!   "derived_from": "where the case comes from",
-//!   "kind": "exec | policy | pending",
+//!   "kind": "exec | policy | journey | pending",
 //!   "engines": ["sqlite"],
 //!   "setup": {"sqlite": ["CREATE TABLE ..."]},
 //!   "steps": [{"request": {"mode": "read", "statements": ["..."]},
@@ -24,8 +24,11 @@
 //!
 //! `exec` cases run their `steps` in order against one fresh database; `expected` is a subset match on
 //! the result line (`"$number"` and `"$string"` match by type, `error_contains` is a substring of the
-//! error). `policy` cases check the classifier and cost rules and need no connector. `pending` cases
-//! name a behavior of the Python runner that the crate does not own yet; they are listed, not run.
+//! error). `policy` cases check the classifier and cost rules and need no connector. `journey` cases are
+//! behaviors of the plan or command layer that no connector request shows; their `tests` name the test
+//! functions that run them (`tests/<file>.rs::<function>`), and [`journey_cases`] lets a test check that
+//! each named function exists. `pending` cases name a behavior of the Python runner that the crate does
+//! not own yet; they are listed, not run.
 use super::{ConnFacts, Connector};
 use crate::core::{classify_statement, cost_rules, mask};
 use serde_json::{Value, json};
@@ -335,6 +338,26 @@ pub fn run_policy_cases() -> usize {
         }
     }
     n
+}
+
+/// The `journey` cases: name and the test functions that run each (`tests/<file>.rs::<function>`).
+#[must_use]
+pub fn journey_cases() -> Vec<(String, Vec<String>)> {
+    load_cases()
+        .into_iter()
+        .filter(|c| c.kind() == "journey")
+        .map(|c| {
+            let tests = c.doc["tests"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|t| t.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+            (c.name().to_string(), tests)
+        })
+        .collect()
 }
 
 /// The `pending` cases: name and reason, for a test to assert the list is what it expects.

@@ -2,6 +2,10 @@
   "contract_version": 1,
   "name": "tampered-plan-refused",
   "derived_from": "plugins/db/scripts/test_dbrun.py SqliteEndToEndTest.test_tampered_plan_refused",
-  "kind": "pending",
-  "reason": "Plan layer, not connector behavior: run as journey_07 in rust/crates/ai-gent-dbrun/tests/plan.rs over core::plan (no connector request is made)."
+  "kind": "journey",
+  "reason": "Plan layer, not connector behavior: run by the tests named in `tests` over core::plan (no connector request is made).",
+  "tests": [
+    "tests/run.rs::e2e_7_a_tampered_plan_is_refused_and_nothing_runs",
+    "tests/plan.rs::journey_07_a_tampered_plan_is_refused_and_nothing_runs"
+  ]
 }
