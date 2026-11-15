@@ -1,0 +1,51 @@
+{
+  "derived_from": "spec 045 error cases (GitLab project or board)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-gitlab-not-found",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "message": "404 Not found"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/99",
+      "status": 404
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "show",
+        "gitlab:grp/proj/99"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/99"
+        }
+      ],
+      "stderr_has": [
+        "not found"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

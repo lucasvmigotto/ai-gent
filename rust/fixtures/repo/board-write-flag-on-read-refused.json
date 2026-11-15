@@ -1,0 +1,67 @@
+{
+  "derived_from": "spec 045 FR-005",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-write-flag-on-read-refused",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "octo",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "--write",
+        "only read"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "github:octo/1",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "--write",
+        "only read"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "fields",
+        "github:octo/1",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "--write",
+        "only read"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

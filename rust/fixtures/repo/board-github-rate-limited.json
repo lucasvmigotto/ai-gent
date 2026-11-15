@@ -1,0 +1,140 @@
+{
+  "derived_from": "spec 045 error cases (rate limit)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-github-rate-limited",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [
+    {
+      "body": {
+        "message": "API rate limit exceeded for user ID 1."
+      },
+      "method": "POST",
+      "op": "BoardsOfUser",
+      "path": "/graphql",
+      "status": 403,
+      "vars": {
+        "login": "limited"
+      }
+    },
+    {
+      "body": {
+        "data": null,
+        "errors": [
+          {
+            "message": "API rate limit exceeded",
+            "type": "RATE_LIMITED"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardsOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "gql"
+      }
+    },
+    {
+      "body": {
+        "message": "Bad credentials"
+      },
+      "method": "POST",
+      "op": "BoardsOfUser",
+      "path": "/graphql",
+      "status": 401,
+      "vars": {
+        "login": "bad"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "limited"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardsOfUser($login: String!, $after: String) { user(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"limited\", \"after\": null}, \"operationName\": \"BoardsOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "rate limit"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "gql"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardsOfUser($login: String!, $after: String) { user(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"gql\", \"after\": null}, \"operationName\": \"BoardsOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "rate limit"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "bad"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardsOfUser($login: String!, $after: String) { user(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"bad\", \"after\": null}, \"operationName\": \"BoardsOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "HTTP 401",
+        "classic token"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

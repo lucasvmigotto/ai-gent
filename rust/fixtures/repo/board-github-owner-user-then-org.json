@@ -1,0 +1,211 @@
+{
+  "derived_from": "spec 045 contract section 3 (owner is a user, then an organization)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-github-owner-user-then-org",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [
+    {
+      "body": {
+        "data": {
+          "user": null
+        },
+        "errors": [
+          {
+            "message": "Could not resolve to a user",
+            "path": [
+              "user"
+            ],
+            "type": "NOT_FOUND"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardsOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "after": null,
+        "login": "acme"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "organization": {
+            "projectsV2": {
+              "nodes": [
+                {
+                  "closed": false,
+                  "id": "PVT_3",
+                  "number": 3,
+                  "title": "Platform",
+                  "url": "https://github.com/users/octo/projects/3"
+                }
+              ],
+              "pageInfo": {
+                "endCursor": null,
+                "hasNextPage": false
+              }
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardsOfOrg",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "after": null,
+        "login": "acme"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "user": null
+        },
+        "errors": [
+          {
+            "message": "Could not resolve to a user",
+            "path": [
+              "user"
+            ],
+            "type": "NOT_FOUND"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "acme",
+        "number": 3
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "organization": {
+            "projectV2": {
+              "closed": false,
+              "field": {
+                "dataType": "SINGLE_SELECT",
+                "id": "PVTSSF_1",
+                "name": "Status",
+                "options": [
+                  {
+                    "id": "OPT_0",
+                    "name": "To do"
+                  },
+                  {
+                    "id": "OPT_1",
+                    "name": "In Progress"
+                  },
+                  {
+                    "id": "OPT_2",
+                    "name": "In Review"
+                  },
+                  {
+                    "id": "OPT_3",
+                    "name": "Done"
+                  }
+                ]
+              },
+              "id": "PVT_3",
+              "title": "Platform",
+              "url": "https://github.com/users/octo/projects/3"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardOfOrg",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "acme",
+        "number": 3
+      }
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "acme",
+        "--json"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardsOfUser($login: String!, $after: String) { user(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"acme\", \"after\": null}, \"operationName\": \"BoardsOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardsOfOrg($login: String!, $after: String) { organization(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"acme\", \"after\": null}, \"operationName\": \"BoardsOfOrg\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "[\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_3\",\n    \"key\": \"github:acme/3\",\n    \"title\": \"Platform\",\n    \"url\": \"https://github.com/users/octo/projects/3\",\n    \"closed\": false,\n    \"mode\": \"field\"\n  }\n]\n"
+    },
+    {
+      "argv": [
+        "board",
+        "fields",
+        "github:acme/3"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"acme\", \"number\": 3, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardOfOrg($login: String!, $number: Int!, $field: String!) { organization(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"acme\", \"number\": 3, \"field\": \"Status\"}, \"operationName\": \"BoardOfOrg\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "github:acme/3 (Platform, mode field)\nfield: Status (single_select)\nOPTION       STATE   MAPPED BY\nTo do        todo    alias\nIn Progress  doing   alias\nIn Review    review  alias\nDone         done    alias\n"
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

@@ -21,6 +21,7 @@
 
 pub mod api;
 pub mod batch;
+pub mod board;
 pub mod chain;
 pub mod cli;
 pub mod detect;

@@ -1,0 +1,268 @@
+{
+  "derived_from": "spec 045 error cases (board, owner not found)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-github-not-found",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [
+    {
+      "body": {
+        "data": {
+          "user": null
+        },
+        "errors": [
+          {
+            "message": "Could not resolve to a user",
+            "path": [
+              "user"
+            ],
+            "type": "NOT_FOUND"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardsOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "ghost"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "organization": null
+        },
+        "errors": [
+          {
+            "message": "Could not resolve to a organization",
+            "path": [
+              "organization"
+            ],
+            "type": "NOT_FOUND"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardsOfOrg",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "ghost"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "user": null
+        },
+        "errors": [
+          {
+            "message": "Could not resolve to a user",
+            "path": [
+              "user"
+            ],
+            "type": "NOT_FOUND"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "ghost"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "organization": null
+        },
+        "errors": [
+          {
+            "message": "Could not resolve to a organization",
+            "path": [
+              "organization"
+            ],
+            "type": "NOT_FOUND"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardOfOrg",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "ghost"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "user": {
+            "projectV2": null
+          }
+        },
+        "errors": [
+          {
+            "message": "Could not resolve to a user",
+            "path": [
+              "user",
+              "projectV2"
+            ],
+            "type": "NOT_FOUND"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "octo",
+        "number": 99
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "organization": null
+        },
+        "errors": [
+          {
+            "message": "Could not resolve to a organization",
+            "path": [
+              "organization"
+            ],
+            "type": "NOT_FOUND"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardOfOrg",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "octo",
+        "number": 99
+      }
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "ghost"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardsOfUser($login: String!, $after: String) { user(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"ghost\", \"after\": null}, \"operationName\": \"BoardsOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardsOfOrg($login: String!, $after: String) { organization(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"ghost\", \"after\": null}, \"operationName\": \"BoardsOfOrg\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "not found as a user or as an organization"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "fields",
+        "github:ghost/9"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"ghost\", \"number\": 9, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardOfOrg($login: String!, $number: Int!, $field: String!) { organization(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"ghost\", \"number\": 9, \"field\": \"Status\"}, \"operationName\": \"BoardOfOrg\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "was not found"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "fields",
+        "github:octo/99"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"octo\", \"number\": 99, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardOfOrg($login: String!, $number: Int!, $field: String!) { organization(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"octo\", \"number\": 99, \"field\": \"Status\"}, \"operationName\": \"BoardOfOrg\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "was not found"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

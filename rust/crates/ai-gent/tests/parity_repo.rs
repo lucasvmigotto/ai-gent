@@ -1,7 +1,8 @@
 //! Parity gate for `ai-gent repo` (spec 037, D10): the cases in `rust/fixtures/repo/*.json` are the
 //! scenarios of `test_reporun.py` (git repo, pass store, fake tools, loopback stub) blessed from
 //! `reporun.py` by `scripts/test-parity-repo.py --bless`. Each run also checks the canary (FR-A5): the
-//! fake token never reaches stdout, stderr or a created file. Network: only the loopback stub.
+//! fake token never reaches stdout, stderr or a created file. Network: only the loopback stub. The `board-*`
+//! cases are Rust-owned (spec 045 FR-041): hand-written, with scripted stub routes.
 mod parity_support;
 use parity_support::{fixtures, repo::run_repo_case};
 

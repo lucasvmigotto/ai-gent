@@ -1,0 +1,61 @@
+{
+  "derived_from": "spec 045 error cases (no pass entry)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-missing-entry",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "octo"
+      ],
+      "exit": 1,
+      "seen": [],
+      "stderr_has": [
+        "pass insert -m ai-gent/github/pat"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "github:octo/1"
+      ],
+      "exit": 1,
+      "seen": [],
+      "stderr_has": [
+        "pass insert -m ai-gent/github/pat"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "fields",
+        "github:octo/1",
+        "--entry",
+        "ai-gent/github/other"
+      ],
+      "exit": 1,
+      "seen": [],
+      "stderr_has": [
+        "pass insert -m ai-gent/github/other"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {},
+  "stub": true,
+  "tools": {}
+}

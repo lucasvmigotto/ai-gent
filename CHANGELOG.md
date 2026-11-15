@@ -6,6 +6,11 @@ changes.
 
 ## Unreleased
 
+### Added
+
+- **`ai-gent repo board list|show|fields` (spec 045, slice 1: the reads):** GitHub Projects v2 over GraphQL and GitLab issue boards (label mode by default, work item Status mode opt-in and fixtures-only) through the existing request path, so the GraphQL read check classifies every board query as a read. One canonical model (`todo`, `doing`, `review`, `done`) on both platforms, a git-excluded `.ai-gent/board.yaml` read by a small hand-written parser that refuses anything outside its subset with the line number, cursor and page pagination capped by `--max-pages` (`truncated` is reported), and `--json`. `--write` on a read is a usage error. Azure DevOps, Jira, Forgejo and Bitbucket refuse with the plan. `set` and `add` come in the next slice.
+- Rust-owned parity fixtures (`rust/fixtures/repo/board-*.json`, `"owner": "rust"`) with scripted stub routes and per-run files; `scripts/test-parity-repo.py` leaves them alone.
+
 ### Changed
 
 - **Integration branch:** `dev` is renamed `develop` (the owner's decision: no alias, 3.0.0 ships with `main` and `develop` only). The release job's back-merge targets `develop` and, when the protected branch refuses the push, warns that a pull request from `main` to `develop` is needed; Docs CI runs on pushes to `main` and `develop`; the git:workflow skill and its references, the README, `shared/releasing.md` and the docs site name `develop`; `ai-gent tokens` and `token_report.py` read stage markers from `origin/develop` first, and the delegate review base tries `develop` before `main`. The guards, the branch chain and the worktree tools still accept `dev` as well, so a repository that keeps it works unchanged.

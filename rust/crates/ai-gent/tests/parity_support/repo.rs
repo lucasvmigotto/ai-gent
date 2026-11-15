@@ -18,7 +18,40 @@ fn find_header_end(b: &[u8]) -> Option<usize> {
     b.windows(4).position(|w| w == b"\r\n\r\n")
 }
 
-fn handle(mut s: TcpStream, seen: &Seen, counter: &Arc<Mutex<i64>>, port: u16) {
+/// Whether a scripted route (fixture field `routes`, Rust-owned cases) answers this request: `method`,
+/// exact `path` or `path_has` substrings (the path carries the query string), the GraphQL `op`
+/// (operationName) and `vars` (each named variable equal).
+fn route_matches(r: &Value, method: &str, path: &str, body: &[u8]) -> bool {
+    if r["method"].as_str().is_some_and(|m| m != method) {
+        return false;
+    }
+    if r["path"].as_str().is_some_and(|p| p != path) {
+        return false;
+    }
+    if let Some(a) = r["path_has"].as_array()
+        && !a
+            .iter()
+            .all(|n| path.contains(n.as_str().unwrap_or("\u{0}")))
+    {
+        return false;
+    }
+    if r.get("op").is_some() || r.get("vars").is_some() {
+        let Ok(b) = serde_json::from_slice::<Value>(body) else {
+            return false;
+        };
+        if r["op"].as_str().is_some_and(|o| b["operationName"] != o) {
+            return false;
+        }
+        if let Some(vars) = r["vars"].as_object()
+            && !vars.iter().all(|(k, v)| &b["variables"][k] == v)
+        {
+            return false;
+        }
+    }
+    true
+}
+
+fn handle(mut s: TcpStream, seen: &Seen, counter: &Arc<Mutex<i64>>, port: u16, routes: &[Value]) {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 4096];
     let head_end = loop {
@@ -71,7 +104,21 @@ fn handle(mut s: TcpStream, seen: &Seen, counter: &Arc<Mutex<i64>>, port: u16) {
     }));
     let bare = path.split('?').next().unwrap_or("");
     // Literal payloads, in the key order the Python stub sends (serde_json would sort the keys).
-    let (status, raw) = if path.starts_with("/echo-token") {
+    let scripted = routes
+        .iter()
+        .find(|r| route_matches(r, &method, &path, &body));
+    let (status, raw) = if !routes.is_empty() {
+        match scripted {
+            Some(r) => (
+                r["status"].as_u64().unwrap_or(200),
+                match &r["body"] {
+                    Value::String(t) => t.clone(),
+                    other => other.to_string(),
+                },
+            ),
+            None => (404, "{\"message\":\"no scripted route\"}".to_string()),
+        }
+    } else if path.starts_with("/echo-token") {
         (401, format!("{{\"message\":\"bad credentials {TOKEN}\"}}"))
     } else if method == "POST" && bare.ends_with("/issues") {
         let mut c = counter.lock().unwrap();
@@ -116,6 +163,12 @@ pub struct Stub {
 }
 
 pub fn start_stub() -> Stub {
+    start_stub_with(Vec::new())
+}
+
+/// A stub that answers by the scripted routes; with none it keeps the Python stub's fixed answers.
+pub fn start_stub_with(routes: Vec<Value>) -> Stub {
+    let routes = Arc::new(routes);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let seen: Seen = Arc::default();
@@ -123,8 +176,8 @@ pub fn start_stub() -> Stub {
     let (s2, c2) = (seen.clone(), counter);
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
-            let (s3, c3) = (s2.clone(), c2.clone());
-            std::thread::spawn(move || handle(stream, &s3, &c3, port));
+            let (s3, c3, r3) = (s2.clone(), c2.clone(), routes.clone());
+            std::thread::spawn(move || handle(stream, &s3, &c3, port, &r3));
         }
     });
     Stub {
@@ -294,7 +347,15 @@ pub fn run_repo_case(path: &Path) -> Vec<String> {
     if let Some(r) = case["remote"].as_str() {
         git(&root, &strs(&json!(["remote", "add", "origin", r])), &env);
     }
-    let stub = case["stub"].as_bool().unwrap_or(false).then(start_stub);
+    let routes: Vec<Value> = case["routes"].as_array().cloned().unwrap_or_default();
+    let stub = case["stub"]
+        .as_bool()
+        .unwrap_or(false)
+        .then(|| start_stub_with(routes));
+    // Rust-owned cases (spec 045 FR-041) are written by hand; AI_GENT_BLESS_BOARD=1 fills in the
+    // stdout and the requests of their runs from what the binary did, for review in the diff.
+    let bless = case["owner"] == "rust" && std::env::var_os("AI_GENT_BLESS_BOARD").is_some();
+    let mut blessed: Vec<Value> = Vec::new();
     let stub_url = stub.as_ref().map_or(String::new(), |s| s.url.clone());
     let mut tools: Vec<(String, Value)> = vec![("pass".into(), json!({}))];
     for (n, v) in case["tools"].as_object().unwrap() {
@@ -359,6 +420,13 @@ pub fn run_repo_case(path: &Path) -> Vec<String> {
                 git(&root, &strs(g), &env);
             }
         }
+        if let Some(fs) = run.get("files").and_then(Value::as_object) {
+            for (rel, text) in fs {
+                let p = root.join(rel);
+                std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+                std::fs::write(p, text.as_str().unwrap().replace("<ROOT>", &rs)).unwrap();
+            }
+        }
         let argv: Vec<String> = strs(&run["argv"])
             .iter()
             .map(|a| a.replace("<ROOT>", &rs))
@@ -383,7 +451,7 @@ pub fn run_repo_case(path: &Path) -> Vec<String> {
                 "{name} run {i} ({label}): exit {got_exit}, expected {want_exit}\n{stderr}"
             ));
         }
-        if run["stdout"].as_str().unwrap() != stdout {
+        if !bless && run["stdout"].as_str().unwrap() != stdout {
             problems.push(format!(
                 "{name} run {i} ({label}): stdout differs\n--- expected\n{}\n--- got\n{stdout}",
                 run["stdout"].as_str().unwrap()
@@ -419,13 +487,24 @@ pub fn run_repo_case(path: &Path) -> Vec<String> {
                 v
             })
             .collect();
-        if run["seen"] != Value::Array(seen.clone()) {
+        if bless {
+            let mut r = run.clone();
+            r["stdout"] = json!(stdout);
+            r["seen"] = Value::Array(seen.clone());
+            blessed.push(r);
+        } else if run["seen"] != Value::Array(seen.clone()) {
             problems.push(format!(
                 "{name} run {i} ({label}): requests differ\n--- expected\n{}\n--- got\n{}",
                 run["seen"],
                 Value::Array(seen)
             ));
         }
+    }
+    if bless {
+        let mut out = case.clone();
+        out["runs"] = Value::Array(blessed);
+        let text = serde_json::to_string_pretty(&out).unwrap() + "\n";
+        std::fs::write(path, text).unwrap();
     }
     if let Some((stop, handle)) = scanner {
         stop.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -470,6 +549,7 @@ pub fn run_repo_case(path: &Path) -> Vec<String> {
                 || rel.starts_with("store/")
                 || rel == "gitconfig"
                 || rel.starts_with("repo/.git/")
+                || rel.starts_with("repo/.ai-gent/")
         },
     ));
     for (rel, data) in tree(&root) {
