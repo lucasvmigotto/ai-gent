@@ -1,97 +1,62 @@
 #!/usr/bin/env bash
-# Tests plugins/git/hooks/guard.sh with hook-event JSON for commands that
-# must be denied, confirmed, or left alone. Called by scripts/check.sh.
+# Tests plugins/git/hooks/guard.sh against the shared fixtures
+# (shared/guard-fixtures/git.json, spec 033) through scripts/guard-fixtures.py, which
+# prints one `ok`/`FAIL` line per case. Called by scripts/check.sh.
 
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GUARD="$REPO_DIR/plugins/git/hooks/guard.sh"
-SANDBOX="$(mktemp -d)"
-trap 'rm -rf "$SANDBOX"' EXIT
+python3 "$REPO_DIR/scripts/guard-fixtures.py" run --guard git --impl sh
 
-# A repo on each level of the branch chain and one on a feature branch, to
-# test the branch check.
-for b in main staging dev feat/x; do
-  d="$SANDBOX/${b//\//-}"
-  git init -q -b "$b" "$d"
-done
+# The guard log the shell fallback writes (generated `guard words` block, shared/guard-words.sh):
+# only a regular file, never through a symlink, never blocking on a FIFO; modes 0700/0600 (a looser
+# one we own is tightened); cut to the newest rows from the file's tail, under flock, and a held
+# lock skips the cut without losing a row.
+log="$(mktemp -d "${TMPDIR:-/tmp}/ai-gent-glog.XXXXXX")"
+trap 'rm -rf "$log"' EXIT
+fails=0
+check() { if "${@:2}"; then printf '      ok    log: %s\n' "$1"; else printf '      FAIL  log: %s\n' "$1"; fails=$((fails + 1)); fi; }
+deny() { printf '{"session_id":"%s","tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m x"},"cwd":"/tmp"}' "$1" |
+  env -u CLAUDE_PLUGIN_OPTION_guardLog -u CLAUDE_PLUGIN_OPTION_GUARDLOG AI_GENT_GUARD_LOG_DIR="$log" timeout 10 sh "$REPO_DIR/plugins/git/hooks/guard.sh"; }
+lines() { wc -l <"$1" | tr -d ' '; }
+deny s1 >/dev/null
+check "a row is written" test "$(lines "$log/s1.jsonl")" = 1
+echo x >"$log/target"; ln -s "$log/target" "$log/s2.jsonl"
+out="$(deny s2)"
+check "a symlinked log is refused, the decision still printed" test "$(cat "$log/target")" = x -a -n "$out"
+mkfifo "$log/s3.jsonl"
+out="$(deny s3)"
+check "a FIFO is refused without blocking, the decision still printed" test -p "$log/s3.jsonl" -a -n "$out"
+: >"$log/s4.jsonl"; chmod 644 "$log/s4.jsonl"; chmod 755 "$log"
+deny s4 >/dev/null
+check "a looser mode is tightened" test "$(stat -c %a "$log" "$log/s4.jsonl" 2>/dev/null || stat -f %Lp "$log" "$log/s4.jsonl")" = "700
+600"
+for _ in $(seq 400); do echo '{"at":1}'; done >"$log/s5.jsonl"
+deny s5 >/dev/null
+check "cut to the newest 200, no temporary file left" test "$(lines "$log/s5.jsonl")" = 200 -a -z "$(find "$log" -name '.s5.jsonl.*')"
+head -c 600000 /dev/zero | tr '\0' 'x' >"$log/s6.jsonl"; for _ in $(seq 10); do echo '{"at":2}'; done >>"$log/s6.jsonl"
+deny s6 >/dev/null
+# the first line read from the middle (the x run with the first row) is dropped as partial
+check "a large file is cut from its tail" test "$(lines "$log/s6.jsonl")" = 10 -a "$(wc -c <"$log/s6.jsonl" | tr -d ' ')" -lt 1000
+if command -v flock >/dev/null 2>&1; then
+  for _ in $(seq 400); do echo '{"at":1}'; done >"$log/s7.jsonl"
+  (
+    flock 9
+    deny s7 >/dev/null
+  ) 9>>"$log/s7.jsonl.lock"
+  check "a held lock skips the cut and loses no row" test "$(lines "$log/s7.jsonl")" = 401
+  # a read that fails inside the cut's pipe (the pipe itself still exits 0) leaves the file whole:
+  # the shimmed tail serves the row count, then fails on the cut's `tail -c`
+  shim="$log/shim"; mkdir "$shim"
+  real_tail="$(command -v tail)"
+  printf '#!/bin/sh\nif [ "$1" = -c ]; then\n  [ -e "%s/used" ] && exit 1\n  : >"%s/used"\nfi\nexec "%s" "$@"\n' \
+    "$shim" "$shim" "$real_tail" >"$shim/tail"
+  chmod +x "$shim/tail"
+  for _ in $(seq 400); do echo '{"at":1}'; done >"$log/s8.jsonl"
+  PATH="$shim:$PATH" deny s8 >/dev/null
+  check "a failed read in the cut keeps every row" test "$(lines "$log/s8.jsonl")" = 401 -a -e "$shim/used" -a -z "$(find "$log" -name '.s8.jsonl.*')"
+fi
+((fails == 0)) || exit 1
 
-failures=0
-expect() { # expect deny|ask|none <cwd> <command>
-  local want="$1" cwd="$2" cmd="$3" out got
-  out="$(python3 -c 'import json,sys; print(json.dumps({"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":sys.argv[1],"tool_input":{"command":sys.argv[2],"description":"x"}}))' "$cwd" "$cmd" | sh "$GUARD")"
-  got="$(printf '%s' "$out" | sed -n 's/.*"permissionDecision":"\([a-z]*\)".*/\1/p')"
-  got="${got:-none}"
-  if [[ "$got" == "$want" ]]; then
-    printf '      ok    %-5s %s\n' "$want" "${cmd//$'\n'/⏎}"
-  else
-    printf '      FAIL  want %s, got %s: %s\n' "$want" "$got" "${cmd//$'\n'/⏎}"
-    failures=$((failures + 1))
-  fi
-}
-
-main="$SANDBOX/main"
-staging="$SANDBOX/staging"
-dev="$SANDBOX/dev"
-feat="$SANDBOX/feat-x"
-
-expect deny "$feat" 'git commit --no-verify -m "fix: x"'
-expect deny "$feat" 'git commit -n -m "fix: x"'
-expect deny "$feat" 'git -C /tmp/repo merge --no-verify feat/x'
-expect deny "$feat" "git commit -m \"\$(cat <<'EOF'
-feat: x
-
-Co-Authored-By: Someone <a@b.c>
-EOF
-)\""
-expect deny "$feat" "gh issue create --title x --body \"\$(cat <<'EOF'
-body
-
-Co-Authored-By: Someone <a@b.c>
-EOF
-)\""
-expect deny "$feat" "gh pr comment 1 --body \"\$(cat <<'EOF'
-looks good
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)\""
-expect none "$feat" 'gh issue create --title x --body "plain body"'
-expect none "$feat" 'grep -rn "co-authored-by" docs/'
-expect none "$feat" 'git commit -m "fix(git): deny Co-Authored-By trailers and generated with signatures"'
-expect deny "$feat" 'git push --force origin feat/x'
-expect deny "$feat" 'git push -f'
-expect ask "$feat" 'git push --force-with-lease origin feat/x'
-expect ask "$feat" 'git push origin feat/x'
-expect ask "$feat" 'cd /tmp && git push'
-expect ask "$feat" 'git fetch && git push origin --delete feat/old'
-expect ask "$feat" 'gh pr create --fill'
-expect ask "$feat" 'git branch -D feat/old'
-expect ask "$feat" 'git reset --hard HEAD~1'
-expect ask "$feat" 'git clean -fd'
-expect ask "$feat" 'git commit --amend --no-edit'
-expect ask "$feat" 'git filter-repo --mailmap m'
-expect ask "$main" 'git commit -m "fix: x"'
-expect ask "$main" 'git merge --ff-only feat/x'
-expect ask "$feat" "git -C $main commit -m \"fix: x\""
-expect ask "$staging" 'git merge --no-ff dev'
-expect ask "$staging" 'git commit -m "fix: x"'
-expect ask "$dev" 'git commit -m "fix: x"'
-expect ask "$dev" 'git merge --no-ff feat/x && git commit -m "fix: x"'
-expect ask "$feat" "git -C $dev commit -m \"fix: x\""
-expect none "$dev" 'git merge --no-ff feat/x'
-expect none "$dev" 'git merge --ff-only feat/x'
-expect none "$dev" 'git merge --continue'
-expect none "$feat" 'git commit -m "fix: x"'
-expect none "$feat" 'git commit -m "feat(git): block --no-verify and -n in the guard"'
-expect none "$feat" 'git commit -m "docs: explain git push --force"'
-expect none "$feat" 'git merge --no-ff feat/x-db'
-expect none "$feat" 'git branch -d feat/x-db'
-expect none "$feat" 'git status && git log --oneline -5'
-expect none "$feat" 'echo "git push" > notes.txt'
-expect none "$feat" 'grep -rn -- --no-verify docs/'
-expect none "$feat" 'git push-notes-helper'
-expect none "$main" 'git switch -c feat/new'
-expect none "$feat" 'ls -la'
-
-exit $((failures > 0))
+# the launcher head of a package install turns a missing, failing or slow binary into the ask line (spec 033 T051)
+exec python3 "$REPO_DIR/scripts/guard-fixtures.py" failures --guard git

@@ -1,0 +1,10 @@
+You are a contributor to demo (this directory is a git worktree on branch feat/min).
+Read first, in order: AGENTS.md; shared/delegate-worker-rules.md.
+Task: specs/001-demo T001: Add one function.
+allowed_paths: src/; touching anything else fails review automatically.
+Verify with: the task's own targeted tests.
+Hard limits: no credentials or secrets; no database or container tools; no network (you have none); no edits to skills, plugins, hooks, shared references, AGENTS.md or CLAUDE.md; no version bumps, tags or CHANGELOG edits; no trailers or markers of any kind in commits; no --no-verify; no force-push; stage by explicit path; never delete anything you did not create.
+Environment: TMPDIR=/tmp/w; build output outside the worktree.
+Environment failures (denied sockets, caches, missing tools) go in your final message, never in a repository file.
+Leave your changes in the working tree and stop. Do not commit or push (the supervisor commits).
+Final message (short): per task done or skipped and why, commit hashes, and "Rules I found hard to follow".

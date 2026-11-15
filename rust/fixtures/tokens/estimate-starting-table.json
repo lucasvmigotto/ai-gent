@@ -1,0 +1,24 @@
+{
+ "name": "estimate-starting-table",
+ "derived_from": "EstimateTest::test_few_records_fall_back_to_the_starting_table",
+ "files": {
+  "work/h.jsonl": "{\"id\": \"p:0\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c0\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 999, \"date\": \"2026-10-20\", \"agents\": [\"ag0\"]}\n{\"id\": \"p:1\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c1\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 999, \"date\": \"2026-10-21\", \"agents\": [\"ag1\"]}\n{\"id\": \"p:2\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c2\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 999, \"date\": \"2026-10-22\", \"agents\": [\"ag2\"]}\n{\"id\": \"p:3\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c3\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 999, \"date\": \"2026-10-23\", \"agents\": [\"ag3\"]}\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "estimate",
+    "--model=sonnet",
+    "--effort=medium",
+    "--layer=backend",
+    "--tasks=4",
+    "--rollup=none.md",
+    "--history=h.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "estimate for sonnet · effort medium · layer backend · 4 task(s)\n  projection ~128k billable (median), upper bound ~179k (p75)\n  basis: the starting table (only 4 similar record(s); 5 needed for history to take over)\n  on the card: Tokens: projected ~128k | used —\n"
+  }
+ ],
+ "expect_files": {}
+}

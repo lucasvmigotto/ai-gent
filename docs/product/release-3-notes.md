@@ -1,7 +1,11 @@
 # Release 3.0.0 notes: what the 2.26 package install taught us
 
-2.26 makes the release package the default install and keeps the git clone as
-a flagged dev mode. This is a test of the idea, not a plan.
+2.26 made the release package the default install and kept the git clone as
+a flagged dev mode. The sections below record what that taught and what 3.0.0
+changes in consequence. The changes are decided: the contract is
+`specs/039-release-3-contract/` (`contracts/breaking-changes.md` lists them as
+B1-B12, `contracts/migration-guide.md` is the user text), with the decisions in
+`docs/product/rust-decisions.md` (D1-D30).
 
 ## What 2.26 learned
 
@@ -25,6 +29,13 @@ a flagged dev mode. This is a test of the idea, not a plan.
 - `skills/skill-docs` is a contributor skill and is not in the package.
 
 ## What 3.0.0 would change (breaking)
+
+Decided. Each item below is a numbered change in
+`specs/039-release-3-contract/contracts/breaking-changes.md`: git mode is B1,
+links into `current/` B2, contributors in a checkout B3, tier-3 best-effort B10.
+Windows is decided too: a native installer and native guards (D24; specs 032 and
+033), with WSL or Git Bash as an alternative. The last bullet is kept as the
+question it answered.
 
 - Remove git mode (`AI_GENT_MODE=git`, `AI_GENT_BRANCH`, `AI_GENT_REPO`,
   `AI_GENT_DIR`) and the clone-specific branches of `ai-gent-update.sh` and

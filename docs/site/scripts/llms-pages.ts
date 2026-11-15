@@ -1,7 +1,10 @@
 // The LLM-readable pages, built from the same content the pages render. Pure
 // functions: generate-llms.ts writes them, tests/llms.test.tsx checks them.
+
+import { tierMatrix } from "../src/content";
 import generated from "../src/content/generated.json";
 import {
+	compatSections,
 	contributeSections,
 	flowSections,
 	installSections,
@@ -93,6 +96,18 @@ export function staticPages(locale: Locale): Page[] {
 			].join("\n"),
 		},
 		{
+			slug: "compatibility",
+			title: t.compat.title,
+			description: t.compat.lede,
+			body: [
+				`# ${t.compat.title}`,
+				"",
+				t.compat.lede,
+				"",
+				...sectionsToMarkdown(compatSections(t, tierMatrix)),
+			].join("\n"),
+		},
+		{
 			slug: "flow",
 			title: t.flow.title,
 			description: t.flow.lede,
@@ -155,7 +170,10 @@ export function llmsTxt(locale: Locale, pages: Page[], base: string): string {
 		"",
 	];
 	const use = pages.filter(
-		(p) => p.slug === "install" || p.slug.startsWith("skills/"),
+		(p) =>
+			p.slug === "install" ||
+			p.slug === "compatibility" ||
+			p.slug.startsWith("skills/"),
 	);
 	const ref = pages.filter((p) => !use.includes(p) && !p.optional);
 	const opt = pages.filter((p) => p.optional);

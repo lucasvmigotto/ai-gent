@@ -1,0 +1,27 @@
+{
+ "name": "tasks-dry-run-writes-nothing",
+ "derived_from": "TasksTest::test_dry_run_writes_nothing",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a1.jsonl": "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": \"\"}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:00:00Z\", \"message\": {\"id\": \"a1-0\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 100}}}",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a1.meta.json": "{\"description\": \"T001, T002: 001-widget core\"}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "tasks",
+    "--project=-tmp-widgets",
+    "--specs-dir=specs",
+    "--snapshots=none.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "widgets: 1 subagent(s) in 1 session(s); dry run, nothing written\nfeature | used (subagents) | coordinator share | total | cards | task lines\n001-widget | 0k | 0k | 0k | 1 | 3\ndeprecated legacy output: 0 specs/*/tokens.md, 0 unmapped card(s) in docs/product/token-usage.md (--no-legacy turns it off; both go in a later major)\nunattributed (reported, not guessed): 0 agent(s), 0k\ncoordinator: 0k billable in all, 0k in windows with no attributed subagents\ntotal: 0k billable (0k subagents)\n"
+  }
+ ],
+ "expect_files": {}
+}

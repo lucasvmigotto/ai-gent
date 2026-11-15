@@ -20,6 +20,8 @@
 #                then the one on PATH; else the lint is skipped)
 #   SHELLCHECK_VERSION  shellcheck-py release to pin (default below)
 #   PYGMENTS_VERSION    Pygments release compact:code's tests run with (default below)
+#   CHECK_SKIP_RUST     any value skips the Rust gates (CI sets it when a pull request
+#                       touches nothing they check)
 #   UV_VERSION          uv release fetched through pipx when uv isn't installed
 
 set -euo pipefail
@@ -247,6 +249,57 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-ctrguard.out"
 
+if scripts/test-guard-shadow.sh >"${TMPDIR:-/tmp}/ai-gent-shadow.out" 2>&1; then
+  pass "guard shadow call in the five hooks ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-shadow.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-shadow.out"
+  fail "guard shadow call in the five hooks"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-shadow.out"
+
+# The shared guard fixtures (spec 033): well-formed, and the shell guards (the oracle) still decide
+# what each case records.
+if python3 scripts/guard-fixtures.py lint >"${TMPDIR:-/tmp}/ai-gent-fixtures.out" 2>&1 &&
+  python3 scripts/guard-fixtures.py run --impl sh >>"${TMPDIR:-/tmp}/ai-gent-fixtures.out" 2>&1; then
+  pass "guard fixtures ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-fixtures.out") cases vs the shell guards)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-fixtures.out"
+  fail "guard fixtures (scripts/guard-fixtures.py)"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-fixtures.out"
+
+# The same fixtures through the package path (spec 033 T052): the launcher head of each guard.sh with
+# the real binary, and the binary directly, with as many cases as the shell guards ran (--parity leaves
+# out the `new` cases only the binary decides). Needs a built binary (cargo build in rust/ or AI_GENT_BIN).
+#
+# The binary is built here first (a no-op when current), so these fixtures never run against a stale
+# `rust/target` restored from a CI cache (a Cargo.lock change falls back to an older cache).
+if [[ -z "${AI_GENT_BIN:-}" && -z "${CHECK_SKIP_RUST:-}" ]] && command -v cargo >/dev/null 2>&1 &&
+  [[ -f rust/Cargo.toml ]]; then
+  (cd rust && cargo build --locked -p ai-gent >"${TMPDIR:-/tmp}/ai-gent-fxbuild.out" 2>&1) ||
+    { tail -n 20 "${TMPDIR:-/tmp}/ai-gent-fxbuild.out"; fail "cargo build -p ai-gent (guard fixtures need a current binary)"; }
+  [[ -n "${CARGO_TARGET_DIR:-}" && -x "$CARGO_TARGET_DIR/debug/ai-gent" ]] && export AI_GENT_BIN="$CARGO_TARGET_DIR/debug/ai-gent"
+fi
+if [[ -x "${AI_GENT_BIN:-rust/target/release/ai-gent}" || -x "${AI_GENT_BIN:-rust/target/debug/ai-gent}" ]]; then
+  fx="${TMPDIR:-/tmp}/ai-gent-fixtures3.out"
+  : >"$fx"
+  fx_ok=1
+  fx_counts=
+  for impl in sh launcher bin; do
+    python3 scripts/guard-fixtures.py run --impl "$impl" --parity >>"$fx" 2>&1 || fx_ok=0
+    fx_counts="$fx_counts $(grep "(impl $impl)" "$fx" | grep -oE '[0-9]+ run' | tail -1 | cut -d' ' -f1)"
+  done
+  if ((fx_ok)) && [[ "$(printf '%s\n' "$fx_counts" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l)" = 1 ]]; then
+    pass "guard fixtures through the launcher and the binary (equal counts:$fx_counts)"
+  else
+    cat "$fx"
+    fail "guard fixtures through the launcher and the binary (counts:$fx_counts)"
+  fi
+  rm -f "$fx"
+else
+  warn "no built ai-gent binary (cargo build in rust/); skipped the guard fixtures through the launcher and the binary"
+fi
+
 if python3 -m unittest plugins/repo/scripts/test_reporun.py plugins/repo/scripts/test_specsync.py \
   </dev/null >"${TMPDIR:-/tmp}/ai-gent-reporun.out" 2>&1; then
   pass "reporun, specsync ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-reporun.out"))"
@@ -279,6 +332,53 @@ else
   fail "agents token_report.py unit tests"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-token-report.out"
+
+# Parity gate of `ai-gent tokens` (spec 035): the shared fixtures still describe what token_report.py does.
+# The binary side runs in cargo test (parity_tokens). Deleted with token_report.py at the 3.0.0 cutover.
+if [ -f scripts/test-parity-tokens.py ]; then
+  if python3 scripts/test-parity-tokens.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-parity-tokens.out" 2>&1; then
+    pass "tokens parity oracle ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-parity-tokens.out" | cut -c1-60))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-parity-tokens.out"
+    fail "tokens parity fixtures (scripts/test-parity-tokens.py)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-parity-tokens.out"
+fi
+
+# Parity gate of `ai-gent spec` (spec 037): same shape. Deleted with specsync.py at the 3.0.0 cutover.
+if [ -f scripts/test-parity-spec.py ]; then
+  if python3 scripts/test-parity-spec.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-parity-spec.out" 2>&1; then
+    pass "spec parity oracle ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-parity-spec.out" | cut -c1-60))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-parity-spec.out"
+    fail "spec parity fixtures (scripts/test-parity-spec.py)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-parity-spec.out"
+fi
+
+# Parity gate of `ai-gent repo` (spec 037): same shape, against a loopback stub and fake tools (never a
+# real platform). Deleted with reporun.py at the 3.0.0 cutover.
+if [ -f scripts/test-parity-repo.py ]; then
+  if python3 scripts/test-parity-repo.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-parity-repo.out" 2>&1; then
+    pass "repo parity oracle ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-parity-repo.out" | cut -c1-60))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-parity-repo.out"
+    fail "repo parity fixtures (scripts/test-parity-repo.py)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-parity-repo.out"
+fi
+
+# Parity gate of `ai-gent wt` (spec 036): the shared fixtures still describe what wt.py does.
+# The binary side runs in cargo test (parity_wt). Deleted with wt.py at the 3.0.0 cutover.
+if [ -f scripts/test-parity-wt.py ]; then
+  if python3 scripts/test-parity-wt.py </dev/null >"${TMPDIR:-/tmp}/ai-gent-parity-wt.out" 2>&1; then
+    pass "wt parity oracle ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-parity-wt.out" | cut -c1-60))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-parity-wt.out"
+    fail "wt parity fixtures (scripts/test-parity-wt.py)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-parity-wt.out"
+fi
 
 if python3 -m unittest plugins/project/scripts/test_scripts.py >"${TMPDIR:-/tmp}/ai-gent-project.out" 2>&1; then
   pass "project scripts ($(grep -oE 'Ran [0-9]+ tests' "${TMPDIR:-/tmp}/ai-gent-project.out"))"
@@ -339,6 +439,14 @@ else
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-release.out"
 
+if scripts/test-rehearse-rollback.sh >"${TMPDIR:-/tmp}/ai-gent-rehearse.out" 2>&1; then
+  pass "rollback rehearsal script ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-rehearse.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-rehearse.out"
+  fail "rollback rehearsal script"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-rehearse.out"
+
 if scripts/test-release-single.sh >"${TMPDIR:-/tmp}/ai-gent-release-single.out" 2>&1; then
   pass "single-version release template ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-release-single.out") cases)"
 else
@@ -346,6 +454,23 @@ else
   fail "single-version release template"
 fi
 rm -f "${TMPDIR:-/tmp}/ai-gent-release-single.out"
+
+# The Rust build and release workflows (pins, permissions, the publish gate) and the crates.io publisher.
+if scripts/test-rust-workflows.sh >"${TMPDIR:-/tmp}/ai-gent-rust-workflows.out" 2>&1; then
+  pass "rust workflows ($(tail -n1 "${TMPDIR:-/tmp}/ai-gent-rust-workflows.out") checks)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-rust-workflows.out"
+  fail "rust workflows (scripts/test-rust-workflows.sh)"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-rust-workflows.out"
+
+if scripts/test-rust-publish.sh >"${TMPDIR:-/tmp}/ai-gent-rust-publish.out" 2>&1; then
+  pass "crates.io publisher ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-rust-publish.out") cases)"
+else
+  cat "${TMPDIR:-/tmp}/ai-gent-rust-publish.out"
+  fail "crates.io publisher (scripts/test-rust-publish.sh)"
+fi
+rm -f "${TMPDIR:-/tmp}/ai-gent-rust-publish.out"
 
 # ------------------------------------------------------- opencode guard
 
@@ -358,9 +483,40 @@ if [[ -n "$runtime" ]]; then
     fail "opencode guard rules (vs plugins/*/hooks/guard.sh)"
   fi
   rm -f "${TMPDIR:-/tmp}/ai-gent-ocguard.out"
+  if python3 scripts/guard-fixtures.py run --impl mjs >"${TMPDIR:-/tmp}/ai-gent-ocfixtures.out" 2>&1; then
+    pass "opencode guard rules on the shared fixtures ($(grep -c ' ok ' "${TMPDIR:-/tmp}/ai-gent-ocfixtures.out") cases)"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-ocfixtures.out"
+    fail "opencode guard rules on the shared fixtures"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-ocfixtures.out"
+  if "$runtime" opencode/guard/test/adapter.test.mjs >"${TMPDIR:-/tmp}/ai-gent-ocadapter.out" 2>&1; then
+    pass "opencode guard binary adapter ($(grep -oE '[0-9]+ checks' "${TMPDIR:-/tmp}/ai-gent-ocadapter.out" | tail -1))"
+  else
+    cat "${TMPDIR:-/tmp}/ai-gent-ocadapter.out"
+    fail "opencode guard binary adapter (fake ai-gent)"
+  fi
+  rm -f "${TMPDIR:-/tmp}/ai-gent-ocadapter.out"
 else
   warn "neither bun nor node on PATH; skipped the opencode guard rule test"
 fi
+
+# ------------------------------------------------------ PowerShell scripts
+
+# install.ps1 is read by Windows PowerShell 5.1 as Latin-1 when piped from a download, so the
+# Windows scripts stay ASCII; the behavior tests run on Windows (check.yml, scripts/test-install-ps1.ps1).
+ps_bad=0
+for f in install.ps1 setup.ps1 scripts/test-install-ps1.ps1; do
+  if LC_ALL=C grep -nP '[^\x00-\x7F]' "$f" >/dev/null; then fail "$f: non-ASCII characters"; ps_bad=1; fi
+done
+if command -v pwsh >/dev/null 2>&1; then
+  for f in install.ps1 setup.ps1 scripts/test-install-ps1.ps1; do
+    if ! PS_FILE="$f" pwsh -NoProfile -Command '$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $env:PS_FILE).Path, [ref]$null, [ref]$e); if ($e.Count) { $e | ForEach-Object { $_.ToString() }; exit 1 }'; then
+      fail "$f: does not parse"; ps_bad=1
+    fi
+  done
+fi
+((ps_bad)) || pass "PowerShell scripts: ASCII$(command -v pwsh >/dev/null 2>&1 && echo ', parse')"
 
 # ------------------------------------------------------ release package
 
@@ -390,6 +546,14 @@ else
   fail "package install tests"
 fi
 
+if ((QUICK)); then
+  warn "--quick: skipped migration tests"
+elif scripts/test-migrate.sh; then
+  pass "migration tests"
+else
+  fail "migration tests"
+fi
+
 # ------------------------------------------------------ update-check tests
 
 if ((QUICK)); then
@@ -398,6 +562,52 @@ elif scripts/test-update-check.sh; then
   pass "update-check tests"
 else
   fail "update-check tests"
+fi
+
+if ((QUICK)); then
+  warn "--quick: skipped ai-gent update end-to-end test"
+elif scripts/test-update.sh; then
+  pass "ai-gent update end-to-end (scripts/test-update.sh)"
+else
+  fail "ai-gent update end-to-end (scripts/test-update.sh)"
+fi
+
+# -------------------------------------------------------------------- rust
+
+# The workspace under rust/ (spec 032): fmt, clippy, tests, deny. Skipped with a warning when
+# cargo is missing; --quick skips only the tests. The pinned toolchain comes from
+# rust/rust-toolchain.toml (rustup installs it on first use).
+rust_gate() { # rust_gate <label> <command...>
+  local label="$1" out status
+  shift
+  out="$(mktemp "${TMPDIR:-/tmp}/ai-gent-rust.XXXXXX")"
+  if (cd rust && "$@") >"$out" 2>&1; then
+    pass "rust $label"
+  else
+    status=$?
+    tail -n 40 "$out"
+    fail "rust $label (exit $status)"
+  fi
+  rm -f "$out"
+}
+
+if [[ -n "${CHECK_SKIP_RUST:-}" ]]; then
+  warn "CHECK_SKIP_RUST set (CI: no Rust files changed); skipped the Rust gates"
+elif ! command -v cargo >/dev/null 2>&1; then
+  warn "cargo not on PATH; skipped the Rust gates (fmt, clippy, test, deny)"
+else
+  rust_gate fmt cargo fmt --all -- --check
+  rust_gate clippy cargo clippy --workspace --all-targets --locked -- -D warnings
+  if ((QUICK)); then
+    warn "--quick: skipped rust tests"
+  else
+    rust_gate test cargo test --workspace --locked
+  fi
+  if command -v cargo-deny >/dev/null 2>&1; then
+    rust_gate deny cargo deny check
+  else
+    warn "cargo-deny not installed (cargo install cargo-deny --locked); skipped rust deny"
+  fi
 fi
 
 ((QUIET)) || echo

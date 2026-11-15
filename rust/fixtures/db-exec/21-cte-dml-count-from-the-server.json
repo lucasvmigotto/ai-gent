@@ -1,0 +1,108 @@
+{
+  "contract_version": 1,
+  "name": "cte-dml-count-from-the-server",
+  "derived_from": "spec 043 FR-010: a count never comes from the statement text. dbrun.py reports rowcount -1 for a WITH ... DELETE, so expect [0] mismatches and rolls back; the port reads the change counter (3) and also rolls back, and commits when the plan expects 3",
+  "kind": "exec",
+  "engines": [
+    "sqlite"
+  ],
+  "setup": {
+    "sqlite": [
+      "CREATE TABLE t (id INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+      "INSERT INTO t VALUES (1, 10), (2, 20), (3, 30)"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "write",
+        "statements": [
+          "WITH x AS (SELECT 1) DELETE FROM t"
+        ],
+        "timeout": 5,
+        "max_rows": 200,
+        "expect": [
+          0
+        ]
+      },
+      "expected": {
+        "ok": false,
+        "stage": "verify",
+        "error_contains": "statement 1: expected 0,"
+      },
+      "absent": [
+        "committed"
+      ]
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT COUNT(*) FROM t"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rows": [
+              [
+                3
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "only": "port",
+      "difference": "D-007",
+      "request": {
+        "mode": "write",
+        "statements": [
+          "WITH x AS (SELECT 1) DELETE FROM t"
+        ],
+        "timeout": 5,
+        "max_rows": 200,
+        "expect": [
+          3
+        ]
+      },
+      "expected": {
+        "ok": true,
+        "committed": true,
+        "results": [
+          {
+            "rowcount": 3
+          }
+        ]
+      }
+    },
+    {
+      "only": "port",
+      "difference": "D-007",
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT COUNT(*) FROM t"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rows": [
+              [
+                0
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,472 @@
+//! `ai-gent guard`: the guard evaluator (spec 033).
+use crate::cli::{GuardAction, GuardArgs};
+use ai_gent_core::exit::Exit;
+use ai_gent_core::guard::branch::git_branch;
+use ai_gent_core::guard::shadow;
+use ai_gent_core::guard::{
+    Ctx, Decision, Event, GuardId, MAX_COMMAND_BYTES, Shell, evaluate, evaluate_all,
+    evaluate_opencode, reasons, words,
+};
+use ai_gent_core::version::VersionInfo;
+use serde_json::{Value, json};
+use std::io::Read;
+
+/// Run `guard`. Evaluation always exits 0: a failure becomes an `ask` line (FR-014).
+pub fn run(a: &GuardArgs, json_out: bool) -> Exit {
+    match &a.action {
+        Some(GuardAction::ListReasons) => return list_reasons(json_out),
+        Some(GuardAction::ShadowReport { since, guard }) => {
+            return shadow_report(since.as_deref(), guard.as_deref(), json_out);
+        }
+        Some(GuardAction::Replay {
+            transcripts,
+            guard,
+            oracle,
+        }) => {
+            return replay(
+                transcripts.as_deref(),
+                guard.as_deref(),
+                oracle.as_deref(),
+                json_out,
+            );
+        }
+        None => {}
+    }
+    let mut input = String::new();
+    let read = std::io::stdin().read_to_string(&mut input);
+    let marker = GuardId::parse(&a.guard).map_or("ai-gent guard:", |g| marker_of(g));
+    if a.shadow {
+        // Never writes to stdout and never fails the hook: a problem is only logged to stderr.
+        if let Err(why) =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| shadow(a, &input)))
+                .unwrap_or_else(|_| Err("internal error".into()))
+        {
+            eprintln!("ai-gent guard --shadow: {why}");
+        }
+        return Exit::Success;
+    }
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match &read {
+        Ok(_) => evaluate_input(a, &input),
+        Err(e) => Err(format!("cannot read stdin: {e}")),
+    }));
+    let (out, log) = match result {
+        Ok(Ok(said)) => said,
+        Ok(Err(why)) => (Some(failure(a, marker, &why)), None),
+        Err(_) => (Some(failure(a, marker, "internal error")), None),
+    };
+    emit(&mut std::io::stdout(), out.as_deref(), || {
+        if let Some(row) = log {
+            row.write();
+        }
+    });
+    Exit::Success
+}
+
+/// Print and flush the decision line first, then run `log`: whatever the log does (fails, is slow,
+/// panics), the line is already out and the exit code stays 0.
+fn emit(out: &mut impl std::io::Write, line: Option<&str>, log: impl FnOnce()) {
+    if let Some(line) = line {
+        let _ = writeln!(out, "{line}");
+        let _ = out.flush();
+    }
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(log));
+}
+
+fn marker_of(g: GuardId) -> &'static str {
+    reasons::all()
+        .iter()
+        .find(|r| r.guard == g.name())
+        .map_or("ai-gent guard:", |r| r.marker.as_str())
+}
+
+fn failure(a: &GuardArgs, marker: &str, why: &str) -> String {
+    let reason = format!(
+        "{marker} guard failed internally ({why}); allow only if you accept this command unguarded."
+    );
+    if a.format == "opencode" {
+        json!({"decision": "ask", "reason": reason}).to_string()
+    } else {
+        Decision {
+            level: ai_gent_core::guard::Level::Ask,
+            reason,
+            rule: "",
+        }
+        .hook_line()
+        .unwrap_or_default()
+    }
+}
+
+fn evaluate_input(a: &GuardArgs, input: &str) -> Result<(Option<String>, Option<LogRow>), String> {
+    let guard = if a.guard == "all" {
+        None
+    } else {
+        Some(GuardId::parse(&a.guard).ok_or_else(|| format!("unknown guard {}", a.guard))?)
+    };
+    let flag_shell = match &a.shell {
+        Some(s) => Some(Shell::parse(s).ok_or_else(|| format!("unknown shell {s}"))?),
+        None => None,
+    };
+    let branch = |d: &str| git_branch(d);
+    let ctx = Ctx { branch_of: &branch };
+    if a.format == "opencode" {
+        let v: Value =
+            serde_json::from_str(input).map_err(|e| format!("invalid event JSON: {e}"))?;
+        let action = v["action"].as_str().unwrap_or("");
+        let resources: Vec<String> = v["resources"]
+            .as_array()
+            .map(|r| {
+                r.iter()
+                    .filter_map(|x| x.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if resources.iter().any(|r| r.len() > MAX_COMMAND_BYTES) {
+            return Err("command too long".into());
+        }
+        let d = evaluate_opencode(
+            action,
+            &resources,
+            v["cwd"].as_str().unwrap_or(""),
+            flag_shell.unwrap_or(Shell::Sh),
+            &ctx,
+        );
+        return Ok((
+            Some(
+                json!({"decision": d.level.name(), "reason": (!d.reason.is_empty()).then_some(d.reason)}).to_string(),
+            ),
+            None,
+        ));
+    }
+    if a.format != "claude" {
+        return Err(format!("unknown format {}", a.format));
+    }
+    let ev = Event::from_json(input)?;
+    if ev.command().is_some_and(|c| c.len() > MAX_COMMAND_BYTES) {
+        return Err("command too long".into());
+    }
+    let shell = flag_shell.unwrap_or(if ev.tool_name == "PowerShell" {
+        Shell::PowerShell
+    } else {
+        Shell::Sh
+    });
+    let d = guard.map_or_else(
+        || evaluate_all(&ev, shell, &ctx),
+        |g| evaluate(g, &ev, shell, &ctx),
+    );
+    Ok(say(&d, &ev, input))
+}
+
+/// The hook line with the guard's own words, and the row for the session's guard log (specs 015
+/// and 024): the plugin options `guardUx` and `guardLog` (false) turn each off. The row is written
+/// only after the line is printed and flushed (`emit`), on a thread given at most `LOG_DEADLINE`,
+/// so a log that is slow or cannot be written loses the row, never changes or holds up the decision.
+fn say(d: &Decision, ev: &Event, input: &str) -> (Option<String>, Option<LogRow>) {
+    let env = |k: &str| std::env::var(k).ok();
+    let w = if words::option_off(env, "guardUx") {
+        words::Words::default()
+    } else {
+        words::words(d)
+    };
+    let line = words::hook_line(d, &w);
+    let row = (!words::option_off(env, "guardLog"))
+        .then(|| log_row(d, ev, input))
+        .flatten();
+    (line, row)
+}
+
+const LOG_DEADLINE: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// A guard-log row waiting to be written.
+struct LogRow {
+    dir: std::path::PathBuf,
+    session: String,
+    row: Value,
+}
+
+impl LogRow {
+    /// Append the row on its own thread, waiting at most `LOG_DEADLINE` (only so the process exits
+    /// tidily; the decision is already out). A thread that cannot start loses the row.
+    fn write(self) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new()
+            .name("guard-log".into())
+            .spawn(move || {
+                let _ = tx.send(words::append(&self.dir, &self.session, &self.row));
+            });
+        if spawned.is_err() {
+            eprintln!("ai-gent guard: cannot start the guard log writer; the row is lost");
+            return;
+        }
+        match rx.recv_timeout(LOG_DEADLINE) {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => eprintln!("ai-gent guard: cannot write the guard log: {e}"),
+            Err(_) => eprintln!("ai-gent guard: the guard log took too long; the row is lost"),
+        }
+    }
+}
+
+fn log_row(d: &Decision, ev: &Event, input: &str) -> Option<LogRow> {
+    let session = serde_json::from_str::<Value>(input)
+        .ok()
+        .and_then(|v| v["session_id"].as_str().map(str::to_string))
+        .unwrap_or_default();
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |t| u64::try_from(t.as_millis()).unwrap_or(u64::MAX));
+    let dir = words::log_dir(|k| {
+        std::env::var_os(k)
+            .filter(|v| !v.is_empty())
+            .map(std::path::PathBuf::from)
+    });
+    let (Some(row), Some(dir)) = (words::row(d, &ev.tool_name, ev.command(), at), dir) else {
+        return None;
+    };
+    words::is_session_id(&session).then_some(LogRow { dir, session, row })
+}
+
+fn list_reasons(json_out: bool) -> Exit {
+    if json_out {
+        let rows: Vec<Value> = reasons::all()
+            .iter()
+            .map(|r| json!({"id": r.id, "guard": r.guard, "marker": r.marker, "decision": r.decision, "text": r.text}))
+            .collect();
+        println!("{}", ai_gent_core::output::ok_json(1, rows));
+    } else {
+        for r in reasons::all() {
+            println!("{}\t{}\t{} {}", r.id, r.decision, r.marker, r.text);
+        }
+    }
+    Exit::Success
+}
+
+/// Evaluate beside the shell guard and append the comparison to the shadow log.
+fn shadow(a: &GuardArgs, input: &str) -> Result<(), String> {
+    let guard = if a.guard == "all" {
+        None
+    } else {
+        Some(GuardId::parse(&a.guard).ok_or_else(|| format!("unknown guard {}", a.guard))?)
+    };
+    let ev = Event::from_json(input)?;
+    let shell = match &a.shell {
+        Some(s) => Shell::parse(s).ok_or_else(|| format!("unknown shell {s}"))?,
+        None if ev.tool_name == "PowerShell" => Shell::PowerShell,
+        None => Shell::Sh,
+    };
+    let branch = |d: &str| git_branch(d);
+    let ctx = Ctx { branch_of: &branch };
+    let start = std::time::Instant::now();
+    let d = guard.map_or_else(
+        || evaluate_all(&ev, shell, &ctx),
+        |g| evaluate(g, &ev, shell, &ctx),
+    );
+    let latency_us = u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX);
+    let shell_decision = a.shell_decision.clone().unwrap_or_else(|| "none".into());
+    let info = VersionInfo::current(env!("CARGO_PKG_VERSION"));
+    let cmd = ev.command();
+    let rec = shadow::Record {
+        schema: 1,
+        ts: shadow::iso_utc(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |t| t.as_secs()),
+        ),
+        release: info.release,
+        target: info.target,
+        guard: a.guard.clone(),
+        tool: ev.tool_name.clone(),
+        shell: shell.name().to_string(),
+        agree: shell_decision == d.level.name(),
+        reason_equal: a.shell_reason.as_ref().map(|r| *r == d.reason),
+        shell_decision,
+        rust_decision: d.level.name().to_string(),
+        expected_divergence: false,
+        rule: (!d.rule.is_empty()).then(|| d.rule.to_string()),
+        cmd_sha: cmd.map(|c| shadow::sha256_hex(c.as_bytes())[..16].to_string()),
+        cmd_len: cmd.map_or(0, str::len),
+        verb: cmd.and_then(shadow::verb),
+        latency_us,
+        capture: None,
+    };
+    let dir = shadow::default_log_dir().ok_or("no state directory (HOME or LOCALAPPDATA unset)")?;
+    shadow::append(&dir, &rec).map_err(|e| format!("cannot write the shadow log: {e}"))
+}
+
+fn shadow_report(since: Option<&str>, guard: Option<&str>, json_out: bool) -> Exit {
+    let since_secs = match since.map(shadow::parse_duration) {
+        Some(None) => {
+            eprintln!("ai-gent guard shadow-report: --since takes a number and s, m, h or d (7d)");
+            return Exit::Usage;
+        }
+        Some(Some(d)) => Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |t| t.as_secs())
+                .saturating_sub(d),
+        ),
+        None => None,
+    };
+    let Some(dir) = shadow::default_log_dir() else {
+        eprintln!("ai-gent guard shadow-report: no state directory (HOME or LOCALAPPDATA unset)");
+        return Exit::Runtime;
+    };
+    let rep = shadow::report(&shadow::read_all(&dir), since_secs, guard);
+    if json_out {
+        println!("{}", ai_gent_core::output::ok_json(1, &rep));
+    } else {
+        println!("shadow log: {}", dir.join(shadow::LOG_NAME).display());
+        if rep.guards.is_empty() {
+            println!("no records");
+        }
+        for (g, c) in &rep.guards {
+            println!(
+                "{g:<11} {:>6} evaluations  {:>6} agree  {:>4} disagree  {:>4} expected",
+                c.evaluations, c.agree, c.disagree, c.expected_divergence
+            );
+        }
+        for r in &rep.disagreements {
+            println!(
+                "DISAGREE {} {} shell={} rust={} rule={} sha={} verb={}",
+                r.ts,
+                r.guard,
+                r.shell_decision,
+                r.rust_decision,
+                r.rule.as_deref().unwrap_or("-"),
+                r.cmd_sha.as_deref().unwrap_or("-"),
+                r.verb.as_deref().unwrap_or("-")
+            );
+        }
+    }
+    if rep.disagreements.is_empty() {
+        Exit::Success
+    } else {
+        Exit::Runtime
+    }
+}
+
+fn replay(
+    transcripts: Option<&std::path::Path>,
+    guard: Option<&str>,
+    oracle: Option<&std::path::Path>,
+    json_out: bool,
+) -> Exit {
+    use ai_gent_core::guard::replay as rp;
+    let guards: Vec<GuardId> = match guard {
+        None | Some("all") => GuardId::ALL.to_vec(),
+        Some(g) => {
+            let Some(id) = GuardId::parse(g) else {
+                eprintln!("ai-gent guard replay: unknown guard {g}");
+                return Exit::Usage;
+            };
+            vec![id]
+        }
+    };
+    let dir = if let Some(d) = transcripts {
+        d.to_path_buf()
+    } else {
+        let Some(h) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) else {
+            eprintln!("ai-gent guard replay: no --transcripts and no HOME");
+            return Exit::Usage;
+        };
+        std::path::PathBuf::from(h).join(".claude/projects")
+    };
+    if !dir.is_dir() {
+        eprintln!("ai-gent guard replay: {} is not a directory", dir.display());
+        return Exit::Runtime;
+    }
+    let branch = |d: &str| git_branch(d);
+    let ctx = Ctx { branch_of: &branch };
+    let files = rp::transcript_files(&dir);
+    #[cfg(unix)]
+    let run_sh = oracle.map(|o| {
+        let o = o.to_path_buf();
+        move |g: GuardId, ev: &Event| rp::run_shell_guard(&o, g, ev)
+    });
+    #[cfg(unix)]
+    let rep = rp::replay(
+        &files,
+        &guards,
+        &ctx,
+        run_sh.as_ref().map(|f| f as &dyn Fn(GuardId, &Event) -> _),
+    );
+    #[cfg(not(unix))]
+    let rep = {
+        if oracle.is_some() {
+            eprintln!("ai-gent guard replay: --oracle needs a Unix sh");
+            return Exit::Usage;
+        }
+        rp::replay(&files, &guards, &ctx, None)
+    };
+    if json_out {
+        println!("{}", ai_gent_core::output::ok_json(1, &rep));
+    } else {
+        println!("{} transcripts, {} shell commands", rep.files, rep.commands);
+        for (g, c) in &rep.guards {
+            print!(
+                "{g:<11} {:>6} deny  {:>6} ask  {:>6} none",
+                c.deny, c.ask, c.none
+            );
+            if oracle.is_some() {
+                print!("  {:>6} compared  {:>4} differ", c.compared, c.differ);
+            }
+            println!();
+        }
+        for d in &rep.differences {
+            println!(
+                "DIFFER {} sha={} rust={} shell={}{}",
+                d.guard,
+                d.cmd_sha,
+                d.rust_decision,
+                d.shell_decision,
+                if d.reason_only { " (reason only)" } else { "" }
+            );
+        }
+    }
+    if rep.differences.is_empty() {
+        Exit::Success
+    } else {
+        Exit::Runtime
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::emit;
+    use std::sync::{Arc, Mutex};
+
+    /// A writer that records what reached it and whether it was flushed.
+    #[derive(Clone, Default)]
+    struct Out(Arc<Mutex<(Vec<u8>, bool)>>);
+
+    impl std::io::Write for Out {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().0.extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.0.lock().unwrap().1 = true;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn the_decision_is_flushed_before_the_log_runs() {
+        let out = Out::default();
+        let seen = out.clone();
+        let mut w = out.clone();
+        emit(&mut w, Some("deny"), move || {
+            let mut state = seen.0.lock().unwrap();
+            assert_eq!((state.0.as_slice(), state.1), (b"deny\n".as_slice(), true));
+            *state = (b"checked".to_vec(), true);
+        });
+        // the closure ran after the line was out (it replaced the buffer)
+        assert_eq!(out.0.lock().unwrap().0, b"checked");
+    }
+
+    #[test]
+    fn a_log_that_panics_leaves_the_decision_alone() {
+        let out = Out::default();
+        let mut w = out.clone();
+        emit(&mut w, Some("deny"), || panic!("no thread"));
+        assert_eq!(out.0.lock().unwrap().0, b"deny\n");
+    }
+}

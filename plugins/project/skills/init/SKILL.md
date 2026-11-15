@@ -52,7 +52,7 @@ Then show the filter's confirmation summary (`intake-filter.md`) and
 `../../references/research.md`, read now): a few searches on the market,
 domain terms and regulation, to sharpen the questions and skip those the
 web answers. Then ask (pipeline rule 2: at most 4 questions per prompt, as options with
-a recommendation, more rounds only when answers open new questions —
+a recommendation, more rounds for the planned questions still open or those the answers raise (`asking.md`) —
 and before an autonomous run too), choosing the questions whose answer
 changes scope or architecture: who is the primary user, what is
 the one job that must work in v1, hard constraints (deadline, hosting,

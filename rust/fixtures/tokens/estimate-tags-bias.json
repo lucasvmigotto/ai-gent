@@ -1,0 +1,20 @@
+{
+ "name": "estimate-tags-bias",
+ "derived_from": "TagEstimateTest::test_bias_correction_needs_five_records_per_tag",
+ "files": {
+  "work/h.jsonl": "{\"id\": \"p:0\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c0\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 200, \"date\": \"2026-10-20\", \"agents\": [\"ag0\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\", \"projected\": 100}\n{\"id\": \"p:1\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c1\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 200, \"date\": \"2026-10-21\", \"agents\": [\"ag1\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\", \"projected\": 100}\n{\"id\": \"p:2\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c2\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 200, \"date\": \"2026-10-22\", \"agents\": [\"ag2\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\", \"projected\": 100}\n{\"id\": \"p:3\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c3\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 200, \"date\": \"2026-10-23\", \"agents\": [\"ag3\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\", \"projected\": 100}\n{\"id\": \"p:4\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c4\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 200, \"date\": \"2026-10-24\", \"agents\": [\"ag4\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\", \"projected\": 100}\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "estimate",
+    "--tags=extend, backend, protocol, rust, known-pattern, integration, M",
+    "--history=h.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "estimate for sonnet · effort medium · tags extend, backend, protocol, rust, known-pattern, integration, M\n  projection ~0k billable (median), upper bound ~0k (p75)\n  basis: 5 record(s) at match level 0 (kind+surface+novelty+lang+layer+verification+size), confidence high (5 exact)\n  context: x1.00 for sonnet/builder (prior); bias correction x2.00 (kind=extend x2.00 (n=5); layer=backend x2.00 (n=5); surface=protocol x2.00 (n=5); lang=rust x2.00 (n=5); novelty=known-pattern x2.00 (n=5); verification=integration x2.00 (n=5); size=M x2.00 (n=5))\n  on the card: Tokens: projected ~0k | used —\n"
+  }
+ ],
+ "expect_files": {}
+}

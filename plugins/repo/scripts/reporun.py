@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -321,6 +322,76 @@ def cli_is_write(cli: str, words: list[str]) -> bool:
     return verb not in READ_VERBS
 
 
+GRANT_FILE = ".ai-gent/autonomy"
+
+
+def grant_branches(action: str) -> list[str] | None:
+    """The branches the user's autonomy grant covers, when it is active and names `action`.
+
+    The grant is `.ai-gent/autonomy` at the repository root, `key: value` lines written by the
+    user (`expires: 2026-11-06T18:00:00Z`, `branches: develop dev`, `actions: push pr merge
+    issues`); it counts only while `expires` lies ahead. The repo guard stops asking for the
+    forms it covers; the checks only reporun can make (a PR's base) stay here."""
+    top = git("rev-parse", "--show-toplevel")
+    if not top:
+        return None
+    roots = [Path(top)]
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    if common.endswith("/.git"):  # a linked worktree has no copy of the git-excluded file
+        roots.append(Path(common[:-5]))
+    lines = None
+    for root in roots:
+        try:
+            lines = (root / GRANT_FILE).read_text().splitlines()
+            break
+        except OSError:
+            continue
+    if lines is None:
+        return None
+
+    def value(key: str) -> str:
+        for line in lines:
+            if line.startswith(key + ":"):
+                return line[len(key) + 1:].lstrip().rstrip("\r")
+        return ""
+
+    expires = value("expires")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", expires):
+        return None
+    if time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()) >= expires:
+        return None
+    if action not in value("actions").split():
+        return None
+    return value("branches").split() or ["develop", "dev"]
+
+
+def check_merge_base(cli: str, words: list[str], env: dict) -> None:
+    """With a merge grant active the repo guard no longer asks, so a PR that targets a branch the
+    grant does not cover is refused here, where the platform can be asked: promotion stays the
+    user's own step."""
+    covered = grant_branches("merge")
+    if covered is None:
+        return
+    at = words.index("merge")
+    selector = [words[at + 1]] if at + 1 < len(words) and not words[at + 1].startswith("-") else []
+    repo_flag = []
+    for i, w in enumerate(words):
+        if w in ("-R", "--repo") and i + 1 < len(words):
+            repo_flag = [w, words[i + 1]]
+    try:
+        out = subprocess.run([cli, "pr", "view", *selector, *repo_flag, "--json", "baseRefName", "-q", ".baseRefName"],
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True, env=env, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        out = None
+    base = out.stdout.strip() if out is not None and out.returncode == 0 else ""
+    if not base:
+        raise Refused("the autonomy grant lets a merge run unasked only when the PR's base is known; "
+                      "couldn't read it, so merge this one yourself")
+    if base not in covered:
+        raise Refused(f"the autonomy grant covers merges into {' '.join(covered)}, and this PR targets {base}; "
+                      f"promotion is the user's own step")
+
+
 def prepare_cli(platform: str, words: list[str], entry_arg: str | None, write: bool) -> tuple[list[str], dict]:
     """The checked command line and its environment (token from pass, or the CLI's own login)."""
     cli = PLATFORMS[platform]["cli"]
@@ -354,6 +425,8 @@ def prepare_cli(platform: str, words: list[str], entry_arg: str | None, write: b
         source = f"pass ({entry})"
     elif entry_arg:
         raise Failed(f"{entry} isn't in pass; add it in your own terminal: pass insert -m {entry}")
+    if cli == "gh" and write and positional[:2] == ["pr", "merge"]:
+        check_merge_base(cli, words, env)
     print(f"reporun: {cli} {' '.join(words[:3])} · token from {source}", file=sys.stderr)
     return [cli, *words], env
 
@@ -534,13 +607,282 @@ def fill(path: str, facts: dict) -> str:
     return re.sub(r"\{([a-z_]+)\}", sub, path)
 
 
-def api_is_write(platform: str, method: str, path: str, body: bytes | None) -> bool:
-    if method in ("GET", "HEAD"):
+class _Unreadable(Exception):
+    pass
+
+
+def _unique_pairs(pairs):
+    keys = [k for k, _ in pairs]
+    if len(set(keys)) != len(keys):
+        raise _Unreadable("repeated key")  # servers disagree on which one wins
+    return dict(pairs)
+
+
+_MAX_JSON_DEPTH = 200  # the Rust parser's cap: both give "write" beyond it
+
+
+def _too_deep(v) -> bool:
+    """Whether any value sits deeper than _MAX_JSON_DEPTH (the document itself is depth 0)."""
+    stack = [(v, 0)]
+    while stack:
+        x, d = stack.pop()
+        if d > _MAX_JSON_DEPTH:
+            return True
+        if isinstance(x, dict):
+            stack.extend((c, d + 1) for c in x.values())
+        elif isinstance(x, list):
+            stack.extend((c, d + 1) for c in x)
+    return False
+
+
+def _no_constant(name):
+    raise _Unreadable(name)  # NaN, Infinity aren't JSON
+
+
+_GQL_PUNCT = set("!$&():=@[]{|}")
+_NAME_START = set("_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+_NAME_CONT = _NAME_START | set("0123456789")
+_DIGITS = set("0123456789")
+_HEX = set("0123456789abcdefABCDEF")
+
+
+def _gql_tokens(s: str):
+    """The GraphQL lexical grammar, strictly: names as strings, punctuators as 1-tuples,
+    strings, numbers and `...` as None. Raises _Unreadable on anything it doesn't define."""
+    out, i, n = [], 0, len(s)
+    while i < n:
+        c = s[i]
+        if c in "﻿ \t,\n\r":
+            i += 1
+        elif c == "#":
+            i += 1
+            while i < n and s[i] not in "\n\r":
+                # printable ASCII only: no character another lexer could read as a line end
+                if s[i] != "\t" and not (" " <= s[i] <= "~"):
+                    raise _Unreadable("comment")
+                i += 1
+        elif c in _GQL_PUNCT:
+            out.append((c,))
+            i += 1
+        elif c == ".":
+            if s[i + 1:i + 3] != "..":
+                raise _Unreadable(".")
+            out.append(None)
+            i += 3
+        elif c == '"':
+            i = _gql_string(s, i)
+            out.append(None)
+        elif c == "-" or c in _DIGITS:
+            i = _gql_number(s, i)
+            out.append(None)
+        elif c in _NAME_START:
+            start = i
+            while i < n and s[i] in _NAME_CONT:
+                i += 1
+            out.append(s[start:i])
+        else:
+            raise _Unreadable(c)
+    return out
+
+
+def _gql_number(s: str, i: int) -> int:
+    n = len(s)
+
+    def digits(i):
+        start = i
+        while i < n and s[i] in _DIGITS:
+            i += 1
+        if i == start:
+            raise _Unreadable("number")
+        return i
+    if s[i] == "-":
+        i += 1
+    int_start = i
+    i = digits(i)
+    if s[int_start] == "0" and i - int_start > 1:
+        raise _Unreadable("number")
+    if i < n and s[i] == ".":
+        i = digits(i + 1)
+    if i < n and s[i] in "eE":
+        i += 1
+        if i < n and s[i] in "+-":
+            i += 1
+        i = digits(i)
+    if i < n and (s[i] == "." or s[i] in _NAME_START):
+        raise _Unreadable("number")
+    return i
+
+
+def _gql_string(s: str, i: int) -> int:
+    n = len(s)
+    if s[i + 1:i + 3] == '""':
+        i += 3
+        while True:
+            if i >= n:
+                raise _Unreadable("block string")
+            c = s[i]
+            if s[i:i + 3] == '"""':
+                return i + 3
+            if c == "\\" and s[i + 1:i + 4] == '"""':
+                i += 4
+                continue
+            if c < " " and c not in "\t\n\r":
+                raise _Unreadable("block string")
+            i += 1
+    i += 1
+    while True:
+        if i >= n:
+            raise _Unreadable("string")
+        c = s[i]
+        i += 1
+        if c == '"':
+            return i
+        if c == "\\":
+            if i >= n:
+                raise _Unreadable("string")
+            e = s[i]
+            i += 1
+            if e in '"\\/bfnrt':
+                continue
+            if e == "u" and i < n and s[i] == "{":
+                i += 1
+                start = i
+                while i < n and s[i] in _HEX:
+                    i += 1
+                if i == start or i >= n or s[i] != "}":
+                    raise _Unreadable("string")
+                i += 1
+                continue
+            if e == "u":
+                if i + 4 > n or not all(h in _HEX for h in s[i:i + 4]):
+                    raise _Unreadable("string")
+                i += 4
+                continue
+            raise _Unreadable("string")
+        if c < " " and c != "\t":
+            raise _Unreadable("string")
+
+
+def _gql_to_set(t: list, i: int) -> int:
+    """The index of the selection set's `{`, past variable definitions and directives."""
+    depth = 0
+    while True:
+        if i >= len(t):
+            raise _Unreadable("eof")
+        tok = t[i]
+        if tok in (("(",), ("[",)):
+            depth += 1
+        elif tok in ((")",), ("]",)):
+            if depth == 0:
+                raise _Unreadable("unbalanced")
+            depth -= 1
+        elif tok == ("{",) and depth == 0:
+            return i
+        elif tok == ("}",) and depth == 0:
+            raise _Unreadable("unbalanced")
+        i += 1
+
+
+def _gql_skip_set(t: list, i: int) -> int:
+    """The index after the selection set that opens at `i`."""
+    depth = 0
+    while True:
+        if i >= len(t):
+            raise _Unreadable("eof")
+        if t[i] == ("{",):
+            depth += 1
+        elif t[i] == ("}",):
+            if depth == 0:
+                raise _Unreadable("unbalanced")
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+
+
+def _gql_operations(doc: str) -> list:
+    """The executable document's operations as (type, name or None)."""
+    t = _gql_tokens(doc)
+    if not t:
+        raise _Unreadable("empty")
+    ops, i = [], 0
+    while i < len(t):
+        tok = t[i]
+        if tok == ("{",):
+            i = _gql_skip_set(t, i)
+            ops.append(("query", None))
+        elif tok in ("query", "mutation", "subscription"):
+            i += 1
+            name = None
+            if i < len(t) and isinstance(t[i], str):
+                name = t[i]
+                i += 1
+            i = _gql_skip_set(t, _gql_to_set(t, i))
+            ops.append((tok, name))
+        elif tok == "fragment":
+            i = _gql_skip_set(t, _gql_to_set(t, i + 1))
+        else:
+            raise _Unreadable("definition")  # type-system definitions and anything else
+    return ops
+
+
+def graphql_is_read(body: bytes | None) -> bool:
+    """Whether a GraphQL POST body only reads: its JSON `query` document runs a `query`
+    operation (the one `operationName` names when there are several). Anything else —
+    mutation, subscription, not a JSON object, no string `query`, a batch, a repeated key,
+    a token outside the grammar, no way to pick the operation — is not a read.
+    Mirrors rust/crates/ai-gent-core/src/repo/graphql.rs."""
+    if body is None:
         return False
+    try:
+        v = json.loads(body.decode("utf-8"), object_pairs_hook=_unique_pairs, parse_constant=_no_constant)
+        if not isinstance(v, dict) or not isinstance(v.get("query"), str) or _too_deep(v):
+            return False
+        name = v.get("operationName")
+        if name is not None and (not isinstance(name, str) or not name):
+            return False
+        ops = _gql_operations(v["query"])
+    except (ValueError, RecursionError, _Unreadable):
+        return False
+    if any(kind != "query" for kind, _ in ops):
+        return False  # fail closed: a mutation or subscription anywhere, even one operationName doesn't pick
+    if len(ops) > 1 and any(n is None for _, n in ops):
+        return False  # an anonymous operation must stand alone
+    chosen = ops if name is None else [op for op in ops if op[1] == name]
+    return len(chosen) == 1 and chosen[0][0] == "query"
+
+
+def _graphql_path(platform: str, path: str) -> bool:
+    return platform in ("github", "gitlab") and bool(READ_POSTS[platform].search(urllib.parse.urlparse(path).path))
+
+
+def _graphql_params_in(path: str, query: dict | None) -> bool:
+    """Whether a `query` or `operationName` parameter rides in the URL (path or query pairs)."""
+    keys = list((query or {}))
+    if "?" in path:
+        keys += [urllib.parse.unquote_plus(kv.split("=", 1)[0]) for kv in re.split(r"[&;]", path.split("?", 1)[1])]
+    return any(str(k).split("[", 1)[0] in ("query", "operationName") for k in keys)
+
+
+def is_read_post(platform: str, path: str, body: bytes | None, query: dict | None = None) -> bool:
+    """POSTs that only read: the path matches the platform's search pattern, and for GitHub
+    and GitLab GraphQL the URL carries no query string (GitLab reads `query` from it before
+    the body) and the body runs a query operation."""
     rp = READ_POSTS.get(platform)
-    if method == "POST" and rp and rp.search(urllib.parse.urlparse(path).path):
-        return platform in ("github", "gitlab") and body is not None and b"mutation" in body
+    if not rp or not rp.search(urllib.parse.urlparse(path).path):
+        return False
+    if platform in ("github", "gitlab"):
+        if "?" in path or "#" in path or query:
+            return False
+        return graphql_is_read(body)
     return True
+
+
+def api_is_write(platform: str, method: str, path: str, body: bytes | None, query: dict | None = None) -> bool:
+    if method == "GET" or method == "HEAD":
+        # a GET that carries a GraphQL document or operation is run by GitLab, mutation or not
+        return _graphql_path(platform, path) and _graphql_params_in(path, query)
+    return not (method == "POST" and is_read_post(platform, path, body, query))
 
 
 def request(method: str, url: str, headers: dict, body: bytes | None, timeout: float):
@@ -577,7 +919,8 @@ def api_call(platform: str, method: str, path: str, body: bytes | None = None, q
     method = method.upper()
     if method not in ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"):
         raise Failed(f"method {method} isn't supported", EXIT_USAGE)
-    if api_is_write(platform, method, path, body) and not write:
+    query = dict(query or {})
+    if api_is_write(platform, method, path, body, query) and not write:
         raise Refused(f"{method} {path} changes something on {platform}; only when the user asked for this "
                       f"specific change, re-run with --write")
 
@@ -595,7 +938,6 @@ def api_call(platform: str, method: str, path: str, body: bytes | None = None, q
         url = path
     else:
         url = base.rstrip("/") + "/" + path.lstrip("/")
-    query = dict(query or {})
     if platform == "azure-devops" and "api-version" not in url and "api-version" not in query:
         query["api-version"] = "7.1"
     if query:
@@ -709,7 +1051,9 @@ def step_is_write(platform: str, step: dict) -> bool:
     if "api" in step:
         a = step["api"]
         body = json.dumps(a["data"]).encode() if "data" in a else None
-        return api_is_write(platform, a.get("method", "GET").upper(), a.get("path", ""), body)
+        q = a.get("query")
+        q = q if isinstance(q, dict) else ({"": ""} if q else {})  # any other non-empty value still rides in the URL
+        return api_is_write(platform, a.get("method", "GET").upper(), a.get("path", ""), body, q)
     if "cli" in step:
         return cli_is_write(PLATFORMS[platform]["cli"] or "", list(step["cli"]))
     if "project_status" in step:

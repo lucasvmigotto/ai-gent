@@ -1,0 +1,76 @@
+{
+ "name": "entry-rules",
+ "derived_from": "EntryTest::test_entry_rules",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/x",
+    "--entry",
+    "ai-gent/db/shop-dev"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/x",
+    "--entry",
+    "personal/bank"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/x",
+    "--entry",
+    "ai-gent/../x"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/x",
+    "--entry",
+    "ai-gent/github/other"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

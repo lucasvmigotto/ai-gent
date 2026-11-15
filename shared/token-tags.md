@@ -4,7 +4,7 @@ Every card carries tags, assigned by the planner at planning time and written
 on the card's route line in `cards.md` and on its first task line:
 `· Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M`.
 
-Exactly one value per facet, except `stack`, which takes any number (or none).
+Exactly one value per facet, except `stack`, which takes any number (or none), and `worker`, which is optional (absent means Claude built it).
 `lang` is required. Estimates match cards by shared tags
 (`token-tracking.md`), so everyone uses this one vocabulary. It lives in
 `shared/token-tags.json`; to extend it, add the value there and a row here
@@ -133,3 +133,11 @@ Planned files or lines touched.
 | `S` | about 1-3 files or under 150 lines touched |
 | `M` | about 4-10 files or 150-600 lines |
 | `L` | more than 10 files or 600 lines |
+
+## `worker`
+
+Who built it (optional; leave it out when Claude did).
+
+| Value | Meaning |
+|---|---|
+| `delegate` | built by another coding agent (Codex, OpenCode) through ai-gent delegate; its usage comes from the delegation log, not Claude's transcripts |

@@ -4,6 +4,9 @@ Reconstructed by project:introspec on 2026-10-18 from 384c771
 
 Status: Draft
 
+Review note (2026-11-07, an agent review, not an owner acceptance): checked against `docs/product/architecture.md` as changed on 2026-11-01 (commit 2fb378f, one line: the SBOM component count and the script that rebuilds it); nothing in this artifact is affected, so it is still valid as written. The owner can revise this note.
+
+
 Kept minimal on purpose: these are tools, not a business system. There is no server, no shared database and no personal data of users; the "domain" is the toolkit's own vocabulary and the safety rules the runners enforce. Names follow the brief's glossary and the code.
 
 ## Contexts

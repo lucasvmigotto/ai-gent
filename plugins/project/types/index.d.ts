@@ -62,6 +62,8 @@ export type Feature = {
   waiting: string[]
   // The Spec Kit files present in specs/NNN-*/.
   files: { spec: boolean; plan: boolean; tasks: boolean }
+  // The folder name under specs/ for this number (`011-explorer-ui`); absent when none exists.
+  dir?: string
 }
 
 export type MarkerKind = 'gap' | 'clarification' | 'assumption'
@@ -89,8 +91,8 @@ export type Snapshot = {
 // change is told once.
 export type NextStageLast = Next | null
 
-// One decision of a guard plugin's guard, verb only (the five plugins' own
-// types declare the same shape; this contract has to be self-contained).
+// One row of the guard log the five guards append to (specs/024-guard-log): the
+// entry and the command's verb only, never the reason, a command line or a path.
 export type GuardRow = {
   at: number
   guard: 'git' | 'db' | 'secrets' | 'repo' | 'containers'
@@ -101,10 +103,55 @@ export type GuardRow = {
   outcome: 'asked' | null
 }
 
+// The workers pane (hooks/workers-model.ts parses these from
+// .ai-gent/delegate/<track>/status.json and .ai-gent/delegation.log, spec 041).
+export type WorkerState = 'queued' | 'running' | 'stalled' | 'done' | 'failed' | 'taken-back'
+
+// Where a worker comes from: a subagent of this session ($.agent.list()), a headless session of another Claude
+// profile (claude-profile[:name]) or any other code agent; the last two are status files.
+export type WorkerKind = 'subagent' | 'profile' | 'agent'
+
+export type WorkerStatus = {
+  kind: WorkerKind
+  // A subagent's description, only with the workersShowDescription option; null otherwise.
+  note: string | null
+  track: string
+  agent: string
+  role: 'builder' | 'reviewer' | 'researcher'
+  tasks: string[]
+  state: WorkerState
+  // Epoch seconds, as the file has them.
+  started: number
+  updated: number
+  events: number
+  worktree: string
+  // A rule id when rejected, never a diff or a brief.
+  verdict: { result: 'pending' | 'accepted' | 'rejected'; reason: string | null }
+  // Input plus output tokens the agent reported; null when it reported none.
+  tokens: number | null
+}
+
+// One run's line of the delegation log.
+export type WorkerLogLine = { ts: number; track: string; agent: string; tasks: string[]; wallSecs: number; tokens: number | null; result: WorkerState }
+
+export type WorkersSnapshot = {
+  workers: WorkerStatus[]
+  log: WorkerLogLine[]
+  // The worktree cap (max_parallel of .ai-gent/parallel.yaml, else 3 when the file has no such key);
+  // null when it cannot be known (no file, unreadable, or an invalid value).
+  cap: number | null
+  // Status files that were present but not well-formed.
+  skipped: number
+  // $.clock.now() milliseconds of the read that made it.
+  computedAt: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     project: {
       checkpoint: Shaped<Checkpoint | null>
+      // Bumped after a tool call while the guards pane is open, so it rereads the guard log.
+      guardsTick: number
       isBandHidden: boolean
       handoffToasted: Shaped<HandoffToasted>
       // The bands active now, for band priority (hooks/bands.ts); other plugins read it.
@@ -119,6 +166,13 @@ declare module 'claude-code' {
       contextPercent: number | null
       // The account's rate-limit windows as of the last session.measure, turn or session start (percent used, one decimal; resetsAt is ISO 8601); empty when none was reported.
       rateLimits: { kind: 'five_hour' | 'seven_day' | 'spend_limit'; percent: number; resetsAt?: string }[]
+      // The workers pane (spec 041): what the last read of the status files found.
+      workersSnapshot: Shaped<WorkersSnapshot | null>
+      workersIsOpen: boolean
+      // Tracks whose detail rows the person opened.
+      workersExpanded: Record<string, boolean>
+      // The interval the workers poll keeps now, in milliseconds; 0 when stopped.
+      workersPollMs: number
       pipelineSnapshot: Shaped<Snapshot | null>
       pipelineIsOpen: boolean
       // Sections the person expanded, by name.
@@ -137,11 +191,8 @@ declare module 'claude-code' {
       nextStageMtimes: Record<string, number>
     }
     // The other plugins' atoms, read-only here; each is absent when its plugin is not installed.
-    // guardLog is each guard plugin's own ring (spec 024); /guards reads all five.
-    git: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
-    repo: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
-    devcontainer: { bands: Band[]; guardLog: Shaped<GuardRow[]> }
-    db: { guardLog: Shaped<GuardRow[]> }
-    secrets: { guardLog: Shaped<GuardRow[]> }
+    git: { bands: Band[] }
+    repo: { bands: Band[] }
+    devcontainer: { bands: Band[] }
   }
 }

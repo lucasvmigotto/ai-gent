@@ -135,12 +135,34 @@ for (const plugin of pluginDirs) {
 	});
 }
 
+// The tier compatibility matrix (shared/tiers.json), checked against setup.sh's
+// AGENT_IDS here as well as by scripts/consistency.py: a build never ships a
+// matrix that misses an agent the installer offers.
+const tiers = JSON.parse(readFileSync(join(repo, "shared/tiers.json"), "utf8"));
+const agentIds = (
+	/^AGENT_IDS=\(([^)]*)\)/m.exec(
+		readFileSync(join(repo, "setup.sh"), "utf8"),
+	)?.[1] ?? ""
+)
+	.split(/\s+/)
+	.filter(Boolean);
+const tiered = tiers.tiers.flatMap((t) => t.agents);
+const untiered = agentIds.filter(
+	(a) => tiered.filter((x) => x === a).length !== 1,
+);
+if (agentIds.length === 0 || untiered.length > 0) {
+	throw new Error(
+		`shared/tiers.json must place every setup.sh agent in exactly one tier; problem with: ${untiered.join(", ") || "AGENT_IDS not found"}`,
+	);
+}
+
 const content = {
 	version: versions[0].version,
 	versions,
 	sourceBase: `${REPO_URL}/blob/${SOURCE_REF}`,
 	plugins,
 	skills,
+	tiers,
 	counts: { plugins: plugins.length, skills: skills.length },
 	readme: readFileSync(join(repo, "README.md"), "utf8"),
 	changelog: readFileSync(join(repo, "CHANGELOG.md"), "utf8"),

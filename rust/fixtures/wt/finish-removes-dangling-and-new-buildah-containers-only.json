@@ -1,0 +1,150 @@
+{
+ "name": "finish-removes-dangling-and-new-buildah-containers-only",
+ "derived_from": "test_finish_removes_dangling_and_new_buildah_containers_only",
+ "steps": [
+  {
+   "engine_state": {
+    "containers": [
+     {
+      "id": "b-old",
+      "name": "old-working-container",
+      "status": "Storage",
+      "external": true
+     }
+    ]
+   }
+  },
+  {
+   "wt": [
+    "baseline"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "baseline: 1 external container(s) already in the store; `wt.py finish` leaves them alone\n",
+    "stderr": ""
+   }
+  },
+  {
+   "engine_update": {
+    "containers_append": [
+     {
+      "id": "b-new",
+      "name": "new-working-container",
+      "status": "Storage",
+      "external": true
+     }
+    ],
+    "images": [
+     {
+      "id": "i1",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop"
+      },
+      "dangling": true
+     },
+     {
+      "id": "i2",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop"
+      },
+      "dangling": true
+     },
+     {
+      "id": "i3",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "other"
+      },
+      "dangling": true
+     }
+    ],
+    "stuck": [
+     "i2"
+    ]
+   }
+  },
+  {
+   "wt": [
+    "finish"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "removed image i1\nremoved external b-new new-working-container\nleft    image i2 (in use)\n",
+    "stderr": ""
+   }
+  },
+  {
+   "state": true,
+   "expect": {
+    "containers": [
+     "b-old"
+    ],
+    "volumes": [],
+    "images": [
+     "i2",
+     "i3"
+    ],
+    "calls": [
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "rmi",
+      "i1"
+     ],
+     [
+      "rmi",
+      "i2"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ],
+     [
+      "rm",
+      "-f",
+      "b-new"
+     ],
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ]
+    ]
+   }
+  },
+  {
+   "assert_scoped": true,
+   "expect": {
+    "problems": []
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

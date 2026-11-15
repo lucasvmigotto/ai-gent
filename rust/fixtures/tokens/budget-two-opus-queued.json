@@ -1,0 +1,26 @@
+{
+ "name": "budget-two-opus-queued",
+ "derived_from": "BudgetTest::test_two_opus_cards_are_queued_beyond_the_cap",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n",
+  "work/budget.yaml": "session_billable: 1M\nweek_billable: 5M\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "budget",
+    "--project=-tmp-widgets",
+    "--budget=budget.yaml",
+    "--specs-dir=specs",
+    "--projected=opus:1k,opus:1k"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "wave: 2 card(s)\n  opus:1k                  opus    ~    1k  (given)\n  opus:1k                  opus    ~    1k  (given)\nprojected 2k + coordinator 35% + event risk 8% (prior: resumes, fix rounds, flake hunts) = 3k billable\nsession: cap 1.00M, used 0k (no session found), left 1.00M\nweek: cap 5.00M, used 0k (last 7 days, all projects), left 5.00M\nrate: idle for 30 min\nverdict: proceed - within the 900k left after a 10% reserve\ndispatch (at most 2 subagent(s) at once, 1 on Opus):\n  batch 1: opus:1k (opus)\n  batch 2: opus:1k (opus)\nPrefer Sonnet builders, review inline unless the card needs a fresh context.\n"
+  }
+ ],
+ "expect_files": {}
+}

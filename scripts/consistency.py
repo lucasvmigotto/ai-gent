@@ -23,11 +23,16 @@
      Also shared/pipeline-digest.md (the short form skills read first) lists
      every artifact and owner of that table and nothing it lacks, names every
      feature status, and each `§"heading" #rule` pointer resolves.
-  9. Shared code a plugin's hooks module imports (shared/guard-ux.ts,
-     shared/hook-lines.ts) is COPIED into the plugins that use it, because the
-     engine refuses an import through a symlink that leaves the plugin. The
-     copies are identical (`--sync-shared-code` rewrites them), and every
-     reason a guard.sh can print has an entry in guard-ux's table.
+  9. Shared code a plugin's hooks module imports (shared/band-priority.ts)
+     is COPIED into the plugins that use it, because the engine refuses an
+     import through a symlink that leaves the plugin. The copies are identical
+     (`--sync-shared-code` rewrites them). The guards' own words and log rules,
+     shared/guard-words.json, are copied for the binary and the OpenCode
+     plugin and generated as the `guard words` block of each guard.sh; every
+     reason a guard.sh can print has an entry there. Each
+     plugins/*/hooks/guard.sh also begins with the launcher head of
+     shared/guard-launcher.sh (guard id and marker substituted, rewritten by
+     `--sync-shared-code` too; spec 033).
  10. The git plugin's repo-hygiene band recognizes a release by the subjects
      .github/workflows/release.yml and shared/release-platforms.md write
      (`chore(release): X.Y.Z`, `chore(release): merge X.Y.Z back into dev`).
@@ -39,6 +44,16 @@
      the labels in prose are only [RESEARCHED: S<n>], [KNOWN], [ASSUMPTION];
      the method file keeps its required sections.
 
+ 13. The Rust workspace (rust/, spec 032) is not a plugin (no .claude-plugin,
+     no skills/) and every crate's license is the one the plugins declare.
+
+ 14. No hooks module hooks an event the built-in cc-plugin-sec-default plugin
+     sends on past every person-installed mod where it is seated (classic.*,
+     the prompt.* parts, skill.prompt, attribution.text, session.compact,
+     settings.read, session.append without a door or on a door it skips):
+     the hook would never run, and Claude Code tells the person it was
+     skipped (decided 2026-11-14). PASSED_OVER_EXEMPT lists the exceptions.
+
 Run from check.sh; prints one FAIL line per problem and exits 1, else 0.
 Environment: DESC_TOTAL_CEILING, the total characters of all descriptions
 (default 19000, room for growth; raise it deliberately with a new plugin,
@@ -47,7 +62,9 @@ never to silence a bloated single description).
 import json
 import os
 import re
+import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -414,42 +431,167 @@ def check_stage_names(root: Path) -> list[str]:
     return problems
 
 
-GUARD_UX = "shared/guard-ux.ts"
+GUARD_WORDS = "shared/guard-words.json"
+# Its copies: the binary embeds one, the OpenCode plugin reads one (neither reaches shared/ when installed).
+GUARD_WORDS_COPIES = ("rust/crates/ai-gent-core/src/guard/words.json", "opencode/guard/words.json")
 # Shared code a plugin's hooks module imports is COPIED into the plugins that use it
 # (the engine refuses an import through a symlink that leaves the plugin).
 SHARED_CODE = {
-    "shared/guard-ux.ts": ("git", "db", "secrets", "repo", "devcontainer"),
-    "shared/hook-lines.ts": ("git", "devcontainer"),
     "shared/band-priority.ts": ("project", "git", "repo", "devcontainer"),
 }
 GUARD_PLUGINS = {"git": "git:workflow guard:", "db": "db guard:", "secrets": "secrets guard:", "repo": "repo guard:",
                  "devcontainer": "containers guard:"}
+# The guard id each plugin's hook passes to `ai-gent guard --guard <id>` (spec 033).
+GUARD_IDS = {"git": "git", "db": "db", "secrets": "secrets", "repo": "repo", "devcontainer": "containers"}
+LAUNCHER = "shared/guard-launcher.sh"
+LAUNCHER_BEGIN, LAUNCHER_END = "# >>> guard launcher", "# <<< guard launcher\n"
+
+
+def launcher_head(root: Path, plugin: str) -> str:
+    """shared/guard-launcher.sh with the plugin's guard id and reason marker substituted."""
+    text = (root / LAUNCHER).read_text(encoding="utf-8")
+    return text.replace("@ID@", GUARD_IDS[plugin]).replace("@MARKER@", GUARD_PLUGINS[plugin])
+
+
+def launcher_span(text: str) -> tuple[int, int] | None:
+    start = text.find(LAUNCHER_BEGIN)
+    end = text.find(LAUNCHER_END, start)
+    return None if start < 0 or end < 0 else (start, end + len(LAUNCHER_END))
+
+
+def sync_launchers(root: Path) -> None:
+    """Write each guard.sh's launcher head: replace the block, or insert it before `set -u`."""
+    for plugin in GUARD_IDS:
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        text = guard.read_text(encoding="utf-8")
+        head = launcher_head(root, plugin)
+        span = launcher_span(text)
+        if span:
+            text = text[: span[0]] + head + text[span[1] :]
+        else:
+            text = text.replace("\nset -u\n", "\n" + head + "\nset -u\n", 1)
+        guard.write_text(text, encoding="utf-8")
+
+
+def check_launchers(root: Path) -> list[str]:
+    if not (root / LAUNCHER).is_file():
+        return []
+    problems = []
+    for plugin in GUARD_IDS:
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        if not guard.is_file():
+            continue
+        text = guard.read_text(encoding="utf-8")
+        span = launcher_span(text)
+        if not span or text[span[0] : span[1]] != launcher_head(root, plugin):
+            problems.append(f"plugins/{plugin}/hooks/guard.sh: the launcher head differs from {LAUNCHER} (run python3 scripts/consistency.py --sync-shared-code)")
+    return problems
 
 
 def guard_reasons(text: str) -> list[str]:
-    """Every reason a guard.sh can print: `decide deny|ask "…"`, its named reason variables, and repo's printf arguments."""
+    """Every reason a guard.sh can print: `decide deny|ask "…"`, `guard_emit deny|ask "<marker> …"`, and their named reason variables."""
     named = dict(re.findall(r'^(\w+_reason)="((?:[^"\\]|\\.)*)"', text, re.M))
     out = []
-    for kind, arg in re.findall(r'decide\s+(deny|ask)\s+("(?:[^"\\]|\\.)*"|\$\w+)', text):
+    calls = re.findall(r'decide\s+(deny|ask)\s+("(?:[^"\\]|\\.)*"|\$\w+)', text)
+    for kind, arg in re.findall(r'^\s*guard_emit\s+(deny|ask)\s+("(?:[^"\\]|\\.)*")', text, re.M):
+        calls.append((kind, '"' + re.sub(r"^[^ ]*(?: guard:|guard:) ", "", arg.strip('"')) + '"'))
+    for kind, arg in calls:
         body = arg.strip('"')
         out.append(named.get(body[1:], "") if re.fullmatch(r"\$\w+", body) else body)
-    out += re.findall(r'^\s{4,}"((?:[^"\\]|\\.)*)"\s*$', text, re.M)  # repo guard: the printf's reason argument
     return list(dict.fromkeys(r for r in out if r))
 
 
 def guard_matches(root: Path) -> dict[str, list[str]]:
-    """The `match` fragments of each guard's entries in shared/guard-ux.ts, by marker."""
-    src = (root / GUARD_UX).read_text(encoding="utf-8")
-    out: dict[str, list[str]] = {}
-    for block in re.finditer(r"marker: '([^']+)',.*?entries: \[(.*?)\n    \],", src, re.S):
-        out[block[1]] = [m.replace("\\'", "'") for m in re.findall(r"match: '((?:[^'\\]|\\.)*)'", block[2])]
-    return out
+    """The `match` fragments of each guard's entries in shared/guard-words.json, by marker."""
+    table = json.loads((root / GUARD_WORDS).read_text(encoding="utf-8"))
+    return {g["marker"]: [e["match"] for e in g["entries"]] for g in table["guards"].values()}
+
+
+WORDS_BEGIN, WORDS_END = "# >>> guard words", "# <<< guard words\n"
+
+
+def _sq(s: str) -> str:
+    """A POSIX single-quoted word."""
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
+def _js(s: str) -> str:
+    """JSON-escaped text without the quotes (the guards print reasons into JSON as is)."""
+    return json.dumps(s, ensure_ascii=False)[1:-1]
+
+
+def words_block(root: Path) -> str:
+    """The `guard words` block of every guard.sh, generated from shared/guard-words.json."""
+    table = json.loads((root / GUARD_WORDS).read_text(encoding="utf-8"))
+    guards, entries = [], []
+    for gid, g in table["guards"].items():
+        guards.append(f"    {_sq(g['marker'])}*) _gw_id={gid} _gw_marker={_sq(g['marker'])} _gw_skill={_sq(_js(g['skill']))} ;;")
+        for e in g["entries"]:
+            vals = f"_gw_match={_sq(_js(e['match']))} _gw_say={_sq(_js(e['say']))}"
+            vals += f" _gw_do={_sq(_js(e['instead']))}" if e.get("instead") else ""
+            vals += f" _gw_if={_sq(_js(e['allowIf']))}" if e.get("allowIf") else ""
+            entries.append(f"    {gid}:*{_sq(e['match'])}*) {vals} ;;")
+    # one case pattern per first word; a table with none still yields a valid (never matching) case
+    verbs = [" | ".join(f"{first}:{sub}" for sub in subs) + ")" for first, subs in table.get("verbs", {}).items() if subs] or ["'':)"]
+    text = (root / "shared" / "guard-words.sh").read_text(encoding="utf-8")
+    text = text.replace("    @VERBS@\n", "".join(f"    {v}\n" if i == len(verbs) - 1 else f"    {v}\n      printf '%s %s' \"$_gw_w\" \"$_gw_2\"\n      return 0\n      ;;\n" for i, v in enumerate(verbs)))
+    return (text.replace("@MAX_BYTES@", str(table.get("maxBytes", 262144))).replace("@MAX_ROWS@", str(table["maxRows"])).replace("@TRIM_AT@", str(2 * table["maxRows"]))
+            .replace("    @GUARDS@\n", "\n".join(guards) + "\n").replace("    @ENTRIES@\n", "\n".join(entries) + "\n"))
+
+
+def words_span(text: str) -> tuple[int, int] | None:
+    start = text.find(WORDS_BEGIN)
+    end = text.find(WORDS_END, start)
+    return None if start < 0 or end < 0 else (start, end + len(WORDS_END))
+
+
+def sync_words(root: Path) -> None:
+    """Copy shared/guard-words.json, and write each guard.sh's words block (after the launcher head)."""
+    for copy in GUARD_WORDS_COPIES:
+        (root / copy).write_bytes((root / GUARD_WORDS).read_bytes())
+    block = words_block(root)
+    for plugin in GUARD_IDS:
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        if not guard.is_file():
+            continue
+        text = guard.read_text(encoding="utf-8")
+        span = words_span(text)
+        if span:
+            text = text[: span[0]] + block + text[span[1] :]
+        else:
+            at = launcher_span(text)
+            if at:
+                text = text[: at[1]] + "\n" + block + text[at[1] :]
+            elif "\nset -u\n" in text:
+                text = text.replace("\nset -u\n", "\n" + block + "\nset -u\n", 1)
+            else:
+                text = block + text
+        guard.write_text(text, encoding="utf-8")
+
+
+def check_words(root: Path) -> list[str]:
+    if not (root / GUARD_WORDS).is_file():
+        return []
+    problems = []
+    for copy in GUARD_WORDS_COPIES:
+        path = root / copy
+        if path.parent.is_dir() and (not path.is_file() or path.read_bytes() != (root / GUARD_WORDS).read_bytes()):
+            problems.append(f"{copy} differs from {GUARD_WORDS} (run python3 scripts/consistency.py --sync-shared-code)")
+    if not (root / "shared" / "guard-words.sh").is_file():
+        return problems
+    block = words_block(root)
+    for plugin in GUARD_IDS:
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        if not guard.is_file():
+            continue
+        text = guard.read_text(encoding="utf-8")
+        span = words_span(text)
+        if not span or text[span[0] : span[1]] != block:
+            problems.append(f"plugins/{plugin}/hooks/guard.sh: the guard words block differs from {GUARD_WORDS} (run python3 scripts/consistency.py --sync-shared-code)")
+    return problems
 
 
 def check_guard_ux(root: Path) -> list[str]:
-    source = root / GUARD_UX
-    if not source.is_file():
-        return []
     problems = []
     for shared, plugins in SHARED_CODE.items():
         if not (root / shared).is_file():
@@ -458,6 +600,9 @@ def check_guard_ux(root: Path) -> list[str]:
             copy = root / "plugins" / plugin / "hooks" / Path(shared).name
             if not copy.is_file() or copy.read_bytes() != (root / shared).read_bytes():
                 problems.append(f"plugins/{plugin}/hooks/{Path(shared).name} differs from {shared} (run python3 scripts/consistency.py --sync-shared-code)")
+    if not (root / GUARD_WORDS).is_file():
+        return problems
+    problems += check_words(root)
     matches = guard_matches(root)
     for plugin, marker in GUARD_PLUGINS.items():
         guard = root / "plugins" / plugin / "hooks" / "guard.sh"
@@ -468,7 +613,35 @@ def check_guard_ux(root: Path) -> list[str]:
             problems.append(f"plugins/{plugin}/hooks/guard.sh: no reasons found (the check reads `decide deny|ask \"…\"`)")
         for reason in reasons:
             if not any(m in reason for m in matches.get(marker, [])):
-                problems.append(f"plugins/{plugin}/hooks/guard.sh: '{reason[:70]}…' has no entry in {GUARD_UX}")
+                problems.append(f"plugins/{plugin}/hooks/guard.sh: '{reason[:70]}…' has no entry in {GUARD_WORDS}")
+    problems += check_guard_reasons(root, matches)
+    return problems
+
+
+REASONS_JSON = "rust/crates/ai-gent-core/src/guard/reasons.json"
+
+
+def check_guard_reasons(root: Path, matches: dict[str, list[str]]) -> list[str]:
+    """The Rust evaluator's reasons (spec 033, FR-013) have a guard-ux entry and equal what the guard.sh scripts print (while they hold the logic)."""
+    path = root / REASONS_JSON
+    if not path.is_file():
+        return []
+    entries = json.loads(path.read_text(encoding="utf-8"))
+    problems = []
+    for e in entries:
+        if not any(m in e["text"] for m in matches.get(e["marker"], [])):
+            problems.append(f"{REASONS_JSON}: '{e['id']}' has no entry in {GUARD_WORDS}")
+    for plugin, marker in GUARD_PLUGINS.items():
+        guard = root / "plugins" / plugin / "hooks" / "guard.sh"
+        if not guard.is_file():
+            continue
+        # `$branch`, `$tool` and `$sub` are the placeholders of the scripts; \` is a literal backtick.
+        shell = {re.sub(r"\$\{?(\w+)\}?", r"{\1}", r).replace("\\`", "`") for r in guard_reasons(guard.read_text(encoding="utf-8"))}
+        rust = {e["text"] for e in entries if e["marker"] == marker}
+        for t in sorted(shell - rust):
+            problems.append(f"plugins/{plugin}/hooks/guard.sh: '{t[:70]}…' is missing from {REASONS_JSON}")
+        for t in sorted(rust - shell):
+            problems.append(f"{REASONS_JSON}: '{t[:70]}…' is not printed by plugins/{plugin}/hooks/guard.sh")
     return problems
 
 
@@ -649,24 +822,234 @@ def check_research_method(root: Path) -> list[str]:
     return [f"{RESEARCH_SHARED}: lost its {name} section" for name, pat in RESEARCH_SECTIONS if not re.search(pat, text, re.I | re.M)]
 
 
+def check_rust_workspace(root: Path) -> list[str]:
+    """rust/ is not a plugin, and its crates carry the repository's license."""
+    ws = root / "rust" / "Cargo.toml"
+    if not ws.is_file():
+        return []
+    problems = []
+    for stray in (".claude-plugin", "skills", "plugins"):
+        if (root / "rust" / stray).exists():
+            problems.append(f"rust/{stray}: rust/ is a Cargo workspace, not a plugin; plugins live in plugins/<name>/")
+    licenses = set()
+    for manifest in sorted(root.glob("plugins/*/.claude-plugin/plugin.json")):
+        lic = json.loads(manifest.read_text(encoding="utf-8")).get("license")
+        if lic:
+            licenses.add(lic)
+    if len(licenses) != 1:
+        return problems + [f"plugin licenses are not one value ({sorted(licenses)}); cannot compare the crates to them"]
+    (expected,) = licenses
+    workspace = tomllib.loads(ws.read_text(encoding="utf-8"))
+    ws_license = workspace.get("workspace", {}).get("package", {}).get("license")
+    for member in workspace.get("workspace", {}).get("members", []):
+        manifest = root / "rust" / member / "Cargo.toml"
+        if not manifest.is_file():
+            problems.append(f"rust/{member}/Cargo.toml: workspace member is missing")
+            continue
+        pkg = tomllib.loads(manifest.read_text(encoding="utf-8")).get("package", {})
+        lic = pkg.get("license")
+        if isinstance(lic, dict) and lic.get("workspace") is True:
+            lic = ws_license
+        if lic != expected:
+            problems.append(f"rust/{member}/Cargo.toml: license is {lic!r}, the plugins declare {expected!r}")
+    return problems
+
+
+def check_compact_langs(root: Path) -> list[str]:
+    """The Rust language table of `ai-gent compact` is generated from langs.py (spec 037 T063)."""
+    gen = root / "scripts" / "gen-compact-langs.py"
+    if not gen.is_file() or not (root / "plugins/compact/skills/code/scripts/langs.py").is_file():
+        return []  # after the 3.0.0 cutover the table is the source
+    done = subprocess.run([sys.executable, str(gen), "--check"], capture_output=True, text=True, cwd=root)
+    return [line.removeprefix("FAIL  ") for line in done.stdout.splitlines() if line.strip()] if done.returncode else []
+
+
+TOKEN_TAGS = "shared/token-tags.json"
+TOKEN_TAGS_COPY = "rust/crates/ai-gent-core/src/tokens/token-tags.json"
+
+
+def check_token_tags_copy(root: Path) -> list[str]:
+    """The Rust `tokens` module embeds a copy of the tag vocabulary (spec 035, T012); it equals `shared/token-tags.json`."""
+    source, copy = root / TOKEN_TAGS, root / TOKEN_TAGS_COPY
+    if not source.is_file() or not (root / "rust").is_dir():
+        return []
+    if not copy.is_file() or copy.read_bytes() != source.read_bytes():
+        return [f"{TOKEN_TAGS_COPY} differs from {TOKEN_TAGS} (run python3 scripts/consistency.py --sync-token-tags)"]
+    return []
+
+# D21: the major is written 3.0.0 or 3.x, never with the letter v and the digit.
+NAMING_PATHS = ("README.md", "AGENTS.md", "CLAUDE.md", "docs/site/src", "docs/product", "shared", "specs", "install.sh", "setup.sh", "scripts")
+NAMING_ALLOW = ("scripts/consistency.py", "scripts/test_consistency.py", "docs/product/rust-decisions.md", "CHANGELOG.md", "docs/site/src/content/generated.json")  # D21 states the rule; the changelog is history; the generated site content is derived (it carries a third-party "v3 API" from a plugin reference)
+OLD_MAJOR = re.compile(r"(?<![A-Za-z0-9/.:_-])v3(?![0-9A-Za-z_-]|\.[0-9])")
+GPL_V3 = re.compile(r"GPL\s+v3", re.IGNORECASE)
+
+
+def check_naming(root: Path) -> list[str]:
+    """No file written for the release uses the old spelling of the major version (spec 039 FR-011)."""
+    problems = []
+    for entry in NAMING_PATHS:
+        base = root / entry
+        files = [base] if base.is_file() else sorted(f for f in base.rglob("*") if f.is_file()) if base.is_dir() else []
+        for f in files:
+            rel = f.relative_to(root).as_posix()
+            if rel in NAMING_ALLOW or "node_modules" in f.parts or "__pycache__" in f.parts or f.suffix in (".png", ".ico", ".woff2", ".gz"):
+                continue
+            try:
+                text = f.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            for n, line in enumerate(text.splitlines(), 1):
+                if OLD_MAJOR.search(GPL_V3.sub("", line)):
+                    problems.append(f"{rel}:{n}: write the major version as 3.0.0 or 3.x (D21)")
+    return problems
+
+
+TIERS = "shared/tiers.json"
+
+
+def check_tiers(root: Path) -> list[str]:
+    """The docs site's compatibility matrix (spec 040): every agent `setup.sh` installs for sits in exactly one tier, and every cell has a state, a reason and a source that exists."""
+    path, setup = root / TIERS, root / "setup.sh"
+    if not path.is_file() or not setup.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as e:
+        return [f"{TIERS}: not valid JSON ({e})"]
+    found = re.search(r"^AGENT_IDS=\(([^)]*)\)", setup.read_text(encoding="utf-8"), re.M)
+    agents = found.group(1).split() if found else []
+    problems = []
+    if not agents:
+        return [f"setup.sh: AGENT_IDS not found; cannot check {TIERS}"]
+    tiers = data.get("tiers", [])
+    tier_ids = [t.get("id") for t in tiers]
+    if len(set(tier_ids)) != len(tier_ids) or not all(tier_ids):
+        problems.append(f"{TIERS}: tier ids must be present and unique")
+    placed: dict[str, int] = {}
+    for t in tiers:
+        for a in t.get("agents", []):
+            placed[a] = placed.get(a, 0) + 1
+    for a in agents:
+        n = placed.get(a, 0)
+        if n != 1:
+            problems.append(f"{TIERS}: agent {a} is in {n} tiers, setup.sh AGENT_IDS needs exactly one")
+    for a in placed:
+        if a not in agents:
+            problems.append(f"{TIERS}: agent {a} is not in setup.sh AGENT_IDS")
+    states = set(data.get("states", []))
+    rows = data.get("rows", [])
+    if not rows:
+        problems.append(f"{TIERS}: no rows")
+    for row in rows:
+        rid = row.get("id", "?")
+        for tid in tier_ids:
+            cell = row.get("cells", {}).get(tid)
+            if not isinstance(cell, dict):
+                problems.append(f"{TIERS}: row {rid} has no cell for {tid}")
+                continue
+            if cell.get("state") not in states:
+                problems.append(f"{TIERS}: row {rid}/{tid} state {cell.get('state')!r} is not one of {sorted(states)}")
+            if not str(cell.get("reason", "")).strip():
+                problems.append(f"{TIERS}: row {rid}/{tid} has no reason")
+            src = cell.get("source", "")
+            if not src or not (root / src).exists():
+                problems.append(f"{TIERS}: row {rid}/{tid} source {src!r} does not exist")
+            if not isinstance(cell.get("verified"), bool):
+                problems.append(f"{TIERS}: row {rid}/{tid} needs a verified flag")
+            if cell.get("state") == "unverified" and cell.get("verified") is not False:
+                problems.append(f"{TIERS}: row {rid}/{tid} is unverified, so verified must be false")
+    return problems
+
+
+def check_readme_tiers(root: Path) -> list[str]:
+    """The README's "Support tiers" table equals shared/tiers.json (spec 039 T031): per tier, the same agents and the same policy. The docs site's matrix is generated from the JSON, so it cannot differ."""
+    path, readme = root / TIERS, root / "README.md"
+    if not path.is_file() or not readme.is_file():
+        return []
+    try:
+        tiers = json.loads(path.read_text(encoding="utf-8")).get("tiers", [])
+    except ValueError:
+        return []  # check_tiers reports it
+    rows = {}
+    for line in readme.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if line.startswith("|") and len(cells) == 3:
+            rows[cells[0]] = (re.findall(r"`([^`]+)`", cells[1]), cells[2])
+    problems = []
+    for t in tiers:
+        label = t.get("label", t.get("id", "?"))
+        if label not in rows:
+            problems.append(f"README.md: the Support tiers table has no {label!r} row ({TIERS} is the source)")
+            continue
+        agents, policy = rows[label]
+        if agents != t.get("agents", []):
+            problems.append(f"README.md: {label} lists {agents}, {TIERS} has {t.get('agents', [])}")
+        if policy != t.get("policy", ""):
+            problems.append(f"README.md: {label} promise differs from {TIERS}")
+    return problems
+
+
+# Events cc-plugin-sec-default (Claude Code 2.1.325) answers with next.to(e, "append"),
+# skipping every user-tier hook, and the session.append doors it skips (tool-message
+# and note only in some cases; they are refused too, to be safe).
+PASSED_OVER = ("prompt.section", "prompt.context", "prompt.attachment", "prompt.compose", "skill.prompt", "attribution.text", "session.compact", "settings.read")
+PASSED_OVER_DOORS = ("attachment", "hook-context", "compaction", "tool-message", "note")
+# The secrets mask on skill.prompt stays (decided 2026-11-14): where the built-in plugin
+# is not seated it masks a secret in a skill's body; where it is, the built-in's own
+# masking stands in and the notice is accepted.
+PASSED_OVER_EXEMPT = {("secrets", "skill.prompt")}
+ON_CALL = re.compile(r"""\bon\(\s*['"]([A-Za-z.]+)['"]\s*(?:,\s*(\{[^}]*\}))?""")
+
+
+def check_passed_over(root: Path) -> list[str]:
+    problems = []
+    for f in sorted((root / "plugins").glob("*/hooks/*.ts*")):
+        if ".test." in f.name or f.name.endswith(".d.ts"):
+            continue
+        plugin = f.parent.parent.name
+        text = f.read_text(encoding="utf-8")
+        for m in ON_CALL.finditer(text):
+            event, matcher = m.group(1), m.group(2) or ""
+            where = f"{f.relative_to(root)}:{text.count(chr(10), 0, m.start()) + 1}"
+            if (plugin, event) in PASSED_OVER_EXEMPT:
+                continue
+            if event.startswith("classic.") or event in PASSED_OVER:
+                problems.append(f"{where}: on('{event}') is passed over where cc-plugin-sec-default is seated; the hook never runs (see consistency.py item 14)")
+            elif event == "session.append":
+                doors = re.findall(r"""['"]([a-z-]+)['"]""", matcher.split("door", 1)[1]) if "door" in matcher else []
+                bad = [d for d in doors if d in PASSED_OVER_DOORS]
+                if not doors or bad:
+                    what = f"door {', '.join(bad)}" if bad else "no door matcher"
+                    problems.append(f"{where}: on('session.append') with {what} is passed over where cc-plugin-sec-default is seated (see consistency.py item 14)")
+    return problems
+
+
 def main(root: Path = ROOT) -> int:
+    if "--sync-token-tags" in sys.argv[1:]:
+        (root / TOKEN_TAGS_COPY).write_bytes((root / TOKEN_TAGS).read_bytes())
+        print(f"wrote {TOKEN_TAGS_COPY}")
+        return 0
     if "--sync-shared-code" in sys.argv[1:] or "--sync-guard-ux" in sys.argv[1:]:
         for shared, plugins in SHARED_CODE.items():
             for plugin in plugins:
                 (root / "plugins" / plugin / "hooks" / Path(shared).name).write_bytes((root / shared).read_bytes())
-        print(f"copied {len(SHARED_CODE)} shared files into the plugins that import them")
+        if (root / LAUNCHER).is_file():
+            sync_launchers(root)
+        if (root / GUARD_WORDS).is_file():
+            sync_words(root)
+        print(f"copied {len(SHARED_CODE)} shared files into the plugins that import them, {GUARD_WORDS} to its copies, and the guard launcher head and words block into {len(GUARD_IDS)} guard.sh")
         return 0
     if "--sync-secret-data" in sys.argv[1:]:
         (root / SECRET_DATA).write_text(secret_data_text(root), encoding="utf-8")
         print(f"wrote {SECRET_DATA}")
         return 0
-    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root)
+    problems = check_sections(root) + check_retired(root) + check_cleanup(root) + check_prune(root) + check_cards(root) + check_vocab(root) + check_secret_data(root) + check_pipeline_paths(root) + check_pipeline_digest(root) + check_applicability(root) + check_stage_names(root) + check_guard_ux(root) + check_launchers(root) + check_release_subjects(root) + check_release_json(root) + check_leftovers_json(root) + check_research_links(root) + check_research_denied(root) + check_research_labels(root) + check_research_method(root) + check_rust_workspace(root) + check_token_tags_copy(root) + check_compact_langs(root) + check_tiers(root) + check_readme_tiers(root) + check_naming(root) + check_passed_over(root)
     budget, total = check_budget(root)
     problems += budget
     for p in problems:
         print(f"FAIL  {p}")
     if not problems:
-        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, descriptions ({total} characters)")
+        print(f"ok    section references, retired phrasings, container cleanup, card projections, secret data, pipeline paths and digest, guard reasons, release subjects, release --json keys, leftovers JSON, research method, rust workspace license, tier matrix, major-version naming, no passed-over hook events, descriptions ({total} characters)")
     return 1 if problems else 0
 
 

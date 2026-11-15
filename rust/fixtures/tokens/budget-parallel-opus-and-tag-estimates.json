@@ -1,0 +1,54 @@
+{
+ "name": "budget-parallel-opus-and-tag-estimates",
+ "derived_from": "BudgetTest::test_parallel_opus_adds_event_risk_and_tags_drive_the_card_projection",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, known-pattern, integration, M · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n",
+  "work/budget.yaml": "session_billable: 1M\nweek_billable: 5M\n",
+  "work/h.jsonl": "{\"id\": \"p:0\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c0\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 100000, \"date\": \"2026-10-20\", \"agents\": [\"ag0\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\"}\n{\"id\": \"p:1\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c1\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 200000, \"date\": \"2026-10-21\", \"agents\": [\"ag1\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\"}\n{\"id\": \"p:2\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c2\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 300000, \"date\": \"2026-10-22\", \"agents\": [\"ag2\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\"}\n{\"id\": \"p:3\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c3\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 400000, \"date\": \"2026-10-23\", \"agents\": [\"ag3\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\"}\n{\"id\": \"p:4\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c4\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 500000, \"date\": \"2026-10-24\", \"agents\": [\"ag4\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\"}, \"executor_role\": \"builder\"}\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "budget",
+    "--project=-tmp-widgets",
+    "--budget=budget.yaml",
+    "--specs-dir=specs",
+    "--projected=opus:1k,opus:1k,sonnet:1k"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "wave: 3 card(s)\n  opus:1k                  opus    ~    1k  (given)\n  opus:1k                  opus    ~    1k  (given)\n  sonnet:1k                sonnet  ~    1k  (given)\nprojected 3k + coordinator 35% + event risk 8% (prior: resumes, fix rounds, flake hunts) = 4k billable\nsession: cap 1.00M, used 0k (no session found), left 1.00M\nweek: cap 5.00M, used 0k (last 7 days, all projects), left 5.00M\nrate: idle for 30 min\nverdict: proceed - within the 900k left after a 10% reserve\ndispatch (at most 2 subagent(s) at once, 1 on Opus):\n  batch 1: opus:1k (opus)\n  batch 2: opus:1k (opus), sonnet:1k (sonnet)\nPrefer Sonnet builders, review inline unless the card needs a fresh context.\n"
+  },
+  {
+   "argv": [
+    "budget",
+    "--project=-tmp-widgets",
+    "--budget=budget.yaml",
+    "--specs-dir=specs",
+    "--cards=001-core",
+    "--history=h.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "wave: 1 card(s)\n  001-core                 sonnet  ~  300k  (estimated, tags, p75 ~400k, confidence high)\nprojected 300k + coordinator 35% + event risk 8% (prior: resumes, fix rounds, flake hunts) = 437k billable\nsession: cap 1.00M, used 0k (no session found), left 1.00M\nweek: cap 5.00M, used 0k (last 7 days, all projects), left 5.00M\nrate: idle for 30 min\nverdict: proceed - within the 900k left after a 10% reserve\ndispatch (at most 2 subagent(s) at once, 1 on Opus):\n  batch 1: 001-core (sonnet)\nPrefer Sonnet builders, review inline unless the card needs a fresh context.\n"
+  },
+  {
+   "argv": [
+    "budget",
+    "--project=-tmp-widgets",
+    "--budget=budget.yaml",
+    "--specs-dir=specs",
+    "--cards=001-core",
+    "--history=h.jsonl",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\"verdict\": \"proceed\", \"why\": \"within the 900k left after a 10% reserve\", \"fit\": 1, \"total\": 300000, \"need\": 437400, \"rate\": {\"per_hour\": 0, \"window_minutes\": 30, \"messages\": 0}, \"caps\": [{\"name\": \"session\", \"cap\": 1000000, \"used\": 0, \"left\": 1000000, \"eta_minutes\": null}, {\"name\": \"week\", \"cap\": 5000000, \"used\": 0, \"left\": 5000000, \"eta_minutes\": null}], \"cards\": [{\"label\": \"001-core\", \"model\": \"sonnet\", \"projected\": 300000, \"p75\": 400000, \"confidence\": \"high\", \"how\": \"estimated, tags\"}], \"batches\": [[\"001-core\"]]}\n"
+  }
+ ],
+ "expect_files": {}
+}

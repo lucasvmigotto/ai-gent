@@ -1,0 +1,77 @@
+{
+ "name": "add-disk-labels",
+ "derived_from": "test_add_prints_labels_and_checks_disk",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/a\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-a\",\n  \"compose_project\": \"shop-feat-a\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-a\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-a AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-a; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "usage": [
+    500,
+    65
+   ]
+  },
+  {
+   "wt": [
+    "add",
+    "feat/b"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "TYPE TOTAL\nerror: 65.0 GB free on <ROOT>; 2 track(s) at 10 GB each would leave less than the 50 GB floor. `wt.py resources` lists this project's leftovers; never clean another project's to make room. Start fewer tracks, or ask (--min-free-gb overrides the floor)\n"
+   }
+  },
+  {
+   "exists": ".worktrees/feat-b",
+   "expect": {
+    "exists": false
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "feat/b",
+    "--min-free-gb",
+    "0"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/b\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-b\",\n  \"compose_project\": \"shop-feat-b\",\n  \"port_offset\": 200,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-b\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-b AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-b; publish ports +200 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "assert_scoped": true,
+   "expect": {
+    "problems": []
+   }
+  },
+  {
+   "state": true,
+   "expect": {
+    "containers": [],
+    "volumes": [],
+    "images": [],
+    "calls": [
+     [
+      "system",
+      "df"
+     ]
+    ]
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

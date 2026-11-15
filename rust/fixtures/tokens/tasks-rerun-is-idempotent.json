@@ -1,0 +1,45 @@
+{
+ "name": "tasks-rerun-is-idempotent",
+ "derived_from": "TasksTest::test_rerun_updates_numbers_without_duplicating (first half)",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a1.jsonl": "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": \"\"}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:00:00Z\", \"message\": {\"id\": \"a1-0\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 100000}}}",
+  "home/.claude/projects/-tmp-widgets/s1/subagents/agent-a1.meta.json": "{\"description\": \"T001, T002: 001-widget core\"}",
+  "home/.claude/projects/-tmp-widgets/s1.jsonl": "{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T09:00:00Z\", \"message\": {\"id\": \"c1\", \"model\": \"claude-opus-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 10000}}}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "tasks",
+    "--project=-tmp-widgets",
+    "--specs-dir=specs",
+    "--snapshots=none.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "widgets: 1 subagent(s) in 1 session(s); wrote docs/product/token-history.jsonl (1 records)\nfeature | used (subagents) | coordinator share | total | cards | task lines\n001-widget | 100k | 10k | 110k | 1 | 3\ndeprecated legacy output: 1 specs/*/tokens.md, 0 unmapped card(s) in docs/product/token-usage.md (--no-legacy turns it off; both go in a later major)\nunattributed (reported, not guessed): 0 agent(s), 0k\ncoordinator: 10k billable in all, 0k in windows with no attributed subagents\ntotal: 110k billable (100k subagents)\n"
+  },
+  {
+   "argv": [
+    "tasks",
+    "--project=-tmp-widgets",
+    "--specs-dir=specs",
+    "--snapshots=none.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "widgets: 1 subagent(s) in 1 session(s); wrote docs/product/token-history.jsonl (1 records)\nfeature | used (subagents) | coordinator share | total | cards | task lines\n001-widget | 100k | 10k | 110k | 1 | 0\ndeprecated legacy output: 1 specs/*/tokens.md, 0 unmapped card(s) in docs/product/token-usage.md (--no-legacy turns it off; both go in a later major)\nunattributed (reported, not guessed): 0 agent(s), 0k\ncoordinator: 10k billable in all, 0k in windows with no attributed subagents\ntotal: 110k billable (100k subagents)\n"
+  }
+ ],
+ "expect_files": {
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State | Tokens |\n|---|---|---|---|---|\n| 0 | 001-widget | `001-core` | done | ~400k / 100k |\n| 0 | 001-widget | `001-polish` | planned | ~100k / — |\n",
+  "work/docs/product/token-history.jsonl": "{\"id\": \"widgets:001-widget:001-core\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"widgets\", \"feature\": \"001-widget\", \"card\": \"001-core\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"high\", \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"size\": \"M\", \"lang\": \"rust\", \"stack\": [\"tokio\"], \"novelty\": \"known-pattern\", \"verification\": \"integration\"}, \"tags_source\": \"planned\", \"executor_role\": \"builder\", \"executor_model\": \"sonnet\", \"model_id\": \"claude-sonnet-5-5\", \"files\": 0, \"lines\": 0, \"projected\": 400000, \"used\": 100000, \"used_clean\": 100000, \"events\": {}, \"cache_read\": 1000, \"coordinator\": 10000, \"calls\": 1, \"agents\": [\"a1\"], \"desc\": \"T001, T002: 001-widget core\", \"date\": \"2026-10-20\"}\n",
+  "work/docs/product/token-usage.md": "# Token usage report — widgets\n\nGenerated <TS> from session(s) `s1` (1 config dirs, 1 subagents). API-reported usage, deduplicated by message id; local `<synthetic>` placeholders excluded.\n\n**Columns:** *In* uncached input · *Cache w* cache writes · *Cache r* cache reads · *Out* output · *Billable* = In + Cache w + Out (cache reads cost a small fraction of input, so this is the better cost proxy) · *Total* = all four. Times are UTC.\n\n## By label\n\n| Label | Agents | Model(s) | Billable | Total |\n|---|---|---|---|---|\n| T001, T002 | 1 | claude-sonnet-5-5 | 100.0k | 101.0k |\n| Coordination | 1 | claude-opus-5-5 | 10.0k | 11.0k |\n| **All** | 2 | | **110.0k** | 112.0k |\n\n## By agent\n\n| Started | Who | Label | Task | Model | Calls | Billable | Total |\n|---|---|---|---|---|---|---|---|\n| 2026-10-20 09:00 | coordinator s1 (main thread) | Coordination | Planning, interviews, reconciliation, reviews, merges, CI follow-up | claude-opus-5-5 | 1 | 10.0k | 11.0k |\n| 2026-10-20 10:00 | subagent a1 | T001, T002 | T001, T002: 001-widget core | claude-sonnet-5-5 | 1 | 100.0k | 101.0k |\n\n## Notes\n\n- A resumed subagent keeps its id, so its row covers every resume after a usage limit.\n- Each coordinator row spans one session's main thread across account switches (several config dirs).\n- Labels come from each card's own description (its leading task id or short code) — nothing is guessed from project-specific vocabulary.\n",
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used 100k\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium · Tokens: with T001\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low · Tokens: projected ~100k | used —\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/tokens.md": "# Token usage — 001-widget\n\nGenerated <TS>. Deprecated output of `token_report.py tasks` (use the `Tokens:` tags on tasks.md, tracker.md and docs/product/token-history.jsonl); turn it off with `--no-legacy`. Linked to `tasks.md` by task id; a record file, never written into it. Cards spanning several features attribute their full cost to the first feature their task ids name.\n\n| Task(s) | Who | Model(s) | Calls | Billable | Total |\n|---|---|---|---|---|---|\n| T001, T002 | subagent a1 | claude-sonnet-5-5 | 1 | 100.0k | 101.0k |\n| **Feature total** | | | | **100.0k** | **101.0k** |\n",
+  "work/specs/001-widget/tracker.md": "# Tracker — 001-widget\n\n<!-- tokens:start (token_report.py tasks - regenerated on every run, do not edit) -->\n\n## Tokens\n\nBillable tokens (uncached input + cache writes + output); cache reads are reference only. Projected is the card's estimate before the work, used what its subagents then cost. The coordinator share is the main thread's usage in the windows this feature landed, split by subagent share (`plugins/agents/references/token-tracking.md`).\n\n| Card / tasks | Projected | Used | Error | Cache reads (reference) |\n|---|---|---|---|---|\n| `001-core` | ~400k | 100k | -75% | 1k |\n| **Subagents** | ~400k | **100k** | -75% | 1k |\n| Coordinator share | | 10k | | |\n| **Feature total** | | **110k** | | |\n\n<!-- tokens:end -->\n"
+ }
+}

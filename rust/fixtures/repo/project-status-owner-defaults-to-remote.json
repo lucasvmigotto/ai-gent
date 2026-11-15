@@ -1,0 +1,52 @@
+{
+ "name": "project-status-owner-defaults-to-remote",
+ "derived_from": "ProjectStatusTest::test_owner_defaults_to_remote",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "args": "project field-list",
+     "stdout": "{\"fields\": [{\"id\": \"PVTF_1\", \"name\": \"Status\", \"type\": \"ProjectV2SingleSelectField\", \"options\": [{\"id\": \"OPT_TODO\", \"name\": \"To do\"}, {\"id\": \"OPT_DOING\", \"name\": \"In Progress\"}, {\"id\": \"OPT_REVIEW\", \"name\": \"In Review\"}, {\"id\": \"OPT_DONE\", \"name\": \"Done\"}]}, {\"id\": \"PVTF_2\", \"name\": \"Title\", \"type\": \"ProjectV2Field\"}]}\n"
+    },
+    {
+     "args": "project item-edit",
+     "capture": "<ROOT>/item-edit.args",
+     "stdout": "token: {env:GH_TOKEN}\n"
+    },
+    {
+     "args": "issue view",
+     "stdout": "{\"url\": \"https://github.com/o/r/issues/5\"}\n"
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "project-status",
+    "1",
+    "--url",
+    "https://github.com/o/r/issues/5",
+    "--state",
+    "done",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"owner\": \"o\",\n  \"number\": 1,\n  \"url\": \"https://github.com/o/r/issues/5\",\n  \"field\": \"Status\",\n  \"state\": \"done\",\n  \"value\": \"Done\"\n}\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {
+  "item-edit.args": "project item-edit 1 --owner o --url https://github.com/o/r/issues/5 --field Status --value Done\n"
+ }
+}

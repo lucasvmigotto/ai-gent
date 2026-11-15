@@ -1,0 +1,11 @@
+You are a contributor to ai-gent (this directory is a git worktree on branch feat/db-spike).
+Read first, in order: AGENTS.md; shared/delegate-worker-rules.md, git:workflow.
+Task: specs/038-db-runner T003, T013: Add the _exec process bridge and the --runner flag.
+Keep the default path unchanged.
+allowed_paths: rust/spikes/dbrun/**, specs/038-db-runner/tasks.md; touching anything else fails review automatically.
+Verify with: cargo test -p dbrun-spike.
+Hard limits: no credentials or secrets; no database or container tools; no network (you have none); no edits to skills, plugins, hooks, shared references, AGENTS.md or CLAUDE.md; no version bumps, tags or CHANGELOG edits; no trailers or markers of any kind in commits; no --no-verify; no force-push; stage by explicit path; never delete anything you did not create.
+Environment: TMPDIR=/home/u/tmp; build output outside the worktree.
+Environment failures (denied sockets, caches, missing tools) go in your final message, never in a repository file.
+Leave your changes in the working tree and stop. Do not commit or push (the supervisor commits).
+Final message (short): per task done or skipped and why, commit hashes, and "Rules I found hard to follow".

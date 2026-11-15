@@ -62,8 +62,8 @@ signal only, Noise dropped — then:
 
 Then show the filter's confirmation summary (`intake-filter.md`) and ask
 clarifying questions (pipeline rule 2: at most 4 per prompt, as
-options with a recommendation, another round only when the answers open
-one), only ones whose answer changes the vision (primary device, brand constraints that already exist,
+options with a recommendation, another round for the planned questions still
+open or those the answers raise: `asking.md`), only ones whose answer changes the vision (primary device, brand constraints that already exist,
 the single most important task, accessibility or language requirements,
 audiences that must not be alienated).
 

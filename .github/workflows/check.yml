@@ -31,8 +31,86 @@ jobs:
           pipx --version # check.sh runs its pinned shellcheck, and a pinned uv for compact:code's Pygments, through pipx
           claude --version
 
+      # The Rust gates run on every push to main and on pull requests that touch what they check;
+      # check.yml is also called by release.yml (a push), so that path is always "true".
+      - name: Does this change need the Rust gates?
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          rust=true
+          if [ "$EVENT" = pull_request ]; then
+            rust=false
+            if git diff --name-only "$BASE_SHA"...HEAD | grep -E -q '^(rust/|shared/guard-fixtures/|plugins/[^/]+/hooks/guard\.sh$|opencode/guard/|\.github/workflows/(rust[^/]*|check)\.yml$|scripts/test-rust-workflows\.sh$)'; then
+              rust=true
+            fi
+          fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+          echo "rust gates: $rust" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Rust toolchain (pinned by rust/rust-toolchain.toml)
+        if: steps.changes.outputs.rust == 'true'
+        working-directory: rust
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          cargo --version
+
+      - name: Cache cargo registry and build output
+        if: steps.changes.outputs.rust == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: rust-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock', 'rust/rust-toolchain.toml') }}
+          restore-keys: |
+            rust-${{ runner.os }}-
+
+      # A pinned prebuilt release, verified by SHA256 (cargo install took 1m45 on a cold cache).
+      - name: Install cargo-deny (prebuilt, pinned)
+        if: steps.changes.outputs.rust == 'true'
+        env:
+          DENY_VERSION: 0.20.2
+          DENY_SHA256: 9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f # x86_64-unknown-linux-musl
+        run: |
+          set -euo pipefail
+          archive="cargo-deny-${DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/EmbarkStudios/cargo-deny/releases/download/${DENY_VERSION}/${archive}"
+          echo "${DENY_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$HOME/.local/bin" --strip-components=1 "${archive%.tar.gz}/cargo-deny"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/cargo-deny" --version
+
       - name: Check
+        env:
+          CHECK_SKIP_RUST: ${{ steps.changes.outputs.rust != 'true' && '1' || '' }}
+          TIER3_SKIP: "1" # the tier-3 install cases run in the non-required tier3 job below
         run: scripts/check.sh
+
+  # Tier 3 (shared/tiers.json): opencode, Cursor, Antigravity, Copilot, Amp, Kiro and Windsurf are
+  # best-effort and never a release blocker (spec 039 FR-012). Their install cases run here alone;
+  # a red job is information, so continue-on-error keeps it out of the merge and release gates.
+  tier3:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    continue-on-error: true
+    concurrency:
+      group: check-tier3-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Tier-3 installer cases
+        env:
+          TIER3_ONLY: "1"
+        run: scripts/test-install.sh
 
   # The installer on macOS: the system bash is 3.2, so setup.sh hands over to
   # Homebrew's bash, and the BSD userland catches GNU-only commands.
@@ -52,4 +130,44 @@ jobs:
         run: brew install bash
 
       - name: Installer tests, run by the system bash 3.2
+        env:
+          TIER3_SKIP: "1" # tier 3 runs in the tier3 job
         run: /bin/bash scripts/test-install.sh
+
+      # The per-triple archives and install.sh's platform map on macOS: BSD tar, shasum, env and sed,
+      # the native uname (arm64), unzip for the Windows archive.
+      - name: Package and per-triple install tests, run by the system bash 3.2
+        run: /bin/bash scripts/test-package.sh
+
+  # The native Windows installer (spec 032 D24, T054): install.ps1 and setup.ps1 under Windows
+  # PowerShell 5.1 and PowerShell 7, on x64 and on arm64. The runner user is an administrator;
+  # the installer itself needs no elevation (junctions, user PATH), which T058 confirms by hand.
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    # The arm64 runner is reported but not required until the 3.0.0 gate (owner decision, 2026-11-07):
+    # a runner hiccup there must not block a merge. Same policy as the aarch64 Windows build leg.
+    continue-on-error: ${{ matrix.os == 'windows-11-arm' }}
+    timeout-minutes: 20
+    concurrency:
+      group: check-windows-${{ matrix.os }}-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Installer tests, Windows PowerShell 5.1
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-install-ps1.ps1
+
+      - name: Installer tests, PowerShell 7
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts\test-install-ps1.ps1

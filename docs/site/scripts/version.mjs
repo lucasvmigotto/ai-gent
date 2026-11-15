@@ -1,6 +1,6 @@
 // The footer's versions: one per versioned part of the project, then the
 // docs site's own, each linked to the tag it was built from
-// (`ai-gent@v1.12.0 · docs@v0.1.0`). Pure, so it is unit-tested; the git
+// (`ai-gent@1.12.0 · docs@0.1.0`). Pure, so it is unit-tested; the git
 // lookups live in gitInfo().
 import { execFileSync } from "node:child_process";
 
@@ -28,8 +28,8 @@ export function gitInfo(repo) {
 }
 
 // footerVersions — [{ name, version, href }] for the footer.
-//   on a release tag   ai-gent@v1.12.0          -> <repo>/tree/1.12.0
-//   past a tag         ai-gent@v1.12.0+abc1234  -> <repo>/tree/<sha>
+//   on a release tag   ai-gent@1.12.0           -> <repo>/tree/1.12.0
+//   past a tag         ai-gent@1.12.0+abc1234   -> <repo>/tree/<sha>
 //   no tag yet         ai-gent@dev+abc1234      -> <repo>/tree/<sha>
 //   no git             ai-gent@dev              (no link)
 // The docs entry carries the site's own version and links to the same
@@ -47,7 +47,8 @@ export function footerVersions({ repoUrl, name, docsVersion, docsPath, git }) {
 	];
 }
 
-// `name@vX.Y.Z` (the "v" is display-only), or `name@dev…` before any release.
+// `name@X.Y.Z` (releases are tagged without a "v", and so are written without
+// one here), or `name@dev…` before any release.
 export function label({ name, version }) {
-	return /^\d/.test(version) ? `${name}@v${version}` : `${name}@${version}`;
+	return `${name}@${version}`;
 }

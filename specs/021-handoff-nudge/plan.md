@@ -4,7 +4,7 @@
 
 ## Summary
 
-In the `project` plugin's hooks module: at turn end, read `$.session.usage().context.percent` and toast once when it passes the configured percent, with the checkpoint's age in commits; toast once on `session.compact` (`manual`, `auto`); and, only when `token_report.py` is found beside the plugin, run a throttled, detached `budget --json --projected=0` and toast once per low cap. The mod never writes and never depends on `agents`.
+In the `project` plugin's hooks module: at turn end, read `$.session.usage().context.percent` and toast once when it passes the configured percent, with the checkpoint's age in commits; toast once on a manual `/compact`, caught at `prompt.submit` (amended 2026-11-14: `session.compact` is passed over where `cc-plugin-sec-default` is seated; spec FR-008); and, only when `token_report.py` is found beside the plugin, run a throttled, detached `budget --json --projected=0` and toast once per low cap. The mod never writes and never depends on `agents`.
 
 ## Technical Context
 

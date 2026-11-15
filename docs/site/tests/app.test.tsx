@@ -67,3 +67,70 @@ describe("App", () => {
 		}
 	});
 });
+
+describe("search combobox", () => {
+	function setup() {
+		window.location.hash = "";
+		render(<App />);
+		return screen.getByRole("combobox");
+	}
+
+	it("is a labelled combobox that controls a listbox", () => {
+		const box = setup();
+		expect(box).toHaveAttribute("aria-expanded", "false");
+		fireEvent.change(box, { target: { value: "commit" } });
+		expect(box).toHaveAttribute("aria-expanded", "true");
+		const list = screen.getByRole("listbox", { name: "Search results" });
+		expect(box.getAttribute("aria-controls")).toBe(list.id);
+		expect(within(list).getAllByRole("option").length).toBeGreaterThan(0);
+	});
+
+	it("announces the result count in a polite live region", () => {
+		const box = setup();
+		fireEvent.change(box, { target: { value: "commit" } });
+		const live = document.querySelector("p[aria-live=polite]");
+		expect(live?.textContent).toMatch(/^\d+ results$/);
+	});
+
+	it("moves with the arrows, opens with Enter, clears with Escape", () => {
+		const box = setup();
+		fireEvent.change(box, { target: { value: "instal" } });
+		expect(box).not.toHaveAttribute("aria-activedescendant");
+		fireEvent.keyDown(box, { key: "ArrowDown" });
+		const first = box.getAttribute("aria-activedescendant");
+		expect(first).toBeTruthy();
+		expect(document.getElementById(first as string)).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+		fireEvent.keyDown(box, { key: "ArrowDown" });
+		expect(box.getAttribute("aria-activedescendant")).not.toBe(first);
+		fireEvent.keyDown(box, { key: "ArrowUp" });
+		expect(box.getAttribute("aria-activedescendant")).toBe(first);
+		fireEvent.keyDown(box, { key: "Escape" });
+		expect(box).toHaveValue("");
+		expect(box).toHaveAttribute("aria-expanded", "false");
+	});
+
+	it("opens the Install page with Enter on a search for it", () => {
+		const box = setup();
+		fireEvent.change(box, { target: { value: "instal" } });
+		fireEvent.keyDown(box, { key: "Enter" });
+		expect(
+			screen.getByRole("heading", { level: 1, name: "Install ai-gent" }),
+		).toBeInTheDocument();
+	});
+
+	it("keeps / as the shortcut that focuses it", () => {
+		const box = setup();
+		fireEvent.keyDown(window, { key: "/" });
+		expect(document.activeElement).toBe(box);
+	});
+
+	it("says so when nothing matches", () => {
+		const box = setup();
+		fireEvent.change(box, { target: { value: "zzzzqqqq" } });
+		expect(screen.getByText(/Nothing matches/)).toBeInTheDocument();
+		expect(box).toHaveAttribute("aria-expanded", "false");
+	});
+});

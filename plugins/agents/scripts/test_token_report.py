@@ -113,6 +113,16 @@ class TokenReportTest(unittest.TestCase):
         self.assertIn("coordinator sess1", text)
         self.assertIn("T001, T002", text)
 
+    def test_by_stage_table_renders_with_top_set(self):
+        # The By-stage loop used to rebind `top`, so --top crashed render() whenever stage markers existed.
+        u = {"input_tokens": 10, "output_tokens": 5}
+        snaps = [{"at": "2026-10-20T10:00:00Z", "label": "stage one"}]
+        tagged = [("coord", "2026-10-20T09:00:00Z", "", u)]
+        lines, _ = tr.render("p", ["s1"], [], [], [], tagged, snaps, top=1)
+        text = "\n".join(lines)
+        self.assertIn("stage one", text)
+        self.assertIn("coord (", text)
+
     def test_report_summary_is_a_few_lines_and_top_trims_the_file(self):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):

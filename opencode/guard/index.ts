@@ -20,7 +20,13 @@
 // id and a setup (or effect) function.
 
 import { execFileSync } from "node:child_process"
-import { evaluate } from "./rules.mjs"
+import { fileURLToPath } from "node:url"
+import { appendGuardRow, evaluate, guardLogDir, guardPresent, guardRow } from "./rules.mjs"
+import { decideWithBinary, packageInstall } from "./binary.mjs"
+
+// A package install (VERSION at the package root) is decided by the ai-gent
+// binary; a git clone keeps deciding with rules.mjs until 3.0.0 (spec 033).
+const pkg = packageInstall(fileURLToPath(new URL("../..", import.meta.url)))
 
 function branchOf(dir: string): string {
   try {
@@ -46,10 +52,18 @@ export default {
         // Fall back to the plugin's own location.
       }
 
-      const result = evaluate(event, { cwd, branchOf })
+      const result = pkg ? decideWithBinary(event, { cwd, bin: pkg.bin }) : evaluate(event, { cwd, branchOf })
       if (result.decision === "none") return
       event.effect = result.decision
-      event.message = result.reason
+      // The guard's own words, its reason and the agent's line in one message (OpenCode has one), set
+      // before the row is written to the session's guard log (specs 015, 024); the plugin options
+      // guardUx and guardLog (false) turn each off, as for the binary and guard.sh.
+      const present = guardPresent(result.decision, result.reason)
+      event.message = present.message
+      if (!present.log) return
+      const command = event.action === "shell" && Array.isArray(event.resources) ? event.resources[0] : undefined
+      const tool = event.action === "shell" ? "Bash" : event.action === "edit" ? "Edit" : "Read"
+      appendGuardRow(guardLogDir(), event.sessionID, guardRow(result.decision, result.reason, tool, command, Date.now()))
     })
   },
 }

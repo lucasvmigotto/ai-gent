@@ -1,0 +1,23 @@
+{
+ "name": "plan-parser-edge-cases",
+ "derived_from": "SpecsyncTest (parser edge cases beyond the Python tests)",
+ "files": {
+  "work/specs/README.md": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 012 | export | P1 | — | In progress | In progress |\n| 013 | legacy | P3 | — | — | — |\n\n| # | Notes |\n|---|---|\n",
+  "work/specs/012-export/spec.md": "# Feature Specification: 012 - Export\n\n### User Story 1 - A (priority: p3)\n\nBody `x` & <b>.\n\n### Not a story\nignored\n\n### User Story 2: Colon form  \n\n- item\n  more\n1. num\n",
+  "work/specs/013-legacy/.keep": "",
+  "work/specs/012-export/tasks.md": "# T\n\n## Phase 1: User Story 1\n\n- [X] T001a [TUI] [P] Upper X and suffix\n- [ ] T002b9 not a task\n- [ ]T003 not a task either\n\n### Phase 2\n\n- [ ] T004 [CLI] after phase\n\n## QA\n\n- [ ] T005 [US2] qa task\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "plan",
+    "012",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"feature\": \"012-export\",\n  \"retired\": false,\n  \"path\": \"specs/012-export\",\n  \"platform\": \"\",\n  \"statuses\": {\n    \"frontend\": \"In progress\",\n    \"backend\": \"In progress\"\n  },\n  \"items\": [\n    {\n      \"key\": \"feature\",\n      \"kind\": \"feature\",\n      \"title\": \"[012] Export\",\n      \"state\": \"doing\",\n      \"parent\": null,\n      \"body\": \"<!-- ai-gent:sync specs/012-export feature -->\\nFeature **012 Export** — `specs/012-export/spec.md`\\n\\nFrontend: In progress · Backend: In progress\\n\\nStories:\\n- US1 A (p3)\\n- US2 Colon form\\n\\nTasks outside the stories:\\n- [ ] T004 after phase\\n\",\n      \"hash\": \"7e717d5fdd\",\n      \"body_html\": \"<!-- ai-gent:sync specs/012-export feature -->\\n<p>Feature <b>012 Export</b> — <code>specs/012-export/spec.md</code></p>\\n<p>Frontend: In progress · Backend: In progress</p>\\n<p>Stories:</p>\\n<ul>\\n<li>US1 A (p3)</li>\\n<li>US2 Colon form</li>\\n</ul>\\n<p>Tasks outside the stories:</p>\\n<ul>\\n<li>☐ T004 after phase</li>\\n</ul>\",\n      \"existing\": null,\n      \"action\": \"create\"\n    },\n    {\n      \"key\": \"US1\",\n      \"kind\": \"story\",\n      \"title\": \"[012] US1: A\",\n      \"state\": \"review\",\n      \"parent\": \"feature\",\n      \"priority\": \"p3\",\n      \"body\": \"<!-- ai-gent:sync specs/012-export US1 -->\\nUser story 1 of **012 Export** · p3 — `specs/012-export/spec.md`\\n\\nBody `x` & <b>.\\n\\n### Tasks\\n- [x] T001a Upper X and suffix\\n\",\n      \"hash\": \"29c0512ac0\",\n      \"body_html\": \"<!-- ai-gent:sync specs/012-export US1 -->\\n<p>User story 1 of <b>012 Export</b> · p3 — <code>specs/012-export/spec.md</code></p>\\n<p>Body <code>x</code> &amp; &lt;b&gt;.</p>\\n<h4>Tasks</h4>\\n<ul>\\n<li>☑ T001a Upper X and suffix</li>\\n</ul>\",\n      \"existing\": null,\n      \"action\": \"create\"\n    },\n    {\n      \"key\": \"US2\",\n      \"kind\": \"story\",\n      \"title\": \"[012] US2: Colon form\",\n      \"state\": \"todo\",\n      \"parent\": \"feature\",\n      \"priority\": \"\",\n      \"body\": \"<!-- ai-gent:sync specs/012-export US2 -->\\nUser story 2 of **012 Export** — `specs/012-export/spec.md`\\n\\n- item\\n  more\\n1. num\\n\\n### Tasks\\n- [ ] T005 qa task (QA)\\n\",\n      \"hash\": \"94ab64c0d9\",\n      \"body_html\": \"<!-- ai-gent:sync specs/012-export US2 -->\\n<p>User story 2 of <b>012 Export</b> — <code>specs/012-export/spec.md</code></p>\\n<ul>\\n<li>item more</li>\\n<li>num</li>\\n</ul>\\n<h4>Tasks</h4>\\n<ul>\\n<li>☐ T005 qa task (QA)</li>\\n</ul>\",\n      \"existing\": null,\n      \"action\": \"create\"\n    }\n  ],\n  \"orphans\": []\n}\n"
+  }
+ ],
+ "expect_files": {}
+}

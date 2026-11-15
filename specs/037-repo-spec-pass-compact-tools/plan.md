@@ -4,7 +4,7 @@
 
 ## Summary
 
-Four ports, built in value-and-risk order: the pass-store module (A), `ai-gent spec` (B), `ai-gent repo` (C), `ai-gent compact` (D, conditional on a spike). Each group has its own parity gate (D10) and its own cutover edit list (D7). Groups can land in separate releases; the tasks are phased so a session that stops after any phase leaves a releasable state.
+Four ports, built in value-and-risk order: the pass-store module (A), `ai-gent spec` (B), `ai-gent repo` (C), `ai-gent-compact` (D, its own binary and crate, D29). Each group has its own parity gate (D10) and its own cutover edit list (D7). Groups can land in separate releases; the tasks are phased so a session that stops after any phase leaves a releasable state.
 
 ## Technical Context
 
@@ -15,13 +15,14 @@ Four ports, built in value-and-risk order: the pass-store module (A), `ai-gent s
 ## Module layout (crate paths assumed until 032)
 
 ```
-rust/ai-gent-core/src/
+rust/crates/ai-gent-core/src/
   passstore/{mod,pass,gopass,redact}.rs                                           A
   spec/{mod,parse,readme,tracker,html,plan,digest}.rs                              B
   repo/{mod,platforms,remote,entry,cli,api,http,batch,chain,project_status}.rs     C
-  compact/{mod,langs,tokenize,render,verify,outline,walk}.rs                       D
-rust/ai-gent/src/cmd/{spec,repo,compact}.rs
-rust/ai-gent-core/data/compact-langs.rs     generated from langs.py by scripts/gen-compact-langs.py   D
+  (compact is NOT in core, D29)
+rust/crates/ai-gent/src/cmd/{spec,repo}.rs
+rust/crates/ai-gent-compact/src/{lib,main,langs,tokenize,render,verify,outline,walk}.rs   D (own binary `ai-gent-compact`)
+rust/crates/ai-gent-core/data/compact-langs.rs   generated from langs.py by scripts/gen-compact-langs.py   D (moves with the crate at T064)
 rust/fixtures/{passstore,spec,repo,compact}/
 ```
 
@@ -65,6 +66,8 @@ Cutover edit list. `git grep 'reporun\.py'` gives 25 lines in 12 files; the bare
 - Delete: `plugins/repo/scripts/reporun.py` and `test_reporun.py`.
 
 ## Group D: compact
+
+**Decision D29 (2026-11-02).** `compact` is its own binary and crate, `ai-gent-compact`, with its own size budget (proposal 25 MB, owner to confirm); `ai-gent` keeps 8 MB. Scope: java, csharp, c, cpp, go, rust, javascript, kotlin, css, typescript, tsx; other languages report "outline only, no compaction". Before T064, in `rust/spikes/compact`: fix TSX (JSX join rules, `semi_join`), prove go, kotlin, css and the preprocessor lines, and hand-port the csharp `protect` and scss/less `hazard` look-around patterns (no `fancy-regex`/`onig`). The cutover edits below read `ai-gent-compact` where they say `ai-gent compact`; the skill needs the binary installed beside `ai-gent`.
 
 Languages today (verified by importing `langs.py`): 56 entries. L4 (24): java, c, cpp, objc, objcpp, cuda, csharp, rust, go, php, dart, proto, glsl, hlsl, solidity, json, javascript, jsx, typescript, tsx, kotlin, css, scss, less. L2 (16): swift, groovy, sql, lua, ruby, r, bash, toml, xml, html, zig, clojure, elixir, verilog, terraform, dockerfile. L1 (9): perl, powershell, scala, python, haskell, fsharp, nim, coffeescript, elm. L0 (7): yaml, make, markdown, rst, pug, sass, stylus. The 36 distinct tree-sitter names it references: bash, c, cpp, csharp, css, cuda, dart, elixir, glsl, go, groovy, haskell, hlsl, html, java, javascript, json, kotlin, lua, objc, php, python, ruby, rust, scala, scss, solidity, sql, swift, toml, tsx, typescript, verilog, xml, yaml, zig. Nineteen entries have none: clojure, coffeescript, dockerfile, elm, fsharp, less, make, markdown, nim, objcpp, perl, powershell, proto, pug, r, rst, sass, stylus, terraform (of these, objcpp, proto and less are L4 on the lexer alone today).
 

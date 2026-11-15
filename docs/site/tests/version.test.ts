@@ -15,7 +15,7 @@ describe("footerVersions", () => {
 			...base,
 			git: { exactTag: "1.12.0", lastTag: "1.12.0", sha },
 		});
-		expect(v.map(label)).toEqual(["r@v1.12.0", "docs@v0.1.0"]);
+		expect(v.map(label)).toEqual(["r@1.12.0", "docs@0.1.0"]);
 		expect(v.map((x) => x.href)).toEqual([
 			"https://github.com/o/r/tree/1.12.0",
 			"https://github.com/o/r/tree/1.12.0/docs/site",
@@ -27,7 +27,7 @@ describe("footerVersions", () => {
 			...base,
 			git: { exactTag: "", lastTag: "1.12.0", sha },
 		});
-		expect(v.map(label)).toEqual(["r@v1.12.0+abc1234", "docs@v0.1.0+abc1234"]);
+		expect(v.map(label)).toEqual(["r@1.12.0+abc1234", "docs@0.1.0+abc1234"]);
 		expect(v.map((x) => x.href)).toEqual([
 			`https://github.com/o/r/tree/${sha}`,
 			`https://github.com/o/r/tree/${sha}/docs/site`,
@@ -41,13 +41,13 @@ describe("footerVersions", () => {
 		});
 		expect(untagged.map(label)).toEqual([
 			"r@dev+abc1234",
-			"docs@v0.1.0+abc1234",
+			"docs@0.1.0+abc1234",
 		]);
 		const nogit = footerVersions({
 			...base,
 			git: { exactTag: "", lastTag: "", sha: "" },
 		});
-		expect(nogit.map(label)).toEqual(["r@dev", "docs@v0.1.0"]);
+		expect(nogit.map(label)).toEqual(["r@dev", "docs@0.1.0"]);
 		expect(nogit.every((x) => x.href === null)).toBe(true);
 	});
 });

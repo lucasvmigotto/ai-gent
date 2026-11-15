@@ -1,0 +1,440 @@
+//! The watcher: a small background process (`ai-gent delegate _watch <dir>`) that starts the agent from
+//! `launch.json`, copies its events to `events.jsonl`, keeps `status.json` current, and writes the exit
+//! record, the final status and the delegation log line when the agent ends. It is what lets `run`
+//! return at once while the adapter's clock, event count and usage stay correct.
+use super::adapter::{BRIEF_FILE, ExitRecord, Launch};
+use super::state::files;
+use super::status::{self, LogLine, State, Status, Usage};
+use super::{Error, Res, io, now_secs};
+use std::collections::BTreeMap;
+use std::io::{BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
+/// What one agent event adds up to.
+#[derive(Debug, Default, Clone)]
+pub struct Tally {
+    /// Events seen.
+    pub events: u64,
+    /// Usage from `turn.completed` events.
+    pub usage: Option<Usage>,
+    /// The Claude final object (`type:"result"`), when seen.
+    pub result: Option<ClaudeResult>,
+}
+
+/// What the Claude final JSON object says.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClaudeResult {
+    /// `result`: the final message.
+    pub text: String,
+    /// `is_error`.
+    pub is_error: bool,
+    /// `subtype` (`error_max_turns`, ...), when present.
+    pub subtype: Option<String>,
+}
+
+impl ClaudeResult {
+    /// Why an `is_error` run failed: the subtype without `error_` (`max-turns`), else `error`.
+    #[must_use]
+    pub fn reason(&self) -> String {
+        self.subtype
+            .as_deref()
+            .map(|t| t.trim_start_matches("error_").replace('_', "-"))
+            .filter(|t| !t.is_empty() && t != "success")
+            .unwrap_or_else(|| "error".to_string())
+    }
+}
+
+impl Tally {
+    /// Count one stdout line; only JSON objects are events.
+    pub fn line(&mut self, line: &str) -> bool {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            return false;
+        };
+        if !v.is_object() {
+            return false;
+        }
+        self.events += 1;
+        if v["type"] == "turn.completed" {
+            let u = &v["usage"];
+            let n = |k: &str| u[k].as_u64().unwrap_or(0);
+            let mut total = self.usage.unwrap_or_default();
+            total.add(&Usage {
+                input_tokens: n("input_tokens"),
+                cached_input_tokens: n("cached_input_tokens"),
+                output_tokens: n("output_tokens"),
+                reasoning_output_tokens: n("reasoning_output_tokens"),
+            });
+            self.usage = Some(total);
+        } else if v["type"] == "result" {
+            let u = &v["usage"];
+            let n = |k: &str| u[k].as_u64().unwrap_or(0);
+            let cached = n("cache_read_input_tokens");
+            self.usage = Some(Usage {
+                input_tokens: n("input_tokens") + cached,
+                cached_input_tokens: cached,
+                output_tokens: n("output_tokens"),
+                reasoning_output_tokens: 0,
+            });
+            self.result = Some(ClaudeResult {
+                text: v["result"].as_str().unwrap_or_default().to_string(),
+                is_error: v["is_error"] == true,
+                subtype: v["subtype"].as_str().map(str::to_string),
+            });
+        }
+        true
+    }
+}
+
+fn update(root: &Path, track: &str, f: impl FnOnce(&mut Status)) {
+    if let Ok(mut s) = status::read(root, track) {
+        f(&mut s);
+        s.updated = now_secs().max(s.started);
+        let _ = status::write(root, &s);
+    }
+}
+
+fn run_agent(
+    dir: &Path,
+    root: &Path,
+    track: &str,
+    launch: &Launch,
+    args: &[String],
+    tally: &mut Tally,
+) -> i32 {
+    let mut cmd = Command::new(&launch.program);
+    cmd.args(args).current_dir(&launch.cwd);
+    // `current_dir` does not touch `PWD`: a shell's `cd` does, and a tool that trusts `PWD` would
+    // otherwise see the supervisor's directory (the main checkout).
+    for k in &launch.env_remove {
+        cmd.env_remove(k);
+    }
+    cmd.env("PWD", &launch.cwd);
+    for (k, v) in &launch.env {
+        cmd.env(k, v);
+    }
+    let stderr =
+        std::fs::File::create(dir.join(files::STDERR)).map_or_else(|_| Stdio::null(), Stdio::from);
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(stderr);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    match crate::exec::spawn_retry(&mut cmd) {
+        Err(e) => {
+            let _ = std::fs::write(
+                dir.join(files::STDERR),
+                format!("could not start the agent: {e}\n"),
+            );
+            -1
+        }
+        Ok(mut child) => {
+            let _ = std::fs::write(dir.join(files::PID), child.id().to_string());
+            let out = child.stdout.take();
+            let mut events = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(dir.join(files::EVENTS))
+                .ok();
+            if let Some(out) = out {
+                for line in BufReader::new(out).lines().map_while(Result::ok) {
+                    if let Some(f) = events.as_mut() {
+                        let _ = writeln!(f, "{line}");
+                        let _ = f.flush();
+                    }
+                    if tally.line(&line) {
+                        let (n, u) = (tally.events, tally.usage);
+                        update(root, track, |s| {
+                            s.events = n;
+                            s.tokens = u;
+                        });
+                    }
+                }
+            }
+            child.wait().ok().and_then(|s| s.code()).unwrap_or(-1)
+        }
+    }
+}
+
+/// The reason recorded when the agent changed files outside its worktree.
+#[must_use]
+pub fn escape_reason(paths: &[String]) -> String {
+    let shown: Vec<&str> = paths.iter().take(10).map(String::as_str).collect();
+    let more = paths.len().saturating_sub(shown.len());
+    format!(
+        "wrote-outside-worktree: the agent changed the main checkout instead of its worktree: {}{}",
+        shown.join(", "),
+        if more > 0 {
+            format!(" (and {more} more)")
+        } else {
+            String::new()
+        }
+    )
+}
+
+/// The directories the guard leaves out: the worktree, when it sits inside the guarded checkout.
+fn guard_skip(launch: &Launch) -> Vec<PathBuf> {
+    vec![PathBuf::from(&launch.cwd)]
+}
+
+/// The guard's state before the run.
+enum Guard {
+    /// No guard (the launch names no checkout, or it is the working directory itself).
+    Off,
+    /// The snapshot before the run failed: the run goes on, unguarded, and says so.
+    Unavailable(String),
+    /// The checkout's state before the run.
+    Ready(BTreeMap<String, String>),
+}
+
+/// The guarded checkout's state before the run, when the launch asks for the guard. A failed snapshot
+/// is noted in `guard-unavailable.txt` (not a failure of the track).
+fn guard_before(dir: &Path, launch: &Launch) -> Guard {
+    let _ = std::fs::remove_file(dir.join(files::ESCAPED));
+    let _ = std::fs::remove_file(dir.join(files::GUARD_UNAVAILABLE));
+    let Some(main) = launch.guard_root.as_deref().map(Path::new) else {
+        return Guard::Off;
+    };
+    if same_dir(main, Path::new(&launch.cwd)) {
+        return Guard::Off;
+    }
+    match super::gitx::snapshot(main, &guard_skip(launch)) {
+        Ok(m) => Guard::Ready(m),
+        Err(e) => {
+            let note = format!(
+                "guard-unavailable: could not read the main checkout's status before the run ({e}); a write outside the worktree would not be reported"
+            );
+            let _ = std::fs::write(dir.join(files::GUARD_UNAVAILABLE), &note);
+            Guard::Unavailable(note)
+        }
+    }
+}
+
+/// The failure reason when the main checkout changed during the run (the paths are also written to
+/// `escaped.txt`), or when it could not be read afterwards (fail closed).
+fn guard_after(dir: &Path, launch: &Launch, guard: &Guard) -> Option<String> {
+    let (Guard::Ready(before), Some(main)) = (guard, launch.guard_root.as_deref()) else {
+        return None;
+    };
+    let Ok(after) = super::gitx::snapshot(Path::new(main), &guard_skip(launch)) else {
+        return Some(
+            "wrote-outside-worktree-unknown: could not read the main checkout's status after the run"
+                .into(),
+        );
+    };
+    let changed = super::gitx::changed_since(before, &after);
+    if changed.is_empty() {
+        return None;
+    }
+    let _ = std::fs::write(dir.join(files::ESCAPED), changed.join("\n"));
+    Some(escape_reason(&changed))
+}
+
+fn same_dir(a: &Path, b: &Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
+}
+
+/// Run the agent of the track directory `dir` to its end.
+///
+/// # Errors
+/// When `launch.json` or the status file is unreadable. A failure to start the agent is recorded as a
+/// failed track, not returned.
+pub fn watch(dir: &Path) -> Res<()> {
+    let root = dir
+        .ancestors()
+        .nth(3)
+        .ok_or_else(|| Error::Invalid("not a track directory".into()))?
+        .to_path_buf();
+    let track = dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| Error::Invalid("not a track directory".into()))?
+        .to_string();
+    let launch: Launch = serde_json::from_str(&io(
+        "read launch.json",
+        std::fs::read_to_string(dir.join(files::LAUNCH)),
+    )?)
+    .map_err(|e| Error::Invalid(format!("launch.json: {e}")))?;
+    let brief = std::fs::read_to_string(dir.join(BRIEF_FILE)).unwrap_or_default();
+    let args: Vec<String> = launch
+        .args
+        .iter()
+        .map(|a| {
+            if a == "{brief}" {
+                brief.clone()
+            } else {
+                a.clone()
+            }
+        })
+        .collect();
+
+    let guard = guard_before(dir, &launch);
+    let mut tally = Tally::default();
+    let code = run_agent(dir, &root, &track, &launch, &args, &mut tally);
+    let escaped = guard_after(dir, &launch, &guard);
+    let ended = now_secs();
+    let stopped = dir.join(files::STOPPED).exists();
+    let claude = tally.result.clone();
+    if let Some(r) = &claude
+        && !r.text.trim().is_empty()
+        && !dir.join(files::LAST).exists()
+    {
+        let _ = std::fs::write(dir.join(files::LAST), &r.text);
+    }
+    let errored = claude.as_ref().is_some_and(|r| r.is_error) || escaped.is_some();
+    let reason = escaped
+        .clone()
+        .or_else(|| {
+            claude
+                .as_ref()
+                .filter(|r| r.is_error)
+                .map(ClaudeResult::reason)
+        })
+        .or_else(|| match &guard {
+            Guard::Unavailable(note) => Some(note.clone()),
+            _ => None,
+        });
+    let _ = std::fs::remove_file(dir.join(files::PID));
+    update(&root, &track, |s| {
+        s.state = if stopped {
+            State::TakenBack
+        } else if code == 0 && !errored {
+            State::Done
+        } else {
+            State::Failed
+        };
+        s.events = tally.events;
+        s.tokens = tally.usage;
+    });
+    if let Ok(s) = status::read(&root, &track) {
+        let _ = status::append_log(&root, &LogLine::from_status(&s, ended));
+    }
+    let _ = status::atomic_write(
+        &dir.join(files::EXIT),
+        serde_json::to_string(&ExitRecord {
+            code,
+            ended,
+            is_error: errored,
+            reason,
+        })
+        .unwrap_or_default()
+        .as_bytes(),
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn launch_guarding(cwd: &Path, main: &Path) -> Launch {
+        Launch {
+            program: "x".into(),
+            args: vec![],
+            cwd: cwd.to_string_lossy().into_owned(),
+            env: vec![],
+            stall_secs: 1,
+            env_remove: vec![],
+            guard_root: Some(main.to_string_lossy().into_owned()),
+        }
+    }
+
+    fn git_ok(dir: &Path, args: &[&str]) {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+
+    #[test]
+    fn a_snapshot_that_fails_before_the_run_is_noted_and_does_not_fail_the_track() {
+        let (track, work, notgit) = (
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+        );
+        std::fs::write(track.path().join(files::ESCAPED), "stale.txt").unwrap();
+        let l = launch_guarding(work.path(), notgit.path());
+        let g = guard_before(track.path(), &l);
+        assert!(matches!(g, Guard::Unavailable(_)));
+        assert!(!track.path().join(files::ESCAPED).exists(), "stale file");
+        let note = std::fs::read_to_string(track.path().join(files::GUARD_UNAVAILABLE)).unwrap();
+        assert!(note.starts_with("guard-unavailable:"), "{note}");
+        assert_eq!(guard_after(track.path(), &l, &g), None);
+    }
+
+    #[test]
+    fn a_snapshot_that_fails_after_a_guarded_run_fails_closed() {
+        let (track, work, main) = (
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+        );
+        git_ok(main.path(), &["init", "-q"]);
+        let l = launch_guarding(work.path(), main.path());
+        let g = guard_before(track.path(), &l);
+        assert!(matches!(g, Guard::Ready(_)));
+        // The checkout stops being readable during the run.
+        std::fs::remove_dir_all(main.path().join(".git")).unwrap();
+        let reason = guard_after(track.path(), &l, &g).unwrap();
+        assert_eq!(
+            reason,
+            "wrote-outside-worktree-unknown: could not read the main checkout's status after the run"
+        );
+    }
+
+    #[test]
+    fn tally_reads_the_claude_result_object() {
+        let mut t = Tally::default();
+        assert!(t.line(
+            r#"{"type":"result","subtype":"error_max_turns","is_error":true,"result":"stopped","usage":{"input_tokens":200,"cache_read_input_tokens":800,"output_tokens":50}}"#
+        ));
+        assert_eq!(t.events, 1);
+        assert_eq!(
+            t.usage,
+            Some(Usage {
+                input_tokens: 1000,
+                cached_input_tokens: 800,
+                output_tokens: 50,
+                reasoning_output_tokens: 0
+            })
+        );
+        let r = t.result.unwrap();
+        assert!(r.is_error);
+        assert_eq!(r.reason(), "max-turns");
+        assert_eq!(r.text, "stopped");
+    }
+
+    #[test]
+    fn tally_counts_json_events_and_sums_usage() {
+        let mut t = Tally::default();
+        assert!(t.line(r#"{"type":"thread.started"}"#));
+        assert!(!t.line("Reading additional input from stdin..."));
+        assert!(!t.line("42"));
+        assert!(t.line(r#"{"type":"item.started","item":{}}"#));
+        assert!(t.line(r#"{"type":"error","message":"apply_patch verification failed"}"#));
+        assert!(t.line(
+            r#"{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":800,"output_tokens":50,"reasoning_output_tokens":10,"new_field":1}}"#
+        ));
+        assert_eq!(t.events, 4);
+        assert_eq!(
+            t.usage,
+            Some(Usage {
+                input_tokens: 1000,
+                cached_input_tokens: 800,
+                output_tokens: 50,
+                reasoning_output_tokens: 10
+            })
+        );
+    }
+}

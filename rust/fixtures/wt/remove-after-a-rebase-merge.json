@@ -1,0 +1,75 @@
+{
+ "name": "remove-after-a-rebase-merge",
+ "derived_from": "test_remove_after_a_rebase_merge",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/x"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/x\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-x\",\n  \"compose_project\": \"shop-feat-x\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-x\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-x AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-x; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "write": {
+    ".worktrees/feat-x/x.py": "x = 1\n"
+   }
+  },
+  {
+   "git": [
+    "add",
+    "."
+   ],
+   "cwd": ".worktrees/feat-x"
+  },
+  {
+   "git": [
+    "commit",
+    "-q",
+    "-m",
+    "feat: x.py"
+   ],
+   "cwd": ".worktrees/feat-x"
+  },
+  {
+   "git": [
+    "switch",
+    "-q",
+    "dev"
+   ],
+   "cwd": "."
+  },
+  {
+   "git": [
+    "cherry-pick",
+    "feat/x"
+   ],
+   "cwd": "."
+  },
+  {
+   "wt": [
+    "remove",
+    "feat/x"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "removed .worktrees/feat-x and branch feat/x\n",
+    "stderr": ""
+   }
+  },
+  {
+   "gitout": [
+    "branch"
+   ],
+   "expect": {
+    "text": "* dev\n  main"
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

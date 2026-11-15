@@ -1,0 +1,11 @@
+//! Subcommand implementations.
+pub mod autonomy;
+pub mod delegate;
+pub mod doctor;
+pub mod guard;
+pub mod repo;
+pub mod spec;
+pub mod tokens;
+pub mod update;
+pub mod version;
+pub mod wt;

@@ -1,0 +1,1162 @@
+{
+  "schema": 1,
+  "guard": "db",
+  "marker": "db guard:",
+  "cases": [
+    {
+      "id": "db-001",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "psql -h db.internal -U app -c \"DELETE FROM orders WHERE id = 1\"",
+      "want": "deny",
+      "reason": "db guard: a direct psql call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "psql -h db.internal -U app -c \"DELETE FROM orders WHERE id = 1\"",
+        "cmd": "psql -h db.internal -U app -c \"DELETE FROM orders WHERE id = 1\""
+      }
+    },
+    {
+      "id": "db-002",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "mysql -u root shop -e 'update customer set status = 1'",
+      "want": "deny",
+      "reason": "db guard: a direct mysql call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "mysql -u root shop -e 'update customer set status = 1'",
+        "cmd": "mysql -u root shop -e \"update customer set status = 1\""
+      }
+    },
+    {
+      "id": "db-003",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "docker exec -i shop-db-1 psql -U app -c \"DROP TABLE t\"",
+      "want": "deny",
+      "reason": "db guard: a direct psql call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "docker exec -i shop-db-1 psql -U app -c \"DROP TABLE t\"",
+        "cmd": "docker exec -i shop-db-1 psql -U app -c \"DROP TABLE t\""
+      }
+    },
+    {
+      "id": "db-004",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman exec db sqlplus -s system/x@FREEPDB1 <<EOF\nTRUNCATE TABLE audit;\nEOF",
+      "want": "deny",
+      "reason": "db guard: a direct sqlplus call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('<<' '\\n')"
+    },
+    {
+      "id": "db-005",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "sqlcmd -S prod -Q \"ALTER TABLE t ADD c int\"",
+      "want": "deny",
+      "reason": "db guard: a direct sqlcmd call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "sqlcmd -S prod -Q \"ALTER TABLE t ADD c int\"",
+        "cmd": "sqlcmd -S prod -Q \"ALTER TABLE t ADD c int\""
+      }
+    },
+    {
+      "id": "db-006",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "pg_restore -d shop backup.dump",
+      "want": "deny",
+      "reason": "db guard: pg_restore restores into a database; local restores go through dbrun restore, anything else is a script for a person to run",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "pg_restore -d shop backup.dump",
+        "cmd": "pg_restore -d shop backup.dump"
+      }
+    },
+    {
+      "id": "db-007",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "kubectl exec -it pg-0 -- psql -c \"insert into t values (1)\"",
+      "want": "deny",
+      "reason": "db guard: a direct psql call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "kubectl exec -it pg-0 -- psql -c \"insert into t values (1)\"",
+        "cmd": "kubectl exec -it pg-0 -- psql -c \"insert into t values (1)\""
+      }
+    },
+    {
+      "id": "db-008",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "PGPASSWORD=x psql -h 10.0.0.5 -c \"grant all on t to u\"",
+      "want": "deny",
+      "reason": "db guard: a direct psql call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "PGPASSWORD=x psql -h 10.0.0.5 -c \"grant all on t to u\"",
+        "cmd": "PGPASSWORD=x psql -h 10.0.0.5 -c \"grant all on t to u\""
+      }
+    },
+    {
+      "id": "db-009",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "psql -h db.internal -U app -c \"SELECT id FROM orders LIMIT 5\"",
+      "want": "ask",
+      "reason": "db guard: psql bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "psql -h db.internal -U app -c \"SELECT id FROM orders LIMIT 5\"",
+        "cmd": "psql -h db.internal -U app -c \"SELECT id FROM orders LIMIT 5\""
+      }
+    },
+    {
+      "id": "db-010",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "sudo -u postgres psql",
+      "want": "ask",
+      "reason": "db guard: psql bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "sudo -u postgres psql",
+        "cmd": "sudo -u postgres psql"
+      }
+    },
+    {
+      "id": "db-011",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "/usr/lib/postgresql/17/bin/psql -l",
+      "want": "ask",
+      "reason": "db guard: psql bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "/usr/lib/postgresql/17/bin/psql -l",
+        "cmd": "/usr/lib/postgresql/17/bin/psql -l"
+      }
+    },
+    {
+      "id": "db-012",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "docker compose exec db psql -U app -d shop",
+      "want": "ask",
+      "reason": "db guard: psql bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "docker compose exec db psql -U app -d shop",
+        "cmd": "docker compose exec db psql -U app -d shop"
+      }
+    },
+    {
+      "id": "db-013",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "sqlite3 app.db \".tables\"",
+      "want": "ask",
+      "reason": "db guard: sqlite3 bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "sqlite3 app.db \".tables\"",
+        "cmd": "sqlite3 app.db \".tables\""
+      }
+    },
+    {
+      "id": "db-014",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "mongosh \"mongodb://localhost/test\" --eval \"db.stats()\"",
+      "want": "ask",
+      "reason": "db guard: mongosh bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "mongosh \"mongodb://localhost/test\" --eval \"db.stats()\"",
+        "cmd": "mongosh \"mongodb://localhost/test\" --eval \"db.stats()\""
+      }
+    },
+    {
+      "id": "db-015",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "timeout 10s mysql -e \"SELECT 1\"",
+      "want": "ask",
+      "reason": "db guard: mysql bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "timeout 10s mysql -e \"SELECT 1\"",
+        "cmd": "timeout 10s mysql -e \"SELECT 1\""
+      }
+    },
+    {
+      "id": "db-016",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/db/scripts/dbrun.py query DEVDB --sql q.sql --reason \"check\"",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/db/scripts/dbrun.py query DEVDB --sql q.sql --reason \"check\"",
+        "cmd": "python3 /home/me/ai-gent/plugins/db/scripts/dbrun.py query DEVDB --sql q.sql --reason \"check\""
+      }
+    },
+    {
+      "id": "db-017",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "echo \"psql is installed\" && ls",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "echo \"psql is installed\" && ls",
+        "cmd": "echo \"psql is installed\" && ls"
+      }
+    },
+    {
+      "id": "db-018",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "grep -rn \"DELETE FROM\" src/",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "grep -rn \"DELETE FROM\" src/",
+        "cmd": "grep -rn \"DELETE FROM\" src/"
+      }
+    },
+    {
+      "id": "db-019",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "which psql",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "which psql",
+        "cmd": "which psql"
+      }
+    },
+    {
+      "id": "db-020",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "command -v sqlcmd",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "command -v sqlcmd",
+        "cmd": "command -v sqlcmd"
+      }
+    },
+    {
+      "id": "db-021",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "npm run sql:lint",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "npm run sql:lint",
+        "cmd": "npm run sql:lint"
+      }
+    },
+    {
+      "id": "db-022",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "cat queries/report.sql",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "cat queries/report.sql",
+        "cmd": "cat queries/report.sql"
+      }
+    },
+    {
+      "id": "db-023",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "git commit -m \"fix: guard mysql client calls\"",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "git commit -m \"fix: guard mysql client calls\"",
+        "cmd": "git commit -m \"fix: guard mysql client calls\""
+      }
+    },
+    {
+      "id": "db-024",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "ls -la",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "ls -la",
+        "cmd": "ls -la"
+      }
+    },
+    {
+      "id": "db-025",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "cat ~/.config/ai-gent/db/connections.env",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "cat ~/.config/ai-gent/db/connections.env"
+      },
+      "skip_in": [
+        "cmd"
+      ],
+      "skip_reason": "no equivalent in cmd (redirect, home shortcut or quoting)"
+    },
+    {
+      "id": "db-026",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "grep -i password \"$HOME/.config/ai-gent/db/connections.env\"",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
+    },
+    {
+      "id": "db-027",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "ls ${XDG_CONFIG_HOME}/ai-gent/db",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$' '{')"
+    },
+    {
+      "id": "db-028",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "echo $AI_GENT_DB_CONFIG",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
+    },
+    {
+      "id": "db-029",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /x/plugins/db/scripts/dbrun.py profiles && cat connections.env",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /x/plugins/db/scripts/dbrun.py profiles && cat connections.env",
+        "cmd": "python3 /x/plugins/db/scripts/dbrun.py profiles && cat connections.env"
+      }
+    },
+    {
+      "id": "db-030",
+      "tool": "Read",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "/home/me/.config/ai-gent/db/connections.env"
+      },
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-031",
+      "tool": "Grep",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "pattern": "PASSWORD",
+        "path": "/home/me/.config/ai-gent"
+      },
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-032",
+      "tool": "Glob",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "pattern": "**/connections.env"
+      },
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-033",
+      "tool": "Edit",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "/home/me/.config/ai-gent/db/connections.env",
+        "old_string": "a",
+        "new_string": "b"
+      },
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-034",
+      "tool": "Read",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "/home/me/project/.env.example"
+      },
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-035",
+      "tool": "Grep",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "pattern": "DATABASE_URL",
+        "path": "src/"
+      },
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-036",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /x/plugins/db/scripts/dbrun.py profiles; psql -c \"DELETE FROM orders\"",
+      "want": "deny",
+      "reason": "db guard: a direct psql call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /x/plugins/db/scripts/dbrun.py profiles; psql -c \"DELETE FROM orders\"",
+        "cmd": "python3 /x/plugins/db/scripts/dbrun.py profiles & psql -c \"DELETE FROM orders\""
+      }
+    },
+    {
+      "id": "db-037",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /x/plugins/db/scripts/dbrun.py profiles && psql -l",
+      "want": "ask",
+      "reason": "db guard: psql bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /x/plugins/db/scripts/dbrun.py profiles && psql -l",
+        "cmd": "python3 /x/plugins/db/scripts/dbrun.py profiles && psql -l"
+      }
+    },
+    {
+      "id": "db-038",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "cat ~/.config/ai-gent/db/connections.toml",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "cat ~/.config/ai-gent/db/connections.toml"
+      },
+      "skip_in": [
+        "cmd"
+      ],
+      "skip_reason": "no equivalent in cmd (redirect, home shortcut or quoting)"
+    },
+    {
+      "id": "db-039",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "cp connections.toml /tmp/x",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "cp connections.toml /tmp/x",
+        "cmd": "cp connections.toml /tmp/x"
+      }
+    },
+    {
+      "id": "db-040",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "echo $AI_GENT_DB_CONNECTIONS",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
+    },
+    {
+      "id": "db-041",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "cat connections.env.example",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "cat connections.env.example",
+        "cmd": "cat connections.env.example"
+      }
+    },
+    {
+      "id": "db-042",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "git commit -m \"docs: explain the connections.env format\"",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "git commit -m \"docs: explain the connections.env format\"",
+        "cmd": "git commit -m \"docs: explain the connections.env format\""
+      }
+    },
+    {
+      "id": "db-043",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "echo 'profiles live in connections.env' > notes.md",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "echo 'profiles live in connections.env' > notes.md",
+        "cmd": "echo \"profiles live in connections.env\" > notes.md"
+      }
+    },
+    {
+      "id": "db-044",
+      "tool": "Write",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "docs/product/brief.md",
+        "content": "Profiles live in ~/.config/ai-gent/db/connections.env"
+      },
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-045",
+      "tool": "Edit",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "src/app.py",
+        "old_string": "a",
+        "new_string": "AI_GENT_DB_CONFIG"
+      },
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-046",
+      "tool": "Read",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "/home/me/.config/ai-gent/db/connections.toml"
+      },
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-047",
+      "tool": "Read",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "/home/me/project/connections.env.example"
+      },
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-048",
+      "tool": "Grep",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "pattern": "connections.env",
+        "path": "docs/"
+      },
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-049",
+      "tool": "Glob",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "pattern": "**/connections.toml"
+      },
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:toolVectors"
+      ],
+      "tags": [
+        "parity"
+      ]
+    },
+    {
+      "id": "db-050",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "grep -E \"^FAIL|passed\" out.log; git commit -m \"fix: a tool's AI_GENT_DB_CONNECTIONS note, and a Glob's path\"",
+      "want": "none",
+      "source": [
+        "scripts/test-db-guard.sh",
+        "opencode/guard/test/rules.test.mjs:dbVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "grep -E \"^FAIL|passed\" out.log; git commit -m \"fix: a tool's AI_GENT_DB_CONNECTIONS note, and a Glob's path\"",
+        "cmd": "grep -E \"^FAIL|passed\" out.log & git commit -m \"fix: a tool's AI_GENT_DB_CONNECTIONS note, and a Glob's path\""
+      }
+    },
+    {
+      "id": "db-051",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "psql.exe -h db.internal -c \"DELETE FROM orders\"",
+      "want": "deny",
+      "reason": "db guard: a direct psql call with SQL that writes; use dbrun (plan/apply on a proven local database, script for anything else)",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-052",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "C:\\pg\\bin\\psql.exe -l",
+      "want": "ask",
+      "reason": "db guard: psql bypasses dbrun (no classification, masking or command log); allow only if the user wants this direct call",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-053",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "type %USERPROFILE%\\.config\\ai-gent\\db\\connections.env",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-054",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "Get-Content $env:XDG_CONFIG_HOME\\ai-gent\\db\\profiles.txt",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-055",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "dir %APPDATA%\\ai-gent\\db",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-056",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "Get-Content $env:LOCALAPPDATA\\ai-gent\\db\\connections.toml",
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-057",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "Write-Output \"psql is installed\"",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-058",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "echo \"the connections.env format\" > notes.md",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-059",
+      "tool": "Read",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "C:\\Users\\me\\.config\\ai-gent\\db\\connections.env"
+      },
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-060",
+      "tool": "Read",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "C:\\Users\\me\\AppData\\Local\\ai-gent\\db\\profiles.txt"
+      },
+      "want": "deny",
+      "reason": "db guard: that's a db credentials file; only dbrun reads it — use dbrun profiles / classify / test",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "db-061",
+      "tool": "Read",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "tool_input": {
+        "file_path": "C:\\Users\\me\\project\\readme.md"
+      },
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    }
+  ]
+}

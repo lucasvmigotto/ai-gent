@@ -1,0 +1,67 @@
+{
+ "name": "list-keys",
+ "derived_from": "test_list_json_keeps_the_keys_the_worktree_board_reads",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/a\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-a\",\n  \"compose_project\": \"shop-feat-a\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-a\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-a AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-a; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "write": {
+    ".worktrees/feat-a/a.py": "a = 1\n"
+   }
+  },
+  {
+   "wt": [
+    "list",
+    "--json"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "[\n  {\n    \"branch\": \"feat/a\",\n    \"path\": \".worktrees/feat-a\",\n    \"dirty\": true,\n    \"ahead\": 0,\n    \"behind\": 0\n  }\n]\n",
+    "stderr": ""
+   }
+  },
+  {
+   "git": [
+    "branch",
+    "-D",
+    "dev"
+   ],
+   "cwd": "."
+  },
+  {
+   "wt": [
+    "list",
+    "--json"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "[\n  {\n    \"branch\": \"feat/a\",\n    \"path\": \".worktrees/feat-a\",\n    \"dirty\": true,\n    \"ahead\": null,\n    \"behind\": null\n  }\n]\n",
+    "stderr": ""
+   }
+  },
+  {
+   "wt": [
+    "list"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "feat/a                               .worktrees/feat-a                            +None/-None vs ?  uncommitted changes\n",
+    "stderr": ""
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

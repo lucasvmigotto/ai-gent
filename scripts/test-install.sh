@@ -5,6 +5,11 @@
 # entries for agents without plugin namespaces, uninstall, and that
 # directories the scripts didn't create are left alone. Called by
 # scripts/check.sh.
+#
+# Tier switches (spec 039, shared/tiers.json): by default everything runs. TIER3_SKIP=1 leaves
+# out the tier-3 block (every tier-3 agent installed alone, and the opencode config), which the
+# non-required `tier3` CI job runs by itself with TIER3_ONLY=1. The multi-agent cases of the
+# main body (Claude, Codex and the shared-directory logic) stay in the required run.
 
 set -euo pipefail
 
@@ -22,7 +27,6 @@ export WINDSURF_SKILLS_DIR="$HOME/.codeium/windsurf/skills"
 export XDG_STATE_HOME="$HOME/.local/state"
 targets_state="$XDG_STATE_HOME/ai-gent/targets"
 unset XDG_DATA_HOME AI_GENT_DIR AI_GENT_REPO AI_GENT_BRANCH AI_GENT_MODE AI_GENT_HOME VERSION
-export AI_GENT_MODE=git # the clone mode is the one tested here; scripts/test-package.sh covers the package default
 
 failures=0
 check() { # check <description> <command...>
@@ -80,6 +84,7 @@ echo "own" >"$OPENCODE_COMMANDS_DIR/mine.md"
 mkdir -p "$(dirname "$OPENCODE_SKILLS_DIR")"
 ln -s "$CLAUDE_SKILLS_DIR" "$OPENCODE_SKILLS_DIR"
 
+if [ -z "${TIER3_ONLY:-}" ]; then
 echo "      -- dry run"
 before="$(snapshot)"
 setup --dry-run
@@ -251,6 +256,23 @@ check "every agent: no entries left" test "$(gen_count "$AGENTS_SKILLS_DIR")" -e
 check "uninstall forgets the choice" test ! -e "$targets_state"
 check "user's own files kept" test -f "$CLAUDE_SKILLS_DIR/mine/SKILL.md" -a -d "$CLAUDE_SKILLS_DIR/synced/one" -a -f "$OPENCODE_COMMANDS_DIR/mine.md"
 
+fi # not TIER3_ONLY
+
+if [ -z "${TIER3_SKIP:-}" ]; then
+# tier 3: each agent installed alone in its own HOME, then removed
+echo "      -- tier 3 agents, one at a time"
+for t3 in opencode cursor antigravity copilot amp kiro windsurf; do
+  t3h="$SANDBOX/t3-$t3"
+  mkdir -p "$t3h/.config/opencode" # opencode is skipped without its binary or config directory
+  t3run() { env -i PATH="$PATH" HOME="$t3h" XDG_STATE_HOME="$t3h/.local/state" "$REPO_DIR/setup.sh" --target "$t3" --skip-prompt --no-config-edits "$@" >"$SANDBOX/out" 2>&1; }
+  t3run
+  check "$t3: installs generated entries and remembers the choice" bash -c 'test "$(find "$1" -name .ai-gent-generated | wc -l)" -gt 0 -a "$(cat "$1/.local/state/ai-gent/targets")" = "$2"' _ "$t3h" "$t3"
+  t3run
+  check "$t3: a re-run changes nothing" bash -c '! grep -Eq "^\[(link|relink|generate|backup)\] " "$1"' _ "$SANDBOX/out"
+  t3run --uninstall
+  check "$t3: uninstall removes the entries" test "$(find "$t3h" -name .ai-gent-generated | wc -l)" -eq 0
+done
+
 # opencode config: the V2 permission rules, the guard plugin and the skill
 # denies are merged into opencode.json, and undone on --uninstall.
 oc_run() { # oc_run <home> <setup.sh args...>
@@ -315,37 +337,99 @@ check "no config: created with the plugin" test "$(json_get "$cfg" 'd["plugins"]
 oc_run "$h" --uninstall
 check "uninstall: a created, untouched config is removed" test ! -e "$cfg"
 
-echo "      -- install.sh (git dev mode: clone, then update)"
-AI_GENT_REPO="$REPO_DIR" sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1 || cat "$SANDBOX/out"
-clone="$HOME/.local/share/ai-gent"
-check "clones into the default directory" test -f "$clone/setup.sh"
-check "says it is a dev mode going away in v3" grep -q "DEV mode and goes away in v3" "$SANDBOX/out"
-cloned=$(count "$clone/skills" "$clone/plugins" -mindepth 1 -maxdepth 1 -type d)
-check "links point into the clone" test "$(links_into "$CLAUDE_SKILLS_DIR" "$clone")" -eq "$cloned"
-AI_GENT_REPO="$REPO_DIR" sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
-check "re-run updates in place" grep -q "updating $clone" "$SANDBOX/out"
-echo "local change" >>"$clone/README.md"
-AI_GENT_REPO="$REPO_DIR" sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
-check "local changes are left alone" grep -q "local changes" "$SANDBOX/out"
-mkdir -p "$SANDBOX/not-a-clone"
-check "refuses a non-clone directory" bash -c '! AI_GENT_DIR="$1" AI_GENT_REPO="$2" sh "$2/install.sh" >/dev/null 2>&1' _ "$SANDBOX/not-a-clone" "$REPO_DIR"
+fi # not TIER3_SKIP
 
-echo "      -- install.sh (pin a tag, then move the pin)"
-src="$SANDBOX/src"
-pinned="$SANDBOX/pinned"
-g() { git -C "$src" -c user.name=test -c user.email=test@example.test "$@"; }
-git clone -q "$REPO_DIR" "$src"
-# Annotated tags on their own commits, like real releases (describe prefers
-# annotated tags, so sharing a commit with the repo's own tags would be ambiguous).
-g commit -q --allow-empty -m "chore: release 9.9.0"
-g tag -a 9.9.0 -m 9.9.0
-g commit -q --allow-empty -m "chore: release 9.9.1"
-g tag -a 9.9.1 -m 9.9.1
-AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" AI_GENT_BRANCH=9.9.0 sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
-check "clones at the tag" test "$(git -C "$pinned" rev-parse HEAD)" == "$(g rev-parse '9.9.0^{commit}')"
-AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
-check "stays pinned without AI_GENT_BRANCH" grep -q "pinned to 9.9.0" "$SANDBOX/out"
-AI_GENT_DIR="$pinned" AI_GENT_REPO="$src" AI_GENT_BRANCH=9.9.1 sh "$REPO_DIR/install.sh" --target claude >"$SANDBOX/out" 2>&1
-check "moves the pin to a newer tag" test "$(git -C "$pinned" rev-parse HEAD)" == "$(g rev-parse '9.9.1^{commit}')"
+if [ -z "${TIER3_ONLY:-}" ]; then
+echo "      -- install.sh (git mode was removed in 3.0.0)"
+for var in AI_GENT_MODE AI_GENT_BRANCH AI_GENT_REPO AI_GENT_DIR; do
+  check "$var set: stops with the removal message" bash -c 'env "$1=git" sh "$2/install.sh" --target claude >"$3" 2>&1; rc=$?; test $rc -ne 0 && grep -q "git mode was removed in 3.0.0" "$3" && grep -q "setup.sh --migrate" "$3" && grep -q "scripts/dev-bin.sh" "$3"' _ "$var" "$REPO_DIR" "$SANDBOX/out"
+done
+check "...and writes nothing (no clone, no install root)" test ! -e "$HOME/.local/share/ai-gent"
+check "an empty value is not git mode" bash -c 'AI_GENT_MODE="" AI_GENT_HOME="$1/none" AI_GENT_RELEASE_BASE="file://$1/no-release" VERSION=9.9.9 sh "$2/install.sh" >"$3" 2>&1; ! grep -q "git mode was removed" "$3"' _ "$SANDBOX" "$REPO_DIR" "$SANDBOX/out"
+check "no git-mode code is left in install.sh" bash -c '! grep -Eq "^(git_mode|update_to)\(\)|git clone --quiet" "$1/install.sh"' _ "$REPO_DIR"
+
+echo "      -- setup.sh links the binary (a tree with bin/ai-gent, like a release package)"
+bt="$SANDBOX/bintree/current"
+mkdir -p "$bt/bin" "$bt/plugins" "$bt/skills"
+cp "$REPO_DIR/setup.sh" "$bt/setup.sh"
+printf '#!/bin/sh\necho stub\n' >"$bt/bin/ai-gent"
+chmod 755 "$bt/bin/ai-gent"
+bindir="$SANDBOX/binhome/bin"
+export AI_GENT_BIN_DIR="$bindir"
+bt_setup() { "$bt/setup.sh" --target claude --skip-prompt "$@" >"$SANDBOX/out" 2>&1; }
+bt_setup --dry-run
+check "--dry-run says it would link, and links nothing" bash -c 'grep -q "ai-gent" "$1" && test ! -e "$2/ai-gent" && test ! -d "$2"' _ "$SANDBOX/out" "$bindir"
+PATH="$bindir:$PATH" bt_setup
+check "links bin/ai-gent into AI_GENT_BIN_DIR" test "$(readlink "$bindir/ai-gent")" == "$bt/bin/ai-gent"
+check "...and it runs" test "$("$bindir/ai-gent")" == stub
+check "nothing to add to PATH when the directory is on it" bash -c '! grep -q "not on PATH" "$1"' _ "$SANDBOX/out"
+bt_setup
+check "a re-run is idempotent and prints the PATH line when the directory is not on PATH" bash -c 'test "$(readlink "$1/ai-gent")" == "$2" && grep -q "not on PATH; add: export PATH=" "$3"' _ "$bindir" "$bt/bin/ai-gent" "$SANDBOX/out"
+rm "$bindir/ai-gent"
+echo "mine" >"$bindir/ai-gent"
+bt_setup
+check "a real file in the way is kept" test "$(cat "$bindir/ai-gent")" == mine
+bt_setup --force
+check "--force backs it up and links" bash -c 'test -L "$1/ai-gent" && test "$(cat "$1"/ai-gent.bak-*)" == mine' _ "$bindir"
+bt_setup --uninstall --target claude
+check "--uninstall --target keeps the link (it belongs to the package)" test -L "$bindir/ai-gent"
+"$bt/setup.sh" --skip-prompt --uninstall >"$SANDBOX/out" 2>&1
+check "a full --uninstall removes the link" test ! -e "$bindir/ai-gent" -a ! -L "$bindir/ai-gent"
+ln -s /bin/sh "$bindir/ai-gent"
+"$bt/setup.sh" --skip-prompt --uninstall >"$SANDBOX/out" 2>&1
+check "...but only one that points into an ai-gent tree" test -L "$bindir/ai-gent"
+rm -f "$bindir/ai-gent"
+check "a git clone (no bin/) links nothing" bash -c 'rm -f "$1/ai-gent"; "$2/setup.sh" --target claude --skip-prompt >/dev/null 2>&1; test ! -e "$1/ai-gent"' _ "$bindir" "$REPO_DIR"
+unset AI_GENT_BIN_DIR
+
+echo "      -- a checkout without the binary says to run scripts/dev-bin.sh (B3, B4)"
+co="$SANDBOX/checkout"
+mkdir -p "$co/scripts" "$co/rust" "$co/plugins" "$co/skills" "$co/.git"
+cp "$REPO_DIR/setup.sh" "$co/setup.sh"
+touch "$co/rust/Cargo.toml"
+export AI_GENT_BIN_DIR="$SANDBOX/cobin"
+"$co/setup.sh" --target claude --skip-prompt >"$SANDBOX/out" 2>&1
+check "setup.sh in a checkout names scripts/dev-bin.sh" grep -q "run scripts/dev-bin.sh" "$SANDBOX/out"
+check "...and links nothing" test ! -e "$AI_GENT_BIN_DIR/ai-gent"
+mkdir -p "$co/bin"
+printf '#!/bin/sh\necho dev\n' >"$co/bin/ai-gent"
+chmod 755 "$co/bin/ai-gent"
+"$co/setup.sh" --target claude --skip-prompt >"$SANDBOX/out" 2>&1
+check "with bin/ai-gent in place it links the checkout's binary, no note" bash -c 'test "$(readlink "$1/ai-gent")" == "$2/bin/ai-gent" && ! grep -q dev-bin "$3"' _ "$AI_GENT_BIN_DIR" "$co" "$SANDBOX/out"
+unset AI_GENT_BIN_DIR
+
+echo "      -- scripts/dev-bin.sh"
+db="$SANDBOX/devbin"
+mkdir -p "$db/scripts" "$db/rust" "$db/fakebin"
+cp "$REPO_DIR/scripts/dev-bin.sh" "$db/scripts/dev-bin.sh"
+touch "$db/rust/Cargo.toml"
+cat >"$db/fakebin/cargo" <<'STUB'
+#!/bin/sh
+mkdir -p target/release && printf '#!/bin/sh\necho built\n' >target/release/ai-gent
+STUB
+chmod 755 "$db/fakebin/cargo"
+check "--build copies the cargo output to bin/ai-gent (mode 755)" bash -c 'PATH="$1/fakebin:$PATH" sh "$1/scripts/dev-bin.sh" --build >"$2" 2>&1 && test "$("$1/bin/ai-gent")" == built && test -x "$1/bin/ai-gent"' _ "$db" "$SANDBOX/out"
+rm -rf "${db:?}/bin"
+check "--build without cargo fails and says so" bash -c '! PATH=/usr/bin:/bin sh "$1/scripts/dev-bin.sh" --build >"$2" 2>&1 && grep -q "cargo is not installed" "$2" && test ! -e "$1/bin"' _ "$db" "$SANDBOX/out"
+# download: a release directory with one archive per triple, served over file://
+rel="$SANDBOX/devrel/9.9.0"
+mkdir -p "$rel" "$SANDBOX/devpkg/ai-gent-9.9.0-x86_64-unknown-linux-musl/bin"
+printf '#!/bin/sh\necho downloaded\n' >"$SANDBOX/devpkg/ai-gent-9.9.0-x86_64-unknown-linux-musl/bin/ai-gent"
+tar -czf "$rel/ai-gent-9.9.0-x86_64-unknown-linux-musl.tar.gz" -C "$SANDBOX/devpkg" ai-gent-9.9.0-x86_64-unknown-linux-musl
+(cd "$rel" && { sha256sum ./*.tar.gz 2>/dev/null || shasum -a 256 ./*.tar.gz; } | sed 's| \./| |' >SHA256SUMS)
+dl() { # run --download against the file:// release; output in $SANDBOX/out
+  VERSION=9.9.0 AI_GENT_TARGET=x86_64-unknown-linux-musl AI_GENT_RELEASE_BASE="file://$SANDBOX/devrel" sh "$db/scripts/dev-bin.sh" --download >"$SANDBOX/out" 2>&1
+}
+dl_ok=0
+dl && dl_ok=1
+check "--download verifies the checksum and installs the binary" test "$dl_ok" -eq 1 -a "$("$db/bin/ai-gent")" == downloaded
+check "...executable, and the output says the checksum was ok" bash -c 'test -x "$1/bin/ai-gent" && grep -q "checksum ok" "$2"' _ "$db" "$SANDBOX/out"
+rm -rf "${db:?}/bin"
+printf '%064d  ai-gent-9.9.0-x86_64-unknown-linux-musl.tar.gz\n' 0 >"$rel/SHA256SUMS"
+dl_bad=1
+dl && dl_bad=0
+check "a checksum mismatch fails and writes nothing" test "$dl_bad" -eq 1 -a ! -e "$db/bin" && grep -q "checksum mismatch" "$SANDBOX/out"
+check "an unsupported tag/version is refused" bash -c '! VERSION=../x sh "$1/scripts/dev-bin.sh" --download >/dev/null 2>&1' _ "$db"
+fi # not TIER3_ONLY
 
 exit $((failures > 0))

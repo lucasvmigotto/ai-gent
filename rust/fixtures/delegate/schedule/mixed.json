@@ -1,0 +1,10 @@
+[
+  {"id": "A1", "kind": "docs", "paths": ["docs/guide/"]},
+  {"id": "A2", "kind": "fixtures", "paths": ["docs/guide/examples/a.json"]},
+  {"id": "B1", "kind": "research", "paths": ["specs/050-x/research.md"]},
+  {"id": "C1", "kind": "script", "paths": ["scripts/publish.py"], "needs": {"credentials": true}},
+  {"id": "D1", "kind": "script", "paths": ["scripts/seed.py"], "needs": {"containers": true}},
+  {"id": "E1", "kind": "docs", "paths": ["docs/pricing.md"], "needs": {"owner_decision": true}},
+  {"id": "F1", "kind": "mechanical", "paths": ["plugins/git/hooks/guard.sh"]},
+  {"id": "G1", "kind": "rust", "paths": ["rust/crates/ai-gent-core/src/x.rs"]}
+]

@@ -1,0 +1,236 @@
+{
+ "name": "resources-orphans",
+ "derived_from": "test_resources_reports_orphans_and_never_removes",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/a\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-a\",\n  \"compose_project\": \"shop-feat-a\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-a\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-a AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-a; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "engine_state": {
+    "images": [
+     {
+      "id": "i1",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop"
+      },
+      "dangling": true
+     },
+     {
+      "id": "i2",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop"
+      }
+     },
+     {
+      "id": "i3",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "other"
+      },
+      "dangling": true
+     }
+    ],
+    "volumes": [
+     {
+      "name": "v-a",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop",
+       "me.lucasvmigotto.ai-gent.worktree": "shop/feat-a"
+      }
+     },
+     {
+      "name": "v-gone",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop",
+       "me.lucasvmigotto.ai-gent.worktree": "shop/feat-gone"
+      }
+     },
+     {
+      "name": "shop-old_db",
+      "labels": {
+       "com.docker.compose.project": "shop-old"
+      }
+     },
+     {
+      "name": "x_db",
+      "labels": {
+       "com.docker.compose.project": "x"
+      }
+     }
+    ],
+    "containers": [
+     {
+      "id": "c1",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop"
+      }
+     },
+     {
+      "id": "bx",
+      "name": "w",
+      "status": "Storage",
+      "external": true
+     }
+    ]
+   }
+  },
+  {
+   "wt": [
+    "resources",
+    "--json"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"project\": \"shop\",\n  \"disk\": {\n    \"path\": \"<ROOT>\",\n    \"free_gb\": 200.0,\n    \"floor_gb\": 50.0,\n    \"below_floor\": false\n  },\n  \"images\": [\n    \"i1\",\n    \"i2\"\n  ],\n  \"dangling_images\": [\n    \"i1\"\n  ],\n  \"volumes\": [\n    {\n      \"name\": \"v-a\",\n      \"track\": \"feat-a\",\n      \"orphan\": false\n    },\n    {\n      \"name\": \"v-gone\",\n      \"track\": \"feat-gone\",\n      \"orphan\": true\n    },\n    {\n      \"name\": \"shop-old_db\",\n      \"track\": \"old\",\n      \"orphan\": true\n    }\n  ],\n  \"containers\": [\n    \"c1\"\n  ],\n  \"external_new\": [\n    {\n      \"id\": \"bx\",\n      \"name\": \"w\"\n    }\n  ],\n  \"baseline\": false\n}\n",
+    "stderr": ""
+   }
+  },
+  {
+   "wt": [
+    "resources"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "disk: 200.0 GB free on <ROOT> (floor 50.0 GB)\nimages labelled shop: 2, dangling: 1\nvolume v-a                                              track feat-a\nvolume v-gone                                           track feat-gone  (worktree gone)\nvolume shop-old_db                                      track old  (worktree gone)\ncontainers labelled shop: 1\nexternal bx w  (no baseline: not attributable)\nreport only; `wt.py finish` removes the dangling images and new buildah containers, `wt.py remove` a landed track's volumes; ask before anything else\n",
+    "stderr": ""
+   }
+  },
+  {
+   "assert_scoped": true,
+   "expect": {
+    "problems": []
+   }
+  },
+  {
+   "state": true,
+   "expect": {
+    "containers": [
+     "c1",
+     "bx"
+    ],
+    "volumes": [
+     "v-a",
+     "v-gone",
+     "shop-old_db",
+     "x_db"
+    ],
+    "images": [
+     "i1",
+     "i2",
+     "i3"
+    ],
+    "calls": [
+     [
+      "images",
+      "-q",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "volume",
+      "ls",
+      "-q",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "volume",
+      "ls",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project"
+     ],
+     [
+      "volume",
+      "inspect",
+      "v-a",
+      "v-gone",
+      "shop-old_db",
+      "x_db"
+     ],
+     [
+      "ps",
+      "-aq",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "images",
+      "-q",
+      "--filter",
+      "dangling=true",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "volume",
+      "ls",
+      "-q",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "volume",
+      "ls",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project"
+     ],
+     [
+      "volume",
+      "inspect",
+      "v-a",
+      "v-gone",
+      "shop-old_db",
+      "x_db"
+     ],
+     [
+      "ps",
+      "-aq",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.project=shop"
+     ],
+     [
+      "ps",
+      "-a",
+      "--external",
+      "--format",
+      "{{.ID}}\t{{.Names}}\t{{.Status}}"
+     ]
+    ]
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

@@ -26,7 +26,7 @@ Audience: someone who already has ai-gent installed. Find your row.
 | `python3 plugins/compact/scripts/compact.py ...` | `ai-gent compact ...` |
 | `scripts/update-check.sh`, `scripts/ai-gent-update.sh` | `ai-gent update --check`, `ai-gent update` |
 | `plugins/*/hooks/guard.sh` (read or patched) | `ai-gent guard --guard <id>` |
-| `python3 plugins/db/scripts/dbrun.py ...` | unchanged in 3.0.0; still needs `uv` and Python; its port is the last 3.x step (D26) |
+| `python3 plugins/db/scripts/dbrun.py ...` | unchanged in 3.0.0; still needs `uv` and Python; its port is the last 3.x step (D26); the later move to `ai-gent db` (command word decided by the owner, spec 043) is announced when it ships |
 
 (The subcommand names are from the decisions file's D9 list; 035-038 own the final flags.)
 

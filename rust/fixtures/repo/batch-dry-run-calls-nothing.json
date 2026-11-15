@@ -1,0 +1,28 @@
+{
+ "name": "batch-dry-run-calls-nothing",
+ "derived_from": "BatchTest::test_dry_run_calls_nothing",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"feature\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues\", \"data\": {\"title\": \"[012] Export\"}}, \"record\": {\"key\": \"feature\", \"ref\": \"#{{self.number}}\", \"id\": \"{{self.id}}\", \"url\": \"{{self.html_url}}\", \"state\": \"todo\"}}, {\"name\": \"US1\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues\", \"data\": {\"title\": \"[012] US1: CSV\"}}, \"record\": {\"key\": \"US1\", \"ref\": \"#{{self.number}}\", \"id\": \"{{self.id}}\", \"state\": \"todo\"}}, {\"name\": \"US1-parent\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues/{{feature.number}}/sub_issues\", \"data\": {\"sub_issue_id\": \"{{US1.id}}\"}}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "feature          write POST /repos/{owner}/{repo}/issues\nUS1              write POST /repos/{owner}/{repo}/issues\nUS1-parent       write POST /repos/{owner}/{repo}/issues/{{feature.number}}/sub_issues\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

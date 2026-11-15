@@ -1,0 +1,21 @@
+{
+ "name": "estimate-tags-stack-overlap",
+ "derived_from": "TagEstimateTest::test_stack_overlap_adds_weight_without_excluding",
+ "files": {
+  "work/h.jsonl": "{\"id\": \"p:0\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c0\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 100, \"date\": \"2026-10-20\", \"agents\": [\"ag0\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\", \"stack\": [\"react\"]}, \"executor_role\": \"builder\"}\n{\"id\": \"p:1\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c1\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 100, \"date\": \"2026-10-21\", \"agents\": [\"ag1\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\", \"stack\": [\"react\"]}, \"executor_role\": \"builder\"}\n{\"id\": \"p:2\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c2\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 100, \"date\": \"2026-10-22\", \"agents\": [\"ag2\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\", \"stack\": [\"react\"]}, \"executor_role\": \"builder\"}\n{\"id\": \"p:9\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c9\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 900, \"date\": \"2026-10-20\", \"agents\": [\"ag9\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\", \"stack\": [\"tokio\", \"clap\"]}, \"executor_role\": \"builder\"}\n{\"id\": \"p:10\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c10\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 900, \"date\": \"2026-10-21\", \"agents\": [\"ag10\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\", \"stack\": [\"tokio\", \"clap\"]}, \"executor_role\": \"builder\"}\n{\"id\": \"p:11\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c11\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 900, \"date\": \"2026-10-22\", \"agents\": [\"ag11\"], \"tags\": {\"kind\": \"extend\", \"layer\": \"backend\", \"surface\": \"protocol\", \"lang\": \"rust\", \"novelty\": \"known-pattern\", \"verification\": \"integration\", \"size\": \"M\", \"stack\": [\"tokio\", \"clap\"]}, \"executor_role\": \"builder\"}\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "estimate",
+    "--tags=extend, backend, protocol, rust, tokio, clap, known-pattern, integration, M",
+    "--json",
+    "--history=h.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\"query\": \"sonnet \\u00b7 effort medium \\u00b7 tags extend, backend, protocol, rust, clap, tokio, known-pattern, integration, M\", \"median\": 900, \"p75\": 900, \"n\": 6, \"basis\": \"tags\", \"tier\": \"kind+surface+novelty+lang+layer+verification+size+stack\", \"level\": 0, \"confidence_label\": \"high\", \"mix\": {\"exact\": 6}, \"context\": [1.0, \"prior\"], \"bias\": {\"factor\": 1.0, \"from\": []}}\n"
+  }
+ ],
+ "expect_files": {}
+}

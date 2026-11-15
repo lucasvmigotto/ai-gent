@@ -1,0 +1,52 @@
+{
+ "name": "batch-query-and-paginate-steps",
+ "derived_from": "reporun.cmd_batch (api options)",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"list\", \"api\": {\"method\": \"GET\", \"path\": \"/repos/o/r/issues\", \"query\": {\"state\": \"open\", \"n\": 2}}}, {\"name\": \"pages\", \"api\": {\"method\": \"GET\", \"path\": \"/page1\", \"paginate\": true}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json",
+    "--out",
+    "<ROOT>/out.json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": true,\n  \"steps\": [\n    {\n      \"name\": \"list\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"pages\",\n      \"ok\": true\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/repos/o/r/issues?state=open&n=2",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    },
+    {
+     "method": "GET",
+     "path": "/page1",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {
+  "out.json": "{\n  \"platform\": \"github\",\n  \"ok\": true,\n  \"steps\": [\n    {\n      \"name\": \"list\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"pages\",\n      \"ok\": true\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n"
+ }
+}

@@ -1,0 +1,70 @@
+[package]
+name = "ai-gent-dbrun"
+version = "0.1.0"
+description = "Database runner core of ai-gent: statement classification, masking and redaction, and a connector trait with a bundled-SQLite connector"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+keywords = ["ai-agent", "claude-code", "sql", "database", "safety"]
+categories = ["database", "development-tools"]
+include = ["/src/**", "/README.md"]
+
+[lib]
+name = "ai_gent_dbrun"
+path = "src/lib.rs"
+
+# Every engine is opt-in. Only `sqlite` has code today; the others reserve their names (spec 038, T019-T022).
+[features]
+default = []
+sqlite = ["dep:rusqlite"]
+postgres = ["tls", "dep:postgres", "dep:tokio-postgres-rustls"]
+# One client for MySQL and MariaDB (spec 043 T040); TLS through core::tls (rustls, ring).
+mysql = ["dep:mysql", "dep:mysql_common", "dep:tempfile", "tls"]
+mssql = []
+oracle = []
+# rustls configuration builder of the TLS profile model (spec 043 T007); off by default so the binary pays for it only with an engine.
+tls = ["dep:rustls", "dep:rustls-native-certs"]
+# The throwaway-CA generator the engine groups' TLS tests use (never in a release build).
+test-ca = ["tls", "dep:rcgen"]
+
+[dependencies]
+# Default features on purpose: the classifier's golden cases need Unicode-aware `\w`, `\b` and `(?i)`,
+# which the workspace's trimmed `regex` entry (ASCII guard patterns) leaves out.
+regex = "1"
+aho-corasick = "1"
+serde.workspace = true
+serde_json.workspace = true
+ai-gent-core = { path = "../ai-gent-core", version = "0.1.0" }
+toml = { version = "1", default-features = false, features = ["parse", "serde"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }
+# PostgreSQL: the sync client over tokio-postgres (pure Rust) with rustls through the shared TLS builder (spec 043 T030, T032).
+postgres = { version = "0.19", optional = true }
+tokio-postgres-rustls = { version = "0.14", default-features = false, features = ["ring"], optional = true }
+mysql = { version = "28", default-features = false, features = ["minimal-rust", "rustls-tls-ring"], optional = true }
+mysql_common = { version = "0.37", default-features = false, optional = true }
+tempfile = { workspace = true, optional = true }
+rusqlite = { version = "0.41", features = ["bundled", "hooks", "backup"], optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile.workspace = true
+# Turns `tls` and `test-ca` on for this crate's own tests, so `cargo test -p ai-gent-dbrun` covers the TLS builder.
+ai-gent-dbrun = { path = ".", features = ["test-ca"] }
+
+# `isolate` is its own test executable without libtest: the child process of the isolation tests is this very
+# binary, and libtest would print its own lines on the stdout the parent reads as the result line.
+[[test]]
+name = "isolate"
+path = "tests/isolate.rs"
+harness = false
+
+[lints]
+workspace = true

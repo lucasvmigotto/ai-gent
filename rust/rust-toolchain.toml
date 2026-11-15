@@ -1,0 +1,14 @@
+# Single source of the Rust toolchain version (CI, the devcontainer and local runs read it).
+# Copied from ../rstory and extended with the six release targets (spec 032 FR-002, FR-006).
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+targets = [
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+]
+profile = "minimal"

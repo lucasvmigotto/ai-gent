@@ -1,0 +1,22 @@
+{
+ "name": "estimate-confidence-weights",
+ "derived_from": "EstimateTest::test_confidence_weights_pull_the_median_to_exact_records",
+ "files": {
+  "work/h.jsonl": "{\"id\": \"p:0\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c0\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 1000, \"date\": \"2026-10-20\", \"agents\": [\"ag0\"]}\n{\"id\": \"p:1\", \"source\": \"measured\", \"confidence\": \"exact\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c1\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 1001, \"date\": \"2026-10-21\", \"agents\": [\"ag1\"]}\n{\"id\": \"p:10\", \"source\": \"measured\", \"confidence\": \"agent\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c10\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 100, \"date\": \"2026-10-21\", \"agents\": [\"ag10\"]}\n{\"id\": \"p:11\", \"source\": \"measured\", \"confidence\": \"agent\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c11\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 101, \"date\": \"2026-10-22\", \"agents\": [\"ag11\"]}\n{\"id\": \"p:12\", \"source\": \"measured\", \"confidence\": \"agent\", \"project\": \"p\", \"feature\": \"001-x\", \"card\": \"c12\", \"tasks\": [\"T001\", \"T002\"], \"layer\": \"backend\", \"effort\": \"medium\", \"executor_model\": \"sonnet\", \"used\": 102, \"date\": \"2026-10-23\", \"agents\": [\"ag12\"]}\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "estimate",
+    "--role=builder",
+    "--layer=backend",
+    "--tasks=2",
+    "--history=h.jsonl"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "estimate for sonnet · effort medium · layer backend · 2 task(s)\n  projection ~1k billable (median), upper bound ~1k (p75)\n  basis: 5 similar record(s) matching layer+effort+model+size (2 exact, 3 agent); exact weighs 1.0, feature-level 0.6, agent-only 0.3\n  on the card: Tokens: projected ~1k | used —\n"
+  }
+ ],
+ "expect_files": {}
+}

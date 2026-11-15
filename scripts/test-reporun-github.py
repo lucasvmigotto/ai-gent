@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """End-to-end test of reporun against GitHub, in a throwaway private repository.
 
-  scripts/test-reporun-github.py [--keep] [--owner NAME]
+  scripts/test-reporun-github.py [--keep] [--owner NAME] [--impl py|bin] [--bin PATH]
+
+With --impl bin the same steps run through `ai-gent repo` (the binary at
+--bin, default rust/target/release/ai-gent) instead of reporun.py.
 
 Creates <owner>/ai-gent-e2e-<timestamp> (private, cloned into a temporary
 directory), then drives it only through reporun, as the repo plugin does:
@@ -28,6 +31,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 RUNNER = REPO / "plugins" / "repo" / "scripts" / "reporun.py"
+BIN: Path | None = None  # set by --impl bin: the ai-gent binary driven as `ai-gent repo`
 
 failures = 0
 
@@ -46,7 +50,8 @@ def sh(*cmd: str, cwd: Path | None = None, check_rc: bool = True) -> str:
 
 
 def reporun(cwd: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(RUNNER), *args], cwd=cwd, capture_output=True, text=True,
+    cmd = [sys.executable, str(RUNNER), *args] if BIN is None else [str(BIN), "repo", *args]
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
                           stdin=subprocess.DEVNULL)
 
 
@@ -64,13 +69,20 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--keep", action="store_true", help="leave the repository")
     ap.add_argument("--owner", help="the account or organisation (default: the signed-in user)")
+    ap.add_argument("--impl", choices=("py", "bin"), default="py", help="drive reporun.py (default) or `ai-gent repo`")
+    ap.add_argument("--bin", help="the ai-gent binary for --impl bin (default: rust/target/release/ai-gent)")
     args = ap.parse_args()
+    global BIN
+    if args.impl == "bin":
+        BIN = Path(args.bin or REPO / "rust" / "target" / "release" / "ai-gent").resolve()
+        if not BIN.is_file():
+            sys.exit(f"error: no binary at {BIN} (pass --bin PATH)")
 
     owner = args.owner or sh("gh", "api", "user", "-q", ".login")
     name = f"ai-gent-e2e-{int(time.time())}"
     slug = f"{owner}/{name}"
     tmp = Path(tempfile.mkdtemp())
-    print(f"reporun end to end · github · {slug}")
+    print(f"{'ai-gent repo' if BIN else 'reporun'} end to end · github · {slug}")
     sh("gh", "repo", "create", slug, "--private", "--add-readme", "--clone", cwd=tmp)
     cwd = tmp / name
     sh("git", "config", "user.name", "ai-gent e2e", cwd=cwd)
@@ -94,7 +106,7 @@ def run_checks(cwd: Path, slug: str) -> None:
     print("  -- detect")
     d = reporun(cwd, "detect", "--json")
     info = json.loads(d.stdout) if d.returncode == 0 else {}
-    check("platform detected as github", info.get("platform") == "github", d.stdout + d.stderr)
+    check("platform detected as github", (info.get("repository") or {}).get("platform") == "github", d.stdout + d.stderr)
 
     print("  -- reads and writes")
     check("a read needs no --write", reporun(cwd, "cli", "github", "--", "issue", "list").returncode == 0)

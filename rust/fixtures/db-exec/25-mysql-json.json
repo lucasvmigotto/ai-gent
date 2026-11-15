@@ -1,0 +1,43 @@
+{
+  "contract_version": 1,
+  "name": "25-mysql-json",
+  "derived_from": "PyMySQL returns a JSON column as its text; MySQL normalises the document (a space after the colon and the comma)",
+  "kind": "exec",
+  "engines": [
+    "mysql"
+  ],
+  "setup": {
+    "mysql": [
+      "CREATE TABLE j (id INT PRIMARY KEY, doc JSON)",
+      "INSERT INTO j VALUES (1, '{\"a\":1,\"b\":[1,2]}')"
+    ]
+  },
+  "steps": [
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SELECT doc FROM j ORDER BY id"
+        ],
+        "timeout": 10,
+        "max_rows": 10
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "columns": [
+              "doc"
+            ],
+            "rows": [
+              [
+                "{\"a\": 1, \"b\": [1, 2]}"
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

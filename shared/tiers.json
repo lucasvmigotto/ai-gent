@@ -1,0 +1,283 @@
+{
+  "tiers": [
+    {
+      "id": "tier1",
+      "label": "Tier 1",
+      "agents": [
+        "claude"
+      ],
+      "policy": "Fully supported: every feature is developed and tested here."
+    },
+    {
+      "id": "tier2",
+      "label": "Tier 2",
+      "agents": [
+        "codex"
+      ],
+      "policy": "Supported: in the required CI install test. Only what the matrix marks yes is verified."
+    },
+    {
+      "id": "tier3",
+      "label": "Tier 3",
+      "agents": [
+        "opencode",
+        "cursor",
+        "antigravity",
+        "copilot",
+        "amp",
+        "kiro",
+        "windsurf"
+      ],
+      "policy": "Best-effort and frozen: out of the required CI, nothing removed in 3.x."
+    }
+  ],
+  "states": [
+    "yes",
+    "partial",
+    "instructions-only",
+    "no",
+    "unverified"
+  ],
+  "rows": [
+    {
+      "id": "skills",
+      "feature": "Skills install as <plugin>-<skill> entries",
+      "cells": {
+        "tier1": {
+          "state": "yes",
+          "reason": "every plugin is linked into ~/.claude/skills and loads as <name>@skills-dir",
+          "source": "setup.sh",
+          "verified": true
+        },
+        "tier2": {
+          "state": "yes",
+          "reason": "generated <plugin>-<skill> entry files in the shared ~/.agents/skills; the install test covers codex",
+          "source": "scripts/test-install.sh",
+          "verified": true
+        },
+        "tier3": {
+          "state": "yes",
+          "reason": "generated <plugin>-<skill> entry files (opencode, Kiro, Windsurf, Antigravity, and the shared directory for Cursor, Copilot, Amp)",
+          "source": "setup.sh",
+          "verified": true
+        }
+      }
+    },
+    {
+      "id": "guards",
+      "feature": "Guard hooks (git, db, secrets, repo, containers)",
+      "cells": {
+        "tier1": {
+          "state": "yes",
+          "reason": "PreToolUse hooks enforce the rules mechanically",
+          "source": "plugins/git/hooks/guard.sh",
+          "verified": true
+        },
+        "tier2": {
+          "state": "instructions-only",
+          "reason": "Codex runs no Claude Code hooks; the guards are instructions the skills follow, not enforced",
+          "source": "README.md",
+          "verified": true
+        },
+        "tier3": {
+          "state": "partial",
+          "reason": "enforced on opencode only, through the OpenCode V2 guard plugin; instructions only on the others",
+          "source": "README.md",
+          "verified": true
+        }
+      }
+    },
+    {
+      "id": "opencode-guard",
+      "feature": "OpenCode V2 guard plugin and permission rules",
+      "cells": {
+        "tier1": {
+          "state": "no",
+          "reason": "not applicable: Claude Code uses the shell guards",
+          "source": "README.md",
+          "verified": true
+        },
+        "tier2": {
+          "state": "no",
+          "reason": "not applicable: Codex is not opencode",
+          "source": "README.md",
+          "verified": true
+        },
+        "tier3": {
+          "state": "partial",
+          "reason": "opencode only, offered by setup.sh with a confirmation",
+          "source": "opencode/guard/rules.mjs",
+          "verified": true
+        }
+      }
+    },
+    {
+      "id": "mods",
+      "feature": "Mods: bands, panes, status line",
+      "cells": {
+        "tier1": {
+          "state": "yes",
+          "reason": "the project, git, secrets and other plugins ship Claude Code mods",
+          "source": "README.md",
+          "verified": true
+        },
+        "tier2": {
+          "state": "no",
+          "reason": "mods are a Claude Code feature",
+          "source": "README.md",
+          "verified": true
+        },
+        "tier3": {
+          "state": "no",
+          "reason": "mods are a Claude Code feature",
+          "source": "README.md",
+          "verified": true
+        }
+      }
+    },
+    {
+      "id": "tokens",
+      "feature": "Token tracking (ai-gent tokens)",
+      "cells": {
+        "tier1": {
+          "state": "yes",
+          "reason": "reads Claude Code's own transcripts",
+          "source": "shared/token-tracking.md",
+          "verified": true
+        },
+        "tier2": {
+          "state": "no",
+          "reason": "the tool reads Claude Code transcripts only",
+          "source": "shared/token-tracking.md",
+          "verified": true
+        },
+        "tier3": {
+          "state": "no",
+          "reason": "the tool reads Claude Code transcripts only",
+          "source": "shared/token-tracking.md",
+          "verified": true
+        }
+      }
+    },
+    {
+      "id": "wt",
+      "feature": "Worktree tool (wt.py)",
+      "cells": {
+        "tier1": {
+          "state": "yes",
+          "reason": "skills run it; covered by its own test suite",
+          "source": "plugins/agents/scripts/wt.py",
+          "verified": true
+        },
+        "tier2": {
+          "state": "unverified",
+          "reason": "a plain script the skills tell the agent to run; no test drives it from this agent",
+          "source": "plugins/agents/scripts/wt.py",
+          "verified": false
+        },
+        "tier3": {
+          "state": "unverified",
+          "reason": "a plain script the skills tell the agent to run; no test drives it from these agents",
+          "source": "plugins/agents/scripts/wt.py",
+          "verified": false
+        }
+      }
+    },
+    {
+      "id": "tools",
+      "feature": "Repo, spec and compact tools",
+      "cells": {
+        "tier1": {
+          "state": "yes",
+          "reason": "skills run reporun, the spec tool and compact; each has its own test suite",
+          "source": "plugins/repo/scripts/reporun.py",
+          "verified": true
+        },
+        "tier2": {
+          "state": "unverified",
+          "reason": "plain scripts the skills tell the agent to run; no test drives them from this agent",
+          "source": "plugins/repo/scripts/reporun.py",
+          "verified": false
+        },
+        "tier3": {
+          "state": "unverified",
+          "reason": "plain scripts the skills tell the agent to run; no test drives them from these agents",
+          "source": "plugins/repo/scripts/reporun.py",
+          "verified": false
+        }
+      }
+    },
+    {
+      "id": "installer",
+      "feature": "Installer (install.sh, setup.sh --target)",
+      "cells": {
+        "tier1": {
+          "state": "yes",
+          "reason": "the default target; the installer test runs in CI",
+          "source": "scripts/test-install.sh",
+          "verified": true
+        },
+        "tier2": {
+          "state": "yes",
+          "reason": "--target codex is covered by the installer test",
+          "source": "scripts/test-install.sh",
+          "verified": true
+        },
+        "tier3": {
+          "state": "yes",
+          "reason": "each agent is a --target value; the installer test covers a sample, the rest follow the same generator",
+          "source": "scripts/test-install.sh",
+          "verified": true
+        }
+      }
+    },
+    {
+      "id": "update-notice",
+      "feature": "Update notice at session start",
+      "cells": {
+        "tier1": {
+          "state": "yes",
+          "reason": "a SessionStart hook prints one line when a newer release is known",
+          "source": "README.md",
+          "verified": true
+        },
+        "tier2": {
+          "state": "no",
+          "reason": "no session-start hook point",
+          "source": "README.md",
+          "verified": true
+        },
+        "tier3": {
+          "state": "no",
+          "reason": "no session-start hook point (opencode has none yet)",
+          "source": "README.md",
+          "verified": true
+        }
+      }
+    },
+    {
+      "id": "windows",
+      "feature": "Native Windows",
+      "cells": {
+        "tier1": {
+          "state": "unverified",
+          "reason": "install.sh runs under WSL or Git Bash; native support is an open decision",
+          "source": "specs/040-docs-site-2/spec.md",
+          "verified": false
+        },
+        "tier2": {
+          "state": "unverified",
+          "reason": "not checked on Windows",
+          "source": "specs/040-docs-site-2/spec.md",
+          "verified": false
+        },
+        "tier3": {
+          "state": "unverified",
+          "reason": "not checked on Windows",
+          "source": "specs/040-docs-site-2/spec.md",
+          "verified": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+ "name": "add-list-remove",
+ "derived_from": "test_add_list_remove",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/002-orgs"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/002-orgs\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-002-orgs\",\n  \"compose_project\": \"shop-feat-002-orgs\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-002-orgs\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-002-orgs AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-002-orgs; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "gitout": [
+    "status",
+    "--porcelain"
+   ],
+   "expect": {
+    "text": ""
+   }
+  },
+  {
+   "cat": ".git/info/exclude",
+   "tail": 3,
+   "expect": {
+    "text": "# agents:parallel\n/.worktrees/\ncompose.worktree.yaml\n"
+   }
+  },
+  {
+   "cat": ".worktrees/.ports.json",
+   "expect": {
+    "text": "{\n  \"feat/002-orgs\": 100\n}\n"
+   }
+  },
+  {
+   "wt": [
+    "add",
+    "feat/004-search"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/004-search\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-004-search\",\n  \"compose_project\": \"shop-feat-004-search\",\n  \"port_offset\": 200,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-004-search\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-004-search AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-004-search; publish ports +200 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "write": {
+    ".worktrees/feat-002-orgs/orgs.py": "x = 1\n"
+   }
+  },
+  {
+   "wt": [
+    "list"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "feat/002-orgs                        .worktrees/feat-002-orgs                     +0/-0 vs dev  uncommitted changes\nfeat/004-search                      .worktrees/feat-004-search                   +0/-0 vs dev\n",
+    "stderr": ""
+   }
+  },
+  {
+   "wt": [
+    "remove",
+    "feat/002-orgs"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: .worktrees/feat-002-orgs has uncommitted changes; commit or discard them first\n"
+   }
+  },
+  {
+   "git": [
+    "add",
+    "."
+   ],
+   "cwd": ".worktrees/feat-002-orgs"
+  },
+  {
+   "git": [
+    "commit",
+    "-q",
+    "-m",
+    "feat: orgs"
+   ],
+   "cwd": ".worktrees/feat-002-orgs"
+  },
+  {
+   "wt": [
+    "list",
+    "--json"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "[\n  {\n    \"branch\": \"feat/002-orgs\",\n    \"path\": \".worktrees/feat-002-orgs\",\n    \"dirty\": false,\n    \"ahead\": 1,\n    \"behind\": 0\n  },\n  {\n    \"branch\": \"feat/004-search\",\n    \"path\": \".worktrees/feat-004-search\",\n    \"dirty\": false,\n    \"ahead\": 0,\n    \"behind\": 0\n  }\n]\n",
+    "stderr": ""
+   }
+  },
+  {
+   "wt": [
+    "remove",
+    "feat/002-orgs"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: feat/002-orgs has 1 change(s) dev doesn't; land it first\n"
+   }
+  },
+  {
+   "git": [
+    "switch",
+    "-q",
+    "dev"
+   ],
+   "cwd": "."
+  },
+  {
+   "git": [
+    "merge",
+    "-q",
+    "--ff-only",
+    "feat/002-orgs"
+   ],
+   "cwd": "."
+  },
+  {
+   "wt": [
+    "remove",
+    "feat/002-orgs"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "removed .worktrees/feat-002-orgs and branch feat/002-orgs\n",
+    "stderr": ""
+   }
+  },
+  {
+   "exists": ".worktrees/feat-002-orgs",
+   "expect": {
+    "exists": false
+   }
+  },
+  {
+   "gitout": [
+    "branch"
+   ],
+   "expect": {
+    "text": "* dev\n+ feat/004-search\n  main"
+   }
+  },
+  {
+   "cat": ".worktrees/.ports.json",
+   "expect": {
+    "text": "{\n  \"feat/004-search\": 200\n}\n"
+   }
+  },
+  {
+   "wt": [
+    "remove",
+    "feat/nope"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 1,
+    "stdout": "",
+    "stderr": "error: no worktree under .worktrees/ for feat/nope\n"
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}

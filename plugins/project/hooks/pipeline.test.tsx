@@ -366,7 +366,7 @@ test('the Next action block fills /project:status and says it is only a hint', a
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: /Hint only · Full report:/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Needs attention/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Blocking/ })).toBeDefined()
   await ui.press({ key: 'button-status' })
   expect(w.filled).toEqual(['/project:status'])
   await ui.unmount()
@@ -377,14 +377,14 @@ test('the width picks the mode: compact text under 40, condensed to 90, full abo
   await $.session.start(START)
   const at = async (bodyColumns: number) => {
     const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns }, surface: 'terminal' })
-    const found = { dashboard: (await ui.find({ key: 'header' })) !== undefined, large: (await ui.find({ type: 'Text', text: /^Artifacts ready$/ })) !== undefined, line: (await ui.find({ type: 'Text', text: / ready · / })) !== undefined, compact: (await ui.find({ type: 'Text', text: /^Pipeline$/ })) !== undefined }
+    const found = { dashboard: (await ui.find({ key: 'header' })) !== undefined, large: (await ui.find({ type: 'Text', text: /^Artifacts ready$/ })) !== undefined, line: (await ui.find({ type: 'Text', text: /^3 ready$/ })) !== undefined, compact: (await ui.find({ type: 'Text', text: /^Pipeline$/ })) !== undefined }
     await ui.unmount()
     return found
   }
   expect(await at(39)).toEqual({ dashboard: false, large: false, line: false, compact: true })
   expect(await at(40)).toEqual({ dashboard: true, large: false, line: true, compact: false })
   expect(await at(90)).toEqual({ dashboard: true, large: false, line: true, compact: false })
-  expect(await at(91)).toEqual({ dashboard: true, large: true, line: false, compact: false })
+  expect(await at(91)).toEqual({ dashboard: true, large: false, line: true, compact: false })
 })
 
 test('the ASCII option leaves no non-ASCII glyph in what the pane draws', { options: { pipelineAscii: true } }, async ($, on) => {
@@ -488,7 +488,7 @@ test('a recommendation that is not a command has no run button', async ($, on) =
   world(on, { ...PIPELINE })
   await $.session.start(START)
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /◆ Ask the user/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /⚠ Resolve open clarification/ })).toBeDefined()
   expect(await ui.find({ key: 'button-next' })).toBeUndefined()
   await ui.unmount()
 })
@@ -499,7 +499,7 @@ test('the Features toggle survives a poll and keeps the selected feature and fil
   const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 60 }, surface: 'terminal' })
   expect(await ui.find({ key: 'feature:001' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /Ready 3 · Blocked 2 · Done 4/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /Artifacts ready|ready · / })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^3 ready$/ })).toBeDefined()
   await ui.press({ key: 'button-features' })
   expect(await ui.find({ key: 'feature:001' })).toBeDefined()
   await ui.press({ key: 'filter:blocked' })
@@ -591,4 +591,28 @@ test('the stage strip counts an N/A artifact as skipped, never current or pendin
   expect(states(arts({}))).toEqual(['Init:done', 'Architecture:done', 'Spec:done', 'Build:current', 'QA:pending', 'Delivery:pending'])
   expect(states(arts({ delivery: { isPresent: false, notApplicable: 'x' } }))).toEqual(['Init:done', 'Architecture:done', 'Spec:done', 'Build:current', 'QA:pending', 'Delivery:skipped'])
   expect(states(arts({ 'test-strategy': { isPresent: false, notApplicable: 'x' }, delivery: { isPresent: false, notApplicable: 'x' } }))[4]).toBe('QA:done')
+})
+
+test('Blockers, the long reason and the stage readiness open on their buttons and survive a poll', async ($, on) => {
+  const w = world(on, { ...PIPELINE })
+  await $.session.start(START)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /BLOCKERS · \d/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /unresolved clarification \(see Next action\)/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ {4}specs\/.*:\d+ / })).toBeUndefined()
+  await ui.press({ key: 'button-blockers' })
+  expect(await ui.find({ type: 'Text', text: /^ {4}specs\/.*:\d+ / })).toBeDefined()
+  await ui.press({ key: 'button-stage' })
+  expect(await ui.find({ key: 'stage-detail' })).toBeDefined()
+  // a poll with a changed snapshot keeps both open
+  w.files[ARCH] = '# Architecture'
+  w.mtime[ARCH] = 99
+  await w.clock.advance(5_000)
+  expect(await ui.find({ type: 'Text', text: /^ {4}specs\/.*:\d+ / })).toBeDefined()
+  await ui.press({ key: 'button-blockers' })
+  expect(await ui.find({ type: 'Text', text: /^ {4}specs\/.*:\d+ / })).toBeUndefined()
+  // a recommendation that is not a command offers no run button, only the instruction
+  expect(await ui.find({ key: 'button-next' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /No command resolves this/ })).toBeDefined()
+  await ui.unmount()
 })

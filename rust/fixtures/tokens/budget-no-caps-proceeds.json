@@ -1,0 +1,26 @@
+{
+ "name": "budget-no-caps-proceeds",
+ "derived_from": "BudgetTest::test_no_caps_means_proceed_with_a_hint",
+ "files": {
+  "work/specs/001-widget/tasks.md": "# Tasks\n## Phase 1\n- [ ] T001 [US1] build the widget in `src/a.py` — Executor: builder · Reviewer: thinker · Effort: high\n- [ ] T002 [US1] test the widget — Executor: builder · Reviewer: thinker · Effort: medium\n- [ ] T003 [US1] polish — Executor: builder · Reviewer: thinker · Effort: low\n## Backend\n- [ ] T004 [US1] serve it — Executor: builder · Reviewer: thinker · Effort: medium\n",
+  "work/specs/001-widget/cards.md": "# Cards\n| Card | Tasks | Executor | Reviewer | Effort |\n|---|---|---|---|---|\n| `001-core` | T001, T002 | builder | thinker | high |\n| `001-polish` | T003 | builder | thinker | low |\n\n## Card `001-core`: T001, T002\n\n**Route**: Executor `builder` · Effort `high` · Tags: extend, backend, protocol, rust, tokio, known-pattern, integration, M · Tokens: projected ~400k | used — · Dispatch description: `T001, T002: 001-widget core`\n\n## Card `001-polish`: T003\n\n**Route**: Executor `builder` · Effort `low` · Tokens: projected ~100k | used — · Dispatch description: `T003: 001-widget polish`\n",
+  "work/specs/002-gadget/tasks.md": "- [ ] T001 gadget — Executor: builder\n",
+  "work/.ai-gent/orchestrate-status.md": "# Ledger\n| Wave | Feature | Card | State |\n|---|---|---|---|\n| 0 | 001-widget | `001-core` | done |\n| 0 | 001-widget | `001-polish` | planned |\n",
+  "work/budget.yaml": "max_agents: 3\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "budget",
+    "--project=-tmp-widgets",
+    "--budget=budget.yaml",
+    "--specs-dir=specs",
+    "--projected=300k"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "wave: 1 card(s)\n  300k                     sonnet  ~  300k  (given)\nprojected 300k + coordinator 35% + event risk 8% (prior: resumes, fix rounds, flake hunts) = 437k billable\nno caps in budget.yaml: set session_billable and week_billable to enable the check\nrate: idle for 30 min\nverdict: proceed - no caps set\ndispatch (at most 3 subagent(s) at once, 1 on Opus):\n  batch 1: 300k (sonnet)\nPrefer Sonnet builders, review inline unless the card needs a fresh context.\n"
+  }
+ ],
+ "expect_files": {}
+}

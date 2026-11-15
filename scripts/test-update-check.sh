@@ -2,8 +2,8 @@
 # Tests scripts/update-check.sh and scripts/ai-gent-update.sh in a throwaway
 # HOME: version comparison, tag/slug resolution, the cached notice (fresh,
 # stale, missing, pinned, opted-out, offline), the update script's
-# clean/dirty/pinned/already-at cases, and that the SessionStart hook
-# command resolves to an existing file. Called by scripts/check.sh.
+# clean/dirty/pinned/already-at cases. The SessionStart hook's wiring is in
+# scripts/test-update.sh. Called by scripts/check.sh.
 
 set -euo pipefail
 
@@ -213,33 +213,13 @@ AI_GENT_UPDATE_ROOT="$WORK" bash "$REPO_DIR/scripts/ai-gent-update.sh" >/dev/nul
   failures=$((failures + 1))
 } || printf '      ok    dirty checkout refuses\n'
 
-# --- hook wiring: the SessionStart command, in a clone and in a package ---
-HOOK_CMD="$(python3 -c "import json; print(json.load(open('$REPO_DIR/plugins/git/hooks/hooks.json'))['hooks']['SessionStart'][0]['hooks'][0]['command'])")"
-check "clone: the hook's relative path exists" test -f "$REPO_DIR/plugins/git/../../scripts/update-check.sh"
-check "clone: the hook exits 0" env CLAUDE_PLUGIN_ROOT="$REPO_DIR/plugins/git" AI_GENT_NO_UPDATE_CHECK=1 sh -c "$HOOK_CMD"
-check "a plugin outside any ai-gent tree: the hook is a silent no-op" \
-  env CLAUDE_PLUGIN_ROOT="$SANDBOX/nowhere/plugins/git" sh -c "$HOOK_CMD"
-
+# The SessionStart hook's wiring (binary first, the script for clones) is tested in scripts/test-update.sh.
 PKG="$SANDBOX/pkg"
 mkdir -p "$PKG"
 python3 "$REPO_DIR/scripts/package.py" --version 0.0.1 --out "$PKG/dist" >/dev/null
 tar -xzf "$PKG/dist/ai-gent-0.0.1.tar.gz" -C "$PKG" --strip-components=1
-check "package: the hook's relative path exists inside the package" test -f "$PKG/plugins/git/../../scripts/update-check.sh"
-printf '%s 9.9.9\n' "$(date +%s)" >"$XDG_STATE_HOME/ai-gent/update-check"
-OUT="$(env -u AI_GENT_UPDATE_ROOT CLAUDE_PLUGIN_ROOT="$PKG/plugins/git" sh -c "$HOOK_CMD")"
-if [[ "$OUT" == *"update available: 0.0.1 → 9.9.9"* && "$OUT" == *"ai-gent install"* ]]; then
-  printf '      ok    package: the hook prints the notice from VERSION\n'
-else
-  printf '      FAIL  package hook notice (got: %q)\n' "$OUT"
-  failures=$((failures + 1))
-fi
-# through a symlinked plugin dir and a `current` link, like the real install
-mkdir -p "$SANDBOX/home2/ai-gent" "$SANDBOX/home2/skills"
+mkdir -p "$SANDBOX/home2/ai-gent"
 mv "$PKG" "$SANDBOX/home2/ai-gent/0.0.1"
-ln -s 0.0.1 "$SANDBOX/home2/ai-gent/current"
-ln -s "$SANDBOX/home2/ai-gent/current/plugins/git" "$SANDBOX/home2/skills/git"
-OUT="$(env -u AI_GENT_UPDATE_ROOT CLAUDE_PLUGIN_ROOT="$SANDBOX/home2/skills/git" sh -c "$HOOK_CMD")"
-check "package: works through the skills symlink and current" test "$(printf '%s' "$OUT" | grep -c 'update available')" = 1
 PKG="$SANDBOX/home2/ai-gent/0.0.1"
 
 printf '%s 9.9.9\n' "$(date +%s)" >"$XDG_STATE_HOME/ai-gent/update-check"

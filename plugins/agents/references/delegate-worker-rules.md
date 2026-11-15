@@ -1,0 +1,1 @@
+../../../shared/delegate-worker-rules.md

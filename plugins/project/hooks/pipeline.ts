@@ -10,13 +10,14 @@ import type { ArtifactState, Feature, Marker, Snapshot } from '../types'
 import { ARTIFACTS, MARKER_DIRS, README, applyApplicability, featureState, parseApplicability, parseReadme, recommend, scanMarkers, split } from './pipeline-model'
 import type { Row } from './pipeline-model'
 import { repoRoot } from './repo'
+import { refresh as refreshWorkers } from './workers'
 
 export const PANE = 'pipeline'
 
 // Change the tag when Snapshot's fields change: it declines what an earlier
 // version stored, which outlives a reload.
 export const snapshotAtom = atom({ plugin: 'project', key: 'pipelineSnapshot' } as const, null, {
-  shape: 'pipeline-1',
+  shape: 'pipeline-2',
 })
 export const isOpenAtom = atom({ plugin: 'project', key: 'pipelineIsOpen' } as const, false)
 export const expandedAtom = atom({ plugin: 'project', key: 'pipelineExpanded' } as const, {})
@@ -112,6 +113,7 @@ async function readFeatures($: EngineInterface, root: string, rows: readonly Row
       bucket: split_.done.includes(row.number) ? 'done' : split_.blocked.includes(row.number) ? 'blocked' : 'ready',
       waiting: split_.waiting[row.number] ?? [],
       files: { spec: names.has('spec.md'), plan: names.has('plan.md'), tasks: names.has('tasks.md') },
+      ...(dir ? { dir } : {}),
     })
   }
   return features
@@ -178,6 +180,8 @@ export async function compute($: EngineInterface): Promise<Snapshot> {
 // Reads the files and, when anything but the time changed, redraws the pane.
 export async function refresh($: EngineInterface): Promise<Snapshot> {
   const snapshot = await compute($)
+  // The compact workers line (spec 041 FR-018) reads the same status files on this poll.
+  await refreshWorkers($).catch(() => undefined)
   // A check ran: the badge's evidence. It advances even when nothing changed.
   await update($, checkedAtAtom, () => snapshot.computedAt)
   await update($, pollMsAtom, () => (ticker === null ? 0 : intervalMs))

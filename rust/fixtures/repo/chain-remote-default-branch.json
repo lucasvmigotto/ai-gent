@@ -1,0 +1,59 @@
+{
+ "name": "chain-remote-default-branch",
+ "derived_from": "reporun.cmd_chain (no main or master)",
+ "remote": "git@github.com:o/r.git",
+ "git": [
+  [
+   "checkout",
+   "-q",
+   "-b",
+   "trunk"
+  ],
+  [
+   "commit",
+   "-q",
+   "--allow-empty",
+   "-m",
+   "init"
+  ],
+  [
+   "update-ref",
+   "refs/remotes/origin/trunk",
+   "HEAD"
+  ],
+  [
+   "symbolic-ref",
+   "refs/remotes/origin/HEAD",
+   "refs/remotes/origin/trunk"
+  ]
+ ],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "chain",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"default\": \"trunk\",\n  \"ambiguous\": [],\n  \"integration\": null,\n  \"staging\": null,\n  \"production\": \"trunk\",\n  \"order\": [\n    \"work branches\",\n    \"trunk\"\n  ],\n  \"integrated_on\": \"trunk\",\n  \"keywords_close_on\": \"trunk\",\n  \"ask\": false\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "chain"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "chain     work branches → trunk\ndefault   trunk\nintegrated on   trunk   (where a story's work lands; repo:sync closes items at Verified there)\nkeywords close  trunk   (Closes #N acts only when merged here)\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

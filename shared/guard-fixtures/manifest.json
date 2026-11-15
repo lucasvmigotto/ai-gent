@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "extraction": "T010",
+  "sources": {},
+  "counts": {
+    "git": {
+      "shell_vectors": 43,
+      "opencode_vectors": 43,
+      "cases": 43
+    },
+    "db": {
+      "shell_vectors": 50,
+      "opencode_vectors": 50,
+      "cases": 50
+    },
+    "secrets": {
+      "shell_vectors": 40,
+      "opencode_vectors": 40,
+      "cases": 40
+    },
+    "repo": {
+      "shell_vectors": 15,
+      "opencode_vectors": 15,
+      "cases": 15
+    },
+    "containers": {
+      "shell_vectors": 38,
+      "opencode_vectors": 38,
+      "cases": 38
+    },
+    "adapter": {
+      "cases": 11
+    }
+  },
+  "total_shell_vectors": 186,
+  "total_cases": 197,
+  "note": "shell_vectors counts the expect and expect_tool calls (186). The 192 in spec.md also counts the six function definitions (grep 'expect'). The opencode vectors are the same 186 cases (identical sets), so the union has no opencode-only guard cases; adapter.json holds the 11 adapter cases."
+}

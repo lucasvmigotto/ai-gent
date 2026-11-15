@@ -5,6 +5,7 @@ import { llmsTxt, skillPages, staticPages } from "../scripts/llms-pages";
 import { enUS, I18nProvider, LOCALES } from "../src/i18n";
 import {
 	ChangelogPage,
+	CompatibilityPage,
 	ContributePage,
 	FlowPage,
 	InstallPage,
@@ -16,6 +17,7 @@ import {
 // other lacks.
 const PAGES = {
 	install: InstallPage,
+	compatibility: CompatibilityPage,
 	flow: FlowPage,
 	contribute: ContributePage,
 	reference: ReferencePage,

@@ -107,6 +107,24 @@ class SecretData(unittest.TestCase):
         self.assertEqual(consistency.check_secret_data(consistency.ROOT), [])
 
 
+class TokenTagsCopy(unittest.TestCase):
+    def test_nothing_to_check_without_the_rust_workspace(self):
+        self.assertEqual(consistency.check_token_tags_copy(tree({"shared/token-tags.json": "{}"})), [])
+
+    def test_missing_or_edited_copy_fails_and_equal_passes(self):
+        root = tree({"shared/token-tags.json": "{}", "rust/Cargo.toml": ""})
+        self.assertEqual(len(consistency.check_token_tags_copy(root)), 1)
+        copy = root / consistency.TOKEN_TAGS_COPY
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        copy.write_text("{}")
+        self.assertEqual(consistency.check_token_tags_copy(root), [])
+        copy.write_text('{"x": 1}')
+        self.assertEqual(len(consistency.check_token_tags_copy(root)), 1)
+
+    def test_the_repository_copy_is_in_sync(self):
+        self.assertEqual(consistency.check_token_tags_copy(consistency.ROOT), [])
+
+
 class PipelinePaths(unittest.TestCase):
     TABLE = "| Path | Owner |\n|---|---|\n| `docs/product/brief.md` | `project:init` |\n| `specs/README.md` | `project:spec` |\n"
 
@@ -225,27 +243,27 @@ class StageNames(unittest.TestCase):
         self.assertEqual(consistency.check_stage_names(consistency.ROOT), [])
 
 
-class GuardUx(unittest.TestCase):
-    SHARED = ("export const GUARDS = {\n  git: {\n    marker: 'git:workflow guard:',\n    skill: 'git:workflow',\n    entries: [\n"
-              "      { match: 'hooks must not be bypassed', say: 'x' },\n    ],\n  },\n}\n")
+class GuardWords(unittest.TestCase):
+    WORDS = json.dumps({"schema": 1, "maxRows": 200, "maxBytes": 262144, "verbs": {"git": ["push"]}, "guards": {"git": {"marker": "git:workflow guard:", "skill": "git:workflow",
+                        "entries": [{"match": "hooks must not be bypassed", "say": "x", "instead": "y"}]}}})
     GUARD = 'decide deny "hooks must not be bypassed (--no-verify); fix it"\n'
 
-    def files(self, shared=SHARED, guard=GUARD, copy=None):
-        files = {consistency.GUARD_UX: shared, "plugins/git/hooks/guard.sh": guard}
-        for plugin in consistency.SHARED_CODE[consistency.GUARD_UX]:
-            files[f"plugins/{plugin}/hooks/guard-ux.ts"] = shared if copy is None else copy
+    def files(self, words=WORDS, guard=GUARD, copy=None):
+        files = {consistency.GUARD_WORDS: words, "plugins/git/hooks/guard.sh": guard}
+        for c in consistency.GUARD_WORDS_COPIES:
+            files[c] = words if copy is None else copy
         return files
 
     def problems(self, **kw):
-        # only the git guard has a guard.sh in these throwaway trees
+        # only the git guard has a guard.sh in these throwaway trees, and no words template
         return consistency.check_guard_ux(tree(self.files(**kw)))
 
     def test_identical_copies_and_a_covered_reason_pass(self):
         self.assertEqual(self.problems(), [])
 
     def test_a_copy_that_differs_fails(self):
-        problems = self.problems(copy=self.SHARED + "// edited\n")
-        self.assertEqual(len(problems), len(consistency.SHARED_CODE[consistency.GUARD_UX]))
+        problems = self.problems(copy=self.WORDS + "\n")
+        self.assertEqual(len(problems), len(consistency.GUARD_WORDS_COPIES))
         self.assertIn("--sync-shared-code", problems[0])
 
     def test_a_band_priority_copy_that_differs_fails(self):
@@ -259,35 +277,26 @@ class GuardUx(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("plugins/git/hooks/band-priority.ts differs from shared/band-priority.ts", problems[0])
 
-    def test_the_repo_band_priority_copy_is_checked_too(self):
-        files = self.files()
-        files["shared/band-priority.ts"] = "export const a = 1\n"
-        files["plugins/project/hooks/band-priority.ts"] = "export const a = 1\n"
-        files["plugins/git/hooks/band-priority.ts"] = "export const a = 1\n"
-        files["plugins/repo/hooks/band-priority.ts"] = "export const a = 2\n"
-        files["plugins/devcontainer/hooks/band-priority.ts"] = "export const a = 1\n"
-        problems = consistency.check_guard_ux(tree(files))
-        self.assertEqual(len(problems), 1)
-        self.assertIn("plugins/repo/hooks/band-priority.ts differs", problems[0])
-
-    def test_the_devcontainer_band_priority_copy_is_checked_too(self):
-        files = self.files()
-        files["shared/band-priority.ts"] = "export const a = 1\n"
-        for plugin in ("project", "git", "repo"):
-            files[f"plugins/{plugin}/hooks/band-priority.ts"] = "export const a = 1\n"
-        files["plugins/devcontainer/hooks/band-priority.ts"] = "export const a = 2\n"
-        problems = consistency.check_guard_ux(tree(files))
-        self.assertEqual(len(problems), 1)
-        self.assertIn("plugins/devcontainer/hooks/band-priority.ts differs", problems[0])
-
     def test_a_reason_with_no_entry_fails(self):
         problems = self.problems(guard='decide ask "a brand new question"\ndecide deny "hooks must not be bypassed"\n')
         self.assertEqual(len(problems), 1)
         self.assertIn("a brand new question", problems[0])
 
-    def test_reasons_come_from_decide_lines_variables_and_printf_arguments(self):
-        text = 'creds_reason="that is a creds file"\ndecide deny "$creds_reason"\ndecide ask "plain"\nprintf x \\\n    "from printf"\n'
-        self.assertEqual(consistency.guard_reasons(text), ["that is a creds file", "plain", "from printf"])
+    def test_reasons_come_from_decide_and_guard_emit_lines_and_variables(self):
+        text = ('creds_reason="that is a creds file"\ndecide deny "$creds_reason"\ndecide ask "plain"\n'
+                '    guard_emit deny "repo guard: from emit"\n  guard_emit deny "git:workflow guard: $creds_reason"\n')
+        self.assertEqual(consistency.guard_reasons(text), ["that is a creds file", "plain", "from emit"])
+
+    def test_the_words_block_is_generated_and_checked(self):
+        root = tree(self.files())
+        (root / "shared" / "guard-words.sh").write_text((consistency.ROOT / "shared" / "guard-words.sh").read_text(encoding="utf-8"), encoding="utf-8")
+        problems = consistency.check_guard_ux(root)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("guard words block differs", problems[0])
+        consistency.sync_words(root)
+        self.assertEqual(consistency.check_guard_ux(root), [])
+        block = consistency.words_block(root)
+        self.assertIn("git:*'hooks must not be bypassed'*) _gw_match='hooks must not be bypassed' _gw_say='x' _gw_do='y' ;;", block)
 
     def test_the_repository_agrees(self):
         self.assertEqual(consistency.check_guard_ux(consistency.ROOT), [])
@@ -492,6 +501,36 @@ class Research(unittest.TestCase):
             self.assertEqual(check(consistency.ROOT), [], check.__name__)
 
 
+PLUGIN = '{"name": "git", "license": "GPL-3.0-or-later"}'
+WS = '[workspace]\nmembers = ["crates/a"]\n[workspace.package]\nlicense = "GPL-3.0-or-later"\n'
+
+
+class RustWorkspace(unittest.TestCase):
+    def files(self, crate: str, extra: dict[str, str] | None = None) -> Path:
+        return tree({"plugins/git/.claude-plugin/plugin.json": PLUGIN, "rust/Cargo.toml": WS, "rust/crates/a/Cargo.toml": crate, **(extra or {})})
+
+    def test_no_workspace_is_fine(self):
+        self.assertEqual(consistency.check_rust_workspace(tree({"README.md": "x"})), [])
+
+    def test_inherited_and_literal_license_pass(self):
+        self.assertEqual(consistency.check_rust_workspace(self.files('[package]\nname = "a"\nlicense.workspace = true\n')), [])
+        self.assertEqual(consistency.check_rust_workspace(self.files('[package]\nname = "a"\nlicense = "GPL-3.0-or-later"\n')), [])
+
+    def test_other_license_fails(self):
+        problems = consistency.check_rust_workspace(self.files('[package]\nname = "a"\nlicense = "MIT"\n'))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("license is 'MIT'", problems[0])
+
+    def test_rust_is_not_a_plugin(self):
+        root = self.files('[package]\nname = "a"\nlicense.workspace = true\n', {"rust/skills/x/SKILL.md": "no frontmatter"})
+        self.assertEqual(len(consistency.check_rust_workspace(root)), 1)
+        # and the skill checks never read rust/ (they would fail on this file)
+        self.assertEqual(consistency.check_budget(root)[0], [])
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_rust_workspace(consistency.ROOT), [])
+
+
 class Budget(unittest.TestCase):
     def test_ceiling(self):
         root = tree({"skills/a/SKILL.md": "---\nname: a\ndescription: " + "x" * 100 + "\n---\n"})
@@ -502,6 +541,147 @@ class Budget(unittest.TestCase):
             self.assertEqual(consistency.check_budget(root)[0], [])
         finally:
             del os.environ["DESC_TOTAL_CEILING"]
+
+
+class GuardReasons(unittest.TestCase):
+    UX = json.dumps({"maxRows": 200, "guards": {"repo": {"marker": "repo guard:", "skill": "repo:pr", "entries": [{"match": "sign-off", "say": "x"}]}}})
+    GUARD = '#!/bin/sh\ndecide deny "no sign-off here"\n'
+
+    def files(self, text):
+        return {
+            consistency.GUARD_WORDS: self.UX,
+            "plugins/repo/hooks/guard.sh": self.GUARD,
+            consistency.REASONS_JSON: json.dumps([{"id": "repo.attrib", "guard": "repo", "marker": "repo guard:", "decision": "deny", "text": text}]),
+        }
+
+    def test_equal_is_clean(self):
+        root = tree(self.files("no sign-off here"))
+        self.assertEqual(consistency.check_guard_reasons(root, consistency.guard_matches(root)), [])
+
+    def test_a_reason_the_script_does_not_print_fails(self):
+        root = tree(self.files("a sign-off other text"))
+        problems = consistency.check_guard_reasons(root, consistency.guard_matches(root))
+        self.assertEqual(len(problems), 2, problems)
+
+    def test_a_reason_without_a_words_entry_fails(self):
+        root = tree(self.files("no sign-off here"))
+        (root / consistency.GUARD_WORDS).write_text(self.UX.replace("sign-off", "other"))
+        problems = consistency.check_guard_reasons(root, consistency.guard_matches(root))
+        self.assertTrue(any("no entry" in p for p in problems), problems)
+
+
+class PassedOver(unittest.TestCase):
+    def problems(self, src, plugin="git", name="register.tsx"):
+        return consistency.check_passed_over(tree({f"plugins/{plugin}/hooks/{name}": src}))
+
+    def test_events_that_run_pass(self):
+        self.assertEqual(self.problems("on('tool.call', { tool: 'Bash' }, f)\non('prompt.submit', f)\non('session.append', { door: 'tool-result' }, f)\n"), [])
+
+    def test_a_classic_hook_fails(self):
+        problems = self.problems("on('classic.PreToolUse', f)\n")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("register.tsx:1", problems[0])
+
+    def test_session_compact_fails(self):
+        self.assertEqual(len(self.problems("x\non(\n  'session.compact', f)\n")), 1)
+
+    def test_session_append_on_a_skipped_door_or_without_one_fails(self):
+        self.assertIn("hook-context", self.problems("on('session.append', { door: 'hook-context' }, f)\n")[0])
+        self.assertIn("no door", self.problems("on('session.append', f)\n")[0])
+        self.assertEqual(len(self.problems("on('session.append', { door: ['tool-result', 'attachment'] }, f)\n")), 1)
+
+    def test_tests_are_not_read(self):
+        self.assertEqual(self.problems("on('session.compact', f)\n", name="x.test.tsx"), [])
+
+    def test_the_secrets_skill_prompt_mask_is_exempt(self):
+        self.assertEqual(self.problems("on('skill.prompt', f)\n", plugin="secrets"), [])
+        self.assertEqual(len(self.problems("on('skill.prompt', f)\n", plugin="db")), 1)
+
+
+class Tiers(unittest.TestCase):
+    SETUP = "AGENT_IDS=(claude codex cursor)\n"
+
+    def files(self, data):
+        return {"setup.sh": self.SETUP, "README.md": "x", "shared/tiers.json": json.dumps(data)}
+
+    def good(self):
+        cell = {"state": "yes", "reason": "r", "source": "README.md", "verified": True}
+        return {
+            "tiers": [
+                {"id": "t1", "agents": ["claude"]},
+                {"id": "t2", "agents": ["codex", "cursor"]},
+            ],
+            "states": ["yes", "unverified"],
+            "rows": [{"id": "a", "cells": {"t1": dict(cell), "t2": dict(cell)}}],
+        }
+
+    def test_clean(self):
+        self.assertEqual(consistency.check_tiers(tree(self.files(self.good()))), [])
+
+    def test_agent_missing_fails(self):
+        d = self.good()
+        d["tiers"][1]["agents"] = ["codex"]
+        self.assertTrue(any("cursor is in 0" in p for p in consistency.check_tiers(tree(self.files(d)))))
+
+    def test_agent_twice_fails(self):
+        d = self.good()
+        d["tiers"][0]["agents"] = ["claude", "codex"]
+        self.assertTrue(any("codex is in 2" in p for p in consistency.check_tiers(tree(self.files(d)))))
+
+    def test_cell_without_reason_fails(self):
+        d = self.good()
+        d["rows"][0]["cells"]["t1"]["reason"] = " "
+        self.assertTrue(any("no reason" in p for p in consistency.check_tiers(tree(self.files(d)))))
+
+    def test_unknown_state_and_missing_source_fail(self):
+        d = self.good()
+        d["rows"][0]["cells"]["t2"].update(state="maybe", source="nope.md")
+        problems = consistency.check_tiers(tree(self.files(d)))
+        self.assertTrue(any("state" in p for p in problems))
+        self.assertTrue(any("does not exist" in p for p in problems))
+
+    def test_unverified_must_not_claim_verified(self):
+        d = self.good()
+        d["rows"][0]["cells"]["t1"]["state"] = "unverified"
+        self.assertTrue(any("verified must be false" in p for p in consistency.check_tiers(tree(self.files(d)))))
+
+    def test_the_repository_agrees(self):
+        self.assertEqual(consistency.check_tiers(consistency.ROOT), [])
+        self.assertEqual(consistency.check_readme_tiers(consistency.ROOT), [])
+
+    def readme(self, agents="`claude`", policy="p"):
+        return f"| Tier | Agents | Promise |\n|---|---|---|\n| T1 | {agents} | {policy} |\n"
+
+    def readme_tree(self, text):
+        d = {"tiers": [{"id": "t1", "label": "T1", "agents": ["claude"], "policy": "p"}]}
+        files = {"README.md": text, "shared/tiers.json": json.dumps(d)}
+        return tree(files)
+
+    def test_readme_table_clean(self):
+        self.assertEqual(consistency.check_readme_tiers(self.readme_tree(self.readme())), [])
+
+    def test_readme_table_with_other_agents_or_promise_or_no_row_fails(self):
+        self.assertTrue(consistency.check_readme_tiers(self.readme_tree(self.readme("`claude`, `codex`"))))
+        self.assertTrue(consistency.check_readme_tiers(self.readme_tree(self.readme(policy="q"))))
+        self.assertTrue(consistency.check_readme_tiers(self.readme_tree("no table")))
+
+
+class Naming(unittest.TestCase):
+    def test_old_spelling_fails(self):
+        root = tree({"README.md": "going away in v3.\n"})
+        self.assertEqual(len(consistency.check_naming(root)), 1)
+
+    def test_allowlist_and_lookalikes_pass(self):
+        root = tree({
+            "docs/product/rust-decisions.md": "never \"v3\"\n",
+            "CHANGELOG.md": "v3\n",
+            "README.md": "GPL v3+, 3.0.0 and 3.x, ssh.dev.azure.com:v3/org, v3.1, dev3, v3.1.2\n",
+        })
+        self.assertEqual(consistency.check_naming(root), [])
+
+    def test_scanned_directories(self):
+        root = tree({"shared/a.md": "the v3 release\n", "scripts/x.sh": "# v3 only\n", "other/a.md": "v3\n"})
+        self.assertEqual(len(consistency.check_naming(root)), 2)
 
 
 if __name__ == "__main__":

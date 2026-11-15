@@ -1,0 +1,11 @@
+diff --git a/specs/038-db-runner/tasks.md b/specs/038-db-runner/tasks.md
+index 1111111..2222222 100644
+--- a/specs/038-db-runner/tasks.md
++++ b/specs/038-db-runner/tasks.md
+@@ -1,4 +1,4 @@
+-- [x] T001 Core fixtures.
++- [x] T001 Core fixtures and the sqlite prototype.
+-- [ ] T003 The _exec process bridge.
+-- [ ] T013 The --runner flag.
++- [x] T003 The _exec process bridge.
++- [x] T013 The --runner flag.

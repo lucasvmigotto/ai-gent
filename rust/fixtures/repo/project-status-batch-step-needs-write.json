@@ -1,0 +1,61 @@
+{
+ "name": "project-status-batch-step-needs-write",
+ "derived_from": "ProjectStatusTest::test_batch_step_needs_write",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "args": "project field-list",
+     "stdout": "{\"fields\": [{\"id\": \"PVTF_1\", \"name\": \"Status\", \"type\": \"ProjectV2SingleSelectField\", \"options\": [{\"id\": \"OPT_TODO\", \"name\": \"To do\"}, {\"id\": \"OPT_DOING\", \"name\": \"In Progress\"}, {\"id\": \"OPT_REVIEW\", \"name\": \"In Review\"}, {\"id\": \"OPT_DONE\", \"name\": \"Done\"}]}, {\"id\": \"PVTF_2\", \"name\": \"Title\", \"type\": \"ProjectV2Field\"}]}\n"
+    },
+    {
+     "args": "project item-edit",
+     "capture": "<ROOT>/item-edit.args",
+     "stdout": "token: {env:GH_TOKEN}\n"
+    },
+    {
+     "args": "issue view",
+     "stdout": "{\"url\": \"https://github.com/o/r/issues/5\"}\n"
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"status\", \"project_status\": {\"number\": 1, \"owner\": \"me\", \"url\": \"https://github.com/o/r/issues/5\", \"state\": \"review\"}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [
+    "1 of 1 steps"
+   ],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "status           write project item-edit #1 -> review\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

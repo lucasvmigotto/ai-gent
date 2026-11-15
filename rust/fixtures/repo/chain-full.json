@@ -1,0 +1,64 @@
+{
+ "name": "chain-full",
+ "derived_from": "ChainTest::test_full_chain",
+ "remote": "git@github.com:o/r.git",
+ "git": [
+  [
+   "checkout",
+   "-q",
+   "-b",
+   "main"
+  ],
+  [
+   "commit",
+   "-q",
+   "--allow-empty",
+   "-m",
+   "init"
+  ],
+  [
+   "branch",
+   "-f",
+   "dev"
+  ],
+  [
+   "branch",
+   "-f",
+   "homolog"
+  ],
+  [
+   "branch",
+   "-f",
+   "feat/x"
+  ]
+ ],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "chain",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"default\": null,\n  \"ambiguous\": [],\n  \"integration\": \"dev\",\n  \"staging\": \"homolog\",\n  \"production\": \"main\",\n  \"order\": [\n    \"work branches\",\n    \"dev\",\n    \"homolog\",\n    \"main\"\n  ],\n  \"integrated_on\": \"dev\",\n  \"keywords_close_on\": \"main\",\n  \"ask\": false\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "chain"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "chain     work branches → dev → homolog → main\ndefault   (unknown — no remote HEAD)\nintegrated on   dev   (where a story's work lands; repo:sync closes items at Verified there)\nkeywords close  main   (Closes #N acts only when merged here)\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

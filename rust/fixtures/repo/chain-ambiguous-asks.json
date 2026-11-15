@@ -1,0 +1,64 @@
+{
+ "name": "chain-ambiguous-asks",
+ "derived_from": "ChainTest::test_ambiguous_asks",
+ "remote": "git@github.com:o/r.git",
+ "git": [
+  [
+   "checkout",
+   "-q",
+   "-b",
+   "main"
+  ],
+  [
+   "commit",
+   "-q",
+   "--allow-empty",
+   "-m",
+   "init"
+  ],
+  [
+   "branch",
+   "-f",
+   "dev"
+  ],
+  [
+   "branch",
+   "-f",
+   "develop"
+  ],
+  [
+   "branch",
+   "-f",
+   "master"
+  ]
+ ],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "chain",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"default\": null,\n  \"ambiguous\": [\n    \"integration: dev and develop both exist\",\n    \"production: main and master both exist\"\n  ],\n  \"integration\": null,\n  \"staging\": null,\n  \"production\": null,\n  \"order\": [\n    \"work branches\"\n  ],\n  \"integrated_on\": null,\n  \"keywords_close_on\": null,\n  \"ask\": true\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "chain"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "chain     work branches\ndefault   (unknown — no remote HEAD)\nintegrated on   ?   (where a story's work lands; repo:sync closes items at Verified there)\nkeywords close  ?   (Closes #N acts only when merged here)\nASK       integration: dev and develop both exist — ask the user which one the flow uses\nASK       production: main and master both exist — ask the user which one the flow uses\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

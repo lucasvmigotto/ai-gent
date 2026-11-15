@@ -1,0 +1,43 @@
+{
+ "name": "grant-merge-expired-grant-is-the-old-behavior",
+ "derived_from": "GrantMergeTest::test_no_active_grant_is_the_old_behavior",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "stdout": "main\n",
+     "args": "pr view"
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {
+  "repo/.ai-gent/autonomy": "expires: 2000-01-01T00:00:00Z\nbranches: develop dev\nactions: merge\n"
+ },
+ "runs": [
+  {
+   "exit": 0,
+   "stdout": "args: pr merge 3\ntoken: \n",
+   "stderr_has": [
+    "token from the CLI's own login"
+   ],
+   "argv": [
+    "cli",
+    "github",
+    "--write",
+    "--",
+    "pr",
+    "merge",
+    "3"
+   ],
+   "stdin": null,
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

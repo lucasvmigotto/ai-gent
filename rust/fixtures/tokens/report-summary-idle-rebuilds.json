@@ -1,0 +1,25 @@
+{
+ "name": "report-summary-idle-rebuilds",
+ "derived_from": "TokenReportTest::test_idle_rebuilds_counts_cache_writes_after_gaps_over_five_minutes",
+ "files": {
+  "home/.claude/projects/-tmp-fake-project/sess1.jsonl": "{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:00:00Z\", \"message\": {\"id\": \"i1\", \"model\": \"claude-opus-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 0, \"cache_read_input_tokens\": 1000, \"output_tokens\": 2}}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:02:00Z\", \"message\": {\"id\": \"i2\", \"model\": \"claude-opus-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 60000, \"cache_read_input_tokens\": 1000, \"output_tokens\": 2}}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:20:00Z\", \"message\": {\"id\": \"i3\", \"model\": \"claude-opus-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 60000, \"cache_read_input_tokens\": 1000, \"output_tokens\": 2}}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:21:00Z\", \"message\": {\"id\": \"i4\", \"model\": \"claude-opus-5-5\", \"usage\": {\"input_tokens\": 0, \"cache_creation_input_tokens\": 60000, \"cache_read_input_tokens\": 1000, \"output_tokens\": 2}}}",
+  "home/.claude/projects/-tmp-fake-project/sess1/subagents/agent-a1.jsonl": "{\"type\": \"user\", \"message\": {\"role\": \"user\", \"content\": \"Goal: complete T001, T002 of specs/001-widget/tasks.md\"}}\n{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:01:00Z\", \"message\": {\"id\": \"a1m1\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 1, \"cache_creation_input_tokens\": 10, \"cache_read_input_tokens\": 100, \"output_tokens\": 2}, \"content\": [{\"type\": \"tool_use\", \"id\": \"tu1\", \"name\": \"Write\", \"input\": {\"file_path\": \"src/a.py\", \"content\": \"a\\nb\\nc\"}}]}}",
+  "home/.claude/projects/-tmp-fake-project/sess1/subagents/agent-a1.meta.json": "{\"description\": \"T001, T002: build widget\"}",
+  "home/.claude/projects/-tmp-fake-project/sess1/subagents/agent-a2.jsonl": "{\"type\": \"assistant\", \"timestamp\": \"2026-10-20T10:02:00Z\", \"message\": {\"id\": \"a2m1\", \"model\": \"claude-sonnet-5-5\", \"usage\": {\"input_tokens\": 1, \"cache_creation_input_tokens\": 10, \"cache_read_input_tokens\": 100, \"output_tokens\": 2}}}",
+  "home/.claude/projects/-tmp-fake-project/sess1/subagents/agent-a2.meta.json": "{\"description\": \"Survey unrelated repo\"}",
+  "work/specs/001-widget/tasks.md": "- [ ] T001 [US1] build the widget\n- [ ] T002 [US1] test the widget\n"
+ },
+ "runs": [
+  {
+   "argv": [
+    "report",
+    "--project=-tmp-fake-project",
+    "--summary"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "project: 1 session(s), 2 subagent(s); billable 180.0k, total 184.2k (cache reads 4.2k, cache writes 180.0k)\n     180.0k  Coordination\n       0.0k  T001, T002\n       0.0k  Survey unrelated repo\ncoordinator idle rebuilds: 1 gap(s) over 5 min re-wrote 60.0k of cache (wait with a background watcher or checkpoint instead of idling)\n"
+  }
+ ],
+ "expect_files": {}
+}

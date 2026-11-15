@@ -1,0 +1,100 @@
+{
+ "name": "api-write-needs-flag",
+ "derived_from": "ApiTest::test_write_needs_flag",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"title\": \"x\"}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/repos/o/r/issues",
+    "--data",
+    "<ROOT>/b.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/repos/o/r/issues",
+    "--data",
+    "<ROOT>/b.json",
+    "--write"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"number\": 101,\n  \"id\": 9101,\n  \"html_url\": \"https://github.com/o/r/issues/101\"\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/repos/o/r/issues",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"title\": \"x\"}"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "POST",
+    "/repos/o/r/issues",
+    "--data",
+    "-",
+    "--write"
+   ],
+   "stdin": "{\"title\": \"stdin\"}",
+   "exit": 0,
+   "stdout": "{\n  \"number\": 102,\n  \"id\": 9102,\n  \"html_url\": \"https://github.com/o/r/issues/102\"\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "POST",
+     "path": "/repos/o/r/issues",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Content-Type": "application/json",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": "{\"title\": \"stdin\"}"
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "BREW",
+    "/x"
+   ],
+   "stdin": null,
+   "exit": 2,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

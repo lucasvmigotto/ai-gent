@@ -1,4 +1,6 @@
 import generated from "./content/generated.json";
+import index from "./content/search-index.json";
+import { type SearchEntry, type StoredEntry, searchIndex } from "./search";
 
 export interface PluginInfo {
 	name: string;
@@ -19,7 +21,7 @@ export interface SkillInfo {
 	sourceUrl: string;
 }
 
-// One per versioned part, then the docs site: `ai-gent@v1.12.0 · docs@v0.1.0`,
+// One per versioned part, then the docs site: `ai-gent@1.12.0 · docs@0.1.0`,
 // each linked to the tree it was built from (href is null without git).
 export interface VersionInfo {
 	name: string;
@@ -38,6 +40,36 @@ export function sourceUrl(path: string): string {
 export const plugins: PluginInfo[] = generated.plugins as PluginInfo[];
 export const skills: SkillInfo[] = generated.skills as SkillInfo[];
 export const counts = generated.counts;
+
+export type CellState =
+	| "yes"
+	| "partial"
+	| "instructions-only"
+	| "no"
+	| "unverified";
+export interface TierCell {
+	state: CellState;
+	reason: string;
+	source: string;
+	verified: boolean;
+}
+export interface TierInfo {
+	id: string;
+	label: string;
+	agents: string[];
+	policy: string;
+}
+export interface TierRow {
+	id: string;
+	feature: string;
+	cells: Record<string, TierCell>;
+}
+export interface TierMatrix {
+	tiers: TierInfo[];
+	states: CellState[];
+	rows: TierRow[];
+}
+export const tierMatrix: TierMatrix = generated.tiers as TierMatrix;
 export const changelog: string = generated.changelog;
 
 // One per "## Unreleased" / "## X.Y.Z — date" heading in CHANGELOG.md,
@@ -119,25 +151,39 @@ export function skillsOf(plugin: string): SkillInfo[] {
 	return skills.filter((s) => s.plugin === plugin);
 }
 
-/** Search titles, descriptions, ids and plugin names, locale-agnostic over
- *  the English source (skill descriptions are the toolkit's canonical text). */
+/** Weighted search over skills, static pages and their headings, from the
+ *  build-time index (see ./search.ts for the scoring). */
+const searchEntries: SearchEntry[] = (index as StoredEntry[]).flatMap(
+	(e): SearchEntry[] => {
+		if (e.kind !== "skill") return [e];
+		const s = byId.get(e.id);
+		if (!s) return [];
+		return [
+			{
+				kind: "skill" as const,
+				id: s.id,
+				title: s.name,
+				command: command(s),
+				plugin: s.plugin,
+				text: s.description,
+				triggers: triggers(s.description).join(" "),
+				tools: e.tools,
+				url: `/use/skills/${s.id}`,
+			},
+		];
+	},
+);
+
+export function search(query: string, limit?: number): SearchEntry[] {
+	return searchIndex(searchEntries, query, limit);
+}
+
+/** The skills among the results, for callers that list only skills. */
 export function searchSkills(query: string): SkillInfo[] {
-	const q = query.trim().toLowerCase();
-	if (!q) return [];
-	const terms = q.split(/\s+/);
-	return skills
-		.map((s) => {
-			const haystack =
-				`${command(s)} ${s.id} ${s.name} ${s.plugin} ${s.description}`.toLowerCase();
-			const score = terms.reduce(
-				(acc, term) => (haystack.includes(term) ? acc + 1 : acc),
-				0,
-			);
-			return { s, score };
-		})
-		.filter((r) => r.score === terms.length && r.score > 0)
-		.sort((a, b) => b.score - a.score || a.s.id.localeCompare(b.s.id))
-		.map((r) => r.s);
+	return search(query, 500)
+		.filter((e) => e.kind === "skill")
+		.map((e) => byId.get(e.id))
+		.filter((s): s is SkillInfo => s !== undefined);
 }
 
 /** Extracts the "Use for ..." trigger phrases from a skill description. */

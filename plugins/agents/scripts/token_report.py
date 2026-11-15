@@ -301,9 +301,9 @@ def render(project, sessions, roots, coords, rows, tagged, snaps, top=None):
                 tot += b + int(u.get("cache_read_input_tokens") or 0)
                 bill += b
                 per_who[who] += b
-            top = "; ".join(f"{w} ({k(v)})" for w, v in sorted(per_who.items(), key=lambda x: -x[1])[:3])
+            lead = "; ".join(f"{w} ({k(v)})" for w, v in sorted(per_who.items(), key=lambda x: -x[1])[:3])
             win = f"{short(lo) or 'start'} → {short(hi) if hi != '9999' else 'now'}"
-            L.append(f"| {n} | {label} | {win} | {k(bill)} | {k(tot)} | {top} |")
+            L.append(f"| {n} | {label} | {win} | {k(bill)} | {k(tot)} | {lead} |")
         L.append("")
 
     L += ["## By label", "", "| Label | Agents | Model(s) | Billable | Total |", "|---|---|---|---|---|"]

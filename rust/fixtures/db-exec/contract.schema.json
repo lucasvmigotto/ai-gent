@@ -1,0 +1,60 @@
+{
+  "$comment": "Contract version 1 of the dbrun _exec request and result line (spec 043 T002). Checked by rust/crates/ai-gent-dbrun/src/connector/contract.rs against every fixture request and every connector result, and against the serde types of the crate.",
+  "contract_version": 1,
+  "request": {
+    "type": "object",
+    "required": ["engine", "mode", "conn"],
+    "additionalProperties": false,
+    "properties": {
+      "engine": {"type": "string", "enum": ["postgresql", "mysql", "mariadb", "sqlserver", "oracle", "sqlite"]},
+      "mode": {"type": "string", "enum": ["read", "write", "test"]},
+      "conn": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "host": {"type": ["string", "number", "null"]},
+          "port": {"type": ["string", "number", "null"]},
+          "database": {"type": ["string", "number", "null"]},
+          "service": {"type": ["string", "number", "null"]},
+          "sid": {"type": ["string", "number", "null"]},
+          "user": {"type": ["string", "number", "null"]},
+          "password": {"type": ["string", "number", "null"]},
+          "path": {"type": ["string", "number", "null"]}
+        }
+      },
+      "statements": {"type": "array", "items": {"type": "string"}},
+      "timeout": {"$comment": "Any JSON value: a missing one means 30 s, a value that is not a number from 0.001 to 3600 is a connect-stage failure (FR-011)."},
+      "max_rows": {"type": "integer", "minimum": 0},
+      "explain": {"type": ["boolean", "null"]},
+      "expect": {"type": ["array", "null"], "items": {"type": ["integer", "null"]}}
+    }
+  },
+  "result": {
+    "type": "object",
+    "required": ["ok"],
+    "additionalProperties": false,
+    "properties": {
+      "ok": {"type": "boolean"},
+      "stage": {"type": "string", "enum": ["connect", "execute", "verify", "request"]},
+      "error": {"type": "string"},
+      "server": {"type": "array"},
+      "links": {"type": "integer"},
+      "results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["rowcount"],
+          "additionalProperties": false,
+          "properties": {
+            "rowcount": {"type": "integer", "minimum": -1},
+            "columns": {"type": "array", "items": {"type": "string"}},
+            "rows": {"type": "array", "items": {"type": "array"}},
+            "truncated": {"type": "boolean"}
+          }
+        }
+      },
+      "committed": {"type": "boolean"},
+      "seconds": {"type": "number", "minimum": 0}
+    }
+  }
+}

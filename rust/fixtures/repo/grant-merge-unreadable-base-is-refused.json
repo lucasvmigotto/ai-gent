@@ -1,0 +1,44 @@
+{
+ "name": "grant-merge-unreadable-base-is-refused",
+ "derived_from": "GrantMergeTest::test_unreadable_base_is_refused",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "stdout": "",
+     "exit": 1,
+     "args": "pr view"
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {
+  "repo/.ai-gent/autonomy": "expires: 2099-12-31T23:59:59Z\nbranches: develop dev\nactions: merge\n"
+ },
+ "runs": [
+  {
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [
+    "couldn't read it"
+   ],
+   "argv": [
+    "cli",
+    "github",
+    "--write",
+    "--",
+    "pr",
+    "merge",
+    "3"
+   ],
+   "stdin": null,
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

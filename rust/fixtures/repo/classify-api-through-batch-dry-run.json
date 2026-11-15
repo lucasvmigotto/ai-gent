@@ -1,0 +1,80 @@
+{
+ "name": "classify-api-through-batch-dry-run",
+ "derived_from": "ClassifyTest::test_api",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {},
+ "env": {},
+ "stub": false,
+ "files": {
+  "github.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"GET\", \"path\": \"/repos/o/r/issues\"}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"query { viewer { login } }\"}}}, {\"name\": \"s2\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"mutation { x }\"}}}, {\"name\": \"s3\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/o/r/issues\", \"data\": {}}}, {\"name\": \"s4\", \"api\": {\"method\": \"HEAD\", \"path\": \"/x\"}}, {\"name\": \"s5\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"subscription { x }\"}}}, {\"name\": \"s6\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\"}}, {\"name\": \"s7\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": [\"query { a }\"]}}, {\"name\": \"s8\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"query A { a } mutation B { b }\", \"operationName\": \"A\"}}}, {\"name\": \"s9\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"query A { a } query B { b }\", \"operationName\": \"A\"}}}, {\"name\": \"s10\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql?query=mutation%7Bx%7D\", \"data\": {\"query\": \"query { a }\"}}}, {\"name\": \"s11\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"query { a }\"}, \"query\": {\"query\": \"mutation{x}\"}}}, {\"name\": \"s12\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"query { a }\"}, \"query\": {\"operationName\": \"B\"}}}, {\"name\": \"s13\", \"api\": {\"method\": \"GET\", \"path\": \"/graphql\", \"query\": {\"query\": \"{a}\"}}}]}",
+  "azure-devops.json": "{\"platform\": \"azure-devops\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"POST\", \"path\": \"/proj/_apis/wit/wiql\", \"data\": {}}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/proj/_apis/wit/wiql/abc\", \"data\": {}}}, {\"name\": \"s2\", \"api\": {\"method\": \"PATCH\", \"path\": \"/proj/_apis/wit/workitems/1\", \"data\": {}}}]}",
+  "jira.json": "{\"platform\": \"jira\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/api/3/search/jql\", \"data\": {}}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/api/3/search\", \"data\": {}}}, {\"name\": \"s2\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/api/3/issue\", \"data\": {}}}, {\"name\": \"s3\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/agile/1.0/board/5/search\", \"data\": {}}}, {\"name\": \"s4\", \"api\": {\"method\": \"POST\", \"path\": \"/rest/agile/1.0/search\", \"data\": {}}}]}",
+  "bitbucket.json": "{\"platform\": \"bitbucket\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"DELETE\", \"path\": \"/repositories/w/r/pullrequests/1\"}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {}}}]}",
+  "gitlab.json": "{\"platform\": \"gitlab\", \"steps\": [{\"name\": \"s0\", \"api\": {\"method\": \"POST\", \"path\": \"/api/graphql\", \"data\": {\"query\": \"{ a }\"}}}, {\"name\": \"s1\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"mutation { a }\"}}}, {\"name\": \"s2\", \"api\": {\"method\": \"PUT\", \"path\": \"/x\", \"data\": {}}}, {\"name\": \"s3\", \"api\": {\"method\": \"POST\", \"path\": \"/api/graphql\", \"data\": {\"query\": \"subscription { a }\"}}}, {\"name\": \"s4\", \"api\": {\"method\": \"POST\", \"path\": \"/graphql\", \"data\": {\"query\": \"query { a }\"}}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/github.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               read  GET /repos/o/r/issues\ns1               read  POST /graphql\ns2               write POST /graphql\ns3               write POST /repos/o/r/issues\ns4               read  HEAD /x\ns5               write POST /graphql\ns6               write POST /graphql\ns7               write POST /graphql\ns8               write POST /graphql\ns9               read  POST /graphql\ns10              write POST /graphql?query=mutation%7Bx%7D\ns11              write POST /graphql\ns12              write POST /graphql\ns13              write GET /graphql\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/azure-devops.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               read  POST /proj/_apis/wit/wiql\ns1               read  POST /proj/_apis/wit/wiql/abc\ns2               write PATCH /proj/_apis/wit/workitems/1\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/jira.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               read  POST /rest/api/3/search/jql\ns1               read  POST /rest/api/3/search\ns2               write POST /rest/api/3/issue\ns3               read  POST /rest/agile/1.0/board/5/search\ns4               write POST /rest/agile/1.0/search\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/bitbucket.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               write DELETE /repositories/w/r/pullrequests/1\ns1               write POST /graphql\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/gitlab.json",
+    "--dry-run"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "s0               read  POST /api/graphql\ns1               write POST /graphql\ns2               write PUT /x\ns3               write POST /api/graphql\ns4               read  POST /graphql\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

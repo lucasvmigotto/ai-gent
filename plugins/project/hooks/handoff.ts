@@ -66,9 +66,11 @@ export async function nudgeAtTurnEnd($: EngineInterface, options: HandoffOptions
   await scheduleCaps($, options, checkpointOf)
 }
 
-// Before a compaction (manual or auto): the same toast, once, without a percent.
-export async function nudgeBeforeCompact($: EngineInterface, trigger: string, options: HandoffOptions, checkpointOf: CheckpointReader): Promise<void> {
-  if (options.handoffNudge === false || (trigger !== 'manual' && trigger !== 'auto')) return
+// Before a manual /compact: the same toast, once, without a percent. It is caught at
+// prompt.submit, because session.compact is passed over where cc-plugin-sec-default
+// is seated (decided 2026-11-14); an auto-compaction is covered by the context toast.
+export async function nudgeOnCompactCommand($: EngineInterface, options: HandoffOptions, checkpointOf: CheckpointReader): Promise<void> {
+  if (options.handoffNudge === false) return
   const flags = await read($, toasted)
   if (flags.context || flags.compact) return
   await update($, toasted, f => ({ ...f, compact: true }))

@@ -1,0 +1,697 @@
+{
+  "schema": 1,
+  "guard": "repo",
+  "marker": "repo guard:",
+  "cases": [
+    {
+      "id": "repo-001",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash"
+      }
+    },
+    {
+      "id": "repo-002",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write"
+      }
+    },
+    {
+      "id": "repo-003",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done"
+      }
+    },
+    {
+      "id": "repo-004",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "cd /x && python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "cmd": "cd /x && python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json"
+      },
+      "skip_in": [
+        "powershell"
+      ],
+      "skip_reason": "no equivalent in powershell (redirect, home shortcut or quoting)"
+    },
+    {
+      "id": "repo-005",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "reporun cli gitlab --write -- mr note 4 -m ok",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "reporun cli gitlab --write -- mr note 4 -m ok",
+        "cmd": "reporun cli gitlab --write -- mr note 4 -m ok"
+      }
+    },
+    {
+      "id": "repo-006",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'ok\n\nCo-Authored-By: Someone <a@b.c>'",
+      "want": "deny",
+      "reason": "repo guard: this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('\\n')"
+    },
+    {
+      "id": "repo-007",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr comment 3 --body 'looks good\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'",
+      "want": "deny",
+      "reason": "repo guard: this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('\\n')"
+    },
+    {
+      "id": "repo-008",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'denies Co-Authored-By trailers'",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'denies Co-Authored-By trailers'",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body \"denies Co-Authored-By trailers\""
+      }
+    },
+    {
+      "id": "repo-009",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect"
+      }
+    },
+    {
+      "id": "repo-010",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list"
+      }
+    },
+    {
+      "id": "repo-011",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate"
+      }
+    },
+    {
+      "id": "repo-012",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query 'q=--write'",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query 'q=--write'",
+        "cmd": "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query \"q=--write\""
+      }
+    },
+    {
+      "id": "repo-013",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "git commit -m \"docs: reporun --write asks first\"",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "git commit -m \"docs: reporun --write asks first\"",
+        "cmd": "git commit -m \"docs: reporun --write asks first\""
+      }
+    },
+    {
+      "id": "repo-014",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "echo reporun --write",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "echo reporun --write",
+        "cmd": "echo reporun --write"
+      }
+    },
+    {
+      "id": "repo-015",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "ls -la",
+      "want": "none",
+      "source": [
+        "scripts/test-repo-guard.sh",
+        "opencode/guard/test/rules.test.mjs:repoVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "ls -la",
+        "cmd": "ls -la"
+      }
+    },
+    {
+      "id": "repo-016",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "python reporun.py cli github --write -- pr merge 3",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "repo-017",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "python C:\\ai-gent\\plugins\\repo\\scripts\\reporun.py cli github --write -- pr merge 3",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "repo-018",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "echo reporun --write",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "repo-019",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr create --base develop --title t",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr create --base develop --title t",
+        "cmd": "reporun cli github --write -- pr create --base develop --title t"
+      }
+    },
+    {
+      "id": "repo-020",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr create --base main --title t",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr create --base main --title t",
+        "cmd": "reporun cli github --write -- pr create --base main --title t"
+      }
+    },
+    {
+      "id": "repo-021",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr create --title t",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr create --title t",
+        "cmd": "reporun cli github --write -- pr create --title t"
+      }
+    },
+    {
+      "id": "repo-022",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr merge 12",
+        "cmd": "reporun cli github --write -- pr merge 12"
+      }
+    },
+    {
+      "id": "repo-023",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "python3 plugins/repo/scripts/reporun.py cli github --write -- pr merge 12 --rebase",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "python3 plugins/repo/scripts/reporun.py cli github --write -- pr merge 12 --rebase",
+        "cmd": "python3 plugins/repo/scripts/reporun.py cli github --write -- pr merge 12 --rebase"
+      }
+    },
+    {
+      "id": "repo-024",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write pr merge 12",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write pr merge 12",
+        "cmd": "reporun cli github --write pr merge 12"
+      }
+    },
+    {
+      "id": "repo-025",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- gh issue create --title t",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- gh issue create --title t",
+        "cmd": "reporun cli github --write -- gh issue create --title t"
+      }
+    },
+    {
+      "id": "repo-026",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue comment 4 --body hi",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- issue comment 4 --body hi",
+        "cmd": "reporun cli github --write -- issue comment 4 --body hi"
+      }
+    },
+    {
+      "id": "repo-027",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue edit 4 --add-label bug",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- issue edit 4 --add-label bug",
+        "cmd": "reporun cli github --write -- issue edit 4 --add-label bug"
+      }
+    },
+    {
+      "id": "repo-028",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue close 4",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- issue close 4",
+        "cmd": "reporun cli github --write -- issue close 4"
+      }
+    },
+    {
+      "id": "repo-029",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- release create 1.0.0",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- release create 1.0.0",
+        "cmd": "reporun cli github --write -- release create 1.0.0"
+      }
+    },
+    {
+      "id": "repo-030",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun api github --write POST /repos/o/r/issues",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun api github --write POST /repos/o/r/issues",
+        "cmd": "reporun api github --write POST /repos/o/r/issues"
+      }
+    },
+    {
+      "id": "repo-031",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun batch plan.json --write",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun batch plan.json --write",
+        "cmd": "reporun batch plan.json --write"
+      }
+    },
+    {
+      "id": "repo-032",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12 && reporun cli github --write -- issue close 4",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "repo-033",
+      "tool": "Bash",
+      "cwd": "@granted",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue comment 4 --body \"x\\n\\nCo-Authored-By: A <a@b.c>\"",
+      "want": "deny",
+      "reason": "repo guard: this user's issues, work items, pull requests and comments carry no sign-off or mention of the agent that wrote them; remove it and run the command again",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ]
+    },
+    {
+      "id": "repo-034",
+      "tool": "Bash",
+      "cwd": "@expired",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr merge 12",
+        "cmd": "reporun cli github --write -- pr merge 12"
+      }
+    },
+    {
+      "id": "repo-035",
+      "tool": "Bash",
+      "cwd": "@partial",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr merge 12",
+        "cmd": "reporun cli github --write -- pr merge 12"
+      }
+    },
+    {
+      "id": "repo-036",
+      "tool": "Bash",
+      "cwd": "@partial",
+      "shell": "sh",
+      "command": "reporun cli github --write -- issue create --title t",
+      "want": "none",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- issue create --title t",
+        "cmd": "reporun cli github --write -- issue create --title t"
+      }
+    },
+    {
+      "id": "repo-037",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "reporun cli github --write -- pr merge 12",
+      "want": "ask",
+      "reason": "repo guard: reporun --write changes an issue, work item or pull request on the platform; confirm this exact change",
+      "source": [
+        "new:autonomy-grant"
+      ],
+      "tags": [
+        "grant"
+      ],
+      "variants": {
+        "powershell": "reporun cli github --write -- pr merge 12",
+        "cmd": "reporun cli github --write -- pr merge 12"
+      }
+    }
+  ]
+}

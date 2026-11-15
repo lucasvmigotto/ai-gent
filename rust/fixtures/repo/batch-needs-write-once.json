@@ -1,0 +1,31 @@
+{
+ "name": "batch-needs-write-once",
+ "derived_from": "BatchTest::test_needs_write_once",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"feature\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues\", \"data\": {\"title\": \"[012] Export\"}}, \"record\": {\"key\": \"feature\", \"ref\": \"#{{self.number}}\", \"id\": \"{{self.id}}\", \"url\": \"{{self.html_url}}\", \"state\": \"todo\"}}, {\"name\": \"US1\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues\", \"data\": {\"title\": \"[012] US1: CSV\"}}, \"record\": {\"key\": \"US1\", \"ref\": \"#{{self.number}}\", \"id\": \"{{self.id}}\", \"state\": \"todo\"}}, {\"name\": \"US1-parent\", \"api\": {\"method\": \"POST\", \"path\": \"/repos/{owner}/{repo}/issues/{{feature.number}}/sub_issues\", \"data\": {\"sub_issue_id\": \"{{US1.id}}\"}}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [
+    "3 of 3 steps"
+   ],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

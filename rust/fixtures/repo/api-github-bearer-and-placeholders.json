@@ -1,0 +1,70 @@
+{
+ "name": "api-github-bearer-and-placeholders",
+ "derived_from": "ApiTest::test_github_bearer_and_placeholders",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/repos/{owner}/{repo}/issues",
+    "--query",
+    "state=open"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/repos/o/r/issues?state=open",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/repos/o/r",
+    "--query",
+    "a=b c",
+    "--query",
+    "a=z",
+    "--query",
+    "novalue"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/repos/o/r?a=z",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

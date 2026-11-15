@@ -1,0 +1,820 @@
+{
+  "schema": 1,
+  "guard": "containers",
+  "marker": "containers guard:",
+  "cases": [
+    {
+      "id": "containers-001",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman system prune -a -f",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman system prune -a -f",
+        "cmd": "podman system prune -a -f"
+      }
+    },
+    {
+      "id": "containers-002",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "docker image prune",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "docker image prune",
+        "cmd": "docker image prune"
+      }
+    },
+    {
+      "id": "containers-003",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman image prune --filter label=me.lucasvmigotto.ai-gent.project=shop",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman image prune --filter label=me.lucasvmigotto.ai-gent.project=shop",
+        "cmd": "podman image prune --filter label=me.lucasvmigotto.ai-gent.project=shop"
+      }
+    },
+    {
+      "id": "containers-004",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman volume prune -f",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman volume prune -f",
+        "cmd": "podman volume prune -f"
+      }
+    },
+    {
+      "id": "containers-005",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "docker builder prune --all",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "docker builder prune --all",
+        "cmd": "docker builder prune --all"
+      }
+    },
+    {
+      "id": "containers-006",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "nerdctl container prune",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "nerdctl container prune",
+        "cmd": "nerdctl container prune"
+      }
+    },
+    {
+      "id": "containers-007",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "\"$CONTAINER_ENGINE\" system prune",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
+    },
+    {
+      "id": "containers-008",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "$CONTAINER_ENGINE network prune",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
+    },
+    {
+      "id": "containers-009",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "sudo podman --log-level=info system prune",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "sudo podman --log-level=info system prune",
+        "cmd": "sudo podman --log-level=info system prune"
+      }
+    },
+    {
+      "id": "containers-010",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "buildah prune",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "buildah prune",
+        "cmd": "buildah prune"
+      }
+    },
+    {
+      "id": "containers-011",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "cd /x && /usr/bin/podman image prune -a",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "cd /x && /usr/bin/podman image prune -a",
+        "cmd": "cd /x && /usr/bin/podman image prune -a"
+      }
+    },
+    {
+      "id": "containers-012",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman rm -a -f",
+      "want": "deny",
+      "reason": "containers guard: removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman rm -a -f",
+        "cmd": "podman rm -a -f"
+      }
+    },
+    {
+      "id": "containers-013",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman rmi --all",
+      "want": "deny",
+      "reason": "containers guard: removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman rmi --all",
+        "cmd": "podman rmi --all"
+      }
+    },
+    {
+      "id": "containers-014",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman volume rm -af",
+      "want": "deny",
+      "reason": "containers guard: removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman volume rm -af",
+        "cmd": "podman volume rm -af"
+      }
+    },
+    {
+      "id": "containers-015",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "docker container rm --all",
+      "want": "deny",
+      "reason": "containers guard: removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "docker container rm --all",
+        "cmd": "docker container rm --all"
+      }
+    },
+    {
+      "id": "containers-016",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "buildah rm --all",
+      "want": "deny",
+      "reason": "containers guard: removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "buildah rm --all",
+        "cmd": "buildah rm --all"
+      }
+    },
+    {
+      "id": "containers-017",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "buildah rmi --prune",
+      "want": "deny",
+      "reason": "containers guard: removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "buildah rmi --prune",
+        "cmd": "buildah rmi --prune"
+      }
+    },
+    {
+      "id": "containers-018",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman rmi $(podman images -q)",
+      "want": "deny",
+      "reason": "containers guard: that removes whatever an unfiltered listing returns, other projects' included; filter the listing by label=me.lucasvmigotto.ai-gent.project=<project> (or your own name= prefix) (containers.md §9a)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$(' '$')"
+    },
+    {
+      "id": "containers-019",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman images -q --filter dangling=true | xargs podman rmi",
+      "want": "deny",
+      "reason": "containers guard: that removes whatever an unfiltered listing returns, other projects' included; filter the listing by label=me.lucasvmigotto.ai-gent.project=<project> (or your own name= prefix) (containers.md §9a)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman images -q --filter dangling=true | xargs podman rmi",
+        "cmd": "podman images -q --filter dangling=true | xargs podman rmi"
+      }
+    },
+    {
+      "id": "containers-020",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "docker volume ls -q | xargs -r docker volume rm",
+      "want": "deny",
+      "reason": "containers guard: that removes whatever an unfiltered listing returns, other projects' included; filter the listing by label=me.lucasvmigotto.ai-gent.project=<project> (or your own name= prefix) (containers.md §9a)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "docker volume ls -q | xargs -r docker volume rm",
+        "cmd": "docker volume ls -q | xargs -r docker volume rm"
+      }
+    },
+    {
+      "id": "containers-021",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "for v in $(podman volume ls -q); do podman volume rm $v; done",
+      "want": "deny",
+      "reason": "containers guard: that removes whatever an unfiltered listing returns, other projects' included; filter the listing by label=me.lucasvmigotto.ai-gent.project=<project> (or your own name= prefix) (containers.md §9a)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$(' '$')"
+    },
+    {
+      "id": "containers-022",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman rm -f `podman ps -aq`",
+      "want": "deny",
+      "reason": "containers guard: that removes whatever an unfiltered listing returns, other projects' included; filter the listing by label=me.lucasvmigotto.ai-gent.project=<project> (or your own name= prefix) (containers.md §9a)",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('`')"
+    },
+    {
+      "id": "containers-023",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=shop | xargs -r podman rmi",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=shop | xargs -r podman rmi",
+        "cmd": "podman images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=shop | xargs -r podman rmi"
+      }
+    },
+    {
+      "id": "containers-024",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman ps -aq --filter name=scratch-uv | xargs podman rm -f",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman ps -aq --filter name=scratch-uv | xargs podman rm -f",
+        "cmd": "podman ps -aq --filter name=scratch-uv | xargs podman rm -f"
+      }
+    },
+    {
+      "id": "containers-025",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman volume rm shop-tools-target-feat-a",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman volume rm shop-tools-target-feat-a",
+        "cmd": "podman volume rm shop-tools-target-feat-a"
+      }
+    },
+    {
+      "id": "containers-026",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman rmi 1a2b3c4d",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman rmi 1a2b3c4d",
+        "cmd": "podman rmi 1a2b3c4d"
+      }
+    },
+    {
+      "id": "containers-027",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman rm -f scratch-probe",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman rm -f scratch-probe",
+        "cmd": "podman rm -f scratch-probe"
+      }
+    },
+    {
+      "id": "containers-028",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "\"$CONTAINER_ENGINE\" rmi localhost/vsc-shop-1234-features",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "skip_in": [
+        "powershell",
+        "cmd"
+      ],
+      "skip_reason": "sh-only syntax in the command ('$')"
+    },
+    {
+      "id": "containers-029",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman ps -a --external",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman ps -a --external",
+        "cmd": "podman ps -a --external"
+      }
+    },
+    {
+      "id": "containers-030",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman system df",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman system df",
+        "cmd": "podman system df"
+      }
+    },
+    {
+      "id": "containers-031",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman images -q",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman images -q",
+        "cmd": "podman images -q"
+      }
+    },
+    {
+      "id": "containers-032",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman build --label me.lucasvmigotto.ai-gent.project=shop --target tools -t localhost/shop-tools:dev .",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman build --label me.lucasvmigotto.ai-gent.project=shop --target tools -t localhost/shop-tools:dev .",
+        "cmd": "podman build --label me.lucasvmigotto.ai-gent.project=shop --target tools -t localhost/shop-tools:dev ."
+      }
+    },
+    {
+      "id": "containers-033",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "podman run --rm --name scratch-x img true",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "podman run --rm --name scratch-x img true",
+        "cmd": "podman run --rm --name scratch-x img true"
+      }
+    },
+    {
+      "id": "containers-034",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "git fetch --prune",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "git fetch --prune",
+        "cmd": "git fetch --prune"
+      }
+    },
+    {
+      "id": "containers-035",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "git worktree prune",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "git worktree prune",
+        "cmd": "git worktree prune"
+      }
+    },
+    {
+      "id": "containers-036",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "git commit -m \"docs: never podman system prune\"",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "git commit -m \"docs: never podman system prune\"",
+        "cmd": "git commit -m \"docs: never podman system prune\""
+      }
+    },
+    {
+      "id": "containers-037",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "grep -rn \"image prune\" shared/",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "grep -rn \"image prune\" shared/",
+        "cmd": "grep -rn \"image prune\" shared/"
+      }
+    },
+    {
+      "id": "containers-038",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "sh",
+      "command": "ls -la",
+      "want": "none",
+      "source": [
+        "scripts/test-containers-guard.sh",
+        "opencode/guard/test/rules.test.mjs:containersVectors"
+      ],
+      "tags": [
+        "parity"
+      ],
+      "variants": {
+        "powershell": "ls -la",
+        "cmd": "ls -la"
+      }
+    },
+    {
+      "id": "containers-039",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "podman system prune -a -f",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "containers-040",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "docker image prune & echo done",
+      "want": "deny",
+      "reason": "containers guard: prune removes other projects' images, volumes and in-flight builds; remove by ID or by this project's label (containers.md §9a: images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=<project>, then rmi each ID)",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "containers-041",
+      "tool": "PowerShell",
+      "cwd": "/tmp",
+      "shell": "powershell",
+      "command": "podman.exe rm -a",
+      "want": "deny",
+      "reason": "containers guard: removing everything takes other projects' containers, images or volumes; remove by ID or by this project's label (containers.md §9)",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    },
+    {
+      "id": "containers-042",
+      "tool": "Bash",
+      "cwd": "/tmp",
+      "shell": "cmd",
+      "command": "podman rmi 1a2b3c4d",
+      "want": "none",
+      "source": [
+        "new:033"
+      ],
+      "tags": [
+        "new",
+        "windows"
+      ]
+    }
+  ]
+}

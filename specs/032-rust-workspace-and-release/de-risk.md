@@ -4,7 +4,7 @@ Fill in during Phase 0. CI proves a binary runs on a runner of its OS and archit
 
 | # | Probe | Expected | Observed | Date | OS version |
 |---|---|---|---|---|---|
-| P1 | CI: all six legs build and run `ai-gent version --json` | pass | | | runners |
+| P1 | CI: all six legs build and run `ai-gent version --json` | pass | pass: six green legs, run 41344342253 (`rust.yml` from `feat/rust-workspace-bootstrap`, default profile, binaries 0.65-1.18 MB) | 2026-11-01 | ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-2025, windows-11-arm |
 | P2 | macOS arm64: `curl -fsSLO` the archive, `tar xzf`, run `bin/ai-gent version` | runs; no quarantine attribute [RESEARCHED: S3]; `codesign -dv` shows an ad-hoc signature [KNOWN, verify] | | | |
 | P3 | macOS arm64: download the same archive in a browser, extract with Finder or `tar`, run from Terminal | `xattr -l` shows `com.apple.quarantine` on the archive; a CLI binary extracted by `tar` is not quarantined [RESEARCHED: S3]; Finder extraction may be | | | |
 | P4 | macOS x86_64 (or Rosetta): P2 | runs | | | |

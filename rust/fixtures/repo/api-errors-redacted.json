@@ -1,0 +1,67 @@
+{
+ "name": "api-errors-redacted",
+ "derived_from": "ApiTest::test_errors_redacted",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/echo-token"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [
+    "<token>",
+    "HTTP 401"
+   ],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/echo-token",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/fail"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [
+    "HTTP 422"
+   ],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/fail",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {}
+}

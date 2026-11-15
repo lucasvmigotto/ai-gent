@@ -1,0 +1,41 @@
+[package]
+name = "ai-gent-core"
+version = "0.1.0"
+description = "Shared library of the ai-gent command line: output envelope, exit codes, paths and version"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+keywords = ["ai-agent", "claude-code", "skills", "cli"]
+categories = ["command-line-utilities"]
+include = ["/src/**", "/build.rs", "/README.md"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+# O_NOFOLLOW and O_NONBLOCK (libc) and the current user (rustix) for the guard log (guard/words.rs).
+libc = "0.2"
+rustix = { version = "1", features = ["process"] }
+
+[features]
+# Test hooks of `wt` (fake disk usage, fake builds, no engine). Never enabled in a release build.
+test-support = []
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+# The ai-gent crate has its own `fake_tool` example (it includes this file as a module); two examples with
+# one name collide on the same output file, and on Windows the parallel links failed with LNK1104.
+[[example]]
+name = "fake_pass_tool"
+path = "examples/fake_tool.rs"

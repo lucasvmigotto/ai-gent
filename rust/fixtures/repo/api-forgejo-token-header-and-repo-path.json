@@ -1,0 +1,56 @@
+{
+ "name": "api-forgejo-token-header-and-repo-path",
+ "derived_from": "ApiTest::test_forgejo_token_header_and_repo_path",
+ "remote": "https://codeberg.org/o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/forgejo/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {
+  "m.json": "{\"Do\": \"merge\"}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "api",
+    "forgejo",
+    "GET",
+    "/repos/{owner}/{repo}/issues"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"ok\": true\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/repos/o/r/issues",
+     "headers": {
+      "Authorization": "token tok-3f9a1c77e0",
+      "Accept": "application/json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "api",
+    "forgejo",
+    "POST",
+    "/repos/o/r/pulls/3/merge",
+    "--data",
+    "<ROOT>/m.json"
+   ],
+   "stdin": null,
+   "exit": 3,
+   "stdout": "",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

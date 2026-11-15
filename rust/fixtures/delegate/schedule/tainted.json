@@ -1,0 +1,4 @@
+[
+  {"id": "S1", "kind": "docs", "paths": ["rust/fixtures/x/"]},
+  {"id": "J1", "kind": "design", "paths": ["rust/fixtures/x/a.json"], "depends": ["S1"]}
+]

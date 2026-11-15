@@ -44,10 +44,12 @@ import {
 	skillById,
 	skills,
 	skillsOf,
+	tierMatrix,
 	triggers,
 	version,
 } from "./content";
 import {
+	compatSections,
 	contributeSections,
 	flowSections,
 	installSections,
@@ -222,6 +224,22 @@ export function InstallPage() {
 			<p className="mt-4">
 				<Link to="/use/skills" className="text-signal underline">
 					{t.install.next}
+				</Link>
+			</p>
+		</>
+	);
+}
+
+export function CompatibilityPage() {
+	const { t } = useI18n();
+	return (
+		<>
+			<h1 className="font-display text-3xl">{t.compat.title}</h1>
+			<p className="mt-2 max-w-2xl text-muted">{t.compat.lede}</p>
+			<SectionBlocks sections={compatSections(t, tierMatrix)} />
+			<p className="mt-4">
+				<Link to="/use/install" className="text-signal underline">
+					{t.compat.installLink}
 				</Link>
 			</p>
 		</>

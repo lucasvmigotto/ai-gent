@@ -1,0 +1,54 @@
+# cargo-deny configuration (spec 032 FR-003): GPL-3.0-or-later-compatible licenses only, and no
+# TLS or HTTP client stack (the binary shells out to `curl` for the network, spec 034).
+# Adapted from ../rstory/deny.toml.
+
+[graph]
+targets = [
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+]
+
+[advisories]
+version = 2
+# Owner decision 2026-11-14 (spec 043 Q-MY-11): `rustls-pemfile` is flagged unmaintained, a maintenance
+# notice and not a vulnerability. It comes with the `mysql` crate's rustls support. Review when the
+# MySQL client or its TLS dependency changes, and no later than 2027-05-14.
+ignore = [{ id = "RUSTSEC-2025-0134", reason = "unmaintained notice only, via the mysql crate's rustls feature; reviewed 2026-11-14" }]
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+    # webpki-roots (the Mozilla CA list, a dependency of the `mysql` client, feature `mysql`): a permissive
+    # license like the others here (use and redistribution with a notice, no copyleft condition).
+    "CDLA-Permissive-2.0",
+    "GPL-3.0-or-later",
+]
+
+[bans]
+multiple-versions = "warn"
+deny = [
+    { crate = "openssl-sys" },
+    { crate = "openssl" },
+    { crate = "native-tls" },
+    { crate = "reqwest" },
+    { crate = "hyper" },
+    { crate = "ureq" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

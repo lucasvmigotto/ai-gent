@@ -1,0 +1,43 @@
+{
+ "name": "grant-merge-covered-base-runs",
+ "derived_from": "GrantMergeTest::test_covered_base_merges",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {},
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "stdout": "develop\n",
+     "args": "pr view"
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {
+  "repo/.ai-gent/autonomy": "expires: 2099-12-31T23:59:59Z\nbranches: develop dev\nactions: merge\n"
+ },
+ "runs": [
+  {
+   "exit": 0,
+   "stdout": "args: pr merge 3\ntoken: \n",
+   "stderr_has": [
+    "token from the CLI's own login"
+   ],
+   "argv": [
+    "cli",
+    "github",
+    "--write",
+    "--",
+    "pr",
+    "merge",
+    "3"
+   ],
+   "stdin": null,
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

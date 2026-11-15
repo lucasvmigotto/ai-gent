@@ -41,14 +41,14 @@ When the context window passes the configured percent, a toast says how stale th
 
 ### User Story 2 - Warned before a compaction (Priority: P1)
 
-When a context compaction is about to happen, the same toast fires once, because the summary loses what the checkpoint keeps.
+When the person runs `/compact`, the same toast fires once, because the summary loses what the checkpoint keeps. (Amended 2026-11-14: the hook moved from `session.compact` to `prompt.submit`; see FR-008 and the decisions.)
 
-**Independent Test**: a test raises `session.compact` with `trigger: 'auto'` and asserts the toast, and with `trigger: 'precompute'` asserts none.
+**Independent Test**: a test submits `/compact` through `$.prompt.submit` and asserts the toast, and a plain prompt or another command asserts none.
 
 **Acceptance Scenarios**:
 
-1. **Given** the engine announces a compaction (`session.compact`, `trigger` `manual` or `auto`), **When** it fires, **Then** the toast fires once per session with story 1's wording, without the percent, and the hook passes the event on unchanged (`next(e)`, never `skip`).
-2. **Given** `trigger` is `precompute` (the engine computing ahead; it installs nothing) or `plugin`, **When** it fires, **Then** no toast.
+1. **Given** the person submits `/compact` (`prompt.submit` with `command.name` `compact`), **When** it fires, **Then** the toast fires once per session with story 1's wording, without the percent, and the hook passes the prompt on unchanged (`next(e)`, never `drop`).
+2. **Given** any other prompt or command, **When** it is submitted, **Then** no toast. An auto-compaction gets no toast of its own: story 1's context toast comes before it.
 3. **Given** the story-1 toast already fired this session, **When** a compaction follows, **Then** no second toast.
 
 ---
@@ -98,14 +98,14 @@ When a cap in `.ai-gent/budget.yaml` has less than the configured share left and
 - **FR-005**: The `budget` run MUST be detached from `session.start` and throttled (`$.clock.after(0, …)`), as 014's first read is, and MUST NOT run unless `token_report.py` is found and `.ai-gent/budget.yaml` exists.
 - **FR-006**: The toast MUST name the command to run (`/project:checkpoint`) and MUST NOT claim the checkpoint is wrong, only that commits came after it.
 - **FR-007**: `handoffNudge` MUST turn the whole feature off without touching 012's or 013's parts of the module.
-- **FR-008**: The `session.compact` hook MUST answer `next(e)` unchanged on every trigger, MUST NOT return `skip`, and MUST toast only for `manual` and `auto`.
+- **FR-008** (amended 2026-11-14): The compaction toast MUST come from a `prompt.submit` hook that toasts only when `e.command?.name === 'compact'`, answers `next(e)` unchanged for every prompt and never returns `drop`. The module MUST NOT hook `session.compact`. (Was: a `session.compact` hook answering `next(e)` on every trigger and toasting for `manual` and `auto`.)
 - **FR-009**: `project` MUST NOT list `agents` under `dependencies` for this feature.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: `claude plugin test plugins/project` passes with stories 1–4 covered on `terminal` and `desktop`, including a case that raises `session.compact` and one that mocks `$.session.usage()`.
+- **SC-001**: `claude plugin test plugins/project` passes with stories 1–4 covered on `terminal` and `desktop`, including a case that submits `/compact` and one that mocks `$.session.usage()`.
 - **SC-002**: In a session with the context at 85% and a checkpoint two commits old, exactly one toast appears, naming `/project:checkpoint`; a cap at 5% left adds no second toast for the context condition.
 - **SC-003**: With no `budget.yaml` or no `token_report.py`, the module spawns no `token_report.py` process in a 10-minute session.
 - **SC-004**: `claude plugin validate plugins/project` reports no refusal.
@@ -130,3 +130,8 @@ When a cap in `.ai-gent/budget.yaml` has less than the configured share left and
 - Review note: `caps[].left` and the cap names `session_billable` and `week_billable` exist (`token-model.ts:86`, `parse_budget`'s docstring), contrary to the first review's doubt.
 - Verified 2026-10-31 by running it: `token_report.py budget --json --projected=0` prints `verdict`, `caps` (empty with no caps set), `cards` and `batches` and exits 0, so the optional cap check has the shape it assumes. The 2.1.312 binary contains the `session.compact`, `session.usage` and `precompute` strings.
 - Build notes (2026-10-31): the cap test is strictly under the share (`left/cap*100 < handoffNudgeCapPercent`), so 10% left does not fire at 10. A compaction toast is suppressed once the context toast fired (story 2.3) but not the reverse. The checkpoint comes from 012's refresh in `register.tsx` (passed in, so the atom is not read twice); `session.compact`'s hook toasts for `manual` and `auto` inside the handler and always answers `next(e)`. When git is unavailable the toast says how long ago the file was written. Not verified against the real engine: `claude plugin test` mocks `$.session.usage()`, raises `session.compact` through `$.session.compact` with each trigger, and answers `$.plugin.root`-relative `fs.exists` by path suffix, so the real `${$.plugin.root}/../agents` layout of a marketplace install, and `session.compact` with a real `auto` trigger, are only checked by reading.
+
+## Decisions (2026-11-14, the owner, via chat)
+
+- `session.compact` is one of the events the built-in `cc-plugin-sec-default` plugin sends on past every person-installed mod where it is seated (machines with managed settings, Team and Enterprise orgs), and Claude Code then tells the person "project: its session.compact hook was skipped". The hook is dropped. A manual `/compact` is caught at `prompt.submit` (`e.command?.name === 'compact'`), which that plugin does not pass over; FR-008 and story 2 are amended. An auto-compaction gets no separate toast: the context toast (story 1) fires before the window fills. `scripts/consistency.py` now fails on a hook for a passed-over event.
+- Not verified against the real engine: whether the built-in `/compact` raises `prompt.submit` with `command.name` `compact` (the types say a built-in that asks the model does; a forked command does not). The `claude plugin test` cases submit it through `$.prompt.submit`.

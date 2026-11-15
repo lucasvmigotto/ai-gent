@@ -1,0 +1,91 @@
+{
+ "name": "canary-token-never-leaves-through-output",
+ "derived_from": "FR-A5",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+ },
+ "tools": {
+  "gh": {
+   "rules": [
+    {
+     "args": "pr list",
+     "stdout": "leak {env:GH_TOKEN} {env:AZURE_DEVOPS_EXT_PAT}\n"
+    }
+   ]
+  }
+ },
+ "env": {},
+ "stub": true,
+ "files": {
+  "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"x\", \"api\": {\"method\": \"GET\", \"path\": \"/echo-token\"}}]}"
+ },
+ "runs": [
+  {
+   "argv": [
+    "cli",
+    "github",
+    "--",
+    "pr",
+    "list"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "leak <token> \n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "api",
+    "github",
+    "GET",
+    "/echo-token"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "",
+   "stderr_has": [
+    "<token>"
+   ],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/echo-token",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  },
+  {
+   "argv": [
+    "batch",
+    "<ROOT>/b.json",
+    "--out",
+    "<ROOT>/out.json"
+   ],
+   "stdin": null,
+   "exit": 1,
+   "stdout": "{\n  \"platform\": \"github\",\n  \"ok\": false,\n  \"steps\": [\n    {\n      \"name\": \"x\",\n      \"ok\": false,\n      \"error\": \"HTTP 401: {\\\"message\\\":\\\"bad credentials <token>\\\"}\"\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n",
+   "stderr_has": [],
+   "seen": [
+    {
+     "method": "GET",
+     "path": "/echo-token",
+     "headers": {
+      "Authorization": "Bearer tok-3f9a1c77e0",
+      "Accept": "application/vnd.github+json"
+     },
+     "body": ""
+    }
+   ]
+  }
+ ],
+ "expect_files": {
+  "out.json": "{\n  \"platform\": \"github\",\n  \"ok\": false,\n  \"steps\": [\n    {\n      \"name\": \"x\",\n      \"ok\": false,\n      \"error\": \"HTTP 401: {\\\"message\\\":\\\"bad credentials <token>\\\"}\"\n    }\n  ],\n  \"records\": [],\n  \"skipped\": []\n}\n"
+ }
+}

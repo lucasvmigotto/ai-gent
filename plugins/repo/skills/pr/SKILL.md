@@ -58,6 +58,10 @@ description, mark ready, close, and **merge**: each only when the user
 asks for that action (or, for the merge, when it lands work in remote
 mode), said first in one line, through `--write`.
 
+- **With an autonomy grant** (`git:workflow`'s autonomy reference) the
+  guard stops asking for opening a PR into a covered branch and for
+  merging, and `reporun` itself refuses a merge whose base the grant does
+  not cover: report it and leave that merge to the user.
 - **Merge** follows `git:workflow`'s count rule, mapped to each
   platform's options in `landing.md` (merge commit from 4 commits,
   rebase/fast-forward under 4), only with green required checks and the

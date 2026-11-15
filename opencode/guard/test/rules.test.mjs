@@ -1,20 +1,25 @@
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, rmSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { gitGuard, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate } from "../rules.mjs"
+import { gitGuard, gitGrantPath, dbGuard, dbCredsShell, dbCredsTool, secretsGuard, repoGuard, containersGuard, evaluate, appendGuardRow, dropTrimLock, takeTrimLock, guardPresent, guardRow, guardVerb, guardWords } from "../rules.mjs"
 
 // Parity test: the OpenCode rules must decide exactly what the Claude Code
 // guards (plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh) decide for
-// the same vectors. guard.sh is the oracle; the shell test suites and this
-// one share the same expectations, so the two implementations cannot drift.
+// the same cases. guard.sh is the oracle; the cases are the shared fixtures
+// (shared/guard-fixtures/*.json, spec 033), which the shell test suites and
+// scripts/guard-fixtures.py read too, so the implementations cannot drift.
 
+const WORDS_MAX_BYTES = JSON.parse(readFileSync(new URL("../words.json", import.meta.url), "utf8")).maxBytes
 const REPO = new URL("../../..", import.meta.url).pathname.replace(/\/$/, "")
 const GIT_GUARD = join(REPO, "plugins/git/hooks/guard.sh")
 const DB_GUARD = join(REPO, "plugins/db/hooks/guard.sh")
 const SECRETS_GUARD = join(REPO, "plugins/secrets/hooks/guard.sh")
 const REPO_GUARD = join(REPO, "plugins/repo/hooks/guard.sh")
 const CONTAINERS_GUARD = join(REPO, "plugins/devcontainer/hooks/guard.sh")
+
+const FIXTURES = join(REPO, "shared/guard-fixtures")
+const load = (name) => JSON.parse(readFileSync(join(FIXTURES, `${name}.json`), "utf8"))
 
 const sandbox = mkdtempSync(join(tmpdir(), "ai-gent-guard-"))
 process.on("exit", () => rmSync(sandbox, { recursive: true, force: true }))
@@ -24,6 +29,19 @@ for (const b of ["main", "staging", "dev", "feat/x"]) {
   const d = join(sandbox, b.replace("/", "-"))
   execFileSync("git", ["init", "-q", "-b", b, d])
   dirs[b] = d
+}
+// The autonomy grant a sandbox repository carries, as the user would write it.
+const GRANTS = {
+  granted: "expires: 2099-12-31T23:59:59Z\nbranches: develop dev\nactions: push pr merge issues\n",
+  expired: "expires: 2000-01-01T00:00:00Z\nbranches: develop dev\nactions: push pr merge issues\n",
+  partial: "expires: 2099-12-31T23:59:59Z\nactions: issues\n",
+}
+for (const [k, text] of Object.entries(GRANTS)) {
+  const d = join(sandbox, k)
+  execFileSync("git", ["init", "-q", "-b", "feat/x", d])
+  mkdirSync(join(d, ".ai-gent"))
+  writeFileSync(join(d, ".ai-gent", "autonomy"), text)
+  dirs[k] = d
 }
 const main = dirs["main"]
 const staging = dirs["staging"]
@@ -50,290 +68,328 @@ function check(label, want, got) {
   console.log(`      ${ok ? "ok   " : "FAIL "} want ${want}, got ${got}: ${label}`)
 }
 
-function shellDecision(guard, tool, cwd, toolInput) {
+// The user's real allowlist must never leak into these runs: every shell guard run sees an
+// allowlist path that does not exist unless the case sets its own environment.
+const NO_ALLOWLIST = join(sandbox, "no-such-allowlist")
+process.env.AI_GENT_PASS_ALLOW = NO_ALLOWLIST
+
+// env: null runs with this process's environment; an object runs with only PATH and those variables.
+function shellRaw(guard, tool, cwd, toolInput, env = null) {
   const event = JSON.stringify({
     hook_event_name: "PreToolUse",
     tool_name: tool,
     cwd,
     tool_input: toolInput,
   })
-  const out = execFileSync("sh", [guard], { input: event, encoding: "utf8" })
-  const m = /"permissionDecision":"([a-z]+)"/.exec(out)
+  const opts = { input: event, encoding: "utf8" }
+  if (env) opts.env = { PATH: process.env.PATH, AI_GENT_NO_SHADOW: "1", ...env }
+  return execFileSync("sh", [guard], opts)
+}
+
+function shellDecision(guard, tool, cwd, toolInput, env = null) {
+  const m = /"permissionDecision":"([a-z]+)"/.exec(shellRaw(guard, tool, cwd, toolInput, env))
   return m ? m[1] : "none"
 }
 
-// ---------------------------------------------------------------- git
+// ------------------------------------------------------- fixtures
 
-const gitVectors = [
-  ["deny", feat, 'git commit --no-verify -m "fix: x"'],
-  ["deny", feat, 'git commit -n -m "fix: x"'],
-  ["deny", feat, "git -C /tmp/repo merge --no-verify feat/x"],
-  ["deny", feat, "git commit -m \"$(cat <<'EOF'\nfeat: x\n\nCo-Authored-By: Someone <a@b.c>\nEOF\n)\""],
-  ["deny", feat, "gh issue create --title x --body \"$(cat <<'EOF'\nbody\n\nCo-Authored-By: Someone <a@b.c>\nEOF\n)\""],
-  ["deny", feat, "gh pr comment 1 --body \"$(cat <<'EOF'\nlooks good\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\nEOF\n)\""],
-  ["none", feat, 'gh issue create --title x --body "plain body"'],
-  ["none", feat, 'grep -rn "co-authored-by" docs/'],
-  ["none", feat, 'git commit -m "fix(git): deny Co-Authored-By trailers and generated with signatures"'],
-  ["deny", feat, "git push --force origin feat/x"],
-  ["deny", feat, "git push -f"],
-  ["ask", feat, "git push --force-with-lease origin feat/x"],
-  ["ask", feat, "git push origin feat/x"],
-  ["ask", feat, "cd /tmp && git push"],
-  ["ask", feat, "git fetch && git push origin --delete feat/old"],
-  ["ask", feat, "gh pr create --fill"],
-  ["ask", feat, "git branch -D feat/old"],
-  ["ask", feat, "git reset --hard HEAD~1"],
-  ["ask", feat, "git clean -fd"],
-  ["ask", feat, "git commit --amend --no-edit"],
-  ["ask", feat, "git filter-repo --mailmap m"],
-  ["ask", main, 'git commit -m "fix: x"'],
-  ["ask", main, "git merge --ff-only feat/x"],
-  ["ask", feat, `git -C ${main} commit -m "fix: x"`],
-  ["ask", staging, "git merge --no-ff dev"],
-  ["ask", staging, 'git commit -m "fix: x"'],
-  ["ask", dev, 'git commit -m "fix: x"'],
-  ["ask", dev, 'git merge --no-ff feat/x && git commit -m "fix: x"'],
-  ["ask", feat, `git -C ${dev} commit -m "fix: x"`],
-  ["none", dev, "git merge --no-ff feat/x"],
-  ["none", dev, "git merge --ff-only feat/x"],
-  ["none", dev, "git merge --continue"],
-  ["none", feat, 'git commit -m "fix: x"'],
-  ["none", feat, 'git commit -m "feat(git): block --no-verify and -n in the guard"'],
-  ["none", feat, 'git commit -m "docs: explain git push --force"'],
-  ["none", feat, "git merge --no-ff feat/x-db"],
-  ["none", feat, "git branch -d feat/x-db"],
-  ["none", feat, "git status && git log --oneline -5"],
-  ["none", feat, 'echo "git push" > notes.txt'],
-  ["none", feat, "grep -rn -- --no-verify docs/"],
-  ["none", feat, "git push-notes-helper"],
-  ["none", main, "git switch -c feat/new"],
-  ["none", feat, "ls -la"],
-]
+const GUARD_FILES = { git: GIT_GUARD, db: DB_GUARD, secrets: SECRETS_GUARD, repo: REPO_GUARD, containers: CONTAINERS_GUARD }
+const branchDirs = { main, staging, dev, feat, granted: dirs.granted, expired: dirs.expired, partial: dirs.partial }
+const subst = (s) => s.replace(/\{(main|staging|dev|feat|granted|expired|partial)\}/g, (_, k) => branchDirs[k])
+const cwdOf = (c) => (c.startsWith("@") ? branchDirs[c.slice(1)] : c)
+const sample = (c) => (c.command ?? `${c.tool} ${JSON.stringify(c.tool_input)}`).replace(/\n/g, "⏎")
 
-console.log("    git: TypeScript rules vs plugins/git/hooks/guard.sh")
-for (const [want, cwd, cmd] of gitVectors) {
-  const ocDecision = gitGuard(cmd, { cwd, branchOf }).decision
-  check(cmd.replace(/\n/g, "⏎"), want, ocDecision)
-  check(`shell ${cmd.replace(/\n/g, "⏎")}`, want, shellDecision(GIT_GUARD, "Bash", cwd, { command: cmd, description: "x" }))
+function ocDecision(guard, c, cwd, command) {
+  if (c.tool !== "Bash") {
+    // The git guard reads an Edit or Write target (the autonomy grant is the user's to write).
+    if (guard === "git") return gitGrantPath(c.tool_input?.file_path ?? c.tool_input?.notebook_path).decision
+    return dbCredsTool(c.tool, c.tool_input ?? {}).decision
+  }
+  switch (guard) {
+    case "git":
+      return gitGuard(command, { cwd, branchOf }).decision
+    case "db": {
+      const creds = dbCredsShell(command)
+      return creds.decision !== "none" ? creds.decision : dbGuard(command).decision
+    }
+    case "secrets":
+      return secretsGuard(command).decision
+    case "repo":
+      return repoGuard(command, { cwd }).decision
+    case "containers":
+      return containersGuard(command).decision
+  }
+  throw new Error(`unknown guard ${guard}`)
 }
 
-// ----------------------------------------------------------------- db
-
-const dbVectors = [
-  ["deny", 'psql -h db.internal -U app -c "DELETE FROM orders WHERE id = 1"'],
-  ["deny", "mysql -u root shop -e 'update customer set status = 1'"],
-  ["deny", 'docker exec -i shop-db-1 psql -U app -c "DROP TABLE t"'],
-  ["deny", "podman exec db sqlplus -s system/x@FREEPDB1 <<EOF\nTRUNCATE TABLE audit;\nEOF"],
-  ["deny", 'sqlcmd -S prod -Q "ALTER TABLE t ADD c int"'],
-  ["deny", "pg_restore -d shop backup.dump"],
-  ["deny", 'kubectl exec -it pg-0 -- psql -c "insert into t values (1)"'],
-  ["deny", 'PGPASSWORD=x psql -h 10.0.0.5 -c "grant all on t to u"'],
-  ["ask", 'psql -h db.internal -U app -c "SELECT id FROM orders LIMIT 5"'],
-  ["ask", "sudo -u postgres psql"],
-  ["ask", "/usr/lib/postgresql/17/bin/psql -l"],
-  ["ask", "docker compose exec db psql -U app -d shop"],
-  ["ask", 'sqlite3 app.db ".tables"'],
-  ["ask", 'mongosh "mongodb://localhost/test" --eval "db.stats()"'],
-  ["ask", 'timeout 10s mysql -e "SELECT 1"'],
-  ["none", 'python3 /home/me/ai-gent/plugins/db/scripts/dbrun.py query DEVDB --sql q.sql --reason "check"'],
-  ["none", 'echo "psql is installed" && ls'],
-  ["none", 'grep -rn "DELETE FROM" src/'],
-  ["none", "which psql"],
-  ["none", "command -v sqlcmd"],
-  ["none", "npm run sql:lint"],
-  ["none", "cat queries/report.sql"],
-  ["none", 'git commit -m "fix: guard mysql client calls"'],
-  ["none", "ls -la"],
-  // credentials file, any tool
-  ["deny", 'cat ~/.config/ai-gent/db/connections.env'],
-  ["deny", 'grep -i password "$HOME/.config/ai-gent/db/connections.env"'],
-  ["deny", "ls ${XDG_CONFIG_HOME}/ai-gent/db"],
-  ["deny", "echo $AI_GENT_DB_CONFIG"],
-  ["deny", 'python3 /x/plugins/db/scripts/dbrun.py profiles && cat connections.env'],
-  ["deny", 'python3 /x/plugins/db/scripts/dbrun.py profiles; psql -c "DELETE FROM orders"'],
-  ["ask", 'python3 /x/plugins/db/scripts/dbrun.py profiles && psql -l'],
-  ["none", "grep -E \"^FAIL|passed\" out.log; git commit -m \"fix: a tool's AI_GENT_DB_CONNECTIONS note, and a Glob's path\""],
-  ["deny", "cat ~/.config/ai-gent/db/connections.toml"],
-  ["deny", "cp connections.toml /tmp/x"],
-  ["deny", "echo $AI_GENT_DB_CONNECTIONS"],
-  ["none", "cat connections.env.example"],
-  ["none", "git commit -m \"docs: explain the connections.env format\""],
-  ["none", "echo 'profiles live in connections.env' > notes.md"],
-]
-
-console.log("    db: TypeScript rules vs plugins/db/hooks/guard.sh")
-for (const [want, cmd] of dbVectors) {
-  const creds = dbCredsShell(cmd)
-  const ocDecision = creds.decision !== "none" ? creds.decision : dbGuard(cmd).decision
-  check(cmd.replace(/\n/g, "⏎"), want, ocDecision)
-  check(`shell ${cmd.replace(/\n/g, "⏎")}`, want, shellDecision(DB_GUARD, "Bash", "/tmp", { command: cmd }))
+for (const guard of Object.keys(GUARD_FILES)) {
+  console.log(`    ${guard}: TypeScript rules vs ${GUARD_FILES[guard].replace(REPO + "/", "")}`)
+  for (const c of load(guard).cases) {
+    // POSIX shell cases only: the PowerShell and cmd variants belong to the Rust evaluator
+    if ((c.shell ?? "sh") !== "sh" || (c.tags ?? []).includes("new")) continue
+    const command = c.command === undefined ? undefined : subst(c.command)
+    const cwd = cwdOf(c.cwd)
+    const toolInput = command === undefined ? c.tool_input : { command }
+    if (!(c.skip_in ?? []).includes("mjs")) check(sample(c), c.want, ocDecision(guard, c, cwd, command))
+    check(`shell ${sample(c)}`, c.want, shellDecision(GUARD_FILES[guard], c.tool, cwd, toolInput))
+  }
 }
 
-const toolVectors = [
-  ["deny", "Read", { file_path: "/home/me/.config/ai-gent/db/connections.env" }],
-  ["deny", "Grep", { pattern: "PASSWORD", path: "/home/me/.config/ai-gent" }],
-  ["deny", "Glob", { pattern: "**/connections.env" }],
-  ["deny", "Edit", { file_path: "/home/me/.config/ai-gent/db/connections.env", old_string: "a", new_string: "b" }],
-  ["none", "Read", { file_path: "/home/me/project/.env.example" }],
-  ["none", "Grep", { pattern: "DATABASE_URL", path: "src/" }],
-  ["none", "Write", {"file_path": "docs/product/brief.md", "content": "Profiles live in ~/.config/ai-gent/db/connections.env"}],
-  ["none", "Edit", {"file_path": "src/app.py", "old_string": "a", "new_string": "AI_GENT_DB_CONFIG"}],
-  ["deny", "Read", {"file_path": "/home/me/.config/ai-gent/db/connections.toml"}],
-  ["none", "Read", {"file_path": "/home/me/project/connections.env.example"}],
-  ["none", "Grep", {"pattern": "connections.env", "path": "docs/"}],
-  ["deny", "Glob", {"pattern": "**/connections.toml"}],
-]
-console.log("    db: credentials file, non-shell tools")
-for (const [want, tool, input] of toolVectors) {
-  const ocDecision = dbCredsTool(tool, input).decision
-  check(`${tool} ${JSON.stringify(input)}`, want, ocDecision)
-  check(`shell ${tool}`, want, shellDecision(DB_GUARD, tool, "/tmp", input))
+// ------------------------------------------------------------- linked worktree
+
+console.log("    a linked worktree reads the main checkout's grant")
+{
+  const base = dirs.granted
+  execFileSync("git", ["-C", base, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x"])
+  const wt = join(sandbox, "granted-wt")
+  execFileSync("git", ["-C", base, "worktree", "add", "-q", "-b", "feat/wt", wt])
+  const cmd = "git push origin feat/wt"
+  check("mjs worktree push", "none", ocDecision("git", { tool: "Bash" }, wt, cmd))
+  check("shell worktree push", "none", shellDecision(GIT_GUARD, "Bash", wt, { command: cmd }))
+  const merge = "gh pr merge 5"
+  check("shell repo guard worktree merge", "none", shellDecision(REPO_GUARD, "Bash", wt, { command: merge }))
+  check("repo guard rules worktree merge", "none", repoGuard(merge, { cwd: wt }).decision)
+  check("no grant, plain repo still asks", "ask", shellDecision(GIT_GUARD, "Bash", dirs["feat/x"], { command: cmd }))
 }
 
-// ------------------------------------------------------------ secrets
+// ------------------------------------------------- pass allowlist
 
-const secretsVectors = [
-  ["deny", "pass show ai-gent/db/shop-dev"],
-  ["deny", "pass ai-gent/github/pat"],
-  ["deny", "pass -c ai-gent/github/pat"],
-  ["deny", "pass show --clip=2 ai-gent/github/pat"],
-  ["deny", "pass show -q work/vpn"],
-  ["deny", "pass edit ai-gent/azure-devops/pat"],
-  ["deny", "pass grep token"],
-  ["deny", "pass generate ai-gent/x/y 32"],
-  ["deny", "pass otp ai-gent/x/totp"],
-  ["deny", "PASSWORD_STORE_DIR=/tmp/s pass show x | head -1"],
-  ["deny", "echo ok && pass show \"ai-gent/db/shop dev\""],
-  ["deny", "sudo -u me pass show x"],
-  ["deny", "gpg -d ~/.password-store/ai-gent/github/pat.gpg"],
-  ["deny", "cat \"$PASSWORD_STORE_DIR/x.gpg\" | gpg --decrypt"],
-  ["deny", "pass insert ai-gent/db/shop-dev"],
-  ["deny", "printf \"%s\\n\" \"$TOKEN\" | pass insert -m ai-gent/github/pat"],
-  ["ask", "pass rm ai-gent/db/old"],
-  ["ask", "pass mv ai-gent/db/a ai-gent/db/b"],
-  ["ask", "pass git push"],
-  ["ask", "pass init 0xDEADBEEF"],
-  ["deny", "pass-run PGPASSWORD=ai-gent/db/shop-dev -- psql -h db -l"],
-  ["deny", "pass-run GH_TOKEN=ai-gent/github/pat -- env"],
-  ["deny", "pass-run GH_TOKEN=ai-gent/github/pat -- sh -c \"echo $GH_TOKEN\""],
-  ["deny", "pass-run X=ai-gent/github/pat -- /usr/bin/printenv X"],
-  ["none", "pass-run GH_TOKEN=ai-gent/github/pat -- gh pr list"],
-  ["none", "pass-run GH_TOKEN=ai-gent/github/pat -- gh api -- repos/x/y"],
-  ["none", "pass"],
-  ["none", "pass ls"],
-  ["none", "pass ls ai-gent"],
-  ["none", "pass find github"],
-  ["none", "pass --version"],
-  ["none", "command -v pass"],
-  ["none", "which pass gpg"],
-  ["none", "git commit -m \"docs: pass show prints the secret\""],
-  ["none", "echo \"use pass show\" > notes.txt"],
-  ["none", "grep -rn \"pass show\" docs/"],
-  ["none", "gpg --list-secret-keys"],
-  ["none", "python3 /x/plugins/db/scripts/dbrun.py test SHOP_DEV --reason check"],
-  ["none", "bypass --flag"],
-  ["none", "ls -la"],
-]
+// The secrets guard's personal allowlist, through a temp file named by AI_GENT_PASS_ALLOW (never
+// the real ~/.config). The shell guard and the TypeScript rules must agree on every case.
+console.log("    pass allowlist: TypeScript rules vs plugins/secrets/hooks/guard.sh")
+{
+  const allow = join(sandbox, "pass-allow")
+  writeFileSync(
+    allow,
+    [
+      "# a comment",
+      "",
+      "  work/vpn  ",
+      "team/",
+      "ai-gent/",
+      "ai-gent/db/shop-dev",
+      "dos\r",
+      "/abs/entry",
+      "-dash",
+      "~home/x",
+      "../up",
+      "a/../b",
+      "a/./b",
+      "mal/../",
+      "bad entry",
+    ].join("\n") + "\n",
+  )
+  const cases = [
+    // allowed: exact and prefix rules, comments and blanks skipped, CRLF and padding trimmed
+    ["pass show work/vpn", "none"],
+    ["pass show team/a/b", "none"],
+    ["pass show ai-gent/github/pat", "none"],
+    ["pass show work/vpn | head -1", "none"],
+    ["echo ok && pass show team/x", "none"],
+    ["sudo -u me pass show team/x", "none"],
+    ["pass show dos", "none"],
+    // no rule matches
+    ["pass show work/vpn2", "deny"],
+    ["pass show work", "deny"],
+    ["pass show team/", "deny"],
+    ["pass show other/entry", "deny"],
+    ["pass show a/b", "deny"],
+    // malformed rules never allow
+    ["pass show /abs/entry", "deny"],
+    ["pass show -dash", "deny"],
+    ["pass show ~home/x", "deny"],
+    ["pass show ../up", "deny"],
+    ["pass show a/../b", "deny"],
+    ["pass show a/./b", "deny"],
+    ["pass show bad entry", "deny"],
+    // only `pass show <entry>`, no flags: never the bare form, other verbs or any flag
+    ["pass work/vpn", "deny"],
+    ["pass -c work/vpn", "deny"],
+    ["pass show -c work/vpn", "deny"],
+    ["pass show --clip work/vpn", "deny"],
+    ["pass show -q work/vpn", "deny"],
+    ["pass show --qrcode=2 work/vpn", "deny"],
+    ["pass show -n work/vpn", "deny"],
+    ["pass show work/vpn extra", "deny"],
+    ["pass show work/vpn > /tmp/x", "deny"],
+    ["pass show", "deny"],
+    ["pass edit work/vpn", "deny"],
+    ["pass grep work/vpn", "deny"],
+    ["pass generate team/x 20", "deny"],
+    ["pass otp team/x", "deny"],
+    ["pass insert team/x", "deny"],
+    ["pass add team/x", "deny"],
+    // every other pass command in the line makes it a deny
+    ["pass show work/vpn; pass show other/x", "deny"],
+    ["pass show work/vpn | pass show other/x", "deny"],
+    // ai-gent/db/ stays dbrun-only even when a rule names it
+    ["pass show ai-gent/db/shop-dev", "deny"],
+    ["pass show ai-gent/db/other", "deny"],
+    ["pass show AI-Gent/DB/shop-dev", "deny"],
+    ["pass show ai-gent/db", "deny"],
+    // shell metacharacters, substitutions and odd shapes in the name
+    ["pass show team/$(id)", "deny"],
+    ["pass show team/`id`", "deny"],
+    ["pass show team/$HOME", "deny"],
+    ["pass show team/*", "deny"],
+    ["pass show team/a?b", "deny"],
+    ["pass show team/{a,b}", "deny"],
+    ["pass show team/a\\ b", "deny"],
+    ["pass show 'team/x'", "deny"],
+    ['pass show "team/x"', "deny"],
+    ["pass show team//x", "deny"],
+    ["pass show team/../work/vpn", "deny"],
+    ["pass show ./team/x", "deny"],
+    // a store or config override in the command
+    ["PASSWORD_STORE_DIR=/tmp/s pass show team/x", "deny"],
+    ["env PASSWORD_STORE_GPG_OPTS=x pass show team/x", "deny"],
+    ["XDG_CONFIG_HOME=/tmp/x pass show team/x", "deny"],
+    ["HOME=/tmp/x pass show team/x", "deny"],
+    // the command mentions the allowlist file: the user decides
+    ["echo 'team/' >> ~/.config/ai-gent/pass-allow", "ask"],
+    ["cat ~/.config/ai-gent/pass-allow", "ask"],
+    ["sed -i s/x/y/ $XDG_CONFIG_HOME/ai-gent/pass-allow", "ask"],
+    ["AI_GENT_PASS_ALLOW=/tmp/mine pass show other/x", "ask"],
+    [`echo x >> ${allow}`, "ask"],
+    [`pass show team/x ; echo ${allow}`, "ask"],
+    ["ls ~/.config/ai-gent", "none"],
+  ]
+  for (const [command, want] of cases) {
+    check(`allow: ${command}`, want, secretsGuard(command, { env: { AI_GENT_PASS_ALLOW: allow } }).decision)
+    check(`allow shell: ${command}`, want, shellDecision(SECRETS_GUARD, "Bash", "/tmp", { command }, { AI_GENT_PASS_ALLOW: allow }))
+  }
 
-console.log("    secrets: TypeScript rules vs plugins/secrets/hooks/guard.sh")
-for (const [want, cmd] of secretsVectors) {
-  check(cmd.replace(/\n/g, "⏎"), want, secretsGuard(cmd).decision)
-  check(`shell ${cmd.replace(/\n/g, "⏎")}`, want, shellDecision(SECRETS_GUARD, "Bash", "/tmp", { command: cmd }))
-}
+  // the default location: $XDG_CONFIG_HOME, then ~/.config; AI_GENT_PASS_ALLOW wins over both
+  const xdg = join(sandbox, "xdg")
+  mkdirSync(join(xdg, "ai-gent"), { recursive: true })
+  writeFileSync(join(xdg, "ai-gent", "pass-allow"), "xdg/entry\n")
+  const home = join(sandbox, "home")
+  mkdirSync(join(home, ".config", "ai-gent"), { recursive: true })
+  writeFileSync(join(home, ".config", "ai-gent", "pass-allow"), "home/entry\n")
+  const both = { XDG_CONFIG_HOME: xdg, HOME: home }
+  for (const [env, command, want] of [
+    [both, "pass show xdg/entry", "none"],
+    [both, "pass show home/entry", "deny"],
+    [{ HOME: home }, "pass show home/entry", "none"],
+    [{ HOME: home }, "pass show xdg/entry", "deny"],
+    [{ ...both, AI_GENT_PASS_ALLOW: allow }, "pass show xdg/entry", "deny"],
+    [{ ...both, AI_GENT_PASS_ALLOW: allow }, "pass show work/vpn", "none"],
+  ]) {
+    const label = `${Object.keys(env).join("+")}: ${command}`
+    check(`allow env ${label}`, want, secretsGuard(command, { env }).decision)
+    check(`allow env shell ${label}`, want, shellDecision(SECRETS_GUARD, "Bash", "/tmp", { command }, env))
+  }
 
-// --------------------------------------------------------------- repo
+  // a missing, empty or unreadable file allows nothing: deny, exactly as without the feature
+  const empty = join(sandbox, "empty-allow")
+  writeFileSync(empty, "")
+  for (const [label, env] of [
+    ["missing file", { AI_GENT_PASS_ALLOW: NO_ALLOWLIST }],
+    ["empty file", { AI_GENT_PASS_ALLOW: empty }],
+    ["a directory", { AI_GENT_PASS_ALLOW: sandbox }],
+    ["no HOME", {}],
+  ]) {
+    check(`allow ${label}`, "deny", secretsGuard("pass show team/x", { env }).decision)
+    check(`allow ${label} shell`, "deny", shellDecision(SECRETS_GUARD, "Bash", "/tmp", { command: "pass show team/x" }, env))
+  }
 
-const repoVectors = [
-  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr merge 3 --squash"],
-  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github POST /repos/o/r/issues --data body.json --write"],
-  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli azure-devops --write -- boards work-item update --id 12 --state Done"],
-  ["ask", "cd /x && python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api jira PUT /rest/api/3/issue/X-1 --data - --write < f.json"],
-  ["ask", "reporun cli gitlab --write -- mr note 4 -m ok"],
-  ["deny", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'ok\n\nCo-Authored-By: Someone <a@b.c>'"],
-  ["deny", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- pr comment 3 --body 'looks good\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)'"],
-  ["ask", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github --write -- issue comment 3 --body 'denies Co-Authored-By trailers'"],
-  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py detect"],
-  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py cli github -- pr list"],
-  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /repos/o/r/issues --paginate"],
-  ["none", "python3 /home/me/ai-gent/plugins/repo/scripts/reporun.py api github GET /search/issues --query 'q=--write'"],
-  ["none", "git commit -m \"docs: reporun --write asks first\""],
-  ["none", "echo reporun --write"],
-  ["none", "ls -la"],
-]
-
-console.log("    repo: TypeScript rules vs plugins/repo/hooks/guard.sh")
-for (const [want, cmd] of repoVectors) {
-  check(cmd, want, repoGuard(cmd).decision)
-  check(`shell ${cmd}`, want, shellDecision(REPO_GUARD, "Bash", "/tmp", { command: cmd }))
-}
-
-// ---------------------------------------------------------- containers
-
-const containersVectors = [
-  ["deny", "podman system prune -a -f"],
-  ["deny", "docker image prune"],
-  ["deny", "podman image prune --filter label=me.lucasvmigotto.ai-gent.project=shop"],
-  ["deny", "podman volume prune -f"],
-  ["deny", "docker builder prune --all"],
-  ["deny", "nerdctl container prune"],
-  ["deny", '"$CONTAINER_ENGINE" system prune'],
-  ["deny", "$CONTAINER_ENGINE network prune"],
-  ["deny", "sudo podman --log-level=info system prune"],
-  ["deny", "buildah prune"],
-  ["deny", "cd /x && /usr/bin/podman image prune -a"],
-  ["deny", "podman rm -a -f"],
-  ["deny", "podman rmi --all"],
-  ["deny", "podman volume rm -af"],
-  ["deny", "docker container rm --all"],
-  ["deny", "buildah rm --all"],
-  ["deny", "buildah rmi --prune"],
-  ["deny", "podman rmi $(podman images -q)"],
-  ["deny", "podman images -q --filter dangling=true | xargs podman rmi"],
-  ["deny", "docker volume ls -q | xargs -r docker volume rm"],
-  ["deny", "for v in $(podman volume ls -q); do podman volume rm $v; done"],
-  ["deny", "podman rm -f `podman ps -aq`"],
-  ["none", "podman images -q --filter dangling=true --filter label=me.lucasvmigotto.ai-gent.project=shop | xargs -r podman rmi"],
-  ["none", "podman ps -aq --filter name=scratch-uv | xargs podman rm -f"],
-  ["none", "podman volume rm shop-tools-target-feat-a"],
-  ["none", "podman rmi 1a2b3c4d"],
-  ["none", "podman rm -f scratch-probe"],
-  ["none", '"$CONTAINER_ENGINE" rmi localhost/vsc-shop-1234-features'],
-  ["none", "podman ps -a --external"],
-  ["none", "podman system df"],
-  ["none", "podman images -q"],
-  ["none", "podman build --label me.lucasvmigotto.ai-gent.project=shop --target tools -t localhost/shop-tools:dev ."],
-  ["none", "podman run --rm --name scratch-x img true"],
-  ["none", "git fetch --prune"],
-  ["none", "git worktree prune"],
-  ["none", 'git commit -m "docs: never podman system prune"'],
-  ["none", 'grep -rn "image prune" shared/'],
-  ["none", "ls -la"],
-]
-
-console.log("    containers: TypeScript rules vs plugins/devcontainer/hooks/guard.sh")
-for (const [want, cmd] of containersVectors) {
-  check(cmd, want, containersGuard(cmd).decision)
-  check(`shell ${cmd}`, want, shellDecision(CONTAINERS_GUARD, "Bash", "/tmp", { command: cmd }))
+  // the reasons: today's text, plus the hint only where a rule could have opened the command
+  const BASE = "secrets guard: that shows a secret value from pass; the agent sees names only (pass ls) — the runner that needs a secret reads it"
+  const HINT = "; list the entry in ~/.config/ai-gent/pass-allow to let the agent read it"
+  const shellReason = (command, env) =>
+    /"permissionDecisionReason":"((?:[^"\\]|\\.)*)"/.exec(shellRaw(SECRETS_GUARD, "Bash", "/tmp", { command }, env))?.[1]
+  const env = { AI_GENT_PASS_ALLOW: allow }
+  for (const [command, reason] of [
+    ["pass show other/entry", BASE + HINT],
+    ["pass show ai-gent/db/shop-dev", BASE],
+    ["pass work/vpn", BASE],
+    ["pass show -n work/vpn", BASE],
+    ["cat ~/.config/ai-gent/pass-allow", "secrets guard: that command mentions the pass allowlist (pass-allow); the user decides what the agent may read"],
+  ]) {
+    check(`reason: ${command}`, reason, secretsGuard(command, { env }).reason)
+    check(`reason shell: ${command}`, reason, shellReason(command, env))
+  }
 }
 
 // ------------------------------------------------------------- adapter
 
 console.log("    evaluate(): OpenCode permission event adapter")
-const adapterCases = [
-  [{ action: "shell", resources: ["git push origin feat/x"] }, "ask"],
-  [{ action: "shell", resources: ["git commit --no-verify -m x"] }, "deny"],
-  [{ action: "shell", resources: ["psql -c 'DELETE FROM t'"] }, "deny"],
-  [{ action: "shell", resources: ["ls -la"] }, "none"],
-  [{ action: "shell", resources: ["pass show ai-gent/github/pat"] }, "deny"],
-  [{ action: "shell", resources: ["pass rm ai-gent/db/old"] }, "ask"],
-  [{ action: "shell", resources: ["reporun cli github --write -- pr merge 3"] }, "ask"],
-  [{ action: "shell", resources: ["podman system prune -a"] }, "deny"],
-  [{ action: "read", resources: ["/home/me/.config/ai-gent/db/connections.env"] }, "deny"],
-  [{ action: "read", resources: ["/home/me/project/readme.md"] }, "none"],
-  [{ action: "edit", resources: ["/home/me/.config/ai-gent/db/connections.env"] }, "deny"],
-]
-for (const [event, want] of adapterCases) {
-  check(JSON.stringify(event), want, evaluate(event, { cwd: feat, branchOf }).decision)
+for (const c of load("adapter").cases) {
+  check(JSON.stringify(c.event), c.want, evaluate(c.event, { cwd: cwdOf(c.cwd), branchOf }).decision)
+}
+
+// ----------------------------------------------------- words and log rows
+
+// The guards' own words and log rows (specs 015, 024); scripts/guard-fixtures.py checks them against
+// every fixture, and these the edges: a value never reaches a row, and the log keeps the newest rows.
+console.log("    guardWords(), guardRow(), appendGuardRow()")
+{
+  const token = "ghp_" + "a1b2c3d4e5".repeat(4)
+  check("verb: a token as the first word", null, guardVerb(`${token} push`, "Bash"))
+  check("verb: a token in an argument", "git push", guardVerb(`git push https://${token}@x/y`, "Bash"))
+  check("verb: a path", "psql", guardVerb("/usr/bin/psql -c x", "Bash"))
+  check("verb: not Bash", null, guardVerb("git push", "Read"))
+  const onMain = "git:workflow guard: this commits or merges on main; the workflow works on a branch (allow only if the user asked for it)"
+  const row = guardRow("ask", onMain, "Bash", "git commit -m main", 1)
+  check("row: entry, not the branch", "the workflow works on a branch", row.entry)
+  check("row: holds no value", false, JSON.stringify(row).includes("main"))
+  check("row: a reason no guard owns", null, guardRow("deny", "something else", "Bash", "ls", 1))
+  check("words: a generic ask says nothing more", null, guardWords("ask", "db guard: a new question").message)
+  const dir = join(sandbox, "guard-log")
+  for (let i = 0; i < 401; i++) appendGuardRow(dir, "s-1", { at: i })
+  const kept = readFileSync(join(dir, "s-1.jsonl"), "utf8").trim().split("\n")
+  check("log: cut to the newest 200", "200 400", `${kept.length} ${JSON.parse(kept.at(-1)).at}`)
+  appendGuardRow(dir, "../x", { at: 1 })
+  check("log: an unsafe session id writes nothing", false, existsSync(join(sandbox, "x.jsonl")))
+  check("log: no temporary or lock file left", "s-1.jsonl", readdirSync(dir).join(" "))
+  check("verb: an entry name is not a subcommand", "pass", guardVerb("pass example-entry", "Bash"))
+  check("verb: a branch name is not a subcommand", "git", guardVerb("git feature-x", "Bash"))
+  check("verb: a listed subcommand", "pass show", guardVerb("pass show a/b", "Bash"))
+  // never through a link, never a FIFO, never a hang; loose modes we own are tightened
+  const target = join(sandbox, "target")
+  writeFileSync(target, "x\n")
+  symlinkSync(target, join(dir, "s-link.jsonl"))
+  appendGuardRow(dir, "s-link", { at: 1 })
+  check("log: a symlinked log is refused", "x\n", readFileSync(target, "utf8"))
+  if (process.platform !== "win32") {
+    execFileSync("mkfifo", [join(dir, "s-fifo.jsonl")])
+    const t0 = Date.now()
+    appendGuardRow(dir, "s-fifo", { at: 1 })
+    check("log: a FIFO is refused without blocking", true, Date.now() - t0 < 2000)
+    writeFileSync(join(dir, "s-loose.jsonl"), "")
+    chmodSync(join(dir, "s-loose.jsonl"), 0o644)
+    chmodSync(dir, 0o755)
+    appendGuardRow(dir, "s-loose", { at: 1 })
+    check("log: modes tightened", "700 600", `${(statSync(dir).mode & 0o777).toString(8)} ${(statSync(join(dir, "s-loose.jsonl")).mode & 0o777).toString(8)}`)
+  }
+  // a large log is read from its tail only
+  const pad = JSON.stringify({ at: 0, pad: "x".repeat(100) }) + "\n"
+  writeFileSync(join(dir, "s-big.jsonl"), pad.repeat(Math.ceil((2 * WORDS_MAX_BYTES) / pad.length)))
+  appendGuardRow(dir, "s-big", { at: 1 })
+  const big = readFileSync(join(dir, "s-big.jsonl"), "utf8").trim().split("\n")
+  check("log: a large log cut from its tail", "200 1", `${big.length} ${JSON.parse(big.at(-1)).at}`)
+  // a trim another writer holds is skipped: no row is lost
+  writeFileSync(join(dir, "s-held.jsonl.trim"), "")
+  for (let i = 0; i < 401; i++) appendGuardRow(dir, "s-held", { at: i })
+  check("log: a held trim loses no row", 401, readFileSync(join(dir, "s-held.jsonl"), "utf8").trim().split("\n").length)
+  // a writer that stalls past 30 s has its lock taken over; its late release leaves the new lock
+  const lock = join(dir, "s-stale.jsonl.trim")
+  const first = takeTrimLock(lock)
+  check("lock: a second writer waits", null, takeTrimLock(lock))
+  utimesSync(lock, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000))
+  const second = takeTrimLock(lock)
+  check("lock: a stale lock is taken over", true, !!second && second !== first)
+  dropTrimLock(lock, first)
+  check("lock: the stalled writer leaves the new holder's lock", second, existsSync(lock) && readFileSync(lock, "utf8"))
+  dropTrimLock(lock, second)
+  check("lock: the holder removes its own lock", false, existsSync(lock))
+  // OpenCode's message: words, reason and the agent's line; the options turn each off
+  const deny = "git:workflow guard: hooks must not be bypassed (--no-verify); fix the hook failure instead"
+  const w = guardWords("deny", deny)
+  check("present: words, reason, context", [w.message, deny, w.context].join("\n\n"), guardPresent("deny", deny, {}).message)
+  check("present: guardUx off leaves the reason", deny, guardPresent("deny", deny, { CLAUDE_PLUGIN_OPTION_guardUx: "false" }).message)
+  check("present: guardLog off writes no row", false, guardPresent("deny", deny, { CLAUDE_PLUGIN_OPTION_GUARDLOG: "false" }).log)
+  check("present: logs by default", true, guardPresent("deny", deny, {}).log)
 }
 
 console.log(`\n    ${count} checks, ${failures} failed`)

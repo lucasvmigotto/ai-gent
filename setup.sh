@@ -42,6 +42,13 @@
 #                                     left alone (see scripts/opencode-config.py).
 #   Both are undone by --uninstall (only what this script added).
 #
+# The binary: a release package carries bin/ai-gent. When it is there, the
+# link $AI_GENT_BIN_DIR/ai-gent (default ~/.local/bin/ai-gent) points at it
+# through the install's `current`, or the PATH line to add is printed when
+# that directory is not on PATH. A checkout has no bin/ until scripts/dev-bin.sh
+# provides one (setup.sh says so); until then nothing is linked.
+# A full --uninstall (no --target) removes the link.
+#
 # Idempotent: re-run after adding, renaming or removing a skill, or after
 # changing a plugin skill's description. Edits to skill bodies need no re-run.
 
@@ -86,6 +93,7 @@ WINDSURF_SKILLS="${WINDSURF_SKILLS_DIR:-$HOME/.codeium/windsurf/skills}"
 ANTIGRAVITY_SKILLS="${ANTIGRAVITY_SKILLS_DIR:-$HOME/.gemini/config/skills}"
 MARKER=".ai-gent-generated"
 AI_GENT_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/ai-gent"
+BIN_DIR="${AI_GENT_BIN_DIR:-$HOME/.local/bin}"
 TARGETS_STATE="$AI_GENT_STATE/targets"
 
 DRY_RUN=0
@@ -154,6 +162,8 @@ Where each agent's skills go (override with the variable in parentheses):
   kiro         $KIRO_SKILLS (KIRO_SKILLS_DIR)
   windsurf     $WINDSURF_SKILLS (WINDSURF_SKILLS_DIR)
   antigravity  $ANTIGRAVITY_SKILLS (ANTIGRAVITY_SKILLS_DIR)
+  ai-gent    $BIN_DIR/ai-gent (AI_GENT_BIN_DIR), a link to the package's bin/ai-gent;
+             only a release package has one
 
 Colors, bold and italics are used on a terminal; NO_COLOR=1 turns them off.
 EOF
@@ -433,6 +443,12 @@ install_claude() {
       old=$((old + 1)); old_from="$(readlink "$dest")"
     fi
   done
+  if ((MIGRATE)); then
+    local v
+    for v in AI_GENT_MODE AI_GENT_BRANCH AI_GENT_REPO AI_GENT_DIR; do
+      [[ -z ${!v:-} ]] || echo "--migrate: $v is set in this environment; git mode was removed in 3.0.0 and the variable is ignored, remove it from your shell profile."
+    done
+  fi
   if ((old && MIGRATE)); then
     echo "--migrate: $old link(s) in $CLAUDE_DIR point into another ai-gent tree (e.g. ${old_from%/*/*}); they will be repointed to $REPO_DIR. The old tree itself is not touched."
   elif ((old)); then
@@ -447,6 +463,62 @@ install_claude() {
     [[ -f "$dir/.claude-plugin/plugin.json" ]] && link "$dir" "$CLAUDE_DIR/$(basename "$dir")"
   done
   section_end
+}
+
+# ------------------------------------------------------------------- binary
+
+# install_bin — $BIN_DIR/ai-gent -> <this tree>/bin/ai-gent, only for a package that has the binary.
+# Removed on a full --uninstall, and only when it points into an ai-gent tree (one with a setup.sh).
+install_bin() {
+  local dest="$BIN_DIR/ai-gent" src="$REPO_DIR/bin/ai-gent" t
+  if ((UNINSTALL)); then
+    [[ -n $TARGET ]] && return 0
+    [[ -L $dest ]] || return 0
+    t="$(readlink "$dest")"
+    [[ "$t" == */bin/ai-gent && -f "${t%/bin/ai-gent}/setup.sh" ]] || return 0
+    section "Binary:" "$BIN_DIR"
+    item unlink "ai-gent"
+    run rm "$dest"
+    section_end
+    return 0
+  fi
+  if [[ ! -f $src ]]; then
+    # A checkout has no binary until scripts/dev-bin.sh puts one in bin/ (a package carries it).
+    if [[ -e $REPO_DIR/.git && -f $REPO_DIR/rust/Cargo.toml ]]; then
+      line note "no ai-gent binary in $REPO_DIR/bin; run scripts/dev-bin.sh (builds rust/ or downloads the release binary), then re-run setup.sh to link it"
+    fi
+    return 0
+  fi
+  section "Binary:" "$BIN_DIR"
+  run mkdir -p "$BIN_DIR"
+  if [[ -L $dest ]]; then
+    t="$(readlink "$dest")"
+    if [[ $t == "$src" ]]; then
+      item ok "ai-gent"
+    elif ((FORCE)) || [[ "$t" == */bin/ai-gent && -f "${t%/bin/ai-gent}/setup.sh" ]]; then
+      item relink "ai-gent"
+      run ln -sfn "$src" "$dest"
+    else
+      item skip "ai-gent" "symlink to $t; use --force"
+    fi
+  elif [[ -e $dest ]]; then
+    if ((FORCE)); then
+      item backup "ai-gent -> ai-gent.bak"
+      run mv "$dest" "$dest.bak-$(date +%Y%m%d%H%M%S)"
+      item link "ai-gent"
+      run ln -s "$src" "$dest"
+    else
+      item skip "ai-gent" "real file in the way; use --force to back it up"
+    fi
+  else
+    item link "ai-gent"
+    run ln -s "$src" "$dest"
+  fi
+  section_end
+  case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *) line note "$BIN_DIR is not on PATH; add: export PATH=\"$BIN_DIR:\$PATH\"" ;;
+  esac
 }
 
 # ------------------------------------------------------------------- opencode
@@ -935,6 +1007,7 @@ for id in $AGENTS; do
       ;;
   esac
 done
+install_bin
 remember "$AGENTS"
 
 if ((DRY_RUN)); then

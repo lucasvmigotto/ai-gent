@@ -1,0 +1,14 @@
+diff --git a/plugins/git/hooks/guard.sh b/plugins/git/hooks/guard.sh
+index 1111111..2222222 100755
+--- a/plugins/git/hooks/guard.sh
++++ b/plugins/git/hooks/guard.sh
+@@ -1,1 +1,1 @@
+-echo a
++echo b
+diff --git a/AGENTS.md b/AGENTS.md
+index 3333333..4444444 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -1,1 +1,1 @@
+-a
++b

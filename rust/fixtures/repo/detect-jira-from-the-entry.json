@@ -1,0 +1,37 @@
+{
+ "name": "detect-jira-from-the-entry",
+ "derived_from": "reporun.cmd_detect (jira)",
+ "remote": "git@github.com:o/r.git",
+ "git": [],
+ "store": {
+  "ai-gent/jira/token": "tok-3f9a1c77e0\nemail: me@example.com\nurl: https://acme.atlassian.net/\n"
+ },
+ "tools": {},
+ "env": {},
+ "stub": true,
+ "files": {},
+ "runs": [
+  {
+   "argv": [
+    "detect",
+    "--json"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "{\n  \"repository\": {\n    \"url\": \"git@github.com:o/r.git\",\n    \"host\": \"github.com\",\n    \"platform\": \"github\",\n    \"owner\": \"o\",\n    \"repo\": \"r\"\n  },\n  \"platforms\": {\n    \"github\": {\n      \"token_entry\": \"ai-gent/github/pat\",\n      \"token_in_pass\": false,\n      \"cli\": {\n        \"name\": \"gh\",\n        \"installed\": false\n      }\n    },\n    \"jira\": {\n      \"token_entry\": \"ai-gent/jira/token\",\n      \"token_in_pass\": true,\n      \"cli\": {\n        \"name\": \"jira\",\n        \"installed\": false\n      },\n      \"url\": \"(set git config ai-gent.jira.url, or url: in the entry)\"\n    }\n  }\n}\n",
+   "stderr_has": [],
+   "seen": []
+  },
+  {
+   "argv": [
+    "detect"
+   ],
+   "stdin": null,
+   "exit": 0,
+   "stdout": "remote    git@github.com:o/r.git\nplatform  github\nowner     o\nrepo      r\n\ngithub: REST API (gh)\n  token   ai-gent/github/pat — not in pass\n  add it in your own terminal: pass insert -m ai-gent/github/pat\n\njira: REST API (jira)\n  token   ai-gent/jira/token — in pass\n  url     (set git config ai-gent.jira.url, or url: in the entry)\n",
+   "stderr_has": [],
+   "seen": []
+  }
+ ],
+ "expect_files": {}
+}

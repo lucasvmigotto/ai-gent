@@ -50,17 +50,31 @@ file covers changing things.
   `shared/` and are symlinked (relative links) into each plugin's
   `references/`. The exception is code a plugin's hooks module imports:
   the engine refuses an import through a symlink that leaves the plugin,
-  so such a file (`shared/guard-ux.ts`, `shared/hook-lines.ts`) is copied into
+  so such a file (`shared/band-priority.ts`) is copied into
   each plugin's `hooks/`, and `scripts/consistency.py` fails if a copy differs
-  (`--sync-shared-code` rewrites them). A hooks module's tests can import only
-  code files, so data they need from `shared/` (the secret patterns, the
-  fixture cases) is a generated `.ts` twin kept equal the same way.
+  (`--sync-shared-code` rewrites them). The guards' own words and log rules,
+  `shared/guard-words.json`, are copied for the binary and the OpenCode plugin
+  and generated as the `guard words` block of each `guard.sh` the same way.
+  A hooks module's tests can import only code files, so data they need from
+  `shared/` (the secret patterns, the fixture cases) is a generated `.ts`
+  twin kept equal the same way.
+- A hooks module never hooks an event the built-in `cc-plugin-sec-default`
+  sends on past person-installed mods (`classic.*`, `session.compact`,
+  `skill.prompt`, a `session.append` door it skips, …): the hook never runs
+  where it is seated and Claude Code says so. `scripts/consistency.py` (item 14)
+  lists them and fails on one; put the work in the command hook instead.
 - Refer to other skills as `plugin:skill` and to files with backticked
   relative paths (`../../references/pipeline.md`); `scripts/check.sh`
   verifies both resolve.
-- The OpenCode guard rules (`opencode/guard/rules.mjs`) and the shell guards
-  (`plugins/*/hooks/guard.sh`) must decide the same; `scripts/check.sh` runs
-  their parity test. Change one, change the other.
+- The guards run as `ai-gent guard` (Rust, `rust/crates/ai-gent-core/src/guard/`)
+  in a package install: each `plugins/*/hooks/guard.sh` begins with the launcher
+  head of `shared/guard-launcher.sh` (kept equal by `scripts/consistency.py`,
+  rewritten by `--sync-shared-code`), which calls the binary and turns a missing,
+  failing or slow one into an `ask`. A clone, and the OpenCode plugin until it
+  calls the binary too (spec 033 T060), still use the shell logic below the
+  launcher and `opencode/guard/rules.mjs`; those must decide the same as the
+  binary, and `scripts/check.sh` runs the shared fixtures against all of them
+  (`shared/guard-fixtures/`) plus the parity test. Change one, change the others.
 - `shared/pipeline.md` is the product pipeline's contract (artifact paths,
   owners, statuses). Change it deliberately and update every stage that
   depends on what changed.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """End-to-end test of dbrun against real database servers, one engine at a time.
 
-  scripts/test-dbrun-engines.py [--engine NAME ...] [--keep]
+  scripts/test-dbrun-engines.py [--runner PATH] [--engine NAME ...] [--keep]
 
 Engines: postgresql, mysql, mariadb, sqlserver, oracle (default: all, in that
 order). For each one it starts a container with a memory cap from a throwaway
@@ -23,6 +23,12 @@ drivers with it). Images are pulled on first use and kept; `--engine` limits
 which, and a warning says when the store's free space is short for them. A
 teardown that leaves a container is reported, with its compose project kept.
 Not part of scripts/check.sh: run it before pushing a change to dbrun.
+
+Use `--engine sqlite` for the eight SQLite journeys without containers or uv.
+`--runner PATH` replaces only execution with a JSON-stdin/one-line-JSON-stdout
+connector; Python still owns policy, profiles, plans, backups and restore.
+The default is the Python dbrun, in-process as before. External connectors run
+on the host (using published ports for container engines).
 """
 
 from __future__ import annotations
@@ -37,7 +43,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "plugins" / "db" / "scripts"))
@@ -310,12 +318,48 @@ def profiles_for(name: str, spec: dict, host_port: int, engine: str) -> dict[str
     return out
 
 
+def runner_execute(runner: Path, req: dict) -> dict:
+    """The connector receives connection facts only on stdin, never argv."""
+    cmd = ([sys.executable, str(runner), "_exec"] if runner.suffix == ".py" else [str(runner)])
+    try:
+        proc = subprocess.run(cmd, input=json.dumps(req), capture_output=True, text=True,
+                              timeout=req["timeout"] * max(1, len(req.get("statements") or [1])) + 180)
+        lines = proc.stdout.splitlines()
+        result = json.loads(lines[0]) if len(lines) == 1 else None
+        if proc.returncode != 0 or not isinstance(result, dict) or not isinstance(result.get("ok"), bool):
+            raise ValueError("invalid connector response")
+        return result
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        # Do not echo subprocess output: it may contain connection facts.
+        raise dbrun.Failed("runner process failed or returned invalid JSON", dbrun.EXIT_CONNECT) from None
+
+
+def run_sqlite(runner: Path) -> int:
+    import test_dbrun
+
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(test_dbrun.SqliteEndToEndTest)
+    with contextlib.ExitStack() as stack:
+        if runner != dbrun.SCRIPT:
+            stack.enter_context(patch.object(dbrun, "execute", lambda req: runner_execute(runner, req)))
+        return int(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--engine", action="append", choices=list(ENGINES), help="only this engine (repeatable)")
+    ap.add_argument("--engine", action="append", choices=[*ENGINES, "sqlite"], help="only this engine (repeatable)")
+    ap.add_argument("--runner", type=Path, default=dbrun.SCRIPT, help="JSON execution connector (default: Python dbrun)")
     ap.add_argument("--keep", action="store_true", help="leave each container running, for debugging")
     ap.add_argument("--port", type=int, default=15432, help="host port for the remote checks (default 15432)")
     args = ap.parse_args()
+    args.runner = args.runner.resolve()
+    if args.engine == ["sqlite"]:
+        return run_sqlite(args.runner)
+    if args.runner != dbrun.SCRIPT:
+        def external_driver(p: dict, cls: dict, req: dict) -> dict:
+            if cls["via"] == "container":
+                req = {**req, "conn": {**req["conn"], "host": "127.0.0.1", "port": str(args.port)}}
+            return runner_execute(args.runner, req)
+        dbrun.driver_process = external_driver
     engine = dbrun.engine_cmd()
     if not engine:
         sys.exit("error: neither podman nor docker found")
@@ -337,6 +381,9 @@ def main() -> int:
     rep = Report()
     print(f"dbrun end to end · {os.path.basename(engine)} · one engine at a time")
     for name in args.engine or list(ENGINES):
+        if name == "sqlite":
+            rep.failed += run_sqlite(args.runner)
+            continue
         spec = ENGINES[name]
         dbrun.user_profiles = lambda n=name, s=spec: profiles_for(n, s, args.port, engine)
         started = time.monotonic()

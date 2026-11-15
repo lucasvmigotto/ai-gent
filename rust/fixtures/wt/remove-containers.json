@@ -1,0 +1,195 @@
+{
+ "name": "remove-containers",
+ "derived_from": "test_remove_releases_the_tracks_containers_and_volumes",
+ "steps": [
+  {
+   "wt": [
+    "add",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "{\n  \"branch\": \"feat/a\",\n  \"base\": \"dev\",\n  \"path\": \"<ROOT>/shop/.worktrees/feat-a\",\n  \"compose_project\": \"shop-feat-a\",\n  \"port_offset\": 100,\n  \"labels\": {\n    \"me.lucasvmigotto.ai-gent.project\": \"shop\",\n    \"me.lucasvmigotto.ai-gent.worktree\": \"shop/feat-a\"\n  }\n}\n",
+    "stderr": "\nin this worktree: COMPOSE_PROJECT_NAME=shop-feat-a AI_GENT_PROJECT=shop AI_GENT_WORKTREE=feat-a; publish ports +100 through an untracked compose.worktree.yaml (already excluded), never by editing the shared compose file; create volumes and containers with both labels (containers.md §9a)\n"
+   }
+  },
+  {
+   "git": [
+    "switch",
+    "-q",
+    "dev"
+   ],
+   "cwd": "."
+  },
+  {
+   "engine_state": {
+    "containers": [
+     {
+      "id": "c1",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop",
+       "me.lucasvmigotto.ai-gent.worktree": "shop/feat-a"
+      }
+     },
+     {
+      "id": "c2",
+      "labels": {
+       "com.docker.compose.project": "shop-feat-a"
+      }
+     },
+     {
+      "id": "c3",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop",
+       "me.lucasvmigotto.ai-gent.worktree": "shop/main"
+      }
+     },
+     {
+      "id": "c4",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "other",
+       "me.lucasvmigotto.ai-gent.worktree": "other/feat-a"
+      }
+     }
+    ],
+    "volumes": [
+     {
+      "name": "shop-tools-target-feat-a",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop",
+       "me.lucasvmigotto.ai-gent.worktree": "shop/feat-a"
+      }
+     },
+     {
+      "name": "shop-feat-a_db",
+      "labels": {
+       "com.docker.compose.project": "shop-feat-a"
+      }
+     },
+     {
+      "name": "shop-tools-target",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "shop",
+       "me.lucasvmigotto.ai-gent.worktree": "shop/main"
+      }
+     },
+     {
+      "name": "other-target-feat-a",
+      "labels": {
+       "me.lucasvmigotto.ai-gent.project": "other",
+       "me.lucasvmigotto.ai-gent.worktree": "other/feat-a"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "wt": [
+    "remove",
+    "feat/a"
+   ],
+   "cwd": ".",
+   "expect": {
+    "code": 0,
+    "stdout": "removed .worktrees/feat-a and branch feat/a\nremoved container c1\nremoved container c2\nremoved volume shop-tools-target-feat-a\nremoved volume shop-feat-a_db\n",
+    "stderr": ""
+   }
+  },
+  {
+   "state": true,
+   "expect": {
+    "containers": [
+     "c3",
+     "c4"
+    ],
+    "volumes": [
+     "shop-tools-target",
+     "other-target-feat-a"
+    ],
+    "images": [],
+    "calls": [
+     [
+      "ps",
+      "-aq",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.worktree=shop/feat-a"
+     ],
+     [
+      "volume",
+      "ls",
+      "-q",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.worktree=shop/feat-a"
+     ],
+     [
+      "ps",
+      "-aq",
+      "--filter",
+      "label=com.docker.compose.project=shop-feat-a"
+     ],
+     [
+      "volume",
+      "ls",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project=shop-feat-a"
+     ],
+     [
+      "rm",
+      "-f",
+      "c1"
+     ],
+     [
+      "rm",
+      "-f",
+      "c2"
+     ],
+     [
+      "volume",
+      "rm",
+      "shop-tools-target-feat-a"
+     ],
+     [
+      "volume",
+      "rm",
+      "shop-feat-a_db"
+     ],
+     [
+      "ps",
+      "-aq",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.worktree=shop/feat-a"
+     ],
+     [
+      "volume",
+      "ls",
+      "-q",
+      "--filter",
+      "label=me.lucasvmigotto.ai-gent.worktree=shop/feat-a"
+     ],
+     [
+      "ps",
+      "-aq",
+      "--filter",
+      "label=com.docker.compose.project=shop-feat-a"
+     ],
+     [
+      "volume",
+      "ls",
+      "-q",
+      "--filter",
+      "label=com.docker.compose.project=shop-feat-a"
+     ]
+    ]
+   }
+  },
+  {
+   "assert_scoped": true,
+   "expect": {
+    "problems": []
+   }
+  }
+ ],
+ "readme": "# Features\n\n| # | Feature | Priority | Depends on | Frontend | Backend |\n|---|---|---|---|---|---|\n| 001 | auth | P0 | — | Implemented | Verified |\n| 002 | orgs | P0 | 001 | Planned | In progress |\n| 003 | billing | P1 | 002 | Planned | Planned |\n| 004 | search | P2 | 001 | N/A | Planned |\n| 005 | reports | P2 | — | Verified | Verified |\n"
+}
