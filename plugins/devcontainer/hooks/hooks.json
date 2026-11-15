@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/leftovers.sh",
+            "command": "f=\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"; [ -f \"$f\" ] || exit 0; exec sh \"$f\"",
             "timeout": 10
           }
         ]

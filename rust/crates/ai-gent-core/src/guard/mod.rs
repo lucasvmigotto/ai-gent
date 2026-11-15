@@ -12,6 +12,7 @@ pub mod replay;
 pub mod rules;
 pub mod segment;
 pub mod shadow;
+pub mod words;
 
 pub use event::{Decision, Event, GuardId, Level};
 pub use segment::Shell;

@@ -5,7 +5,7 @@ use ai_gent_core::guard::branch::git_branch;
 use ai_gent_core::guard::shadow;
 use ai_gent_core::guard::{
     Ctx, Decision, Event, GuardId, MAX_COMMAND_BYTES, Shell, evaluate, evaluate_all,
-    evaluate_opencode, reasons,
+    evaluate_opencode, reasons, words,
 };
 use ai_gent_core::version::VersionInfo;
 use serde_json::{Value, json};
@@ -49,15 +49,27 @@ pub fn run(a: &GuardArgs, json_out: bool) -> Exit {
         Ok(_) => evaluate_input(a, &input),
         Err(e) => Err(format!("cannot read stdin: {e}")),
     }));
-    let out = match result {
-        Ok(Ok(line)) => line,
-        Ok(Err(why)) => Some(failure(a, marker, &why)),
-        Err(_) => Some(failure(a, marker, "internal error")),
+    let (out, log) = match result {
+        Ok(Ok(said)) => said,
+        Ok(Err(why)) => (Some(failure(a, marker, &why)), None),
+        Err(_) => (Some(failure(a, marker, "internal error")), None),
     };
-    if let Some(line) = out {
-        println!("{line}");
-    }
+    emit(&mut std::io::stdout(), out.as_deref(), || {
+        if let Some(row) = log {
+            row.write();
+        }
+    });
     Exit::Success
+}
+
+/// Print and flush the decision line first, then run `log`: whatever the log does (fails, is slow,
+/// panics), the line is already out and the exit code stays 0.
+fn emit(out: &mut impl std::io::Write, line: Option<&str>, log: impl FnOnce()) {
+    if let Some(line) = line {
+        let _ = writeln!(out, "{line}");
+        let _ = out.flush();
+    }
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(log));
 }
 
 fn marker_of(g: GuardId) -> &'static str {
@@ -84,7 +96,7 @@ fn failure(a: &GuardArgs, marker: &str, why: &str) -> String {
     }
 }
 
-fn evaluate_input(a: &GuardArgs, input: &str) -> Result<Option<String>, String> {
+fn evaluate_input(a: &GuardArgs, input: &str) -> Result<(Option<String>, Option<LogRow>), String> {
     let guard = if a.guard == "all" {
         None
     } else {
@@ -118,8 +130,11 @@ fn evaluate_input(a: &GuardArgs, input: &str) -> Result<Option<String>, String> 
             flag_shell.unwrap_or(Shell::Sh),
             &ctx,
         );
-        return Ok(Some(
-            json!({"decision": d.level.name(), "reason": (!d.reason.is_empty()).then_some(d.reason)}).to_string(),
+        return Ok((
+            Some(
+                json!({"decision": d.level.name(), "reason": (!d.reason.is_empty()).then_some(d.reason)}).to_string(),
+            ),
+            None,
         ));
     }
     if a.format != "claude" {
@@ -138,7 +153,75 @@ fn evaluate_input(a: &GuardArgs, input: &str) -> Result<Option<String>, String> 
         || evaluate_all(&ev, shell, &ctx),
         |g| evaluate(g, &ev, shell, &ctx),
     );
-    Ok(d.hook_line())
+    Ok(say(&d, &ev, input))
+}
+
+/// The hook line with the guard's own words, and the row for the session's guard log (specs 015
+/// and 024): the plugin options `guardUx` and `guardLog` (false) turn each off. The row is written
+/// only after the line is printed and flushed (`emit`), on a thread given at most `LOG_DEADLINE`,
+/// so a log that is slow or cannot be written loses the row, never changes or holds up the decision.
+fn say(d: &Decision, ev: &Event, input: &str) -> (Option<String>, Option<LogRow>) {
+    let env = |k: &str| std::env::var(k).ok();
+    let w = if words::option_off(env, "guardUx") {
+        words::Words::default()
+    } else {
+        words::words(d)
+    };
+    let line = words::hook_line(d, &w);
+    let row = (!words::option_off(env, "guardLog"))
+        .then(|| log_row(d, ev, input))
+        .flatten();
+    (line, row)
+}
+
+const LOG_DEADLINE: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// A guard-log row waiting to be written.
+struct LogRow {
+    dir: std::path::PathBuf,
+    session: String,
+    row: Value,
+}
+
+impl LogRow {
+    /// Append the row on its own thread, waiting at most `LOG_DEADLINE` (only so the process exits
+    /// tidily; the decision is already out). A thread that cannot start loses the row.
+    fn write(self) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new()
+            .name("guard-log".into())
+            .spawn(move || {
+                let _ = tx.send(words::append(&self.dir, &self.session, &self.row));
+            });
+        if spawned.is_err() {
+            eprintln!("ai-gent guard: cannot start the guard log writer; the row is lost");
+            return;
+        }
+        match rx.recv_timeout(LOG_DEADLINE) {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => eprintln!("ai-gent guard: cannot write the guard log: {e}"),
+            Err(_) => eprintln!("ai-gent guard: the guard log took too long; the row is lost"),
+        }
+    }
+}
+
+fn log_row(d: &Decision, ev: &Event, input: &str) -> Option<LogRow> {
+    let session = serde_json::from_str::<Value>(input)
+        .ok()
+        .and_then(|v| v["session_id"].as_str().map(str::to_string))
+        .unwrap_or_default();
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |t| u64::try_from(t.as_millis()).unwrap_or(u64::MAX));
+    let dir = words::log_dir(|k| {
+        std::env::var_os(k)
+            .filter(|v| !v.is_empty())
+            .map(std::path::PathBuf::from)
+    });
+    let (Some(row), Some(dir)) = (words::row(d, &ev.tool_name, ev.command(), at), dir) else {
+        return None;
+    };
+    words::is_session_id(&session).then_some(LogRow { dir, session, row })
 }
 
 fn list_reasons(json_out: bool) -> Exit {
@@ -342,5 +425,48 @@ fn replay(
         Exit::Success
     } else {
         Exit::Runtime
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::emit;
+    use std::sync::{Arc, Mutex};
+
+    /// A writer that records what reached it and whether it was flushed.
+    #[derive(Clone, Default)]
+    struct Out(Arc<Mutex<(Vec<u8>, bool)>>);
+
+    impl std::io::Write for Out {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().0.extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.0.lock().unwrap().1 = true;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn the_decision_is_flushed_before_the_log_runs() {
+        let out = Out::default();
+        let seen = out.clone();
+        let mut w = out.clone();
+        emit(&mut w, Some("deny"), move || {
+            let mut state = seen.0.lock().unwrap();
+            assert_eq!((state.0.as_slice(), state.1), (b"deny\n".as_slice(), true));
+            *state = (b"checked".to_vec(), true);
+        });
+        // the closure ran after the line was out (it replaced the buffer)
+        assert_eq!(out.0.lock().unwrap().0, b"checked");
+    }
+
+    #[test]
+    fn a_log_that_panics_leaves_the_decision_alone() {
+        let out = Out::default();
+        let mut w = out.clone();
+        emit(&mut w, Some("deny"), || panic!("no thread"));
+        assert_eq!(out.0.lock().unwrap().0, b"deny\n");
     }
 }

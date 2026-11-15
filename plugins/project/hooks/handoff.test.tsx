@@ -30,7 +30,7 @@ type World = {
   budget: ReturnType<typeof CAPS>
   runs: string[][]
   toasts: string[]
-  compacted: number
+  submitted: string[]
   clock: ReturnType<typeof mock.clock>
 }
 
@@ -48,16 +48,16 @@ function world(on: Handlers, init: Partial<World> = {}): World {
     budget: CAPS(50),
     runs: [],
     toasts: [],
-    compacted: 0,
+    submitted: [],
     clock: mock.clock(on, { now: 1_800_000_000_000 }),
     ...init,
   }
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.cwd', () => ({ value: ROOT }))
   on('turn.complete', (_, e) => ({ text: e.text }))
-  on('session.compact', () => {
-    w.compacted++
-    return { messages: MESSAGES } as never
+  on('prompt.submit', (_, e) => {
+    w.submitted.push(e.text)
+    return { text: e.text }
   })
   on('session.usage', () => {
     w.usageCalls++
@@ -93,8 +93,12 @@ function world(on: Handlers, init: Partial<World> = {}): World {
 }
 
 const turn = ($: Parameters<Parameters<typeof test>[1]>[0]) => $.turn.complete({ text: 'done', reason: 'answer' } as never)
-const MESSAGES = [{ role: 'user', text: 'hi', toolUses: [] }]
-const COMPACT = (trigger: 'manual' | 'auto' | 'plugin' | 'precompute') => ({ trigger, messages: MESSAGES }) as never
+const ORIGIN = { kind: 'user' } as never
+// A prompt as the engine raises it: a slash command carries `command`.
+const SUBMIT = (text: string) => {
+  const name = text.startsWith('/') ? text.slice(1).split(' ')[0] : undefined
+  return { text, wait: false, origin: ORIGIN, ...(name === undefined ? {} : { command: { name, args: '' } }) } as never
+}
 
 // ------------------------------------------------------------------ story 1
 
@@ -158,36 +162,36 @@ test('story 1: when $.session.usage() fails nothing shows and nothing is retried
 
 // ------------------------------------------------------------------ story 2
 
-test('story 2: a manual or auto compaction toasts once and is passed on unchanged', async ($, on) => {
+test('story 2: a manual /compact toasts once and the prompt is passed on unchanged', async ($, on) => {
   const w = world(on, { percent: 10 })
   await $.session.start(START)
-  const result = await $.session.compact(COMPACT('auto'))
-  expect(result).toEqual({ messages: MESSAGES })
-  expect(w.compacted).toBe(1)
+  const result = await $.prompt.submit(SUBMIT('/compact'))
+  expect(result).toEqual({ text: '/compact' })
+  expect(w.submitted).toEqual(['/compact'])
   expect(w.toasts).toEqual([
     'The conversation is about to be compacted. The checkpoint is 3 commits older than HEAD — run /project:checkpoint first: a summary loses what it keeps.',
   ])
-  await $.session.compact(COMPACT('manual'))
+  await $.prompt.submit(SUBMIT('/compact keep the plan'))
   expect(w.toasts).toHaveLength(1)
-  expect(w.compacted).toBe(2)
+  expect(w.submitted).toHaveLength(2)
 })
 
-test('story 2: precompute and plugin compactions toast nothing, and still pass', async ($, on) => {
+test('story 2: other prompts and commands toast nothing, and still pass', async ($, on) => {
   const w = world(on, { percent: 10 })
   await $.session.start(START)
-  await $.session.compact(COMPACT('precompute'))
-  await $.session.compact(COMPACT('plugin'))
+  await $.prompt.submit(SUBMIT('compact the list please'))
+  await $.prompt.submit(SUBMIT('/project:checkpoint'))
   expect(w.toasts).toEqual([])
-  expect(w.compacted).toBe(2)
+  expect(w.submitted).toHaveLength(2)
 })
 
-test('story 2: a context toast already shown means no second toast for the compaction', async ($, on) => {
+test('story 2: a context toast already shown means no second toast for /compact', async ($, on) => {
   const w = world(on)
   await $.session.start(START)
   await turn($)
-  await $.session.compact(COMPACT('auto'))
+  await $.prompt.submit(SUBMIT('/compact'))
   expect(w.toasts).toHaveLength(1)
-  expect(w.compacted).toBe(1)
+  expect(w.submitted).toHaveLength(1)
 })
 
 // ------------------------------------------------------------------ story 3
@@ -260,12 +264,12 @@ test('story 4: handoffNudge off reads and spawns nothing', { options: { handoffN
   const w = world(on, { budget: CAPS(5) })
   await $.session.start(START)
   await turn($)
-  await $.session.compact(COMPACT('auto'))
+  await $.prompt.submit(SUBMIT('/compact'))
   await w.clock.settle()
   expect(w.toasts).toEqual([])
   expect(w.usageCalls).toBe(0)
   expect(w.runs).toEqual([])
-  expect(w.compacted).toBe(1)
+  expect(w.submitted).toHaveLength(1)
 })
 
 test('story 4: handoffNudgeContextPercent 60 fires at 65%', { options: { handoffNudgeContextPercent: 60 } }, async ($, on) => {

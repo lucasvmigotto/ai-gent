@@ -465,12 +465,12 @@ test('guardUx off leaves the CI band working', { options: { guardUx: false } }, 
   expect(await band($)).toBe('CI for 3a9f1c2 on dev: Docs CI ⏳ · check ✓')
 })
 
-test('ciBand off leaves the guard presentation working', { options: { ciBand: false } }, async ($, on) => {
+test('the guard speaks for itself: a deny passes the module unchanged, with no toast of its own', async ($, on) => {
   const w = world(on)
-  on('classic.PreToolUse', () => ({ deny: 'PreToolUse:Bash hook error: repo guard: hooks must not be bypassed' }))
-  const ran = await $.tool.call({ tool: 'Bash', command: 'git push --no-verify' } as never)
+  on('classic.PreToolUse', () => ({ deny: 'repo guard: reporun --write changes an issue' }))
+  const ran = await $.tool.call({ tool: 'Bash', command: 'reporun issue create --write' } as never)
   expect(ran.isError).toBe(true)
-  expect(w.toasts.some(t => t.includes('repo guard refused this'))).toBe(true)
+  expect(w.toasts.some(t => t.includes('repo guard'))).toBe(false)
 })
 
 test('with the project plugin leading, a running or green CI folds into its workspace line; a failed one still draws', async ($, on) => {

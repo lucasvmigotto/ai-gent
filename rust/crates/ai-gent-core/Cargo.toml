@@ -19,6 +19,11 @@ serde_json.workspace = true
 regex.workspace = true
 thiserror.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+# O_NOFOLLOW and O_NONBLOCK (libc) and the current user (rustix) for the guard log (guard/words.rs).
+libc = "0.2"
+rustix = { version = "1", features = ["process"] }
+
 [features]
 # Test hooks of `wt` (fake disk usage, fake builds, no engine). Never enabled in a release build.
 test-support = []

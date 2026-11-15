@@ -99,7 +99,7 @@
     "handoffNudge": {
       "type": "boolean",
       "title": "Hand-off nudge",
-      "description": "Toast, once, that the checkpoint is behind and to run /project:checkpoint when the context is nearly full, before a compaction, or (with token_report.py beside the plugin) when a usage cap runs low",
+      "description": "Toast, once, that the checkpoint is behind and to run /project:checkpoint when the context is nearly full, before a manual /compact, or (with token_report.py beside the plugin) when a usage cap runs low",
       "default": true
     },
     "handoffNudgeContextPercent": {

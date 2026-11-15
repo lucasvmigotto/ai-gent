@@ -72,14 +72,14 @@ The explanation table lives once, in `shared/guard-ux.ts`, keyed by guard prefix
 
 ### Functional Requirements
 
-- **FR-001**: The decision MUST come from the guards themselves: the mod reads what `next(e)` returns at `classic.PreToolUse` (research R1); if the engine doesn't expose command-hook results there, the fallback is to run the plugin's own `hooks/guard.sh` with the call's JSON on stdin via `$.process.run` and use only its printed decision (research R1, fallback). Never `rules.mjs` (research R3).
+- **FR-001** (superseded 2026-11-14, see the amendment): The decision MUST come from the guards themselves: the mod reads what `next(e)` returns at `classic.PreToolUse` (research R1); if the engine doesn't expose command-hook results there, the fallback is to run the plugin's own `hooks/guard.sh` with the call's JSON on stdin via `$.process.run` and use only its printed decision (research R1, fallback). Never `rules.mjs` (research R3).
 - **FR-002**: A deny MUST stay a deny with the guard's reason text unchanged for the model; the mod MAY add `additionalContext` with the alternative and MUST show the person a toast or notice.
 - **FR-003**: An ask MUST stay an ask, with the guard's reason included verbatim in the enriched text, unless FR-004 applies.
 - **FR-004**: The dialog path (`$.ui.ask`) MUST be off by default and MAY only be enabled if R2 confirms an `allow` returned from `classic.PreToolUse` does not skip permission rules (`deny` rules in settings, managed policy) the person has set.
 - **FR-005**: Each plugin's module MUST act only on reasons with its own guard prefix.
 - **FR-006**: Every reason string in `plugins/{git,db,secrets,repo,devcontainer}/hooks/guard.sh` MUST map to an explanation entry or be marked generic, enforced by test.
-- **FR-007**: The shared file MUST be `shared/guard-ux.ts`, copied into each of the five plugins' `hooks/` and imported as `./guard-ux`; `scripts/consistency.py` fails if a copy differs or if a guard reason has no entry (FR-006); CLAUDE.md's layout rule is amended with this feature (shared hooks-module code is copied into `hooks/`, not symlinked).
-- **FR-008**: No change to any `guard.sh`, `rules.mjs`, the shell guard tests or the parity test.
+- **FR-007** (superseded 2026-11-14): The shared file MUST be `shared/guard-ux.ts`, copied into each of the five plugins' `hooks/` and imported as `./guard-ux`; `scripts/consistency.py` fails if a copy differs or if a guard reason has no entry (FR-006); CLAUDE.md's layout rule is amended with this feature (shared hooks-module code is copied into `hooks/`, not symlinked).
+- **FR-008** (superseded 2026-11-14): No change to any `guard.sh`, `rules.mjs`, the shell guard tests or the parity test.
 
 ## Success Criteria *(mandatory)*
 
@@ -109,3 +109,9 @@ The explanation table lives once, in `shared/guard-ux.ts`, keyed by guard prefix
 
 - [ASSUMPTION: Plugin command hooks (`hooks/hooks.json` `"command"` entries) run beneath hooks modules in the `classic.PreToolUse` chain, as `ClassicEventOf`'s doc in the 2.1.312 types describes for "the other settings hooks"; R1 verifies it.]
 - [ASSUMPTION: The guard reason prefixes stay as they are in the five `guard.sh` files.]
+
+## Amendment (2026-11-14, the owner, via chat)
+
+- Where the built-in `cc-plugin-sec-default` plugin is seated (machines with managed settings, Team and Enterprise orgs) it sends `classic.*` events, `session.compact`, `skill.prompt` and `session.append` on the `hook-context` door on past every person-installed mod, so those hooks never ran there and Claude Code told the person each one was skipped.
+- The guards now speak for themselves: `ai-gent guard`, the shell logic in each `guard.sh` and `opencode/guard/rules.mjs` add the person's line (`systemMessage`) and, on a deny, the agent's line (`additionalContext`) to their own decision, from one table, `shared/guard-words.json` (copied to `rust/crates/ai-gent-core/src/guard/words.json` and `opencode/guard/words.json`, and generated as the `guard words` block of each `guard.sh` by `scripts/consistency.py --sync-shared-code`). The shared fixtures check the words on all three, and the parity test with them. No `classic.PreToolUse` hook remains; `shared/guard-ux.ts` and its copies are gone, and `db` no longer has a hooks module.
+- FR-001, FR-007 and FR-008 are superseded by this; FR-002, FR-003, FR-005 and FR-006 hold as written, with "the guard" in place of "the mod". The person's line replaces the toast. `guardUx` (false) still turns the words off, read by the guard from `CLAUDE_PLUGIN_OPTION_guardUx`.

@@ -18,7 +18,7 @@ import type { NextStageOptions } from './nextstage'
 import { contextExtras, contextTail, readUsage, recordContext } from './context'
 import { recordLimits } from './usage'
 import type { ContextOptions } from './context'
-import { nudgeAtTurnEnd, nudgeBeforeCompact } from './handoff'
+import { nudgeAtTurnEnd, nudgeOnCompactCommand } from './handoff'
 import type { HandoffOptions } from './handoff'
 import { PANE, close, open, press, readExpanded, readIsOpen, readPaneState, readSnapshot, refresh as refreshPipeline, startPipeline } from './pipeline'
 import { drawDashboard } from './pipeline-draw'
@@ -93,6 +93,9 @@ async function refresh($: EngineInterface, isOn: boolean): Promise<Checkpoint | 
 }
 
 const GUARDS_PANE = 'guards'
+// Bumped after each tool call while the guards pane was opened, so the pane rereads the log.
+const guardsTick = atom({ plugin: 'project', key: 'guardsTick' } as const, 0)
+let guardsPaneAsked = false
 
 // Declares /guards and /guards-pane. Never opens the pane by itself.
 async function registerGuards($: EngineInterface): Promise<void> {
@@ -178,10 +181,11 @@ export const register: Register = (on, options: Options) => {
     return next(e)
   })
 
-  // Before a compaction the summary loses what the checkpoint keeps: say so, once,
-  // and pass the event on unchanged, whatever the trigger.
-  on('session.compact', async ($, e, next) => {
-    await nudgeBeforeCompact($, e.trigger, options, () => readCheckpoint($)).catch(() => undefined)
+  // Before a manual /compact the summary loses what the checkpoint keeps: say so, once,
+  // and pass the prompt on unchanged. Caught here, not at session.compact, which is
+  // passed over where cc-plugin-sec-default is seated (spec 021 FR-008, 2026-11-14).
+  on('prompt.submit', async ($, e, next) => {
+    if (e.command?.name === 'compact') await nudgeOnCompactCommand($, options, () => readCheckpoint($)).catch(() => undefined)
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -317,29 +321,40 @@ export const register: Register = (on, options: Options) => {
     return ran
   }).catch(($, e, next) => next(e))
 
-  // The guard log (spec 024): /guards and /guards-pane over the guard plugins' atoms.
+  // The guard log (spec 024): /guards and /guards-pane over the log the guards append to.
   on('command.run', { command: 'guards' }, async ($, e) => {
-    const { rows, missing } = await readGuards($)
-    return { text: [await readGrantLine($), ...guardLines(summarize(rows, clampLimit(e.args, clampLimit(options.guardLogLimit))), missing)].join('\n') }
+    const rows = await readGuards($)
+    return { text: [await readGrantLine($), ...guardLines(summarize(rows, clampLimit(e.args, clampLimit(options.guardLogLimit))), [])].join('\n') }
   })
 
   on('command.run', { command: 'guards-pane' }, async $ => {
     if (options.guardsPane === false) return { text: 'The guards pane is off (guardsPane); /guards prints the list.' }
     const placed = await $.ui.open({ id: GUARDS_PANE, title: 'Guards', focus: true })
-    if (placed.isPlaced) return { text: 'Guards pane opened.' }
-    const { rows, missing } = await readGuards($)
-    return { text: ['no pane here — /guards prints the list', await readGrantLine($), ...guardLines(summarize(rows, clampLimit(options.guardLogLimit)), missing)].join('\n') }
+    if (placed.isPlaced) {
+      guardsPaneAsked = true
+      return { text: 'Guards pane opened.' }
+    }
+    const rows = await readGuards($)
+    return { text: ['no pane here — /guards prints the list', await readGrantLine($), ...guardLines(summarize(rows, clampLimit(options.guardLogLimit)), [])].join('\n') }
   })
+
+  // A guard writes its row while the tool call is decided: once a call settles, the open pane reads the log again.
+  on('tool.call', async ($, e, next) => {
+    const ran = await next(e)
+    if (guardsPaneAsked) await update($, guardsTick, n => n + 1).catch(() => undefined)
+    return ran
+  }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: 'guards' }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
-    const { rows, missing } = await readGuards($)
+    await read($, guardsTick)
+    const rows = await readGuards($)
     const grant = await readGrantLine($)
     const width = Math.max(20, e.props.bodyColumns)
     return (
       <Box flexDirection="column">
         <Text wrap="truncate-end">{grant}</Text>
-        {guardLines(summarize(rows, clampLimit(options.guardLogLimit)), missing, width).map((line, i) => (
+        {guardLines(summarize(rows, clampLimit(options.guardLogLimit)), [], width).map((line, i) => (
           <Text key={i} wrap="truncate-end">{line}</Text>
         ))}
       </Box>

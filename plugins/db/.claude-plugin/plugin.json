@@ -17,9 +17,8 @@
     "guardLog": {
       "type": "boolean",
       "title": "Keep a log of this guard's decisions",
-      "description": "Remember the last 200 denies and asks (the entry and the command's verb only, never the command or the reason) for the project plugin's /guards (the guard still decides)",
+      "description": "Append each deny and ask (the entry and the command's verb only, never the command or the reason) to this session's guard log in the state directory (~/.local/state/ai-gent/guard-log, the last 200 kept) for the project plugin's /guards (the guard still decides)",
       "default": true
     }
-  },
-  "types": "./types/index.d.ts"
+  }
 }

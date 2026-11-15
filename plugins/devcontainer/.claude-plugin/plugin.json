@@ -17,13 +17,13 @@
     "guardLog": {
       "type": "boolean",
       "title": "Keep a log of this guard's decisions",
-      "description": "Remember the last 200 denies and asks (the entry and the command's verb only, never the command or the reason) for the project plugin's /guards (the guard still decides)",
+      "description": "Append each deny and ask (the entry and the command's verb only, never the command or the reason) to this session's guard log in the state directory (~/.local/state/ai-gent/guard-log, the last 200 kept) for the project plugin's /guards (the guard still decides)",
       "default": true
     },
     "leftoversToast": {
       "type": "boolean",
       "title": "Show the container leftovers report",
-      "description": "Show the report leftovers.sh prints at session start (this project's leftover containers, images, volumes; a low disk), which only the model sees, as a toast",
+      "description": "Show the report leftovers.sh prints at session start (this project's leftover containers, images, volumes; a low disk) to you as one line the engine shows, besides the copy the model reads",
       "default": true
     },
     "containersBand": {
