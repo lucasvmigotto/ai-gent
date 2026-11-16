@@ -1,0 +1,1198 @@
+{
+  "derived_from": "spec 045 FR-024 (x-next-page and Link decide, not the page length)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-gitlab-pagination-headers",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "id": 20,
+        "lists": [],
+        "name": "Plain"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/20",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1001,
+          "iid": 1,
+          "labels": [
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 1",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/1"
+        },
+        {
+          "id": 1002,
+          "iid": 2,
+          "labels": [
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 2",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/2"
+        },
+        {
+          "id": 1003,
+          "iid": 3,
+          "labels": [
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 3",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/3"
+        }
+      ],
+      "headers": {
+        "X-Next-Page": "2"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1010,
+          "iid": 10,
+          "labels": [
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 10",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/10"
+        },
+        {
+          "id": 1011,
+          "iid": 11,
+          "labels": [
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 11",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/11"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=2",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1200,
+          "iid": 200,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 200",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/200"
+        },
+        {
+          "id": 1201,
+          "iid": 201,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 201",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/201"
+        },
+        {
+          "id": 1202,
+          "iid": 202,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 202",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/202"
+        },
+        {
+          "id": 1203,
+          "iid": 203,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 203",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/203"
+        },
+        {
+          "id": 1204,
+          "iid": 204,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 204",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/204"
+        },
+        {
+          "id": 1205,
+          "iid": 205,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 205",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/205"
+        },
+        {
+          "id": 1206,
+          "iid": 206,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 206",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/206"
+        },
+        {
+          "id": 1207,
+          "iid": 207,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 207",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/207"
+        },
+        {
+          "id": 1208,
+          "iid": 208,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 208",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/208"
+        },
+        {
+          "id": 1209,
+          "iid": 209,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 209",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/209"
+        },
+        {
+          "id": 1210,
+          "iid": 210,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 210",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/210"
+        },
+        {
+          "id": 1211,
+          "iid": 211,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 211",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/211"
+        },
+        {
+          "id": 1212,
+          "iid": 212,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 212",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/212"
+        },
+        {
+          "id": 1213,
+          "iid": 213,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 213",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/213"
+        },
+        {
+          "id": 1214,
+          "iid": 214,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 214",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/214"
+        },
+        {
+          "id": 1215,
+          "iid": 215,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 215",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/215"
+        },
+        {
+          "id": 1216,
+          "iid": 216,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 216",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/216"
+        },
+        {
+          "id": 1217,
+          "iid": 217,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 217",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/217"
+        },
+        {
+          "id": 1218,
+          "iid": 218,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 218",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/218"
+        },
+        {
+          "id": 1219,
+          "iid": 219,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 219",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/219"
+        },
+        {
+          "id": 1220,
+          "iid": 220,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 220",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/220"
+        },
+        {
+          "id": 1221,
+          "iid": 221,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 221",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/221"
+        },
+        {
+          "id": 1222,
+          "iid": 222,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 222",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/222"
+        },
+        {
+          "id": 1223,
+          "iid": 223,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 223",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/223"
+        },
+        {
+          "id": 1224,
+          "iid": 224,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 224",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/224"
+        },
+        {
+          "id": 1225,
+          "iid": 225,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 225",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/225"
+        },
+        {
+          "id": 1226,
+          "iid": 226,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 226",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/226"
+        },
+        {
+          "id": 1227,
+          "iid": 227,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 227",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/227"
+        },
+        {
+          "id": 1228,
+          "iid": 228,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 228",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/228"
+        },
+        {
+          "id": 1229,
+          "iid": 229,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 229",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/229"
+        },
+        {
+          "id": 1230,
+          "iid": 230,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 230",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/230"
+        },
+        {
+          "id": 1231,
+          "iid": 231,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 231",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/231"
+        },
+        {
+          "id": 1232,
+          "iid": 232,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 232",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/232"
+        },
+        {
+          "id": 1233,
+          "iid": 233,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 233",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/233"
+        },
+        {
+          "id": 1234,
+          "iid": 234,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 234",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/234"
+        },
+        {
+          "id": 1235,
+          "iid": 235,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 235",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/235"
+        },
+        {
+          "id": 1236,
+          "iid": 236,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 236",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/236"
+        },
+        {
+          "id": 1237,
+          "iid": 237,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 237",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/237"
+        },
+        {
+          "id": 1238,
+          "iid": 238,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 238",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/238"
+        },
+        {
+          "id": 1239,
+          "iid": 239,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 239",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/239"
+        },
+        {
+          "id": 1240,
+          "iid": 240,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 240",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/240"
+        },
+        {
+          "id": 1241,
+          "iid": 241,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 241",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/241"
+        },
+        {
+          "id": 1242,
+          "iid": 242,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 242",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/242"
+        },
+        {
+          "id": 1243,
+          "iid": 243,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 243",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/243"
+        },
+        {
+          "id": 1244,
+          "iid": 244,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 244",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/244"
+        },
+        {
+          "id": 1245,
+          "iid": 245,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 245",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/245"
+        },
+        {
+          "id": 1246,
+          "iid": 246,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 246",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/246"
+        },
+        {
+          "id": 1247,
+          "iid": 247,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 247",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/247"
+        },
+        {
+          "id": 1248,
+          "iid": 248,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 248",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/248"
+        },
+        {
+          "id": 1249,
+          "iid": 249,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 249",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/249"
+        },
+        {
+          "id": 1250,
+          "iid": 250,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 250",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/250"
+        },
+        {
+          "id": 1251,
+          "iid": 251,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 251",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/251"
+        },
+        {
+          "id": 1252,
+          "iid": 252,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 252",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/252"
+        },
+        {
+          "id": 1253,
+          "iid": 253,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 253",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/253"
+        },
+        {
+          "id": 1254,
+          "iid": 254,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 254",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/254"
+        },
+        {
+          "id": 1255,
+          "iid": 255,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 255",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/255"
+        },
+        {
+          "id": 1256,
+          "iid": 256,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 256",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/256"
+        },
+        {
+          "id": 1257,
+          "iid": 257,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 257",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/257"
+        },
+        {
+          "id": 1258,
+          "iid": 258,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 258",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/258"
+        },
+        {
+          "id": 1259,
+          "iid": 259,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 259",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/259"
+        },
+        {
+          "id": 1260,
+          "iid": 260,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 260",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/260"
+        },
+        {
+          "id": 1261,
+          "iid": 261,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 261",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/261"
+        },
+        {
+          "id": 1262,
+          "iid": 262,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 262",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/262"
+        },
+        {
+          "id": 1263,
+          "iid": 263,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 263",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/263"
+        },
+        {
+          "id": 1264,
+          "iid": 264,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 264",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/264"
+        },
+        {
+          "id": 1265,
+          "iid": 265,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 265",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/265"
+        },
+        {
+          "id": 1266,
+          "iid": 266,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 266",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/266"
+        },
+        {
+          "id": 1267,
+          "iid": 267,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 267",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/267"
+        },
+        {
+          "id": 1268,
+          "iid": 268,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 268",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/268"
+        },
+        {
+          "id": 1269,
+          "iid": 269,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 269",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/269"
+        },
+        {
+          "id": 1270,
+          "iid": 270,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 270",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/270"
+        },
+        {
+          "id": 1271,
+          "iid": 271,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 271",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/271"
+        },
+        {
+          "id": 1272,
+          "iid": 272,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 272",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/272"
+        },
+        {
+          "id": 1273,
+          "iid": 273,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 273",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/273"
+        },
+        {
+          "id": 1274,
+          "iid": 274,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 274",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/274"
+        },
+        {
+          "id": 1275,
+          "iid": 275,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 275",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/275"
+        },
+        {
+          "id": 1276,
+          "iid": 276,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 276",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/276"
+        },
+        {
+          "id": 1277,
+          "iid": 277,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 277",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/277"
+        },
+        {
+          "id": 1278,
+          "iid": 278,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 278",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/278"
+        },
+        {
+          "id": 1279,
+          "iid": 279,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 279",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/279"
+        },
+        {
+          "id": 1280,
+          "iid": 280,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 280",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/280"
+        },
+        {
+          "id": 1281,
+          "iid": 281,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 281",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/281"
+        },
+        {
+          "id": 1282,
+          "iid": 282,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 282",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/282"
+        },
+        {
+          "id": 1283,
+          "iid": 283,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 283",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/283"
+        },
+        {
+          "id": 1284,
+          "iid": 284,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 284",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/284"
+        },
+        {
+          "id": 1285,
+          "iid": 285,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 285",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/285"
+        },
+        {
+          "id": 1286,
+          "iid": 286,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 286",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/286"
+        },
+        {
+          "id": 1287,
+          "iid": 287,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 287",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/287"
+        },
+        {
+          "id": 1288,
+          "iid": 288,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 288",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/288"
+        },
+        {
+          "id": 1289,
+          "iid": 289,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 289",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/289"
+        },
+        {
+          "id": 1290,
+          "iid": 290,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 290",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/290"
+        },
+        {
+          "id": 1291,
+          "iid": 291,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 291",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/291"
+        },
+        {
+          "id": 1292,
+          "iid": 292,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 292",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/292"
+        },
+        {
+          "id": 1293,
+          "iid": 293,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 293",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/293"
+        },
+        {
+          "id": 1294,
+          "iid": 294,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 294",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/294"
+        },
+        {
+          "id": 1295,
+          "iid": 295,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 295",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/295"
+        },
+        {
+          "id": 1296,
+          "iid": 296,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 296",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/296"
+        },
+        {
+          "id": 1297,
+          "iid": 297,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 297",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/297"
+        },
+        {
+          "id": 1298,
+          "iid": 298,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 298",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/298"
+        },
+        {
+          "id": 1299,
+          "iid": 299,
+          "labels": [
+            "bug"
+          ],
+          "state": "closed",
+          "title": "Issue 299",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/299"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "show",
+        "gitlab:grp/proj/20",
+        "--state",
+        "todo"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/20"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=2"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/20 (Plain) · field Lists\nSTATE  COLUMN  KIND   #   TITLE     URL\ntodo   Open    issue  1   Issue 1   https://gitlab.com/grp/proj/-/issues/1\ntodo   Open    issue  2   Issue 2   https://gitlab.com/grp/proj/-/issues/2\ntodo   Open    issue  3   Issue 3   https://gitlab.com/grp/proj/-/issues/3\ntodo   Open    issue  10  Issue 10  https://gitlab.com/grp/proj/-/issues/10\ntodo   Open    issue  11  Issue 11  https://gitlab.com/grp/proj/-/issues/11\n5 item(s)\n"
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "gitlab:grp/proj/20",
+        "--state",
+        "todo",
+        "--max-pages",
+        "1"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/20"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/20 (Plain) · field Lists\nSTATE  COLUMN  KIND   #  TITLE    URL\ntodo   Open    issue  1  Issue 1  https://gitlab.com/grp/proj/-/issues/1\ntodo   Open    issue  2  Issue 2  https://gitlab.com/grp/proj/-/issues/2\ntodo   Open    issue  3  Issue 3  https://gitlab.com/grp/proj/-/issues/3\n3 item(s) · truncated by --max-pages\n"
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

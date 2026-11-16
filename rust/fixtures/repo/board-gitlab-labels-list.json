@@ -1,0 +1,96 @@
+{
+  "derived_from": "spec 045 FR-026, contract 4.1",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-gitlab-labels-list",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": [
+        {
+          "id": 12,
+          "name": "Development"
+        },
+        {
+          "id": 13,
+          "name": "Triage"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards?per_page=100&page=1",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards?per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "BOARD               TITLE        CLOSED  URL\ngitlab:grp/proj/12  Development  no      http://<STUB>/grp/proj/-/boards/12\ngitlab:grp/proj/13  Triage       no      http://<STUB>/grp/proj/-/boards/13\n"
+    },
+    {
+      "argv": [
+        "board",
+        "list",
+        "--project",
+        "grp/proj",
+        "--json"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards?per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "[\n  {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  {\n    \"platform\": \"gitlab\",\n    \"id\": \"13\",\n    \"key\": \"gitlab:grp/proj/13\",\n    \"title\": \"Triage\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/13\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  }\n]\n"
+    },
+    {
+      "argv": [
+        "board",
+        "list",
+        "--platform",
+        "gitlab",
+        "--owner",
+        "x"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "--owner is for GitHub"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

@@ -238,6 +238,29 @@ fn is_workitem_patch(platform: &str, method: &str, url: &str) -> bool {
 /// Refusals (a write without `--write`, a foreign host), a missing entry, transport errors and HTTP
 /// errors (status 400 and above, with the redacted body).
 pub fn api_call(ctx: &Ctx, c: &Call<'_>) -> R<Data> {
+    run_call(ctx, c).map(|(d, _)| d)
+}
+
+/// The response headers `api_call_with_headers` hands back: pagination and rate-limit hints only.
+const KEPT_HEADERS: [&str; 5] = [
+    "link",
+    "x-next-page",
+    "retry-after",
+    "x-ratelimit-remaining",
+    "x-ratelimit-reset",
+];
+
+/// Like `api_call`, and also the continuation and rate-limit headers of a single (non-paginated)
+/// response, lowercased names. Nothing else is returned: never `Authorization` or a cookie. The write
+/// check is the same code path.
+///
+/// # Errors
+/// As `api_call`.
+pub fn api_call_with_headers(ctx: &Ctx, c: &Call<'_>) -> R<(Data, Vec<(String, String)>)> {
+    run_call(ctx, c)
+}
+
+fn run_call(ctx: &Ctx, c: &Call<'_>) -> R<(Data, Vec<(String, String)>)> {
     let method = c.method.to_uppercase();
     if !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].contains(&method.as_str()) {
         return Err(Failed::usage(format!("method {method} isn't supported")));
@@ -333,6 +356,15 @@ pub fn api_call(ctx: &Ctx, c: &Call<'_>) -> R<Data> {
             let cut: String = text.chars().take(4000).collect();
             let mut f = Failed::err(format!("HTTP {}: {cut}", resp.status));
             f.http_status = Some(resp.status);
+            if resp.status == 403 || resp.status == 429 {
+                f.hint = resp
+                    .header("retry-after")
+                    .map(|v| format!("retry after {v}s"))
+                    .or_else(|| {
+                        resp.header("x-ratelimit-reset")
+                            .map(|v| format!("the limit resets at epoch {v}"))
+                    });
+            }
             return Err(f);
         }
         let data = if text.trim().is_empty() {
@@ -341,11 +373,20 @@ pub fn api_call(ctx: &Ctx, c: &Call<'_>) -> R<Data> {
             Some(parse(&text).unwrap_or(J::Str(text.clone())))
         };
         if !c.paginate {
-            return Ok(match data {
-                None => Data::Nothing,
-                Some(J::Str(s)) => Data::Text(s),
-                Some(j) => Data::Json(j),
-            });
+            let kept: Vec<(String, String)> = resp
+                .headers
+                .iter()
+                .filter(|(k, _)| KEPT_HEADERS.contains(&k.as_str()))
+                .cloned()
+                .collect();
+            return Ok((
+                match data {
+                    None => Data::Nothing,
+                    Some(J::Str(s)) => Data::Text(s),
+                    Some(j) => Data::Json(j),
+                },
+                kept,
+            ));
         }
         let data = data.unwrap_or(J::Null);
         let nxt = next_link(c.platform, resp.header("link").unwrap_or(""), &data);
@@ -375,7 +416,7 @@ pub fn api_call(ctx: &Ctx, c: &Call<'_>) -> R<Data> {
     if !current.is_empty() && pages >= c.max_pages {
         note(&format!("stopped after {pages} pages (--max-pages)"));
     }
-    Ok(Data::Json(J::Arr(merged)))
+    Ok((Data::Json(J::Arr(merged)), Vec::new()))
 }
 
 /// Pretty-print API data the way `cmd_api` does.

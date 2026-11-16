@@ -1,0 +1,337 @@
+{
+  "derived_from": "spec 045 FR-027, contract 4.2 (shapes unverified, fixtures only until G30-21)",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "repo/.ai-gent/board.yaml": "version: 1\nboards:\n  web:\n    platform: gitlab\n    project: grp/proj\n    board: 12\n    mode: status\n    states:\n      todo: \"To do\"\n      doing: \"In progress\"\n      done: Done\n"
+  },
+  "git": [],
+  "name": "board-gitlab-status-show",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "data": {
+          "project": {
+            "id": "gid://gitlab/Project/1",
+            "workItemTypes": {
+              "nodes": [
+                {
+                  "name": "Epic",
+                  "widgetDefinitions": [
+                    {}
+                  ]
+                },
+                {
+                  "name": "Issue",
+                  "widgetDefinitions": [
+                    {},
+                    {
+                      "allowedStatuses": [
+                        {
+                          "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/1",
+                          "name": "To do"
+                        },
+                        {
+                          "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/2",
+                          "name": "In progress"
+                        },
+                        {
+                          "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/3",
+                          "name": "Done"
+                        },
+                        {
+                          "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/4",
+                          "name": "Won't do"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardStatusFields",
+      "path": "/api/graphql",
+      "status": 200,
+      "vars": {
+        "fullPath": "grp/proj"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "project": {
+            "workItems": {
+              "nodes": [
+                {
+                  "id": "gid://gitlab/WorkItem/1",
+                  "iid": "1",
+                  "state": "OPEN",
+                  "title": "Work item 1",
+                  "webUrl": "https://gitlab.com/grp/proj/-/work_items/1",
+                  "widgets": [
+                    {},
+                    {
+                      "status": {
+                        "id": "s",
+                        "name": "To do"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://gitlab/WorkItem/2",
+                  "iid": "2",
+                  "state": "OPEN",
+                  "title": "Work item 2",
+                  "webUrl": "https://gitlab.com/grp/proj/-/work_items/2",
+                  "widgets": [
+                    {},
+                    {
+                      "status": {
+                        "id": "s",
+                        "name": "In progress"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "endCursor": "W1",
+                "hasNextPage": true
+              }
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardStatusItems",
+      "path": "/api/graphql",
+      "status": 200,
+      "vars": {
+        "after": null,
+        "fullPath": "grp/proj"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "project": {
+            "workItems": {
+              "nodes": [
+                {
+                  "id": "gid://gitlab/WorkItem/3",
+                  "iid": "3",
+                  "state": "CLOSED",
+                  "title": "Work item 3",
+                  "webUrl": "https://gitlab.com/grp/proj/-/work_items/3",
+                  "widgets": [
+                    {},
+                    {
+                      "status": {
+                        "id": "s",
+                        "name": "Done"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://gitlab/WorkItem/4",
+                  "iid": "4",
+                  "state": "OPEN",
+                  "title": "Work item 4",
+                  "webUrl": "https://gitlab.com/grp/proj/-/work_items/4",
+                  "widgets": [
+                    {},
+                    {
+                      "status": null
+                    }
+                  ]
+                }
+              ],
+              "pageInfo": {
+                "endCursor": null,
+                "hasNextPage": false
+              }
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardStatusItems",
+      "path": "/api/graphql",
+      "status": 200,
+      "vars": {
+        "after": "W1",
+        "fullPath": "grp/proj"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "definition": {
+            "fields": [
+              {
+                "name": "allowedStatuses",
+                "type": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "OBJECT",
+                    "name": "WorkItemStatus"
+                  }
+                }
+              }
+            ],
+            "name": "WorkItemWidgetDefinitionStatus"
+          },
+          "widget": {
+            "fields": [
+              {
+                "name": "status",
+                "type": {
+                  "kind": "OBJECT",
+                  "name": "WorkItemStatus",
+                  "ofType": null
+                }
+              }
+            ],
+            "name": "WorkItemWidgetStatus"
+          },
+          "workItem": {
+            "fields": [
+              {
+                "name": "iid"
+              },
+              {
+                "name": "widgets"
+              }
+            ]
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardStatusIntrospect",
+      "path": "/api/graphql",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "fields",
+        "web",
+        "--json"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardStatusFields($fullPath: ID!) { project(fullPath: $fullPath) { id workItemTypes { nodes { name widgetDefinitions { ... on WorkItemWidgetDefinitionStatus { allowedStatuses { id name } } } } } } }\", \"variables\": {\"fullPath\": \"grp/proj\"}, \"operationName\": \"BoardStatusFields\"}",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/api/graphql"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"grp/proj\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"status\",\n    \"scope\": []\n  },\n  \"field\": {\n    \"id\": \"status\",\n    \"name\": \"Status\",\n    \"kind\": \"status\",\n    \"options\": [\n      {\n        \"id\": \"gid://gitlab/WorkItems::Statuses::Custom::Status/1\",\n        \"name\": \"To do\",\n        \"state\": \"todo\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"gid://gitlab/WorkItems::Statuses::Custom::Status/2\",\n        \"name\": \"In progress\",\n        \"state\": \"doing\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"gid://gitlab/WorkItems::Statuses::Custom::Status/3\",\n        \"name\": \"Done\",\n        \"state\": \"done\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"gid://gitlab/WorkItems::Statuses::Custom::Status/4\",\n        \"name\": \"Won't do\",\n        \"state\": null,\n        \"mapped_by\": \"unmapped\"\n      }\n    ]\n  },\n  \"unmapped\": [\n    \"review\"\n  ],\n  \"stale\": []\n}\n"
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "web"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardStatusFields($fullPath: ID!) { project(fullPath: $fullPath) { id workItemTypes { nodes { name widgetDefinitions { ... on WorkItemWidgetDefinitionStatus { allowedStatuses { id name } } } } } } }\", \"variables\": {\"fullPath\": \"grp/proj\"}, \"operationName\": \"BoardStatusFields\"}",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/api/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardStatusItems($fullPath: ID!, $after: String) { project(fullPath: $fullPath) { workItems(first: 100, after: $after) { nodes { id iid title webUrl state widgets { ... on WorkItemWidgetStatus { status { id name } } } } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"fullPath\": \"grp/proj\", \"after\": null}, \"operationName\": \"BoardStatusItems\"}",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/api/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardStatusItems($fullPath: ID!, $after: String) { project(fullPath: $fullPath) { workItems(first: 100, after: $after) { nodes { id iid title webUrl state widgets { ... on WorkItemWidgetStatus { status { id name } } } } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"fullPath\": \"grp/proj\", \"after\": \"W1\"}, \"operationName\": \"BoardStatusItems\"}",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/api/graphql"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/12 (grp/proj) · field Status\nSTATE  COLUMN       KIND   #  TITLE        URL\ntodo   To do        issue  1  Work item 1  https://gitlab.com/grp/proj/-/work_items/1\ndoing  In progress  issue  2  Work item 2  https://gitlab.com/grp/proj/-/work_items/2\ndone   Done         issue  3  Work item 3  https://gitlab.com/grp/proj/-/work_items/3\n-      -            issue  4  Work item 4  https://gitlab.com/grp/proj/-/work_items/4\n4 item(s)\n"
+    },
+    {
+      "argv": [
+        "board",
+        "fields",
+        "web",
+        "--introspect"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardStatusIntrospect { widget: __type(name: \\\"WorkItemWidgetStatus\\\") { name fields { name type { name kind ofType { name kind } } } } definition: __type(name: \\\"WorkItemWidgetDefinitionStatus\\\") { name fields { name type { name kind ofType { name kind } } } } workItem: __type(name: \\\"WorkItem\\\") { fields { name } } }\", \"variables\": {}, \"operationName\": \"BoardStatusIntrospect\"}",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/api/graphql"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "{\n  \"definition\": {\n    \"fields\": [\n      {\n        \"name\": \"allowedStatuses\",\n        \"type\": {\n          \"kind\": \"LIST\",\n          \"name\": null,\n          \"ofType\": {\n            \"kind\": \"OBJECT\",\n            \"name\": \"WorkItemStatus\"\n          }\n        }\n      }\n    ],\n    \"name\": \"WorkItemWidgetDefinitionStatus\"\n  },\n  \"widget\": {\n    \"fields\": [\n      {\n        \"name\": \"status\",\n        \"type\": {\n          \"kind\": \"OBJECT\",\n          \"name\": \"WorkItemStatus\",\n          \"ofType\": null\n        }\n      }\n    ],\n    \"name\": \"WorkItemWidgetStatus\"\n  },\n  \"workItem\": {\n    \"fields\": [\n      {\n        \"name\": \"iid\"\n      },\n      {\n        \"name\": \"widgets\"\n      }\n    ]\n  }\n}\n"
+    },
+    {
+      "argv": [
+        "board",
+        "fields",
+        "github:o/1",
+        "--introspect"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "--introspect is for GitLab"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

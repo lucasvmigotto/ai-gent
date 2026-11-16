@@ -6,6 +6,11 @@ changes.
 
 ## Unreleased
 
+### Added
+
+- **`ai-gent repo board list|show|fields` (spec 045, slice 1: the reads):** GitHub Projects v2 over GraphQL and GitLab issue boards (label mode by default, work item Status mode opt-in and fixtures-only) through the existing request path, so the GraphQL read check classifies every board query as a read. One canonical model (`todo`, `doing`, `review`, `done`) on both platforms, a git-excluded `.ai-gent/board.yaml` read by a small hand-written parser that refuses anything outside its subset with the line number, cursor and page pagination capped by `--max-pages` (`truncated` is reported), and `--json`. `--write` on a read is a usage error. Azure DevOps, Jira, Forgejo and Bitbucket refuse with the plan. `set` and `add` come in the next slice.
+- Rust-owned parity fixtures (`rust/fixtures/repo/board-*.json`, `"owner": "rust"`) with scripted stub routes and per-run files; `scripts/test-parity-repo.py` leaves them alone.
+
 ### Changed
 
 - **project:** the Workers pane lists a failed or stalled worker under ATTENTION only (it no longer repeats in WORKERS; the counts, header and History are unchanged), gives ATTENTION and WORKERS their own row budgets (an open History shares the WORKERS one), shows `Idle reason: not recorded` when nothing runs or waits and `Cause: not recorded` on a failed worker without a verdict reason, and tones only the glyph and the state word of a row (one press target per row); `/reload-plugins` is needed after the merge (spec 044, Workers slice)

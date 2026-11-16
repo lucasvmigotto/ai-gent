@@ -1,0 +1,78 @@
+{
+  "derived_from": "spec 045 FR-028, D9",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-platform-deferred",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list",
+        "--platform",
+        "azure-devops"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "deferred until after 3.0.0"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "list",
+        "--platform",
+        "jira"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "3.x line"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "list",
+        "--platform",
+        "forgejo"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "3.x line"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "list",
+        "--platform",
+        "bitbucket"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "3.x line"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}
