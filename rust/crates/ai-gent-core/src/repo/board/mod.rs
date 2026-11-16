@@ -2,12 +2,13 @@
 //!
 //! The canonical model, the adapter trait, platform dispatch and the output of `list`, `show` and
 //! `fields`. Every request an adapter makes goes through `api::api_call` (see `net.rs`), so the GraphQL
-//! read check and the `--write` refusal decide; slice 1 sends reads only.
+//! read check and the `--write` refusal decide. `run.rs` is the one place that sends a planned change.
 pub mod docs;
 pub mod github;
 pub mod gitlab;
 pub mod map;
 pub mod net;
+pub mod run;
 
 use super::remote::detect_repo;
 use super::{Ctx, Failed, R};
@@ -250,8 +251,291 @@ pub struct Scope {
     pub project: Option<String>,
 }
 
-/// One platform's reads (contract §1). The writes arrive with slice 2.
+/// The item a `set` or `add` names: `#N` (the current remote's repository, or the GitLab board's
+/// project) or an issue or pull request URL.
+#[derive(Debug, Clone, Default)]
+pub struct ItemRef {
+    /// The URL as given; empty for `#N`.
+    pub url: String,
+    /// Issue or pull request number.
+    pub number: i64,
+    /// `owner/repo` (GitHub) or the project path (GitLab) the URL names; empty for `#N`.
+    pub repo: String,
+}
+
+/// Parse the ITEM argument (FR-003).
+///
+/// # Errors
+/// A usage error when it is neither `#N` nor an issue or pull request URL.
+pub fn parse_item(arg: &str) -> R<ItemRef> {
+    let bad = || {
+        Failed::usage(format!(
+            "'{arg}' is not an item: use #N or an issue or pull request URL"
+        ))
+    };
+    if let Some(n) = arg.strip_prefix('#') {
+        let number = n.parse::<i64>().ok().filter(|n| *n > 0).ok_or_else(bad)?;
+        return Ok(ItemRef {
+            number,
+            ..ItemRef::default()
+        });
+    }
+    let rest = arg
+        .strip_prefix("https://")
+        .or_else(|| arg.strip_prefix("http://"))
+        .ok_or_else(bad)?;
+    let path = rest.split(['?', '#']).next().unwrap_or("");
+    let mut segs: Vec<&str> = path.split('/').collect();
+    if segs.len() < 5 {
+        return Err(bad());
+    }
+    segs.remove(0); // the host
+    while segs.last() == Some(&"") {
+        segs.pop();
+    }
+    let number = segs
+        .pop()
+        .and_then(|n| n.parse::<i64>().ok())
+        .filter(|n| *n > 0)
+        .ok_or_else(bad)?;
+    if !matches!(
+        segs.pop(),
+        Some("issues" | "pull" | "work_items" | "merge_requests")
+    ) {
+        return Err(bad());
+    }
+    if segs.last() == Some(&"-") {
+        segs.pop();
+    }
+    if segs.len() < 2 {
+        return Err(bad());
+    }
+    Ok(ItemRef {
+        url: arg.to_string(),
+        number,
+        repo: segs.join("/"),
+    })
+}
+
+/// One planned request. `from_prev` fills a variable from the previous request's answer (the item id
+/// `BoardAdd` returns, for the `BoardSet` after it); `errors_at` names a member of the answer whose
+/// non-empty list is a failure (GitLab's `errors`).
+#[derive(Debug, Clone)]
+pub enum ReqBody {
+    /// A named GraphQL document and its variables.
+    Gql {
+        /// Name and document.
+        doc: (&'static str, &'static str),
+        /// Variables.
+        vars: Vec<(&'static str, J)>,
+    },
+    /// A REST change.
+    Rest {
+        /// `PUT` (GitLab label mode).
+        method: &'static str,
+        /// Relative to the API base.
+        path: String,
+        /// The JSON body.
+        body: J,
+    },
+}
+
+/// A planned request with its wiring.
+#[derive(Debug, Clone)]
+pub struct Req {
+    /// What to send.
+    pub body: ReqBody,
+    /// `(variable, path in the previous answer's data)`.
+    pub from_prev: Option<(&'static str, &'static [&'static str])>,
+    /// A path in the answer whose non-empty array fails the request.
+    pub errors_at: Option<&'static [&'static str]>,
+}
+
+impl Req {
+    /// A GraphQL request.
+    #[must_use]
+    pub fn gql(doc: (&'static str, &'static str), vars: Vec<(&'static str, J)>) -> Self {
+        Self {
+            body: ReqBody::Gql { doc, vars },
+            from_prev: None,
+            errors_at: None,
+        }
+    }
+
+    /// A REST change.
+    #[must_use]
+    pub fn rest(method: &'static str, path: String, body: J) -> Self {
+        Self {
+            body: ReqBody::Rest { method, path, body },
+            from_prev: None,
+            errors_at: None,
+        }
+    }
+
+    /// One line for `sent` and `--dry-run`: method, path, name and variables or body; no header, no token.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        match &self.body {
+            ReqBody::Gql { doc, vars } => {
+                let mut v = vars.clone();
+                if let Some((name, path)) = self.from_prev {
+                    v.retain(|(k, _)| *k != name);
+                    v.push((name, J::s(format!("<{}>", path.join(".")))));
+                }
+                format!("POST graphql {} {}", doc.0, dumps(&obj(v), false, None))
+            }
+            ReqBody::Rest { method, path, body } => {
+                format!("{method} {path} {}", dumps(body, false, None))
+            }
+        }
+    }
+}
+
+/// An item as the platform answers for it, and where it stands on the board.
+#[derive(Debug, Clone, Default)]
+pub struct Located {
+    /// The board's own id for the item (GitHub project item, GitLab work item); empty if not on it.
+    pub id: String,
+    /// The issue or pull request id to add.
+    pub content_id: String,
+    /// Whether it is on the board (for a label board: in its scope).
+    pub on_board: bool,
+    /// Why it is not, when it is not.
+    pub why_not: String,
+    /// `issue` or `pull_request`.
+    pub kind: &'static str,
+    /// Number.
+    pub number: Option<i64>,
+    /// Web address.
+    pub url: String,
+    /// Title.
+    pub title: String,
+    /// The option it sits in now.
+    pub from: Option<String>,
+    /// GitLab: its labels.
+    pub labels: Vec<String>,
+    /// GitLab: it is closed.
+    pub closed: bool,
+    /// GitLab label mode: the request path of the issue.
+    pub path: String,
+}
+
+/// The outcome of a `set` or `add` (contract §1).
+#[derive(Debug, Clone)]
+pub struct Change {
+    /// The board.
+    pub board: Board,
+    /// The item.
+    pub item: Located,
+    /// The column field's name.
+    pub field: String,
+    /// The option it sat in.
+    pub from: Option<String>,
+    /// The option asked for.
+    pub to: Option<String>,
+    /// Its canonical state.
+    pub state: Option<String>,
+    /// Anything to send.
+    pub changed: bool,
+    /// The item was added to the board.
+    pub added: bool,
+    /// The requests sent (or, with `--dry-run`, planned), one line each.
+    pub sent: Vec<String>,
+    /// Nothing was sent.
+    pub dry_run: bool,
+}
+
+impl Change {
+    /// The `--json` object.
+    #[must_use]
+    pub fn to_json(&self) -> J {
+        obj(vec![
+            ("board", self.board.to_json()),
+            (
+                "item",
+                obj(vec![
+                    ("id", J::s(&self.item.id)),
+                    ("kind", J::s(self.item.kind)),
+                    ("number", J::opt_i(self.item.number)),
+                    ("url", J::s(&self.item.url)),
+                    ("title", J::s(&self.item.title)),
+                ]),
+            ),
+            ("field", J::s(&self.field)),
+            ("from", J::opt_s(self.from.as_deref())),
+            ("to", J::opt_s(self.to.as_deref())),
+            ("state", J::opt_s(self.state.as_deref())),
+            ("changed", J::Bool(self.changed)),
+            ("added", J::Bool(self.added)),
+            ("sent", J::strs(&self.sent)),
+            ("dry_run", J::Bool(self.dry_run)),
+        ])
+    }
+
+    /// The text lines.
+    #[must_use]
+    pub fn to_text(&self) -> Vec<String> {
+        let mut out = vec![format!("{} \u{b7} {}", self.board.key, self.item.url)];
+        let from = self.from.as_deref().unwrap_or("(none)");
+        match &self.to {
+            Some(to) => out.push(format!(
+                "{from} -> {to}{}",
+                self.state
+                    .as_deref()
+                    .map_or_else(String::new, |s| format!(" ({s})"))
+            )),
+            None => out.push(format!("column: {from}")),
+        }
+        out.push(format!(
+            "changed: {} \u{b7} added: {}{}",
+            yes(self.changed),
+            yes(self.added),
+            if self.dry_run { " \u{b7} dry run" } else { "" }
+        ));
+        for r in &self.sent {
+            out.push(format!(
+                "{} {r}",
+                if self.dry_run { "would send:" } else { "sent:" }
+            ));
+        }
+        out
+    }
+}
+
+/// One platform's reads and writes (contract §1).
 pub trait BoardAdapter {
+    /// The request path, for the runner to send what `plan_*` built.
+    fn net(&self) -> &net::Net;
+    /// Where an item is: on the board or not, its ids and its current option.
+    ///
+    /// # Errors
+    /// Transport failures and an item that does not exist.
+    fn locate(
+        &self,
+        ctx: &Ctx,
+        board: &Board,
+        bref: &BoardRef,
+        field: &Field,
+        item: &ItemRef,
+    ) -> R<Located>;
+    /// The requests that move a located item to an option; empty when it is already there.
+    ///
+    /// # Errors
+    /// The item is not on the board, or the option cannot be a target.
+    fn plan_set(&self, board: &Board, field: &Field, loc: &Located, to: &Opt) -> R<Vec<Req>>;
+    /// The requests that put a located item on the board and, with `to`, in a column; empty when
+    /// nothing changes.
+    ///
+    /// # Errors
+    /// The item cannot be on this board.
+    fn plan_add(
+        &self,
+        board: &Board,
+        field: &Field,
+        loc: &Located,
+        to: Option<&Opt>,
+    ) -> R<Vec<Req>>;
+
     /// The boards in a scope, and whether the page cap cut the list.
     ///
     /// # Errors
@@ -627,6 +911,41 @@ mod model {
             (g.owner.as_str(), g.number, g.field.as_str()),
             ("acme", 3, "Status")
         );
+    }
+
+    #[test]
+    fn an_item_is_a_number_or_a_url() {
+        assert_eq!(parse_item("#42").unwrap().number, 42);
+        let g = parse_item("https://github.com/o/r/pull/7").unwrap();
+        assert_eq!((g.number, g.repo.as_str()), (7, "o/r"));
+        let l = parse_item("https://gitlab.com/grp/sub/proj/-/issues/3?x=1").unwrap();
+        assert_eq!((l.number, l.repo.as_str()), (3, "grp/sub/proj"));
+        for bad in [
+            "#0",
+            "42",
+            "https://github.com/o/r",
+            "https://github.com/o/r/tree/7",
+        ] {
+            assert_eq!(parse_item(bad).unwrap_err().code, 2, "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_planned_request_prints_without_a_token_and_marks_a_bound_variable() {
+        let mut r = Req::gql(
+            docs::BOARD_SET,
+            vec![("item", J::Null), ("option", J::s("O"))],
+        );
+        r.from_prev = Some(("item", &["a", "b"]));
+        let t = r.summary();
+        assert!(t.starts_with("POST graphql BoardSet"), "{t}");
+        assert!(t.contains("<a.b>") && t.contains("\"O\""), "{t}");
+        let p = Req::rest(
+            "PUT",
+            "/projects/1/issues/2".into(),
+            obj(vec![("a", J::s("b"))]),
+        );
+        assert_eq!(p.summary(), "PUT /projects/1/issues/2 {\"a\": \"b\"}");
     }
 
     #[test]

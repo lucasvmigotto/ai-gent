@@ -360,7 +360,8 @@ def cases():
         s.run("batch", f"<ROOT>/{plat}.json", "--dry-run")
     add("classify-api-through-batch-dry-run", "ClassifyTest::test_api", s)
 
-    # ProjectStatusTest
+    # ProjectStatusTest (the cases that sent gh requests moved to the board path, spec 045 Q1, and are
+    # Rust-owned fixtures now; the ones below send none, so the oracle still runs them)
     def ps(board=FIELD_LIST):
         return Scn().tool("gh", gh_project(board))
     url = "https://github.com/o/r/issues/5"
@@ -368,28 +369,9 @@ def cases():
     s.run("project-status", "1", "--owner", "me", "--url", url, "--state", "doing")
     add("project-status-refused-without-write", "ProjectStatusTest::test_refused_without_write", s)
     s = ps()
-    s.run("project-status", "1", "--owner", "me", "--url", url, "--state", "doing", "--write")
-    add("project-status-state-mapped-and-written", "ProjectStatusTest::test_state_mapped_and_written", s)
-    s = ps()
-    s.run("project-status", "1", "--owner", "me", "--url", url, "--value", "Blocked", "--write")
-    add("project-status-explicit-value-bypasses-mapping", "ProjectStatusTest::test_explicit_value_bypasses_mapping", s)
-    s = ps()
-    s.run("project-status", "1", "--url", url, "--state", "done", "--write")
-    add("project-status-owner-defaults-to-remote", "ProjectStatusTest::test_owner_defaults_to_remote", s)
-    s = ps()
-    s.run("project-status", "1", "--owner", "me", "--url", url, "--field", "Priority", "--state", "todo", "--write", stderr_has=["Priority"])
-    s.run("project-status", "1", "--owner", "me", "--url", url, "--field", "Title", "--state", "todo", "--write", stderr_has=["single-select"])
-    add("project-status-unknown-field-fails", "ProjectStatusTest::test_unknown_field_fails, ::test_field_missing, ::test_field_without_options_rejected", s)
-    s = ps()
     s.run("project-status", "1", "--owner", "me", "--url", url)
     s.run("project-status", "1", "--owner", "me", "--url", url, "--state", "bogus")
     add("project-status-needs-state-or-value", "ProjectStatusTest::test_needs_state_or_value", s)
-    s = ps(FIELD_LIST_ODD)
-    s.run("project-status", "1", "--owner", "me", "--url", url, "--state", "doing", "--write")
-    s.run("project-status", "1", "--owner", "me", "--url", url, "--state", "done", "--write")
-    s.run("project-status", "1", "--owner", "me", "--url", url, "--state", "review", "--write", stderr_has=["--value", "To do"])
-    s.run("project-status", "1", "--owner", "me", "--url", url, "--state", "todo", "--field", "status", "--write")
-    add("project-status-alias-and-punctuation-match", "ProjectStatusTest::test_alias_match, ::test_punctuation_insensitive_match, ::test_no_match_lists_options, ::test_field_found_case_insensitively", s)
     s = Scn(remote=None).tool("gh", gh_project())
     s.run("project-status", "1", "--url", url, "--state", "done", "--write", stderr_has=["no project owner"])
     add("project-status-no-owner", "reporun.project_status_call (no owner)", s)
@@ -398,11 +380,6 @@ def cases():
     s.run("batch", "<ROOT>/b.json", stderr_has=["1 of 1 steps"])
     s.run("batch", "<ROOT>/b.json", "--dry-run")
     add("project-status-batch-step-needs-write", "ProjectStatusTest::test_batch_step_needs_write", s)
-    s = ps().put("b.json", plan([
-        {"name": "issue", "cli": ["issue", "view", "5", "--json", "url"]},
-        {"name": "status", "project_status": {"number": 1, "owner": "me", "url": "{{issue.url}}", "state": "review"}}]))
-    s.run("batch", "<ROOT>/b.json", "--write", "--out", "<ROOT>/out.json")
-    add("project-status-batch-step-written-and-resolves-references", "ProjectStatusTest::test_batch_step_written_and_resolves_references", s)
     s = ps().put("b.json", plan([{"name": "status", "project_status": {"number": 1, "owner": "me", "url": "x", "state": "todo"}}], "gitlab"))
     s.run("batch", "<ROOT>/b.json", stderr_has=["GitHub-only"])
     add("project-status-batch-rejects-other-platforms", "ProjectStatusTest::test_batch_rejects_project_status_on_other_platforms", s)

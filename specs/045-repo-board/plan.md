@@ -50,6 +50,19 @@ Slice 2 (writes): `board-set-refused-without-write`, `board-set-dry-run-sends-no
 
 Each fixture records the exact requests (`seen`), the canary token, and stdout/stderr; the loopback stub answers by method, path and, for GraphQL, `operationName` (T003 extends the stub if it cannot match on the body).
 
+## Slice 2 notes: `project-status` and the batch step on the board path (T014)
+
+`project-status` and the batch `project_status` step call `board::run::run_change` (a `set` on `github:OWNER/NUMBER`) and print the old keys; their CLI output and exit codes are unchanged (`project-status-refused-without-write`, `-needs-state-or-value`, `-no-owner`, `-batch-step-needs-write`, `-batch-rejects-other-platforms` stay blessed from the Python oracle). Six fixtures sent `gh` requests and are now Rust-owned with scripted GraphQL routes (`state-mapped-and-written`, `explicit-value-bypasses-mapping`, `owner-defaults-to-remote`, `unknown-field-fails`, `alias-and-punctuation-match`, `batch-step-written-and-resolves-references`); the Python generator no longer produces them. Intended request differences:
+
+- `gh project field-list` + `gh project item-edit` become `BoardOf{User,Org}` + `ItemOnBoard` + `BoardSet` (and `BoardFields` when the field is missing); no `gh` is used, so the token is the pass entry's Bearer header, not `GH_TOKEN`.
+- A read of the item (`ItemOnBoard`) is new: it resolves the project item id and the current value, and a `set` to the current value now sends no mutation.
+- `--value` must be an option the board has (exact name): `gh` took any string and failed late; the `explicit-value` fixture's board now has a `Blocked` option.
+- An item that is not on the board is refused (`board add` first); `gh item-edit` failed the same way later.
+- The order of refusals is kept: state/value usage error, owner usage error, then the `--write` refusal, before any request. The field name is matched by GitHub (`field(name:)`), not case-insensitively by the tool; the printed `field` is GitHub's name. Not verified until G30-22.
+- Alias matching now assigns each state to a distinct option (`map::apply`), as `board fields` shows it; the old per-call search could map two states to one option.
+- GitLab label-mode `set` removes only the mapped labels (options with a state) the issue carries; unmapped list labels stay. `Open` is a valid `set` target (reopens, removes mapped labels).
+- Status-mode names (`BoardStatusLocate`, `BoardStatus`, `WorkItemID`, `WorkItemsStatusesStatusID`) are unverified, fixtures-only like the reads.
+
 ## Tests
 
 - `cargo test -p ai-gent-core repo::board` (unit: map parser, resolution order, response mapping, `plan_set`/`plan_add` empty when nothing changes).

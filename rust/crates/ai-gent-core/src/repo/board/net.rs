@@ -76,6 +76,7 @@ impl Net {
         path: &str,
         body: Option<&[u8]>,
         query: Vec<(String, String)>,
+        write: bool,
     ) -> R<(Data, Vec<(String, String)>)> {
         api_call_with_headers(
             ctx,
@@ -86,7 +87,7 @@ impl Net {
                 body,
                 query,
                 entry: self.entry.as_deref(),
-                write: false,
+                write,
                 paginate: false,
                 max_pages: 1,
             },
@@ -151,6 +152,29 @@ impl Net {
     /// # Errors
     /// As `gql`, except an all-`NOT_FOUND` answer is returned.
     pub fn gql_lookup(&self, ctx: &Ctx, doc: (&str, &str), vars: &[(&str, J)]) -> R<Gql> {
+        self.gql_with(ctx, doc, vars, false)
+    }
+
+    /// One named mutation, sent with the caller's `write` flag: `api_call` decides, by the body, that a
+    /// mutation is a write and refuses it without the flag, so no board code can send a change alone.
+    ///
+    /// # Errors
+    /// As `gql`, and the write refusal of `api_call`.
+    pub fn gql_write(
+        &self,
+        ctx: &Ctx,
+        doc: (&str, &str),
+        vars: &[(&str, J)],
+        write: bool,
+    ) -> R<Gql> {
+        let g = self.gql_with(ctx, doc, vars, write)?;
+        if g.not_found {
+            return Err(Failed::err(format!("{}: not found", doc.0)));
+        }
+        Ok(g)
+    }
+
+    fn gql_with(&self, ctx: &Ctx, doc: (&str, &str), vars: &[(&str, J)], write: bool) -> R<Gql> {
         let body = dumps(
             &obj(vec![
                 ("query", J::s(doc.1)),
@@ -161,7 +185,8 @@ impl Net {
             None,
         );
         let path = self.graphql_path(ctx)?;
-        let (data, headers) = self.call(ctx, "POST", &path, Some(body.as_bytes()), Vec::new())?;
+        let (data, headers) =
+            self.call(ctx, "POST", &path, Some(body.as_bytes()), Vec::new(), write)?;
         let Data::Json(data) = data else {
             return Err(Failed::err(format!("{}: the answer was not JSON", doc.0)));
         };
@@ -217,10 +242,25 @@ impl Net {
         path: &str,
         query: Vec<(String, String)>,
     ) -> R<(J, Vec<(String, String)>)> {
-        match self.call(ctx, "GET", path, None, query)? {
+        match self.call(ctx, "GET", path, None, query, false)? {
             (Data::Json(j), h) => Ok((j, h)),
             (Data::Nothing, h) => Ok((J::Null, h)),
             (Data::Text(_), _) => Err(Failed::err(format!("GET {path}: the answer was not JSON"))),
+        }
+    }
+
+    /// One REST change (GitLab label mode), JSON back, sent with the caller's `write` flag.
+    ///
+    /// # Errors
+    /// Transport and HTTP failures, and the write refusal of `api_call`.
+    pub fn rest_write(&self, ctx: &Ctx, method: &str, path: &str, body: &J, write: bool) -> R<J> {
+        let bytes = dumps(body, false, None);
+        match self
+            .call(ctx, method, path, Some(bytes.as_bytes()), Vec::new(), write)?
+            .0
+        {
+            Data::Json(j) => Ok(j),
+            Data::Nothing | Data::Text(_) => Ok(J::Null),
         }
     }
 

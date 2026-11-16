@@ -4,10 +4,11 @@
 //! over GraphQL; its document and field names are not verified and it is fixtures-only until G30-21.
 use super::docs;
 use super::net::{Net, project_segment};
-use super::{Board, BoardAdapter, BoardRef, Field, Item, Opt, Scope};
+use super::{Board, BoardAdapter, BoardRef, Field, Item, ItemRef, Located, Opt, Req, Scope};
 use crate::repo::remote::detect_repo;
 use crate::repo::{Ctx, Failed, R};
 use crate::tokens::pyjson::J;
+use crate::tokens::pyjson::obj;
 
 /// The GitLab board adapter.
 pub struct GitLab {
@@ -435,7 +436,259 @@ fn scope_query(scope: &[String]) -> (Vec<String>, Vec<(String, String)>) {
     (labels, pairs)
 }
 
+/// Why an issue is outside a scoped board (Premium), or nothing when it is inside. Labels, milestone,
+/// assignee and weight are the scopes the board reads (`board_scope`).
+fn outside_scope(scope: &[String], issue: &J) -> Option<String> {
+    let labels: Vec<&str> = match issue.get("labels") {
+        Some(J::Arr(a)) => a.iter().filter_map(J::as_str).collect(),
+        _ => Vec::new(),
+    };
+    for e in scope {
+        let ok = match e.split_once(':') {
+            Some(("label", v)) => labels.contains(&v),
+            Some(("milestone", v)) => {
+                non_null(issue, "milestone").is_some_and(|m| text(m.get("title")) == v)
+            }
+            Some(("assignee", v)) => match issue.get("assignees") {
+                Some(J::Arr(a)) => a.iter().any(|u| text(u.get("username")) == v),
+                _ => false,
+            },
+            Some(("weight", v)) => text(issue.get("weight")) == v,
+            _ => true,
+        };
+        if !ok {
+            return Some(format!("the board is scoped by {e}, which the issue lacks"));
+        }
+    }
+    None
+}
+
+/// The label lists whose label the issue carries, besides `except`: the ones a move must remove.
+fn mapped_labels_on(field: &Field, loc: &Located, except: &str) -> Vec<String> {
+    field
+        .options
+        .iter()
+        .filter(|o| {
+            !o.builtin
+                && o.mappable
+                && !o.id.contains(':')
+                && o.state.is_some()
+                && o.name != except
+                && loc.labels.contains(&o.name)
+        })
+        .map(|o| o.name.clone())
+        .collect()
+}
+
+/// The column an issue sits in now: Closed, the one mapped label it carries, several (a conflict), or Open.
+fn label_from(field: &Field, labels: &[String], closed: bool) -> String {
+    if closed {
+        return "Closed".to_string();
+    }
+    let mapped: Vec<&str> = field
+        .options
+        .iter()
+        .filter(|o| {
+            !o.builtin
+                && o.mappable
+                && !o.id.contains(':')
+                && o.state.is_some()
+                && labels.contains(&o.name)
+        })
+        .map(|o| o.name.as_str())
+        .collect();
+    if mapped.is_empty() {
+        "Open".to_string()
+    } else {
+        mapped.join(", ")
+    }
+}
+
+impl GitLab {
+    fn item_number(bref: &BoardRef, item: &ItemRef) -> R<i64> {
+        let same = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
+        if !item.repo.is_empty()
+            && !bref.project.chars().all(|c| c.is_ascii_digit())
+            && !same(&item.repo, &bref.project)
+        {
+            return Err(Failed::err(format!(
+                "{} is in project {}, not in the board's project {}",
+                item.url, item.repo, bref.project
+            )));
+        }
+        Ok(item.number)
+    }
+
+    fn locate_labels(
+        &self,
+        ctx: &Ctx,
+        board: &Board,
+        bref: &BoardRef,
+        field: &Field,
+        number: i64,
+    ) -> R<Located> {
+        let path = format!(
+            "/projects/{}/issues/{number}",
+            project_segment(&bref.project)
+        );
+        let r = self.net.get(ctx, &path, Vec::new())?;
+        if !matches!(r, J::Obj(_)) {
+            return Err(Failed::err(format!("GitLab: issue {number} not found")));
+        }
+        let labels: Vec<String> = match r.get("labels") {
+            Some(J::Arr(a)) => a.iter().filter_map(J::as_str).map(str::to_string).collect(),
+            _ => Vec::new(),
+        };
+        let closed = text(r.get("state")) == "closed";
+        let why = outside_scope(&board.scope, &r);
+        Ok(Located {
+            id: text(r.get("id")),
+            content_id: text(r.get("id")),
+            on_board: why.is_none(),
+            why_not: why.unwrap_or_default(),
+            kind: "issue",
+            number: r.get("iid").and_then(J::as_i64),
+            url: text(r.get("web_url")),
+            title: text(r.get("title")),
+            from: Some(label_from(field, &labels, closed)),
+            labels,
+            closed,
+            path,
+        })
+    }
+
+    fn locate_status(&self, ctx: &Ctx, bref: &BoardRef, number: i64) -> R<Located> {
+        let g = self.net.gql(
+            ctx,
+            docs::GITLAB_STATUS_LOCATE,
+            &[
+                ("fullPath", J::s(&bref.project)),
+                ("iid", J::s(number.to_string())),
+            ],
+        )?;
+        let node = match g
+            .data
+            .get("project")
+            .and_then(|p| p.get("workItems"))
+            .and_then(|w| w.get("nodes"))
+        {
+            Some(J::Arr(a)) => a.first(),
+            _ => None,
+        };
+        let Some(n) = node else {
+            return Err(Failed::err(format!(
+                "GitLab: work item {number} not found in {}",
+                bref.project
+            )));
+        };
+        let widgets: Vec<&J> = match n.get("widgets") {
+            Some(J::Arr(a)) => a.iter().collect(),
+            _ => Vec::new(),
+        };
+        let Some(w) = widgets.iter().find(|w| w.get("status").is_some()) else {
+            return Err(Failed::err(format!(
+                "GitLab status mode needs the work item Status field, which work item {number} doesn't have (Premium and Ultimate only); use mode: labels for {}",
+                bref.project
+            )));
+        };
+        let from = non_null(w, "status")
+            .map(|st| text(st.get("name")))
+            .filter(|v| !v.is_empty());
+        Ok(Located {
+            id: text(n.get("id")),
+            content_id: text(n.get("id")),
+            on_board: true,
+            kind: "issue",
+            number: text(n.get("iid")).parse().ok(),
+            url: text(n.get("webUrl")),
+            title: text(n.get("title")),
+            from,
+            ..Located::default()
+        })
+    }
+}
+
 impl BoardAdapter for GitLab {
+    fn net(&self) -> &Net {
+        &self.net
+    }
+
+    fn locate(
+        &self,
+        ctx: &Ctx,
+        board: &Board,
+        bref: &BoardRef,
+        field: &Field,
+        item: &ItemRef,
+    ) -> R<Located> {
+        self.net.check_token(ctx)?;
+        let number = Self::item_number(bref, item)?;
+        if self.status {
+            self.locate_status(ctx, bref, number)
+        } else {
+            self.locate_labels(ctx, board, bref, field, number)
+        }
+    }
+
+    fn plan_set(&self, board: &Board, field: &Field, loc: &Located, to: &Opt) -> R<Vec<Req>> {
+        if !loc.on_board {
+            return Err(Failed::err(format!(
+                "{} is not on {}: {}",
+                loc.url, board.key, loc.why_not
+            )));
+        }
+        if !to.mappable {
+            return Err(Failed::err(format!(
+                "'{}' is a filter list (assignee, milestone or iteration), never a set target",
+                to.name
+            )));
+        }
+        if loc.from.as_deref() == Some(to.name.as_str()) {
+            return Ok(Vec::new());
+        }
+        if self.status {
+            let mut r = Req::gql(
+                docs::BOARD_STATUS,
+                vec![("item", J::s(&loc.id)), ("status", J::s(&to.id))],
+            );
+            r.errors_at = Some(&["workItemUpdate", "errors"]);
+            return Ok(vec![r]);
+        }
+        let remove = mapped_labels_on(field, loc, &to.name);
+        let mut pairs: Vec<(&str, J)> = Vec::new();
+        if to.builtin && to.id == "closed" {
+            pairs.push(("state_event", J::s("close")));
+        } else {
+            if loc.closed {
+                pairs.push(("state_event", J::s("reopen")));
+            }
+            if !to.builtin {
+                pairs.push(("add_labels", J::s(&to.name)));
+            }
+        }
+        if !remove.is_empty() {
+            pairs.push(("remove_labels", J::s(remove.join(","))));
+        }
+        Ok(vec![Req::rest("PUT", loc.path.clone(), obj(pairs))])
+    }
+
+    fn plan_add(
+        &self,
+        board: &Board,
+        field: &Field,
+        loc: &Located,
+        to: Option<&Opt>,
+    ) -> R<Vec<Req>> {
+        if !loc.on_board {
+            return Err(Failed::err(format!(
+                "{} cannot be added to {}: {}",
+                loc.url, board.key, loc.why_not
+            )));
+        }
+        // Every open issue of the project is on a label board already: adding is membership.
+        to.map_or_else(|| Ok(Vec::new()), |t| self.plan_set(board, field, loc, t))
+    }
+
     fn list(&self, ctx: &Ctx, scope: &Scope) -> R<(Vec<Board>, bool)> {
         self.net.check_token(ctx)?;
         let project = if let Some(p) = scope.project.clone().filter(|p| !p.is_empty()) {

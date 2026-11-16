@@ -7,7 +7,7 @@ use ai_gent_core::repo::{
     self, Ctx, Failed,
     api::{Call, api_call, render},
     batch,
-    board::{self, ReadOpts},
+    board::{self, ReadOpts, run::WriteOpts},
     chain, cli as repo_cli, detect,
     project_status::{Status, project_status_call},
 };
@@ -69,7 +69,7 @@ pub enum RepoAction {
         #[arg(long)]
         entry: Option<String>,
     },
-    /// Project boards: GitHub Projects v2 and GitLab issue boards (reads: list, show, fields).
+    /// Project boards: GitHub Projects v2 and GitLab issue boards (list, show, fields read; set, add change and need --write).
     Board {
         /// What to read.
         #[command(subcommand)]
@@ -147,7 +147,37 @@ pub struct BoardCommon {
     pub write: bool,
 }
 
-/// Board actions (the reads of spec 045; `set` and `add` come with the write slice).
+/// Flags `set` and `add` share.
+#[derive(Debug, Args)]
+pub struct BoardChange {
+    /// A name from `.ai-gent/board.yaml` or a literal, then the item (`#N` or an issue or pull request
+    /// URL); with one board in the file the item alone.
+    #[arg(required = true, num_args = 1..=2)]
+    pub args: Vec<String>,
+    /// A canonical state, mapped to the board's option.
+    #[arg(long, value_parser = ["todo", "doing", "review", "done"])]
+    pub state: Option<String>,
+    /// The exact option name.
+    #[arg(long)]
+    pub value: Option<String>,
+    /// The user confirmed this change.
+    #[arg(long)]
+    pub write: bool,
+    /// Read, print the planned requests, send nothing.
+    #[arg(long)]
+    pub dry_run: bool,
+    /// Another pass entry under the prefix.
+    #[arg(long)]
+    pub entry: Option<String>,
+    /// Page limit for the reads.
+    #[arg(long, default_value_t = 10)]
+    pub max_pages: usize,
+    /// Seconds per request.
+    #[arg(long, default_value_t = 30.0)]
+    pub timeout: f64,
+}
+
+/// Board actions.
 #[derive(Debug, Subcommand)]
 pub enum BoardAction {
     /// The boards of a GitHub owner or a GitLab project.
@@ -175,6 +205,21 @@ pub enum BoardAction {
         /// Flags shared by the board actions.
         #[command(flatten)]
         common: BoardCommon,
+    },
+    /// Move an item to a column (needs --write, or --dry-run to preview).
+    Set {
+        /// GitHub: another single-select field than Status.
+        #[arg(long)]
+        field: Option<String>,
+        /// Board and item.
+        #[command(flatten)]
+        change: BoardChange,
+    },
+    /// Put an issue or pull request on a board, optionally in a column (needs --write, or --dry-run).
+    Add {
+        /// Board and item.
+        #[command(flatten)]
+        change: BoardChange,
     },
     /// A board's column field or lists, and how each option maps to a state.
     Fields {
@@ -281,10 +326,53 @@ pub fn run(args: &RepoArgs, json: bool) -> Exit {
                 Err(f) => fail(&f),
             }
         }
+        RepoAction::Board {
+            action: action @ (BoardAction::Set { .. } | BoardAction::Add { .. }),
+        } => {
+            let (change, field, add) = match action {
+                BoardAction::Set { change, field } => (change, field.as_deref(), false),
+                BoardAction::Add { change } => (change, None, true),
+                _ => unreachable!(),
+            };
+            ctx.timeout = change.timeout;
+            let (board, item) = match change.args.as_slice() {
+                [item] => (None, item.as_str()),
+                [board, item, ..] => (Some(board.as_str()), item.as_str()),
+                [] => unreachable!(),
+            };
+            let r = board::run::run_write(
+                &ctx,
+                &WriteOpts {
+                    add,
+                    board,
+                    item,
+                    state: change.state.as_deref(),
+                    value: change.value.as_deref(),
+                    field,
+                    entry: change.entry.as_deref(),
+                    max_pages: change.max_pages,
+                    write: change.write,
+                    dry_run: change.dry_run,
+                },
+                json,
+            );
+            match r {
+                Ok(lines) => {
+                    for l in &lines {
+                        repo::out(l);
+                    }
+                    Exit::Success
+                }
+                Err(f) => fail(&f),
+            }
+        }
         RepoAction::Board { action } => {
             let (BoardAction::List { common, .. }
             | BoardAction::Show { common, .. }
-            | BoardAction::Fields { common, .. }) = action;
+            | BoardAction::Fields { common, .. }) = action
+            else {
+                unreachable!()
+            };
             if common.write {
                 return fail(&Failed::usage(
                     "--write on list, show or fields: these only read, so there is nothing to confirm",
@@ -321,6 +409,7 @@ pub fn run(args: &RepoArgs, json: bool) -> Exit {
                     o.introspect = *introspect;
                     board::run_fields(&ctx, &o)
                 }
+                BoardAction::Set { .. } | BoardAction::Add { .. } => unreachable!(),
             };
             match r {
                 Ok(lines) => {

@@ -1,0 +1,154 @@
+{
+  "derived_from": "spec 045 contract 4.1 (set from Closed to a label list reopens)",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "repo/.ai-gent/board.yaml": "version: 1\nboards:\n  web:\n    platform: gitlab\n    project: grp/proj\n    board: 12\n    states:\n      todo: \"workflow::todo\"\n      doing: \"workflow::doing\"\n      review: \"workflow::review\"\n      done: closed\n  scoped:\n    platform: gitlab\n    project: grp/proj\n    board: 13\n    states:\n      todo: \"workflow::todo\"\n"
+  },
+  "git": [],
+  "name": "board-gitlab-labels-set-reopen",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "id": 12,
+        "lists": [
+          {
+            "id": 101,
+            "label": {
+              "id": 1,
+              "name": "workflow::todo"
+            },
+            "position": 0
+          },
+          {
+            "id": 102,
+            "label": {
+              "id": 2,
+              "name": "workflow::doing"
+            },
+            "position": 1
+          },
+          {
+            "id": 103,
+            "label": {
+              "id": 3,
+              "name": "workflow::review"
+            },
+            "position": 2
+          }
+        ],
+        "name": "Development"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/12",
+      "status": 200
+    },
+    {
+      "body": {
+        "id": 1004,
+        "iid": 4,
+        "labels": [
+          "workflow::doing"
+        ],
+        "state": "closed",
+        "title": "Issue 4",
+        "web_url": "https://gitlab.com/grp/proj/-/issues/4"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues/4",
+      "status": 200
+    },
+    {
+      "body": {
+        "id": 1004,
+        "iid": 4
+      },
+      "method": "PUT",
+      "path": "/projects/grp%2Fproj/issues/4",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "set",
+        "web",
+        "https://gitlab.com/grp/proj/-/issues/4",
+        "--state",
+        "todo",
+        "--write",
+        "--json"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues/4"
+        },
+        {
+          "body": "{\"state_event\": \"reopen\", \"add_labels\": \"workflow::todo\", \"remove_labels\": \"workflow::doing\"}",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "PUT",
+          "path": "/projects/grp%2Fproj/issues/4"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"1004\",\n    \"kind\": \"issue\",\n    \"number\": 4,\n    \"url\": \"https://gitlab.com/grp/proj/-/issues/4\",\n    \"title\": \"Issue 4\"\n  },\n  \"field\": \"Lists\",\n  \"from\": \"Closed\",\n  \"to\": \"workflow::todo\",\n  \"state\": \"todo\",\n  \"changed\": true,\n  \"added\": false,\n  \"sent\": [\n    \"PUT /projects/grp%2Fproj/issues/4 {\\\"state_event\\\": \\\"reopen\\\", \\\"add_labels\\\": \\\"workflow::todo\\\", \\\"remove_labels\\\": \\\"workflow::doing\\\"}\"\n  ],\n  \"dry_run\": false\n}\n"
+    },
+    {
+      "argv": [
+        "board",
+        "set",
+        "web",
+        "https://gitlab.com/other/proj/-/issues/4",
+        "--state",
+        "todo",
+        "--write"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        }
+      ],
+      "stderr_has": [
+        "not in the board's project"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

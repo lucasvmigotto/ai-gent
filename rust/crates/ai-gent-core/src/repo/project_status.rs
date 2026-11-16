@@ -1,11 +1,10 @@
-//! GitHub Projects v2 status: look the field and option up live through `gh project`, then set the item.
-//!
-//! GitHub's REST API has no Projects v2 support (GraphQL only); `gh project` wraps the GraphQL and
-//! resolves names to node ids itself. No REST fallback: without `gh` there is no path here.
-use super::cli::run_cli_capture;
+//! `project-status`: an alias of `board set github:OWNER/NUMBER URL` (spec 045 FR-031). The board
+//! adapter reads the field and sets the item over GraphQL; this file keeps the alias table
+//! (`ALIASES`, `norm`, `alias_index`, shared with the board map) and the old flags and output.
+use super::board::run::{WriteOpts, run_change};
 use super::remote::detect_repo;
 use super::{Ctx, Failed, R, note};
-use crate::tokens::pyjson::{J, obj, parse};
+use crate::tokens::pyjson::{J, obj};
 
 /// Sync state to the live option names a board might use for it, in preference order.
 pub const ALIASES: [(&str, &[&str]); 4] = [
@@ -60,42 +59,6 @@ pub fn norm(s: &str) -> String {
     out
 }
 
-fn name_of(o: &J) -> String {
-    o.get("name").and_then(J::as_str).unwrap_or("").to_string()
-}
-
-/// The single-select field named `field_name` (case-insensitive) from a `field-list` response.
-///
-/// # Errors
-/// When no field has that name, or it has no options.
-pub fn resolve_field<'a>(fields: &'a [J], field_name: &str) -> R<&'a J> {
-    let want = field_name.to_lowercase();
-    for f in fields {
-        if matches!(f, J::Obj(_)) && name_of(f).to_lowercase() == want {
-            if !matches!(f.get("options"), Some(J::Arr(_))) {
-                return Err(Failed::err(format!(
-                    "'{}' isn't a single-select field (no options to map a state to)",
-                    name_of(f)
-                )));
-            }
-            return Ok(f);
-        }
-    }
-    let names: Vec<String> = fields
-        .iter()
-        .filter(|f| matches!(f, J::Obj(_)))
-        .map(|f| f.get("name").and_then(J::as_str).unwrap_or("?").to_string())
-        .collect();
-    let list = if names.is_empty() {
-        "(none)".to_string()
-    } else {
-        names.join(", ")
-    };
-    Err(Failed::err(format!(
-        "no field named '{field_name}' on this project; fields: {list}"
-    )))
-}
-
 /// The index of the option name that matches a sync state: the last exact alias hit in alias order,
 /// else the first substring hit (the matching `resolve_option` does, shared with the board map).
 #[must_use]
@@ -114,38 +77,6 @@ pub fn alias_index(names: &[String], state: &str) -> Option<usize> {
             .iter()
             .any(|a| a.contains(&n) || n.contains(a.as_str()))
     })
-}
-
-/// The field's live option that matches a sync state, by alias then substring.
-///
-/// # Errors
-/// When no option matches (the message lists the options).
-pub fn resolve_option<'a>(field: &'a J, state: &str) -> R<&'a J> {
-    let options: Vec<&J> = match field.get("options") {
-        Some(J::Arr(a)) => a
-            .iter()
-            .filter(|o| matches!(o, J::Obj(_)) && o.get("name").is_some_and(J::truthy))
-            .collect(),
-        _ => Vec::new(),
-    };
-    if !ALIASES.iter().any(|(s, _)| *s == state) {
-        return Err(Failed::err(format!(
-            "unknown sync state '{state}' (todo, doing, review, done)"
-        )));
-    }
-    let option_names: Vec<String> = options.iter().map(|o| name_of(o)).collect();
-    if let Some(i) = alias_index(&option_names, state) {
-        return Ok(options[i]);
-    }
-    let list = if option_names.is_empty() {
-        "(none)".to_string()
-    } else {
-        option_names.join(", ")
-    };
-    Err(Failed::err(format!(
-        "no option on '{}' matches sync state '{state}'; options: {list}; pass --value with the exact option name instead",
-        name_of(field)
-    )))
 }
 
 /// One project-status request.
@@ -169,10 +100,11 @@ pub struct Status<'a> {
     pub write: bool,
 }
 
-/// Read the board's field, map the state to its live option (unless `value` gives it), set the item.
+/// An alias of `board set github:OWNER/NUMBER URL` (spec 045 FR-031): the same board path, the old
+/// flags and the old output keys.
 ///
 /// # Errors
-/// Usage errors (no state or value, no owner), failures of `gh`, and refusals without `--write`.
+/// Usage errors (no state or value, no owner), the refusal without `--write`, and the board's failures.
 pub fn project_status_call(ctx: &Ctx, s: &Status<'_>) -> R<J> {
     let state = s.state.filter(|x| !x.is_empty());
     let value = s.value.filter(|x| !x.is_empty());
@@ -193,121 +125,37 @@ pub fn project_status_call(ctx: &Ctx, s: &Status<'_>) -> R<J> {
             "no project owner: pass --owner <login> \u{2014} a Projects v2 board belongs to a user or an organization, never to a repository",
         ));
     }
-    let num = s.number.to_string();
-    let words = |v: &[&str]| v.iter().map(|x| (*x).to_string()).collect::<Vec<_>>();
-    let text = run_cli_capture(
+    let board = format!("github:{owner}/{}", s.number);
+    let c = run_change(
         ctx,
-        "github",
-        &words(&[
-            "project",
-            "field-list",
-            &num,
-            "--owner",
-            &owner,
-            "--format",
-            "json",
-        ]),
-        s.entry,
-        false,
+        &WriteOpts {
+            add: false,
+            board: Some(&board),
+            item: s.url,
+            state: if value.is_some() { None } else { state },
+            value,
+            field: Some(s.field),
+            entry: s.entry,
+            max_pages: 10,
+            write: s.write,
+            dry_run: false,
+        },
     )?;
-    let data = if text.is_empty() {
-        obj(vec![])
-    } else {
-        parse(&text).ok_or_else(|| {
-            let cut: String = text.chars().take(500).collect();
-            Failed::err(format!("gh project field-list didn't return JSON: {cut}"))
-        })?
-    };
-    let fields: Vec<J> = match data.get("fields") {
-        Some(J::Arr(a)) => a.clone(),
-        _ => Vec::new(),
-    };
-    let field = resolve_field(&fields, s.field)?;
-    let fname = name_of(field);
-    let chosen = match value {
-        Some(v) => v.to_string(),
-        None => name_of(resolve_option(field, state.unwrap_or(""))?),
-    };
+    let chosen = c.to.clone().unwrap_or_default();
     let suffix = match (state, value) {
         (Some(st), None) => format!(" for state {st}"),
         _ => String::new(),
     };
     note(&format!(
-        "project {} ({owner}) \u{b7} {fname} -> '{chosen}'{suffix}",
-        s.number
+        "project {} ({owner}) \u{b7} {} -> '{chosen}'{suffix}",
+        s.number, c.field
     ));
-    run_cli_capture(
-        ctx,
-        "github",
-        &words(&[
-            "project",
-            "item-edit",
-            &num,
-            "--owner",
-            &owner,
-            "--url",
-            s.url,
-            "--field",
-            &fname,
-            "--value",
-            &chosen,
-        ]),
-        s.entry,
-        s.write,
-    )?;
     Ok(obj(vec![
         ("owner", J::s(&owner)),
         ("number", J::Int(s.number)),
         ("url", J::s(s.url)),
-        ("field", J::s(&fname)),
+        ("field", J::s(&c.field)),
         ("state", J::opt_s(s.state)),
         ("value", J::s(&chosen)),
     ]))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn fields() -> Vec<J> {
-        let j = parse(r#"[{"id":"PVTF_1","name":"Status","type":"ProjectV2SingleSelectField","options":[{"id":"OPT_TODO","name":"To do"},{"id":"OPT_DOING","name":"In-Progress"},{"id":"OPT_DONE","name":"Done ✅"}]},{"id":"PVTF_2","name":"Title","type":"ProjectV2Field"}]"#).unwrap();
-        match j {
-            J::Arr(a) => a,
-            _ => unreachable!(),
-        }
-    }
-
-    #[test]
-    fn field_lookup() {
-        let f = fields();
-        assert_eq!(
-            resolve_field(&f, "status")
-                .unwrap()
-                .get("name")
-                .and_then(J::as_str),
-            Some("Status")
-        );
-        assert!(resolve_field(&f, "Priority").is_err());
-        assert!(resolve_field(&f, "Title").is_err());
-    }
-
-    #[test]
-    fn option_matching() {
-        let f = fields();
-        let field = resolve_field(&f, "Status").unwrap();
-        let id = |s| {
-            resolve_option(field, s)
-                .unwrap()
-                .get("id")
-                .and_then(J::as_str)
-                .unwrap()
-                .to_string()
-        };
-        assert_eq!(id("todo"), "OPT_TODO");
-        assert_eq!(id("done"), "OPT_DONE");
-        assert_eq!(id("doing"), "OPT_DOING");
-        let other = parse(r#"{"name":"Status","options":[{"id":"o1","name":"Backlog"},{"id":"o2","name":"Shipped"}]}"#).unwrap();
-        let e = resolve_option(&other, "review").unwrap_err().msg;
-        assert!(e.contains("Backlog") && e.contains("--value"));
-    }
 }

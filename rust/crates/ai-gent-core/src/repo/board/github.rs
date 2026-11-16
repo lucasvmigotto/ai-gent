@@ -2,7 +2,7 @@
 //! organization. Every request is a named query sent through `net::Net`.
 use super::docs;
 use super::net::{Gql, Net};
-use super::{Board, BoardAdapter, BoardRef, Field, Item, Opt, Scope};
+use super::{Board, BoardAdapter, BoardRef, Field, Item, ItemRef, Located, Opt, Req, Scope};
 use crate::repo::remote::detect_repo;
 use crate::repo::{Ctx, Failed, R};
 use crate::tokens::pyjson::J;
@@ -160,6 +160,150 @@ impl GitHub {
 }
 
 impl BoardAdapter for GitHub {
+    fn net(&self) -> &Net {
+        &self.net
+    }
+
+    fn locate(
+        &self,
+        ctx: &Ctx,
+        board: &Board,
+        bref: &BoardRef,
+        _field: &Field,
+        item: &ItemRef,
+    ) -> R<Located> {
+        self.net.check_token(ctx)?;
+        let url = if item.url.is_empty() {
+            let r = detect_repo(ctx);
+            if r.str("platform") != "github"
+                || r.str("owner").is_empty()
+                || r.str("repo").is_empty()
+            {
+                return Err(Failed::usage(
+                    "#N needs a GitHub remote; pass the issue or pull request URL instead",
+                ));
+            }
+            format!(
+                "https://github.com/{}/{}/issues/{}",
+                r.str("owner"),
+                r.str("repo"),
+                item.number
+            )
+        } else {
+            item.url.clone()
+        };
+        let mut after = J::Null;
+        for _ in 0..self.net.max_pages {
+            let g = self.net.gql(
+                ctx,
+                docs::ITEM_ON_BOARD,
+                &[
+                    ("url", J::s(&url)),
+                    ("field", J::s(&bref.field)),
+                    ("after", after.clone()),
+                ],
+            )?;
+            let Some(res) = root(&g, "resource") else {
+                return Err(Failed::err(format!("{url}: no such issue or pull request")));
+            };
+            let kind = match res.get("__typename").and_then(J::as_str) {
+                Some("Issue") => "issue",
+                Some("PullRequest") => "pull_request",
+                _ => {
+                    return Err(Failed::err(format!(
+                        "{url} is not an issue or a pull request (drafts are never edited by board)"
+                    )));
+                }
+            };
+            let mut loc = Located {
+                content_id: s(res.get("id")),
+                kind,
+                number: res.get("number").and_then(J::as_i64),
+                url: s(res.get("url")),
+                title: s(res.get("title")),
+                why_not: format!("not on {}", board.key),
+                ..Located::default()
+            };
+            let items = res.get("projectItems");
+            if let Some(J::Arr(nodes)) = items.and_then(|i| i.get("nodes")) {
+                if let Some(n) = nodes
+                    .iter()
+                    .find(|n| s(n.get("project").and_then(|p| p.get("id"))) == board.id)
+                {
+                    loc.on_board = true;
+                    loc.id = s(n.get("id"));
+                    loc.from = n
+                        .get("fieldValueByName")
+                        .and_then(|v| v.get("name"))
+                        .and_then(J::as_str)
+                        .map(str::to_string);
+                    return Ok(loc);
+                }
+            }
+            match items.and_then(has_next) {
+                Some(c) => after = J::s(c),
+                None => return Ok(loc),
+            }
+        }
+        Err(Failed::err(format!(
+            "{url}: the item's board list is longer than --max-pages; raise it"
+        )))
+    }
+
+    fn plan_set(&self, board: &Board, field: &Field, loc: &Located, to: &Opt) -> R<Vec<Req>> {
+        if !loc.on_board {
+            return Err(Failed::err(format!(
+                "{} is not on {}; add it first with ai-gent repo board add",
+                loc.url, board.key
+            )));
+        }
+        if loc.from.as_deref() == Some(to.name.as_str()) {
+            return Ok(Vec::new());
+        }
+        Ok(vec![Req::gql(
+            docs::BOARD_SET,
+            vec![
+                ("project", J::s(&board.id)),
+                ("item", J::s(&loc.id)),
+                ("field", J::s(&field.id)),
+                ("option", J::s(&to.id)),
+            ],
+        )])
+    }
+
+    fn plan_add(
+        &self,
+        board: &Board,
+        field: &Field,
+        loc: &Located,
+        to: Option<&Opt>,
+    ) -> R<Vec<Req>> {
+        if loc.on_board {
+            return to.map_or_else(|| Ok(Vec::new()), |t| self.plan_set(board, field, loc, t));
+        }
+        let mut reqs = vec![Req::gql(
+            docs::BOARD_ADD,
+            vec![
+                ("project", J::s(&board.id)),
+                ("content", J::s(&loc.content_id)),
+            ],
+        )];
+        if let Some(t) = to {
+            let mut set = Req::gql(
+                docs::BOARD_SET,
+                vec![
+                    ("project", J::s(&board.id)),
+                    ("item", J::Null),
+                    ("field", J::s(&field.id)),
+                    ("option", J::s(&t.id)),
+                ],
+            );
+            set.from_prev = Some(("item", &["addProjectV2ItemById", "item", "id"]));
+            reqs.push(set);
+        }
+        Ok(reqs)
+    }
+
     fn list(&self, ctx: &Ctx, scope: &Scope) -> R<(Vec<Board>, bool)> {
         self.net.check_token(ctx)?;
         let owner = if let Some(o) = scope.owner.clone().filter(|o| !o.is_empty()) {

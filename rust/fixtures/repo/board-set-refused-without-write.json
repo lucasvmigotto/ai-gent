@@ -1,0 +1,84 @@
+{
+  "derived_from": "spec 045 FR-021, US3.3 (refusal before any call)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-set-refused-without-write",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "set",
+        "github:me/1",
+        "https://github.com/o/r/issues/5",
+        "--state",
+        "review"
+      ],
+      "exit": 3,
+      "seen": [],
+      "stderr_has": [
+        "--write"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "add",
+        "github:me/1",
+        "#5"
+      ],
+      "exit": 3,
+      "seen": [],
+      "stderr_has": [
+        "--write"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "set",
+        "github:me/1",
+        "https://github.com/o/r/issues/5"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "--state"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "set",
+        "github:me/1",
+        "https://github.com/o/r/issues/5",
+        "--state",
+        "review",
+        "--write",
+        "--dry-run"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "not both"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

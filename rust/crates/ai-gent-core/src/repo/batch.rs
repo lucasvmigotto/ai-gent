@@ -1,6 +1,7 @@
 //! `batch`: several calls from a JSON plan, one confirmation. Steps run in order and stop at the first
 //! failure; later steps reference earlier results with `{{step.field}}`.
 use super::api::{Call, Data, api_call, api_is_write};
+use super::board::run::{WriteOpts, run_change};
 use super::cli::{cli_is_write, run_cli_capture};
 use super::platforms::{PLATFORMS, platform};
 use super::project_status::{Status, project_status_call};
@@ -149,8 +150,8 @@ fn step_is_write(plat: &str, step: &J) -> R<bool> {
             &step_words(c),
         ));
     }
-    if step.get("project_status").is_some() {
-        return Ok(true); // always ends in an item-edit mutation
+    if step.get("project_status").is_some() || step.get("board").is_some() {
+        return Ok(true); // always ends in a board change
     }
     Err(Failed::err(format!(
         "step {} has neither api, cli nor project_status",
@@ -227,6 +228,23 @@ pub fn run(ctx: &Ctx, o: &Options<'_>) -> R<Outcome> {
             "project_status steps need \"platform\": \"github\" \u{2014} Projects v2 is GitHub-only",
         ));
     }
+    if !matches!(plat.as_str(), "github" | "gitlab")
+        && steps.iter().any(|s| s.get("board").is_some())
+    {
+        return Err(Failed::usage(
+            "board steps need \"platform\": \"github\" or \"gitlab\"",
+        ));
+    }
+    for s in &steps {
+        if let Some(b) = s.get("board") {
+            let action = b.get("action").and_then(J::as_str).unwrap_or("");
+            if !matches!(action, "set" | "add") || b.get("item").is_none_or(|i| !i.truthy()) {
+                return Err(Failed::usage(
+                    "a board step needs \"action\": \"set\" or \"add\" and an \"item\"",
+                ));
+            }
+        }
+    }
     let mut writes: Vec<String> = Vec::new();
     for (s, n) in steps.iter().zip(&names) {
         if step_is_write(&plat, s)? {
@@ -265,6 +283,18 @@ pub fn run(ctx: &Ctx, o: &Options<'_>) -> R<Outcome> {
                         .or_else(|| p.get("value"))
                         .map_or_else(|| "None".to_string(), py_str)
                 )
+            } else if let Some(b) = s.get("board") {
+                format!(
+                    "board {} {} {}",
+                    b.get("action").map_or_else(|| "None".to_string(), py_str),
+                    b.get("item").map_or_else(|| "None".to_string(), py_str),
+                    b.get("state")
+                        .filter(|v| v.truthy())
+                        .or_else(|| b.get("value"))
+                        .map_or_else(String::new, py_str)
+                )
+                .trim_end()
+                .to_string()
             } else {
                 step_words(s.get("cli").unwrap_or(&J::Null))
                     .iter()
@@ -331,6 +361,31 @@ pub fn run(ctx: &Ctx, o: &Options<'_>) -> R<Outcome> {
                     Data::Json(j) => j,
                     Data::Text(t) => J::Str(t),
                 })
+            } else if let Some(b) = s.get("board") {
+                let b = resolve(b, &results, &names)?;
+                let get = |k: &str| b.get(k).and_then(J::as_str);
+                let c = run_change(
+                    ctx,
+                    &WriteOpts {
+                        add: get("action") == Some("add"),
+                        board: get("board"),
+                        item: get("item").unwrap_or(""),
+                        state: get("state"),
+                        value: get("value"),
+                        field: get("field"),
+                        entry: o.entry,
+                        max_pages: 10,
+                        write: o.write,
+                        dry_run: false,
+                    },
+                )?;
+                if get("board").is_none() && c.board.platform != plat {
+                    return Err(Failed::usage(format!(
+                        "the board is on {}, the plan is for {plat}",
+                        c.board.platform
+                    )));
+                }
+                Ok(c.to_json())
             } else if let Some(p) = s.get("project_status") {
                 let p = resolve(p, &results, &names)?;
                 let number = p
