@@ -47,9 +47,18 @@ export function drawWorkers($: EngineInterface, e: ResolveInput, view: WorkersVi
           </Text>
         ) : (
           <Button key={line.buttonKey ?? `toggle:${line.toggle}`} plain onPress={() => handlers.onToggle(line.toggle as string)}>
-            <Text wrap="truncate-end" {...look(line.tone)}>
-              {line.text}
-            </Text>
+            {line.marks !== undefined && line.marks.length > 0 ? (
+              // One press target of Text segments (a Box is not drawn inside a Button); they join to the line's text.
+              segments(line).map(([piece, tone], i) => (
+                <Text key={`${line.key}:${i}`} {...look(tone)}>
+                  {piece}
+                </Text>
+              ))
+            ) : (
+              <Text wrap="truncate-end" {...look(line.tone)}>
+                {line.text}
+              </Text>
+            )}
           </Button>
         ),
       )}

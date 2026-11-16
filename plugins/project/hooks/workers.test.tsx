@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { AGENTS, ALL_STATES, LOG, PROFILE_AND_CODEX, track } from './workers-fixtures'
+import { AGENTS, ALL_STATES, LOG, MANY_DONE, PROFILE_AND_CODEX, track } from './workers-fixtures'
 import { segments } from './workers-draw'
 
 type Handlers = Parameters<Parameters<typeof test>[1]>[1]
@@ -67,7 +67,7 @@ test('/workers lists every worker with its state, from the status files', async 
 test('no status files: /workers says No workers', async ($, on) => {
   world(on, {})
   await $.session.start(START)
-  expect(await run($)).toBe('No workers')
+  expect(await run($)).toBe('No workers\nIdle reason: not recorded')
 })
 
 test('a malformed status file is counted, a file naming another track is not trusted', async ($, on) => {
@@ -264,7 +264,7 @@ test('an attention row opens that worker, and the open rows survive a refresh', 
   ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /Verdict: rejected \(out-of-scope-path\)/ })).toBeDefined()
   expect(await ui.find({ key: 'toggle:feat-db' })).toBeDefined()
-  await ui.press({ key: 'toggle:feat-api' })
+  await ui.press({ key: 'attention:feat-api' })
   expect(await ui.find({ type: 'Text', text: /Verdict: rejected/ })).toBeUndefined()
   await ui.unmount()
 })
@@ -275,7 +275,7 @@ test('the pane in a narrow body fits and keeps every worker reachable', async ($
   await $.command.run({ command: 'workers-pane', args: '' } as never)
   const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 36 }, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /0\/3 slots|2\/3 slots/ })).toBeDefined()
-  for (const t of ['feat-core', 'feat-docs', 'feat-api']) expect(await ui.find({ key: `toggle:${t}` })).toBeDefined()
+  for (const t of ['toggle:feat-core', 'toggle:feat-docs', 'attention:feat-api']) expect(await ui.find({ key: t })).toBeDefined()
   await ui.unmount()
 })
 
@@ -326,4 +326,52 @@ test('a readable parallel.yaml without the key uses the default cap', async ($, 
   world(on, { ...RUNNING(2), '.ai-gent/parallel.yaml': 'other: 1\n' })
   await $.session.start(START)
   expect(await run($)).toContain('2 / 3 slots')
+})
+
+// Spec 044 slice 1: marks on the glyph and state word, one press target per row.
+test('044 US1.1: a failed worker is drawn once, under ATTENTION, and still presses open', async ($, on) => {
+  world(on, statusFiles(MANY_DONE))
+  await $.session.start(START)
+  await $.command.run({ command: 'workers-pane', args: '' } as never)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /ATTENTION · 2 issues/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /No running workers/ })).toBeDefined()
+  expect(await ui.find({ key: 'attention:feat-a' })).toBeDefined()
+  expect(await ui.find({ key: 'toggle:feat-a' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /History · 32 done · 1 taken back/ })).toBeDefined()
+  await ui.press({ key: 'attention:feat-b' })
+  expect(await ui.find({ type: 'Text', text: /Cause: not recorded/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Verdict: accepted/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('044 US1.6: only the glyph and the state word take the status tone, inside one Button', async ($, on) => {
+  world(on, FILES)
+  await $.session.start(START)
+  await $.command.run({ command: 'workers-pane', args: '' } as never)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await colorOf(ui, /^✕$/)).toBe('error')
+  expect(await colorOf(ui, /^failed$/)).toBe('error')
+  expect(await colorOf(ui, /^⚠$/)).toBe('warning')
+  expect(await colorOf(ui, /^stalled$/)).toBe('warning')
+  expect(await colorOf(ui, /^▶$/)).toBe('suggestion')
+  expect(await colorOf(ui, /^Running$/)).toBe('suggestion')
+  expect(await colorOf(ui, / feat-api /)).toBeUndefined()
+  expect(await ui.find({ key: 'attention:feat-api' })).toBeDefined()
+  expect((await ui.findAll({ key: 'attention:feat-api' } as never)).length).toBe(1)
+  await ui.unmount()
+})
+
+test('044: a marked row presses once and writes only the toggle (the details open)', async ($, on) => {
+  const w = world(on, FILES)
+  await $.session.start(START)
+  await $.command.run({ command: 'workers-pane', args: '' } as never)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const before = w.reads.length
+  await ui.press({ key: 'attention:feat-ui' })
+  expect(await ui.find({ type: 'Text', text: /Last event: 3 events/ })).toBeDefined()
+  expect(w.reads.length).toBe(before)
+  await ui.press({ key: 'attention:feat-ui' })
+  expect(await ui.find({ type: 'Text', text: /Last event/ })).toBeUndefined()
+  await ui.unmount()
 })
