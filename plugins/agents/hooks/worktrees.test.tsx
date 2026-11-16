@@ -89,12 +89,12 @@ test('wide rows carry counts, the dirty dot, the pull request and its checks, an
   expect(out).not.toContain('wt.py remove feat/us1')
 })
 
-test('null counts read ? and one line says no dev branch was found, once', () => {
+test('null counts read ? and one line says no base branch was found, once', () => {
   const out = lines(board({ rows: [...rows().slice(0, 1), ...(parseWt(WT_LIST_NO_BASE) ?? []).map(r => ({ ...r, branch: 'feat/b' })), ...rows().slice(4)] }))
   expect(out).toMatch(/feat\/b\s+\?/)
   expect(out).toMatch(/\(detached\)\s+\?/)
-  expect(out.match(/no dev branch found/g)).toHaveLength(1)
-  expect(lines(board({ rows: rows().slice(0, 4) }))).not.toContain('no dev branch found')
+  expect(out.match(/no base branch found/g)).toHaveLength(1)
+  expect(lines(board({ rows: rows().slice(0, 4) }))).not.toContain('no base branch found')
 })
 
 test('without gh the pull request columns are omitted and one line says gh auth login would add them', () => {
@@ -258,7 +258,7 @@ test('with no worktrees the command says so and opens nothing', async ($, on) =>
   expect(w.runs.filter(r => r[0] === 'python3')).toHaveLength(1) // not left polling
 })
 
-test('null counts are drawn as ? with the no dev branch line', async ($, on) => {
+test('null counts are drawn as ? with the no base branch line', async ($, on) => {
   const w = world(on)
   w.wt.stdout = WT_LIST_NO_BASE
   w.gh.prs = '[]'
@@ -266,7 +266,7 @@ test('null counts are drawn as ? with the no dev branch line', async ($, on) => 
   await $.command.run(open())
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /feat\/us1\s+\?\s+no PR/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /no dev branch found/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /no base branch found/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -524,9 +524,10 @@ test('044 T010 spike: the pane mounts Button rows among Text lines and a press r
   await $.session.start(START)
   await $.command.run(open())
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Button', key: 'row:feat/us1' })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'row:.worktrees/feat-us1' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /5 worktrees/ })).toBeDefined()
-  await ui.press({ key: 'row:feat/us1' })
+  await ui.press({ key: 'row:.worktrees/feat-us1' })
+  expect(await ui.find({ type: 'Text', text: /Path: \.worktrees\/feat-us1/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -545,9 +546,11 @@ test('044 US2.2: ASCII uses ^a vb and ASCII markers only', () => {
   const out = lines(board({ ascii: true, expanded: { 'feat/us1': true } }))
   expect(out).toContain('^3 v0')
   expect(out).toContain('^ ahead of, v behind the base branch')
-  expect(lines(board({ ascii: true }), 50)).toContain('feat/us1 ^3 v0 ●'.replace('● ', '●'))
+  expect(lines(board({ ascii: true }), 50)).toContain('feat/us1 ^3 v0 ● failing')
   // Only the dirty dot is outside ASCII, as before; the arrows and the markers are not.
+  expect(out).not.toMatch(/[↑↓▸▾]/)
   expect(out.replace(/[●—·]/g, '')).toMatch(/^[\x00-\x7f\n]*$/)
+  expect(lines(board({ ascii: true }), 50).replace(/[●—·]/g, '')).toMatch(/^[\x00-\x7f\n]*$/)
 })
 
 test('044 US2.3: a failing check is said once per row and once in the summary', () => {
@@ -566,7 +569,10 @@ test('044 US2.5: stale sources are labelled cached with the failure and last goo
   const both = lines(board({ local: FRESH, remote: FRESH }))
   expect(both).toMatch(/local: cached, read failed at \d\d:\d\d:\d\dZ; last good \d\d:\d\d:\d\dZ/)
   expect(both).toMatch(/GitHub: cached, read failed at \d\d:\d\d:\d\dZ; last good \d\d:\d\d:\d\dZ/)
-  expect(lines(board({ remote: { ...FRESH, okAt: 0 } }))).toContain('no good read yet')
+  const never = lines(board({ remote: { ...FRESH, okAt: 0 }, local: { ...FRESH, okAt: 0 } }))
+  expect(never).toContain('no good read yet')
+  expect(never).toMatch(/GitHub: read failed at/)
+  expect(never).not.toContain('cached')
   expect(lines(board({ local: { ...FRESH, error: null }, remote: { ...FRESH, error: null } }))).not.toContain('cached')
   // No gh column: no GitHub note, whatever the record says.
   const noGh = lines(board({ rows: rows(), gh: { usable: false, platform: 'github' }, remote: FRESH }))
@@ -583,7 +589,7 @@ test('044 US2.5/2.6: a failed read keeps the rows and okAt; one source failing k
   w.gh.prs = ''
   await w.clock.advance(120_000)
   let ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await ui.find({ type: 'Text', text: /GitHub: cached, read failed at \d\d:\d\d:\d\dZ; last good \d\d:\d\d/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /GitHub: cached, read failed at 08:02:00Z; last good 08:00:00Z/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /#41 open/ })).toBeDefined() // gh failed: PRs kept
   expect(await ui.find({ type: 'Text', text: /local: cached/ })).toBeUndefined()
   await ui.unmount()
@@ -622,7 +628,7 @@ test('044 US2.4: a row opens on press, stays open across a refresh, closes on a 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ text: /Path: / })).toBeUndefined()
   w.runs.length = 0
-  await ui.press({ key: 'row:feat/us1' })
+  await ui.press({ key: 'row:.worktrees/feat-us1' })
   for (const re of [/Branch: feat\/us1/, /Path: \.worktrees\/feat-us1/, /Uncommitted changes: yes/, /Divergence: ahead 3, behind 0/, /Pull request: #41 open/, /Checks: failing/]) expect(await ui.find({ type: 'Text', text: re })).toBeDefined()
   expect(await ui.find({ text: /▾ feat\/us1/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Path: \.worktrees\/feat-us2/ })).toBeUndefined()
@@ -630,7 +636,7 @@ test('044 US2.4: a row opens on press, stays open across a refresh, closes on a 
   await w.clock.advance(15_000)
   expect(wtRuns(w)).toHaveLength(1) // the poll only
   expect(await ui.find({ type: 'Text', text: /Path: \.worktrees\/feat-us1/ })).toBeDefined() // survived the refresh
-  await ui.press({ key: 'row:feat/us1' })
+  await ui.press({ key: 'row:.worktrees/feat-us1' })
   expect(await ui.find({ type: 'Text', text: /Path: / })).toBeUndefined()
   await ui.unmount()
 })
@@ -640,7 +646,7 @@ test('044 US2.4: the key of a vanished branch is dropped and the text form print
   await $.session.start(START)
   await $.command.run(open())
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'row:feat/us2' })
+  await ui.press({ key: 'row:.worktrees/feat-us2' })
   w.wt.stdout = JSON.stringify((parseWt(WT_LIST) ?? []).filter(r => r.branch !== 'feat/us2'))
   await w.clock.advance(15_000)
   w.wt.stdout = WT_LIST
@@ -649,4 +655,25 @@ test('044 US2.4: the key of a vanished branch is dropped and the text form print
   await ui.unmount()
   const all = boardText(board())
   for (const r of rows()) expect(all).toContain(`Path: ${r.path}`)
+})
+
+test('044 review: a narrow failing row keeps the word, and a PR never read says the read failed', () => {
+  expect(lines(board(), 50)).toMatch(/feat\/us1 ↑3 ↓0 ● failing/)
+  expect(lines(board(), 50)).not.toMatch(/feat\/us2 .*failing/)
+  const unread = board({ rows: rows().map(r => ({ ...r })), remote: { ...FRESH, okAt: 0 }, expanded: { '.worktrees/feat-us2': true } })
+  expect(lines(unread)).toContain('Pull request: read failed')
+  expect(lines(unread)).not.toContain('being read')
+  expect(lines(unread)).toMatch(/feat\/us2\s+↑2 ↓1\s+read failed/)
+})
+
+test('044 review: rows are keyed by path, so two detached worktrees open one at a time', () => {
+  const two: Row[] = [
+    { branch: '(detached)', path: '.worktrees/a', dirty: false, ahead: null, behind: null },
+    { branch: '(detached)', path: '.worktrees/b', dirty: false, ahead: null, behind: null },
+  ]
+  const b = board({ rows: two, expanded: { '.worktrees/b': true } })
+  const keys = view(b, 100).map(l => l.key)
+  expect(new Set(keys).size).toBe(keys.length)
+  expect(lines(b)).toContain('Path: .worktrees/b')
+  expect(lines(b)).not.toContain('Path: .worktrees/a')
 })

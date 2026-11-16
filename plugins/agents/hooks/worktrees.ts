@@ -23,7 +23,7 @@ const NEVER = { attemptedAt: 0, okAt: 0, error: null }
 // Per source: when a read started, when one last parsed (`okAt` moves only then) and why the last failed.
 const localFreshAtom = atom({ plugin: 'agents', key: 'worktreeLocalFresh' } as const, NEVER)
 const remoteFreshAtom = atom({ plugin: 'agents', key: 'worktreeRemoteFresh' } as const, NEVER)
-// Rows opened by the user, keyed by branch.
+// Rows opened by the user, keyed by worktree path (detached worktrees share a branch name).
 const expandedAtom = atom({ plugin: 'agents', key: 'worktreesExpanded' } as const, {})
 const ghAtom = atom({ plugin: 'agents', key: 'worktreeGh' } as const, { usable: false, platform: '' })
 
@@ -67,7 +67,7 @@ export async function refreshLocal($: EngineInterface): Promise<boolean> {
     await update($, localFreshAtom, f => ({ ...f, okAt: started, error: null }))
     await update($, rowsAtom, old => carryPrs(parsed, old))
     // A branch that is gone takes its open state with it.
-    const kept = new Set(parsed.map(r => r.branch))
+    const kept = new Set(parsed.map(r => r.path))
     await update($, expandedAtom, old => (Object.keys(old).every(k => kept.has(k)) ? old : Object.fromEntries(Object.entries(old).filter(([k]) => kept.has(k)))))
     return true
   } finally {
@@ -122,8 +122,8 @@ export async function snapshot($: EngineInterface): Promise<Board> {
 }
 
 // A row's button: open or close it. It never runs anything.
-export async function toggle($: EngineInterface, branch: string): Promise<void> {
-  await update($, expandedAtom, old => ({ ...old, [branch]: old[branch] !== true }))
+export async function toggle($: EngineInterface, path: string): Promise<void> {
+  await update($, expandedAtom, old => ({ ...old, [path]: old[path] !== true }))
 }
 
 // For register.tsx (an atom is read only in the file that declares it).

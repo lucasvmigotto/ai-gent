@@ -141,7 +141,7 @@ function summary(b: Board): string {
 
 function prCell(r: Row, b: Board): string[] {
   if (!hasPrColumn(b)) return []
-  if (r.pr === undefined) return [r.branch === DETACHED ? '—' : '…']
+  if (r.pr === undefined) return [r.branch === DETACHED ? '—' : b.remote?.error ? 'read failed' : '…']
   if (r.pr === null) return ['no PR']
   const state = r.pr.state === 'OPEN' ? (r.pr.isDraft ? 'draft' : 'open') : r.pr.state.toLowerCase()
   // A failing check is the row's `failing` mark, said once; the others stay words here.
@@ -152,7 +152,7 @@ function row(r: Row, b: Board, width: number, isNarrow: boolean, marker: string)
   const mark = markOf(r)
   const tone: Tone = mark === 'failing' ? 'bad' : mark === 'removable' || mark === 'nothing of its own' ? 'dim' : 'plain'
   const ascii = b.ascii === true
-  if (isNarrow) return { text: `${marker} ${[r.branch, counts(r, ascii), r.dirty ? '●' : ''].filter(Boolean).join(' ')}`, tone }
+  if (isNarrow) return { text: `${marker} ${[r.branch, counts(r, ascii), r.dirty ? '●' : '', mark === 'failing' ? 'failing' : ''].filter(Boolean).join(' ')}`, tone }
   const cells = [r.branch.padEnd(width), counts(r, ascii).padEnd(6), r.dirty ? '●' : ' ', ...prCell(r, b)]
   if (mark === 'removable') cells.push(`removable: wt.py remove ${r.branch}`)
   else if (mark !== null) cells.push(mark)
@@ -164,7 +164,7 @@ function details(r: Row, b: Board): string[] {
   const out = [`Branch: ${r.branch}`, `Path: ${r.path}`, `Uncommitted changes: ${r.dirty ? 'yes' : 'no'}`]
   out.push(r.ahead === null || r.behind === null ? 'Divergence: unknown (no base branch found)' : `Divergence: ahead ${r.ahead}, behind ${r.behind}`)
   if (hasPrColumn(b)) {
-    if (r.pr === undefined) out.push(r.branch === DETACHED ? 'Pull request: not looked up (detached HEAD)' : 'Pull request: being read')
+    if (r.pr === undefined) out.push(r.branch === DETACHED ? 'Pull request: not looked up (detached HEAD)' : (b.remote?.error ? 'Pull request: read failed' : 'Pull request: being read'))
     else if (r.pr === null) out.push('Pull request: none')
     else {
       const state = r.pr.state === 'OPEN' ? (r.pr.isDraft ? 'draft' : 'open') : r.pr.state.toLowerCase()
@@ -180,9 +180,9 @@ function notes(b: Board): { text: string; tone: Tone }[] {
   const out: { text: string; tone: Tone }[] = []
   if (b.error !== null) out.push({ text: `wt.py failed: ${b.error}`, tone: 'warn' })
   if (b.rows.some(r => r.ahead !== null && r.behind !== null)) out.push({ text: b.ascii === true ? '^ ahead of, v behind the base branch' : '↑ ahead of, ↓ behind the base branch', tone: 'dim' })
-  if (b.local !== undefined && b.local.error !== null) out.push({ text: `local: cached, read failed at ${clock(b.local.attemptedAt)}; ${lastGood(b.local)}`, tone: 'warn' })
-  if (b.remote !== undefined && b.remote.error !== null && hasPrColumn(b)) out.push({ text: `GitHub: cached, read failed at ${clock(b.remote.attemptedAt)}; ${lastGood(b.remote)}`, tone: 'warn' })
-  if (b.rows.some(r => r.ahead === null || r.behind === null)) out.push({ text: 'no dev branch found: ahead and behind are unknown (?)', tone: 'dim' })
+  if (b.local !== undefined && b.local.error !== null) out.push({ text: `local: ${b.local.okAt > 0 ? 'cached, ' : ''}read failed at ${clock(b.local.attemptedAt)}; ${lastGood(b.local)}`, tone: 'warn' })
+  if (b.remote !== undefined && b.remote.error !== null && hasPrColumn(b)) out.push({ text: `GitHub: ${b.remote.okAt > 0 ? 'cached, ' : ''}read failed at ${clock(b.remote.attemptedAt)}; ${lastGood(b.remote)}`, tone: 'warn' })
+  if (b.rows.some(r => r.ahead === null || r.behind === null)) out.push({ text: 'no base branch found: ahead and behind are unknown (?)', tone: 'dim' })
   if (b.gh.platform === 'github' && !b.gh.usable) out.push({ text: 'gh is not signed in: gh auth login would add the pull request and checks', tone: 'dim' })
   else if (b.gh.platform !== 'github' && b.gh.platform !== '') {
     const name = PLATFORMS[b.gh.platform]
@@ -191,12 +191,12 @@ function notes(b: Board): { text: string; tone: Tone }[] {
   return out
 }
 
-const fit = (text: string, columns: number): string => (text.length > columns ? `${text.slice(0, Math.max(1, columns - 1))}…` : text)
+const fit = (text: string, columns: number, ascii = false): string => (text.length > columns ? `${text.slice(0, Math.max(1, columns - 1))}${ascii ? '~' : '…'}` : text)
 
 export function view(b: Board, columns: number): Line[] {
   const lines: Line[] = []
   const add = (text: string, tone: Tone = 'plain'): void => {
-    lines.push({ key: `l${lines.length}`, text: fit(text, columns), tone })
+    lines.push({ key: `l${lines.length}`, text: fit(text, columns, b.ascii === true), tone })
   }
   const ascii = b.ascii === true
   if (b.rows.length === 0) {
@@ -206,9 +206,9 @@ export function view(b: Board, columns: number): Line[] {
     const shown = b.rows.slice(0, MAX_ROWS)
     const width = Math.max(...shown.map(r => r.branch.length))
     for (const r of shown) {
-      const isOpen = b.expanded?.[r.branch] === true
+      const isOpen = b.expanded?.[r.path] === true
       const cell = row(r, b, width, columns < NARROW, isOpen ? (ascii ? 'v' : '▾') : ascii ? '>' : '▸')
-      lines.push({ key: `row:${r.branch}`, text: fit(cell.text, columns), tone: cell.tone, toggle: r.branch })
+      lines.push({ key: `row:${r.path}`, text: fit(cell.text, columns, ascii), tone: cell.tone, toggle: r.path })
       if (isOpen) for (const d of details(r, b)) lines.push({ key: `l${lines.length}`, text: d, tone: 'dim' })
     }
     if (b.rows.length > MAX_ROWS) add(`+${b.rows.length - MAX_ROWS} more`, 'dim')
@@ -220,6 +220,6 @@ export function view(b: Board, columns: number): Line[] {
 // The same content as plain text, for a surface that cannot dock the pane.
 export function text(b: Board): string {
   if (b.rows.length === 0 && b.error === null) return NO_ROWS
-  const open = Object.fromEntries(b.rows.map(r => [r.branch, true]))
+  const open = Object.fromEntries(b.rows.map(r => [r.path, true]))
   return view({ ...b, expanded: open }, Number.MAX_SAFE_INTEGER).map(l => l.text).join('\n')
 }

@@ -63,7 +63,7 @@ declare module 'claude-code' {
       // (`okAt`, only then) and why the last one failed (null after a good one). 0 is never.
       worktreeLocalFresh: { attemptedAt: number; okAt: number; error: string | null }
       worktreeRemoteFresh: { attemptedAt: number; okAt: number; error: string | null }
-      // Rows the user opened, by branch; a branch that is gone is dropped at the next good read.
+      // Rows the user opened, by worktree path; a worktree that is gone is dropped at the next good read.
       worktreesExpanded: Record<string, boolean>
       // gh auth status and the platform of `git remote get-url origin`, read when the board opens.
       worktreeGh: { usable: boolean; platform: string }
