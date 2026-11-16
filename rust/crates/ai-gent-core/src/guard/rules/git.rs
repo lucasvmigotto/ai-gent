@@ -5,7 +5,7 @@ use crate::guard::segment::{Shell, View};
 use crate::guard::{Ctx, Decision, Event, grant};
 use regex::Regex;
 
-const GIT_RE: &str = r"^[[:space:]]*(sudo[[:space:]]+)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+";
+const GIT_RE: &str = r"^[[:space:]]*((sudo|env|exec|command|nohup|xargs|time)[[:space:]]+([^[:space:];&|()]+[[:space:]]+)*)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+";
 
 /// `has <subcommand regex> [<argument regex>]` of the shell guard.
 fn has(segments: &[String], sub: &str, arg: Option<&str>) -> bool {
@@ -27,10 +27,39 @@ fn gh(segments: &[String], sub: &str) -> bool {
     any(segments, &re(&format!("^[[:space:]]*gh[[:space:]]+{sub}")))
 }
 
+/// The segments, plus those of the text inside quotes when the command runs a shell with `-c`
+/// (`sh -c 'git commit'`): the quoted text is blanked in `segments`, so the commit would go unseen.
+fn with_inner(v: &View) -> Vec<String> {
+    let mut out = v.segments.clone();
+    if re(r"(^|[ \t;&|(/])(sh|bash|zsh|dash|ksh)[ \t]+-[A-Za-z]*c").is_match(&stripped(&v.raw)) {
+        let t = v.raw.replace("\\n", "\n");
+        let t: String = t
+            .chars()
+            .map(|c| {
+                if matches!(c, '\'' | '"' | '`' | ';' | '&' | '|' | '(' | ')') {
+                    '\n'
+                } else {
+                    c
+                }
+            })
+            .collect();
+        out.extend(t.split('\n').map(str::to_string));
+    }
+    out
+}
+
+/// The command with quotes and backslashes removed (the `plain` copy of `autonomy_command`).
+fn stripped(raw: &str) -> String {
+    raw.chars()
+        .filter(|c| !matches!(c, '\'' | '"' | '\\'))
+        .collect()
+}
+
 /// Evaluate the git guard on a shell command.
 #[must_use]
 pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
-    let s = &v.segments;
+    let combined = with_inner(v);
+    let s = &combined;
     if has(
         s,
         "(commit|merge|push|am|rebase|cherry-pick|revert)",
@@ -289,7 +318,7 @@ fn cd_prefix(text: &str, raw: &str, cwd: &str) -> Cd {
         };
         n += 1;
     }
-    if n != total || (n > 0 && cd_hazard(raw)) {
+    if n != total || (n > 0 && (cd_hazard(raw) || !rest_ok(rest))) {
         Cd::Bad
     } else if n == 0 {
         Cd::None
@@ -298,26 +327,64 @@ fn cd_prefix(text: &str, raw: &str, cwd: &str) -> Cd {
     }
 }
 
-/// Text that changes where git runs, or what a `&&` chain means, after a followed `cd`: a
-/// background `&` (the later command runs in the original directory), a repository or work tree
-/// given through the environment or an option, `CDPATH`.
+/// Text that changes where git runs after a followed `cd`, searched on the copy with quotes and
+/// backslashes removed so splitting a word with quotes does not hide it: any `GIT_` variable,
+/// `--git-dir`, `--work-tree`, `--exec-path`, `--config-env`, `core.worktree`, `-c core.*` or
+/// `-c alias.*`, `CDPATH`.
 fn cd_hazard(raw: &str) -> bool {
-    let amp = raw
-        .replace("&&", "")
-        .replace(">&", "")
-        .replace("|&", "")
-        .replace("&>", "");
-    amp.contains('&')
-        || [
-            "GIT_DIR=",
-            "GIT_WORK_TREE=",
-            "--git-dir",
-            "--work-tree",
-            "core.worktree",
-            "CDPATH",
-        ]
-        .iter()
-        .any(|w| raw.contains(w))
+    re(r"GIT_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|CDPATH|(^|[[:space:]])-c[[:space:]]*(core|alias)\.")
+        .is_match(&stripped(raw))
+}
+
+/// After the leading `cd DIR &&` chain only plain git commands may follow: every segment (split on
+/// `&&` outside quotes) starts with the literal word `git`, and outside quotes there is no `<`,
+/// `$`, backtick, `;`, `|`, `(`, `)`, `{`, `}`, newline or lone `&` (`>&` is fine); inside double
+/// quotes no backtick, `$(` or `${`. Anything else asks.
+fn rest_ok(rest: &str) -> bool {
+    let d: Vec<char> = rest.trim_end_matches(is_ws).chars().collect();
+    let word = |t: &[char]| {
+        let t: String = t.iter().collect();
+        let t = t.trim_start_matches(is_ws);
+        t.split(is_ws).next() == Some("git")
+    };
+    let (mut q, mut start, mut i) = (0u8, 0usize, 0usize);
+    while i < d.len() {
+        let c = d[i];
+        let nx = d.get(i + 1).copied();
+        match q {
+            1 => {
+                if c == '\'' {
+                    q = 0;
+                }
+            }
+            2 => match c {
+                '"' => q = 0,
+                '\\' => i += 1,
+                '`' => return false,
+                '$' if matches!(nx, Some('(' | '{')) => return false,
+                _ => {}
+            },
+            _ => match c {
+                '\'' => q = 1,
+                '"' => q = 2,
+                '\\' => i += 1,
+                '&' if nx == Some('&') => {
+                    if !word(&d[start..i]) {
+                        return false;
+                    }
+                    start = i + 2;
+                    i += 1;
+                }
+                '&' if i > 0 && d[i - 1] == '>' => {}
+                '&' | '<' | '$' | '`' | ';' | '|' | '(' | ')' | '{' | '}' | '\n' | '\r' => {
+                    return false;
+                }
+                _ => {}
+            },
+        }
+        i += 1;
+    }
+    q == 0 && word(&d[start.min(d.len())..])
 }
 
 /// How many words of the command can change the working directory or run other code that can:

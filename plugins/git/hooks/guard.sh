@@ -272,9 +272,15 @@ segments="$(printf '%s\n' "$cmd" | awk '{
   gsub(/\\"([^\\]|\\[^"])*\\"/, "\"\""); gsub(/\047[^\047]*\047/, "\047\047")
   gsub(/\\n/, "\n"); gsub(/[;&|()]/, "\n"); print }')"
 
+# sh -c 'git commit': the quoted text is blanked above, so look inside the quotes too
+if printf '%s' "$cmd" | tr -d "'\"\\" | grep -Eq '(^|[ \t;&|(/])(sh|bash|zsh|dash|ksh)[ \t]+-[A-Za-z]*c'; then
+  segments="$segments
+$(printf '%s\n' "$cmd" | awk '{ gsub(/\\n/, "\n"); gsub(/[\047"`;&|()]/, "\n"); print }')"
+fi
+
 # git, optionally with global options (-C <dir>, -c <k=v>, --no-pager, ...),
 # followed by the subcommand.
-git_re='^[[:space:]]*(sudo[[:space:]]+)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+'
+git_re='^[[:space:]]*((sudo|env|exec|command|nohup|xargs|time)[[:space:]]+([^[:space:];&|()]+[[:space:]]+)*)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+'
 
 has() { # has <subcommand regex> [<argument regex>]
   printf '%s\n' "$segments" | grep -Eq "$git_re$1([[:space:]].*)?\$" || return 1
@@ -327,6 +333,42 @@ cd_like() { # how many words of the command can change the directory or run code
     print cnt
   }'
 }
+cd_rest_ok() { # stdin: what follows the leading cds (JSON-escaped); prints ok or bad
+  awk 'function word(t,   w) { sub(/^[[:space:]]+/, "", t); w = t; sub(/[[:space:]].*$/, "", w); return w == "git" }
+  {
+    e = $0; d = ""; n = length(e)
+    for (i = 1; i <= n; i++) {
+      c = substr(e, i, 1)
+      if (c == "\\" && i < n) {
+        i++; c = substr(e, i, 1)
+        if (c == "n") c = "\n"; else if (c == "t") c = "\t"; else if (c == "r") c = "\r"
+      }
+      d = d c
+    }
+    sub(/[[:space:]]+$/, "", d)
+    q = 0; start = 1; ok = 1; n = length(d)
+    for (i = 1; i <= n && ok; i++) {
+      c = substr(d, i, 1); nx = substr(d, i + 1, 1)
+      if (q == 1) { if (c == "\047") q = 0; continue }
+      if (q == 2) {
+        if (c == "\"") q = 0
+        else if (c == "\\") i++
+        else if (c == "`") ok = 0
+        else if (c == "$" && (nx == "(" || nx == "{")) ok = 0
+        continue
+      }
+      if (c == "\047") q = 1
+      else if (c == "\"") q = 2
+      else if (c == "\\") i++
+      else if (c == "&" && nx == "&") { if (!word(substr(d, start, i - start))) ok = 0; start = i + 2; i++ }
+      else if (c == "&" && i > 1 && substr(d, i - 1, 1) == ">") { }
+      else if (index("&<$`;|(){}\n\r", c)) ok = 0
+    }
+    if (q != 0) ok = 0
+    if (ok && !word(substr(d, start))) ok = 0
+    print ok ? "ok" : "bad"
+  }'
+}
 cd_resolve() {
   cd_total="$(cd_like)"
   cd_dir="${cwd:-.}" cd_n=0 rest="$cmd"
@@ -366,9 +408,10 @@ cd_resolve() {
   done
   [ "$cd_n" -eq "$cd_total" ] || return 1
   if [ "$cd_n" -gt 0 ]; then
-    # a background &, a repository given by the environment or an option, CDPATH
-    printf '%s' "$cmd" | sed -e 's/&&//g' -e 's/>&//g' -e 's/|&//g' -e 's/&>//g' | grep -Fq '&' && return 1
-    printf '%s' "$cmd" | grep -Eq 'GIT_DIR=|GIT_WORK_TREE=|--git-dir|--work-tree|core\.worktree|CDPATH' && return 1
+    # only plain git commands may follow, and nothing that moves the repository
+    [ "$(printf '%s' "$rest" | cd_rest_ok)" = ok ] || return 1
+    ! printf '%s' "$cmd" | tr -d "'\"\\" |
+      grep -Eq -e 'GIT_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|CDPATH|(^|[[:space:]])-c[[:space:]]*(core|alias)\.' || return 1
   fi
   [ "$cd_n" -gt 0 ] || cd_dir="$cwd"
   return 0

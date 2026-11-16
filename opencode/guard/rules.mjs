@@ -57,17 +57,22 @@ export function grantAt(dir, now = new Date()) {
 }
 
 const GIT_RE_SRC =
-  "^[ \\t]*(sudo[ \\t]+)?git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t]+|--[a-z-]+(?:=[^ \\t]+)?))*[ \\t]+";
+  "^[ \\t]*((?:sudo|env|exec|command|nohup|xargs|time)[ \\t]+(?:[^ \\t;&|()]+[ \\t]+)*)?git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t]+|--[a-z-]+(?:=[^ \\t]+)?))*[ \\t]+";
 
 // Split a raw command the way the shell guards do: quoted strings blanked so
 // their text cannot look like options, then split on ; & | ( ) and newlines.
 function gitSegments(cmd) {
-  return cmd
+  const segs = cmd
     .replace(/"(?:[^"\\]|\\.)*"/g, '""')
     .replace(/'[^']*'/g, "''")
     .replace(/\\n/g, "\n")
     .replace(/[;&|()]/g, "\n")
     .split("\n");
+  // sh -c 'git commit': the quoted text is blanked above, so look inside the quotes too
+  if (/(^|[ \t;&|(/])(sh|bash|zsh|dash|ksh)[ \t]+-[A-Za-z]*c/.test(cmd.replace(/['"\\]/g, ""))) {
+    segs.push(...cmd.replace(/\\n/g, "\n").replace(/['"`;&|()]/g, "\n").split("\n"));
+  }
+  return segs;
 }
 
 function gitHas(segments, sub, arg) {
@@ -96,15 +101,49 @@ function autonomyDenied(text) {
 const CD_UNRESOLVED =
   "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)";
 
-// Text that changes where git runs, or what a && chain means, after a followed cd: a background &
-// (the later command runs in the original directory), a repository or work tree given through the
-// environment or an option, CDPATH.
+// The command with quotes and backslashes removed (the plain copy of the autonomy check).
+const stripped = (cmd) => cmd.replace(/['"\\]/g, "");
+
+// Text that changes where git runs after a followed cd, searched on the stripped copy so splitting
+// a word with quotes does not hide it: any GIT_ variable, --git-dir, --work-tree, --exec-path,
+// --config-env, core.worktree, -c core.* or -c alias.*, CDPATH.
 function cdHazard(cmd) {
-  const amp = cmd.split("&&").join("").split(">&").join("").split("|&").join("").split("&>").join("");
-  return (
-    amp.includes("&") ||
-    ["GIT_DIR=", "GIT_WORK_TREE=", "--git-dir", "--work-tree", "core.worktree", "CDPATH"].some((w) => cmd.includes(w))
+  return /GIT_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|CDPATH|(^|[ \t])-c[ \t]*(core|alias)\./.test(
+    stripped(cmd),
   );
+}
+
+// After the leading cd DIR && chain only plain git commands may follow: every segment (split on &&
+// outside quotes) starts with the literal word git, and outside quotes there is no <, $, backtick,
+// ;, |, (, ), {, }, newline or lone & (>& is fine); inside double quotes no backtick, $( or ${.
+function restOk(rest) {
+  const ws = /[ \t\n\r\v\f]/;
+  const d = rest.replace(/[ \t\n\r\v\f]+$/, "");
+  const word = (t) => t.replace(/^[ \t\n\r\v\f]+/, "").split(ws)[0] === "git";
+  let q = 0;
+  let start = 0;
+  for (let i = 0; i < d.length; i++) {
+    const c = d[i];
+    const nx = d[i + 1];
+    if (q === 1) {
+      if (c === "'") q = 0;
+    } else if (q === 2) {
+      if (c === '"') q = 0;
+      else if (c === "\\") i++;
+      else if (c === "`") return false;
+      else if (c === "$" && (nx === "(" || nx === "{")) return false;
+    } else if (c === "'") q = 1;
+    else if (c === '"') q = 2;
+    else if (c === "\\") i++;
+    else if (c === "&" && nx === "&") {
+      if (!word(d.slice(start, i))) return false;
+      start = i + 2;
+      i++;
+    } else if (c === "&" && i > 0 && d[i - 1] === ">") {
+      // 2>&1
+    } else if ("&<$`;|(){}\n\r".includes(c)) return false;
+  }
+  return q === 0 && word(d.slice(Math.min(start, d.length)));
 }
 
 // How many words of the command can change the working directory or run other code that can: cd,
@@ -167,7 +206,7 @@ function cdPrefix(cmd, cwd) {
     dir = arg.startsWith("/") ? arg : `${dir}/${arg}`;
     n += 1;
   }
-  if (n !== total || (n > 0 && cdHazard(cmd))) return null;
+  if (n !== total || (n > 0 && (cdHazard(cmd) || !restOk(rest)))) return null;
   return { dir: n === 0 ? cwd : dir, followed: n > 0 };
 }
 

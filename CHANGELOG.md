@@ -8,7 +8,7 @@ changes.
 
 ### Fixed
 
-- **Git guard:** a leading `cd DIR && git commit` is judged by the branch of DIR, as `git -C DIR` already was, so committing in a feature-branch worktree from a session on `develop` is no longer asked. Only `&&` follows a cd. A cd the guard cannot follow keeps asking, with its own reason: a variable, substitution, `~`, `cd -`, an option, `..`, a `;` or `||` after it, a missing or branchless directory, a background `&`, `CDPATH`, `GIT_DIR`/`GIT_WORK_TREE`/`--git-dir`/`--work-tree`, or any other cd-like word (nested, quoted, `eval`, `exec`, `source`, `sh -c`, `env -C`). Same decision in the Rust guard, `guard.sh` and the OpenCode rules.
+- **Git guard:** a leading `cd DIR && git commit` is judged by the branch of DIR, as `git -C DIR` already was, so committing in a feature-branch worktree from a session on `develop` is no longer asked. This is an allowlist: only `&&` follows a cd, and after it every `&&` segment must start with the literal word `git`, with no unquoted `<`, `$`, backtick, `;`, `|`, parentheses, braces or background `&`. Anything else asks with its own reason, as do a cd with a variable, `~`, `-`, `..` or an option, any other cd-like word (quoted, nested, `eval`, `exec`, `source`, `sh -c`, `env -C`), a missing or branchless directory, and `GIT_*`, `--git-dir`, `--work-tree`, `-c core.*`, `-c alias.*` or `CDPATH` (searched with quotes and backslashes removed). The guard also now sees a commit or merge behind `env`, `exec`, `command`, `nohup`, `xargs`, `time` or inside `sh -c`. Same decision in the Rust guard, `guard.sh` and the OpenCode rules.
 
 ### Changed
 
