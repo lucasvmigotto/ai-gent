@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
   "name": "postgres-ddl-and-command-tags",
-  "derived_from": "spec 043 T031 and FR-022 on PostgreSQL: psycopg reports cursor.rowcount -1 for DDL and the rows received for SHOW and EXPLAIN; the port reports the CommandComplete number, and 0 where the tag carries none (DDL, EXPLAIN, SHOW). DML, including RETURNING and a CTE, keeps the server count. SHOW and EXPLAIN also exercise a zero row cap in read mode.",
+  "derived_from": "spec 043 T031 and FR-022 on PostgreSQL: psycopg reports cursor.rowcount -1 for DDL and the rows received for SHOW and EXPLAIN; the port reports the CommandComplete number, 0 for DDL, and the rows received for SHOW and EXPLAIN (D-011). DML, including RETURNING and a CTE, keeps the server count. SHOW and EXPLAIN also exercise a zero row cap in read mode.",
   "kind": "exec",
   "engines": [
     "postgresql"
@@ -121,36 +121,6 @@
             "truncated": false
           }
         ]
-      },
-      "difference": "D-011",
-      "expected_port": {
-        "ok": true,
-        "results": [
-          {
-            "rowcount": 0,
-            "columns": [
-              "server_version"
-            ],
-            "rows": [
-              [
-                "$string"
-              ]
-            ],
-            "truncated": false
-          },
-          {
-            "rowcount": 0,
-            "columns": [
-              "QUERY PLAN"
-            ],
-            "rows": [
-              [
-                "$string"
-              ]
-            ],
-            "truncated": false
-          }
-        ]
       }
     },
     {
@@ -176,28 +146,6 @@
           },
           {
             "rowcount": 1,
-            "columns": [
-              "QUERY PLAN"
-            ],
-            "rows": [],
-            "truncated": true
-          }
-        ]
-      },
-      "difference": "D-011",
-      "expected_port": {
-        "ok": true,
-        "results": [
-          {
-            "rowcount": 0,
-            "columns": [
-              "server_version"
-            ],
-            "rows": [],
-            "truncated": true
-          },
-          {
-            "rowcount": 0,
             "columns": [
               "QUERY PLAN"
             ],

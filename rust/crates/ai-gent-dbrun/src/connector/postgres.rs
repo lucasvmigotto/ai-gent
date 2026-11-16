@@ -394,16 +394,23 @@ fn text_value(ty: &Type, v: Option<&str>) -> Value {
 
 /// The result of one statement from what the server reported. `count` is the command-tag number of
 /// `CommandComplete` (never derived from the statement text, so comments, CTEs and `RETURNING` cannot
-/// change it). A statement whose tag carries no number (DDL, `EXPLAIN`, `SHOW`) reports `0`: the
-/// contract's DDL count (D-001), where psycopg reports `-1`. `max_rows` caps the rows in both modes;
+/// change it). DDL reports `0` (the contract's DDL count, D-001, where psycopg reports `-1`). `EXPLAIN` and
+/// `SHOW` return rows with a tag that carries no number: they report `received`, the rows the server sent
+/// (psycopg's `rowcount` for them, D-011), not the capped rows. `max_rows` caps the rows in both modes;
 /// `truncated` is set in read mode only.
 fn shape_entry(
     columns: &[(String, Type)],
     rows: Vec<Vec<Value>>,
     count: u64,
+    received: u64,
     cap: usize,
     read: bool,
 ) -> Result<StatementResult, &'static str> {
+    let count = if count == 0 && !columns.is_empty() {
+        received
+    } else {
+        count
+    };
     let rowcount = request::rowcount(request::CountKind::Dml, i64::try_from(count).ok())?;
     if columns.is_empty() {
         return Ok(StatementResult {
@@ -441,10 +448,11 @@ fn run_statement(
         .iter()
         .map(|c| (c.name().to_owned(), c.type_().clone()))
         .collect();
-    let (mut rows, mut count) = (vec![], 0u64);
+    let (mut rows, mut count, mut received) = (vec![], 0u64, 0u64);
     for message in client.simple_query(sql)? {
         match message {
             SimpleQueryMessage::Row(row) => {
+                received += 1;
                 // One past the cap is kept so read mode can tell it truncated; the rest are not converted.
                 // `simple_query` has already buffered every row the server sent: `max_rows` bounds the
                 // output, not memory (as psycopg's client-side cursor; recorded in differences.md).
@@ -461,7 +469,7 @@ fn run_statement(
             _ => {}
         }
     }
-    Ok(shape_entry(&columns, rows, count, cap, read))
+    Ok(shape_entry(&columns, rows, count, received, cap, read))
 }
 
 fn first_row(client: &mut Client, sql: &str) -> Result<Vec<Option<String>>, ::postgres::Error> {
@@ -669,25 +677,45 @@ mod tests {
     #[test]
     fn a_count_the_server_could_not_give_is_refused_never_guessed() {
         // The counts themselves come from the wire (see tests/connector_postgres.rs, command tags).
-        assert!(shape_entry(&[], vec![], u64::MAX, 200, false).is_err());
-        assert!(shape_entry(&[], vec![], u64::try_from(i64::MAX).unwrap(), 200, false).is_ok());
+        assert!(shape_entry(&[], vec![], u64::MAX, 0, 200, false).is_err());
+        assert!(shape_entry(&[], vec![], u64::try_from(i64::MAX).unwrap(), 0, 200, false).is_ok());
+    }
+
+    #[test]
+    fn a_tag_without_a_number_reports_the_rows_received_for_row_returning_statements_only() {
+        // EXPLAIN and SHOW: psycopg's rowcount is the rows received, even past the cap.
+        let e = shape_entry(&cols(), rows(5), 0, 5, 2, true).unwrap();
+        assert_eq!((e.rowcount, e.rows.map(|r| r.len())), (5, Some(2)));
+        // DDL (no columns) stays 0; a DML keeps the server's number.
+        assert_eq!(
+            shape_entry(&[], vec![], 0, 0, 2, false).unwrap().rowcount,
+            0
+        );
+        assert_eq!(
+            shape_entry(&cols(), rows(1), 3, 1, 2, false)
+                .unwrap()
+                .rowcount,
+            3
+        );
     }
 
     #[test]
     fn max_rows_caps_returned_rows_in_both_modes() {
         // Write mode (UPDATE ... RETURNING): capped, truncated stays false as in dbrun.py, rowcount is the server's.
-        let w = shape_entry(&cols(), rows(5), 5, 2, false).unwrap();
+        let w = shape_entry(&cols(), rows(5), 5, 5, 2, false).unwrap();
         assert_eq!(w.rows, Some(rows(2)));
         assert_eq!((w.truncated, w.rowcount), (Some(false), 5));
         // Read mode: capped and flagged.
-        let r = shape_entry(&cols(), rows(5), 5, 2, true).unwrap();
+        let r = shape_entry(&cols(), rows(5), 5, 5, 2, true).unwrap();
         assert_eq!((r.rows, r.truncated), (Some(rows(2)), Some(true)));
         // Exactly at the cap is not truncated; zero keeps nothing and flags a non-empty result.
         assert_eq!(
-            shape_entry(&cols(), rows(2), 2, 2, true).unwrap().truncated,
+            shape_entry(&cols(), rows(2), 2, 2, 2, true)
+                .unwrap()
+                .truncated,
             Some(false)
         );
-        let zero = shape_entry(&cols(), rows(1), 1, 0, true).unwrap();
+        let zero = shape_entry(&cols(), rows(1), 1, 1, 0, true).unwrap();
         assert_eq!((zero.rows, zero.truncated), (Some(vec![]), Some(true)));
     }
 

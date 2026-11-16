@@ -977,8 +977,8 @@ fn the_count_is_the_command_tag_number_for_every_kind_of_statement() {
         Some(1),
         Some(4),
         Some(0),
-        Some(0),
-        Some(0),
+        Some(1),
+        Some(1),
         Some(3),
     ];
     let out = c.run(&req);
@@ -986,7 +986,7 @@ fn the_count_is_the_command_tag_number_for_every_kind_of_statement() {
     let results = out.results.unwrap();
     assert_eq!(
         results.iter().map(|r| r.rowcount).collect::<Vec<_>>(),
-        vec![2, 1, 4, 0, 0, 0, 3],
+        vec![2, 1, 4, 0, 1, 1, 3],
         "CTE delete, insert returning, update, DDL, EXPLAIN, SHOW, SELECT"
     );
     // max_rows applies in write mode, truncated stays false.
@@ -1031,10 +1031,43 @@ fn postgres_contract_fixtures_match_command_tags_over_tls() {
         contract::Profile::Port,
         |_case, _setup| request("127.0.0.1", server.port).conn,
     );
-    assert!(ran >= 1, "the PostgreSQL fixtures must run");
+    assert_eq!(ran, 1, "exactly the one PostgreSQL fixture case runs");
+    assert!(
+        server.log().iter().filter(|q| *q == READ_STATE).count() >= 2,
+        "read-mode steps check the read-only flag: {:?}",
+        server.log()
+    );
     assert!(server.has("COMMIT"));
     assert!(server.has("BEGIN READ ONLY"));
     assert!(server.has("ROLLBACK"));
+}
+
+#[test]
+fn read_mode_fails_when_the_server_reports_transaction_read_only_off() {
+    let ca = TestCa::new("ro-off");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let server = wire(
+        &cert,
+        &script(|sql| match sql {
+            READ_STATE => Some(Reply::rows(
+                &[("s", TEXT), ("t", TEXT)],
+                &[&["off", "2026-01-01 00:00:00+00"]],
+                "SELECT 1",
+            )),
+            "SELECT 1" => Some(one_int("1")),
+            _ => None,
+        }),
+    );
+    let out = c.run(&wire_request(
+        server.port,
+        Mode::Read,
+        &["SELECT 1", "SELECT 1"],
+    ));
+    assert!(!out.ok, "{out:?}");
+    assert!(
+        error(&out).contains("read-only enforcement was lost"),
+        "{out:?}"
+    );
 }
 
 #[test]
@@ -1247,14 +1280,14 @@ fn real_server_counts_come_from_the_server() {
             "SHOW TimeZone",
         ],
     );
-    req.expect = vec![Some(0), Some(3), Some(2), Some(1), Some(0)];
+    req.expect = vec![Some(0), Some(3), Some(2), Some(1), Some(1)];
     req.max_rows = 1;
     let out = c.run(&req);
     assert!(out.ok, "{out:?}");
     let r = out.results.unwrap();
     assert_eq!(
         r.iter().map(|e| e.rowcount).collect::<Vec<_>>(),
-        vec![0, 3, 2, 1, 0]
+        vec![0, 3, 2, 1, 1]
     );
     assert_eq!(
         r[2].rows.as_ref().map(Vec::len),
