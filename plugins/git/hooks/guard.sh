@@ -307,8 +307,28 @@ cd_ws() { # strip leading whitespace, also the JSON escapes \n \t \r
     case "$rest" in '\n'* | '\t'* | '\r'*) rest="${rest#??}" ;; *) break ;; esac
   done
 }
+cd_like() { # how many words of the command can change the directory or run code that can
+  printf '%s' "$cmd" | awk '{
+    s = $0; gsub(/\\n/, "\n", s); gsub(/\\[tr]/, " ", s); gsub(/[\047"\\]/, "", s)
+    gsub(/[`;&|()]/, "\n", s)
+    cnt = 0; m = split(s, lines, "\n")
+    for (i = 1; i <= m; i++) {
+      k = split(lines[i], parts, /[ \t]+/); nw = 0
+      for (j = 1; j <= k; j++) if (parts[j] != "") w[++nw] = parts[j]
+      first = ""
+      for (j = 1; j <= nw; j++) {
+        if (w[j] == "cd" || w[j] == "pushd" || w[j] == "popd") cnt++
+        if (first == "" && w[j] !~ /^(then|do|else|elif|if|while|until|\{|!|time|command|builtin|nohup|sudo)$/) first = w[j]
+        if (w[j] ~ /^(sh|bash|zsh|dash|ksh)$/ && j < nw && w[j+1] ~ /^-[^-]/ && index(w[j+1], "c")) cnt++
+        if (w[j] == "env") for (l = j + 1; l <= nw; l++) if (w[l] ~ /^--chdir/ || (w[l] ~ /^-[^-]/ && index(w[l], "C"))) { cnt++; break }
+      }
+      if (first ~ /^(eval|exec|source|\.)$/) cnt++
+    }
+    print cnt
+  }'
+}
 cd_resolve() {
-  cd_total="$(printf '%s\n' "$segments" | grep -Ec '(^|[[:space:]])(cd|pushd|popd)([[:space:]]|$)')"
+  cd_total="$(cd_like)"
   cd_dir="${cwd:-.}" cd_n=0 rest="$cmd"
   while :; do
     cd_ws
@@ -334,18 +354,22 @@ cd_resolve() {
         ;;
     esac
     case "$a" in
-      '' | -* | *[\$\`\\\*\?\[\]\{\}\~\"\'\!\#]*) return 1 ;;
+      '' | -* | *..* | *[\$\`\\\*\?\[\]\{\}\~\"\'\!\#]*) return 1 ;;
     esac
     cd_ws
     case "$rest" in
       '&&'*) rest="${rest#&&}" ;;
-      ';'*) rest="${rest#;}" ;;
       *) return 1 ;;
     esac
     case "$a" in /*) cd_dir="$a" ;; *) cd_dir="$cd_dir/$a" ;; esac
     cd_n=$((cd_n + 1))
   done
   [ "$cd_n" -eq "$cd_total" ] || return 1
+  if [ "$cd_n" -gt 0 ]; then
+    # a background &, a repository given by the environment or an option, CDPATH
+    printf '%s' "$cmd" | sed -e 's/&&//g' -e 's/>&//g' -e 's/|&//g' -e 's/&>//g' | grep -Fq '&' && return 1
+    printf '%s' "$cmd" | grep -Eq 'GIT_DIR=|GIT_WORK_TREE=|--git-dir|--work-tree|core\.worktree|CDPATH' && return 1
+  fi
   [ "$cd_n" -gt 0 ] || cd_dir="$cwd"
   return 0
 }
@@ -470,10 +494,22 @@ if has '(commit|merge)'; then
   if [ -n "$c_dir" ]; then
     case "$c_dir" in
       /*) dir="$c_dir" ;;
-      *) if [ "$cd_n" -gt 0 ]; then dir="$cd_dir/$c_dir"; else dir="$c_dir"; fi ;; # relative to the cd
+      *)
+        if [ "$cd_n" -gt 0 ]; then
+          case "$c_dir" in
+            *..*) decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)" ;;
+          esac
+          dir="$cd_dir/$c_dir" # relative to the cd
+        else
+          dir="$c_dir"
+        fi
+        ;;
     esac
   fi
   branch="$(git -C "${dir:-.}" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  if [ "$cd_n" -gt 0 ] && [ -z "$branch" ]; then
+    decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+  fi
   case "$branch" in
     main | master)
       decide ask "this commits or merges on $branch; the workflow works on a branch (allow only if the user asked for it)"

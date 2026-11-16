@@ -8,7 +8,7 @@ changes.
 
 ### Fixed
 
-- **Git guard:** a leading `cd DIR && git commit` (or `cd DIR; ...`) is judged by the branch of DIR, as `git -C DIR` already was, so committing in a feature-branch worktree from a session on `develop` is no longer asked. A `cd` the guard cannot follow (variable, command substitution, `~`, `cd -`, an option, a nested, later or `||`-joined `cd`) keeps asking, with its own reason. Same decision in the Rust guard, `guard.sh` and the OpenCode rules.
+- **Git guard:** a leading `cd DIR && git commit` is judged by the branch of DIR, as `git -C DIR` already was, so committing in a feature-branch worktree from a session on `develop` is no longer asked. Only `&&` follows a cd. A cd the guard cannot follow keeps asking, with its own reason: a variable, substitution, `~`, `cd -`, an option, `..`, a `;` or `||` after it, a missing or branchless directory, a background `&`, `CDPATH`, `GIT_DIR`/`GIT_WORK_TREE`/`--git-dir`/`--work-tree`, or any other cd-like word (nested, quoted, `eval`, `exec`, `source`, `sh -c`, `env -C`). Same decision in the Rust guard, `guard.sh` and the OpenCode rules.
 
 ### Changed
 

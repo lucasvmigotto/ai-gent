@@ -93,12 +93,53 @@ function autonomyDenied(text) {
   return new RegExp(w + "autonomy([^A-Za-z0-9_-]|$)").test(rest);
 }
 
-// Follow the leading `cd DIR` segments of a command, joined by && or ;. Returns { dir, followed }
-// (followed: at least one cd), or null when a cd cannot be followed: a variable, ~, -, an option, a
-// glob, a quote or backslash in the word, or any other cd (nested, after ||, later) so the caller
-// keeps asking. Must decide as cd_prefix in the Rust guard and cd_resolve in guard.sh.
-function cdPrefix(cmd, cwd, segments) {
-  const total = segments.filter((s) => /(^|[ \t\n\r\v\f])(cd|pushd|popd)([ \t\n\r\v\f]|$)/.test(s)).length;
+const CD_UNRESOLVED =
+  "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)";
+
+// Text that changes where git runs, or what a && chain means, after a followed cd: a background &
+// (the later command runs in the original directory), a repository or work tree given through the
+// environment or an option, CDPATH.
+function cdHazard(cmd) {
+  const amp = cmd.split("&&").join("").split(">&").join("").split("|&").join("").split("&>").join("");
+  return (
+    amp.includes("&") ||
+    ["GIT_DIR=", "GIT_WORK_TREE=", "--git-dir", "--work-tree", "core.worktree", "CDPATH"].some((w) => cmd.includes(w))
+  );
+}
+
+// How many words of the command can change the working directory or run other code that can: cd,
+// pushd, popd anywhere; eval, exec, source, . as the command of a segment; sh -c and friends;
+// env -C. Counted on a copy with quotes and backslashes stripped, so "cd", \cd and eval 'cd ..'
+// count. Must count as cd_like in the Rust guard and the awk in guard.sh.
+function cdLike(cmd) {
+  const t = cmd
+    .split("\\n").join("\n")
+    .split("\\t").join(" ")
+    .split("\\r").join(" ")
+    .replace(/['"\\]/g, "")
+    .replace(/[`;&|()]/g, "\n");
+  const skip = ["then", "do", "else", "elif", "if", "while", "until", "{", "!", "time", "command", "builtin", "nohup", "sudo"];
+  let count = 0;
+  for (const line of t.split("\n")) {
+    const w = line.split(/[ \t]+/).filter(Boolean);
+    count += w.filter((x) => x === "cd" || x === "pushd" || x === "popd").length;
+    const first = w.find((x) => !skip.includes(x));
+    if (first !== undefined && ["eval", "exec", "source", "."].includes(first)) count += 1;
+    w.forEach((x, i) => {
+      if (["sh", "bash", "zsh", "dash", "ksh"].includes(x) && i + 1 < w.length && /^-[^-]/.test(w[i + 1]) && w[i + 1].includes("c")) count += 1;
+      if (x === "env" && w.slice(i + 1).some((y) => y.startsWith("--chdir") || (/^-[^-]/.test(y) && y.includes("C")))) count += 1;
+    });
+  }
+  return count;
+}
+
+// Follow the leading `cd DIR &&` segments of a command. Returns { dir, followed } (followed: at
+// least one cd), or null when a cd cannot be followed: a variable, ~, -, an option, "..", a glob, a
+// quote or backslash in the word, a ; after the cd, or any other cd-like word (nested, after ||,
+// later, eval, sh -c, ...) so the caller keeps asking. Must decide as cd_prefix in the Rust guard
+// and cd_resolve in guard.sh.
+function cdPrefix(cmd, cwd) {
+  const total = cdLike(cmd);
   const ws = /^[ \t\n\r\v\f]+/;
   let rest = cmd;
   let dir = cwd === "" ? "." : cwd;
@@ -119,15 +160,14 @@ function cdPrefix(cmd, cwd, segments) {
       arg = m;
       tail = a.slice(m.length);
     }
-    if (arg === "" || arg.startsWith("-") || /[$`\\*?[\]{}~"'!#\n\r]/.test(arg)) return null;
+    if (arg === "" || arg.startsWith("-") || arg.includes("..") || /[$`\\*?[\]{}~"'!#\n\r]/.test(arg)) return null;
     tail = tail.replace(ws, "");
-    if (tail.startsWith("&&")) rest = tail.slice(2);
-    else if (tail.startsWith(";")) rest = tail.slice(1);
-    else return null;
+    if (!tail.startsWith("&&")) return null;
+    rest = tail.slice(2);
     dir = arg.startsWith("/") ? arg : `${dir}/${arg}`;
     n += 1;
   }
-  if (n !== total) return null;
+  if (n !== total || (n > 0 && cdHazard(cmd))) return null;
   return { dir: n === 0 ? cwd : dir, followed: n > 0 };
 }
 
@@ -226,16 +266,18 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantA
     return ask("this rewrites history or discards work; allow only on the user's explicit request");
   }
   if (gitHas(segments, "commit") || gitHas(segments, "merge")) {
-    const cd = cdPrefix(cmd, cwd, segments);
+    const cd = cdPrefix(cmd, cwd);
     if (cd === null) {
-      return ask(
-        "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)",
-      );
+      return ask(CD_UNRESOLVED);
     }
     const cMatch = new RegExp("git[ \\t]+-C[ \\t]+([^ \\t]*)").exec(segments.join("\n"));
     let dir = cMatch ? cMatch[1] : cd.dir;
-    if (cd.followed && cMatch && dir !== "" && !dir.startsWith("/")) dir = `${cd.dir}/${dir}`; // relative to the cd
+    if (cd.followed && cMatch && dir !== "" && !dir.startsWith("/")) {
+      if (dir.includes("..")) return ask(CD_UNRESOLVED);
+      dir = `${cd.dir}/${dir}`; // relative to the cd
+    }
     const branch = branchOf(dir);
+    if (cd.followed && branch === "") return ask(CD_UNRESOLVED);
     if (branch === "main" || branch === "master") {
       return ask(`this commits or merges on ${branch}; the workflow works on a branch (allow only if the user asked for it)`);
     }

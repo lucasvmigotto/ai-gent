@@ -90,16 +90,22 @@ pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
         return decide("git.rewrite", &[]);
     }
     if has(s, "(commit|merge)", None) {
-        let (base, cd) = match cd_prefix(&decoded(v), cwd, s) {
+        let (base, cd) = match cd_prefix(&decoded(v), &v.raw, cwd) {
             Cd::Bad => return decide("git.cd_unresolved", &[]),
             Cd::None => (cwd.to_string(), false),
             Cd::Dir(d) => (d, true),
         };
         let mut dir = working_dir(s, &base);
         if cd && dir != base && !dir.starts_with('/') {
+            if dir.contains("..") {
+                return decide("git.cd_unresolved", &[]);
+            }
             dir = format!("{base}/{dir}"); // a relative -C is relative to the cd
         }
         let branch = (ctx.branch_of)(&dir).unwrap_or_default();
+        if cd && branch.is_empty() {
+            return decide("git.cd_unresolved", &[]);
+        }
         match branch.as_str() {
             "main" | "master" => return decide("git.on_main", &[("branch", &branch)]),
             "homolog" | "staging" => return decide("git.on_chain", &[("branch", &branch)]),
@@ -238,10 +244,9 @@ fn is_ws(c: char) -> bool {
 /// Follow the leading `cd DIR` segments joined by `&&` or `;`. A path is a plain word or a quoted
 /// string with no `$`, backtick, backslash, glob or `~`; any other `cd` (also after the leading
 /// ones, in a subshell or after `||`) is `Bad`, so the caller keeps asking.
-fn cd_prefix(raw: &str, cwd: &str, segments: &[String]) -> Cd {
-    let word = re(r"(^|[[:space:]])(cd|pushd|popd)([[:space:]]|$)");
-    let total = segments.iter().filter(|s| word.is_match(s)).count();
-    let mut rest = raw;
+fn cd_prefix(text: &str, raw: &str, cwd: &str) -> Cd {
+    let total = cd_like(raw);
+    let mut rest = text;
     let mut dir = if cwd.is_empty() {
         ".".to_string()
     } else {
@@ -267,18 +272,16 @@ fn cd_prefix(raw: &str, cwd: &str, segments: &[String]) -> Cd {
         };
         if arg.is_empty()
             || arg.starts_with('-')
+            || arg.contains("..")
             || arg.contains(|c: char| "$`\\*?[]{}~\"'!#\n\r".contains(c))
         {
             return Cd::Bad;
         }
         let tail = tail.trim_start_matches(is_ws);
-        rest = if let Some(r) = tail.strip_prefix("&&") {
-            r
-        } else if let Some(r) = tail.strip_prefix(';') {
-            r
-        } else {
+        let Some(r) = tail.strip_prefix("&&") else {
             return Cd::Bad;
         };
+        rest = r;
         dir = if arg.starts_with('/') {
             arg.to_string()
         } else {
@@ -286,13 +289,91 @@ fn cd_prefix(raw: &str, cwd: &str, segments: &[String]) -> Cd {
         };
         n += 1;
     }
-    if n != total {
+    if n != total || (n > 0 && cd_hazard(raw)) {
         Cd::Bad
     } else if n == 0 {
         Cd::None
     } else {
         Cd::Dir(dir)
     }
+}
+
+/// Text that changes where git runs, or what a `&&` chain means, after a followed `cd`: a
+/// background `&` (the later command runs in the original directory), a repository or work tree
+/// given through the environment or an option, `CDPATH`.
+fn cd_hazard(raw: &str) -> bool {
+    let amp = raw
+        .replace("&&", "")
+        .replace(">&", "")
+        .replace("|&", "")
+        .replace("&>", "");
+    amp.contains('&')
+        || [
+            "GIT_DIR=",
+            "GIT_WORK_TREE=",
+            "--git-dir",
+            "--work-tree",
+            "core.worktree",
+            "CDPATH",
+        ]
+        .iter()
+        .any(|w| raw.contains(w))
+}
+
+/// How many words of the command can change the working directory or run other code that can:
+/// `cd`, `pushd`, `popd` anywhere; `eval`, `exec`, `source`, `.` as the command of a segment;
+/// `sh -c` and friends; `env -C`. Counted on a copy with quotes and backslashes stripped (the
+/// `plain` copy of `autonomy_command`), so `"cd"`, `\cd` and `eval 'cd ..'` count.
+fn cd_like(raw: &str) -> usize {
+    let mut t = raw
+        .replace("\\n", "\n")
+        .replace("\\t", " ")
+        .replace("\\r", " ");
+    t.retain(|c| !matches!(c, '\'' | '"' | '\\'));
+    let t: String = t
+        .chars()
+        .map(|c| {
+            if matches!(c, '`' | ';' | '&' | '|' | '(' | ')') {
+                '\n'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let skip = [
+        "then", "do", "else", "elif", "if", "while", "until", "{", "!", "time", "command",
+        "builtin", "nohup", "sudo",
+    ];
+    let mut count = 0;
+    for line in t.split('\n') {
+        let w: Vec<&str> = line.split([' ', '\t']).filter(|x| !x.is_empty()).collect();
+        count += w
+            .iter()
+            .filter(|x| matches!(**x, "cd" | "pushd" | "popd"))
+            .count();
+        if let Some(first) = w.iter().find(|x| !skip.contains(*x))
+            && matches!(*first, "eval" | "exec" | "source" | ".")
+        {
+            count += 1;
+        }
+        for (i, x) in w.iter().enumerate() {
+            if matches!(*x, "sh" | "bash" | "zsh" | "dash" | "ksh")
+                && w.get(i + 1)
+                    .is_some_and(|y| y.starts_with('-') && !y.starts_with("--") && y.contains('c'))
+            {
+                count += 1;
+            }
+            if *x == "env"
+                && w[i + 1..].iter().any(|y| {
+                    y.starts_with("--chdir")
+                        || (y.starts_with('-') && !y.starts_with("--") && y.contains('C'))
+                })
+            {
+                count += 1;
+            }
+        }
+    }
+    count
 }
 
 /// The directory whose branch counts: the `-C` argument of the first segment that has one (the
