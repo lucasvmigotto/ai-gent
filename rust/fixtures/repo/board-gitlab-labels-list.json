@@ -68,7 +68,7 @@
       ],
       "stderr_has": [],
       "stdin": null,
-      "stdout": "[\n  {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\"\n  },\n  {\n    \"platform\": \"gitlab\",\n    \"id\": \"13\",\n    \"key\": \"gitlab:grp/proj/13\",\n    \"title\": \"Triage\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/13\",\n    \"closed\": false,\n    \"mode\": \"labels\"\n  }\n]\n"
+      "stdout": "[\n  {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  {\n    \"platform\": \"gitlab\",\n    \"id\": \"13\",\n    \"key\": \"gitlab:grp/proj/13\",\n    \"title\": \"Triage\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/13\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  }\n]\n"
     },
     {
       "argv": [

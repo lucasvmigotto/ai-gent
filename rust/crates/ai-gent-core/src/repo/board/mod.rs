@@ -58,6 +58,9 @@ pub struct Board {
     pub closed: bool,
     /// `field` (GitHub), `labels` or `status` (GitLab).
     pub mode: String,
+    /// A GitLab board scoped by labels, milestone, assignee or weight (`label:x`, `milestone:v1`,
+    /// `assignee:u`, `weight:3`); only these items are on the board.
+    pub scope: Vec<String>,
 }
 
 impl Board {
@@ -72,6 +75,7 @@ impl Board {
             ("url", J::s(&self.url)),
             ("closed", J::Bool(self.closed)),
             ("mode", J::s(&self.mode)),
+            ("scope", J::strs(&self.scope)),
         ])
     }
 }
@@ -248,11 +252,11 @@ pub struct Scope {
 
 /// One platform's reads (contract §1). The writes arrive with slice 2.
 pub trait BoardAdapter {
-    /// The boards in a scope.
+    /// The boards in a scope, and whether the page cap cut the list.
     ///
     /// # Errors
     /// Transport, scope and not-found failures.
-    fn list(&self, ctx: &Ctx, scope: &Scope) -> R<Vec<Board>>;
+    fn list(&self, ctx: &Ctx, scope: &Scope) -> R<(Vec<Board>, bool)>;
     /// The board and its column field, options not yet mapped.
     ///
     /// # Errors
@@ -439,7 +443,10 @@ fn yes(b: bool) -> String {
 
 /// `list --json` and its text.
 #[must_use]
-pub fn render_list(boards: &[Board], json: bool) -> Vec<String> {
+pub fn render_list(boards: &[Board], truncated: bool, json: bool) -> Vec<String> {
+    if truncated {
+        super::note("the board list is truncated by --max-pages");
+    }
     if json {
         let j = J::Arr(boards.iter().map(Board::to_json).collect());
         return vec![dumps(&j, false, Some(2))];
@@ -461,7 +468,11 @@ pub fn render_list(boards: &[Board], json: bool) -> Vec<String> {
             b.url.clone(),
         ]);
     }
-    pad_table(&rows)
+    let mut out = pad_table(&rows);
+    if truncated {
+        out.push("truncated by --max-pages".to_string());
+    }
+    out
 }
 
 /// The states no option maps to.
@@ -504,6 +515,9 @@ pub fn render_fields(
         format!("{} ({}, mode {})", board.key, board.title, board.mode),
         format!("field: {} ({})", field.name, field.kind),
     ];
+    if !board.scope.is_empty() {
+        out.push(format!("scope: {}", board.scope.join(", ")));
+    }
     let mut rows = vec![vec![
         "OPTION".to_string(),
         "STATE".to_string(),
@@ -550,6 +564,12 @@ pub fn render_show(
         "{} ({}) \u{b7} field {}",
         board.key, board.title, field.name
     )];
+    if !board.scope.is_empty() {
+        out.push(format!(
+            "scope: {} (only these items are on the board)",
+            board.scope.join(", ")
+        ));
+    }
     let mut rows = vec![vec![
         "STATE".to_string(),
         "COLUMN".to_string(),
@@ -640,9 +660,12 @@ mod model {
             url: "u".into(),
             closed: false,
             mode: "field".into(),
+            scope: Vec::new(),
         };
-        let out = render_list(&[b], true).join("\n");
-        for k in ["platform", "id", "key", "title", "url", "closed", "mode"] {
+        let out = render_list(&[b], false, true).join("\n");
+        for k in [
+            "platform", "id", "key", "title", "url", "closed", "mode", "scope",
+        ] {
             assert!(out.contains(&format!("\"{k}\"")), "{k}");
         }
     }
@@ -695,14 +718,14 @@ pub fn run_list(ctx: &Ctx, o: &ReadOpts<'_>) -> R<Vec<String>> {
         ));
     }
     let adapter = adapter_for(&platform, o.entry, o.max_pages, false)?;
-    let boards = adapter.list(
+    let (boards, truncated) = adapter.list(
         ctx,
         &Scope {
             owner: o.owner.map(str::to_string),
             project: o.project.map(str::to_string),
         },
     )?;
-    Ok(render_list(&boards, o.json))
+    Ok(render_list(&boards, truncated, o.json))
 }
 
 fn resolved(

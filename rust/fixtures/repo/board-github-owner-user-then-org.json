@@ -167,7 +167,7 @@
       ],
       "stderr_has": [],
       "stdin": null,
-      "stdout": "[\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_3\",\n    \"key\": \"github:acme/3\",\n    \"title\": \"Platform\",\n    \"url\": \"https://github.com/users/octo/projects/3\",\n    \"closed\": false,\n    \"mode\": \"field\"\n  }\n]\n"
+      "stdout": "[\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_3\",\n    \"key\": \"github:acme/3\",\n    \"title\": \"Platform\",\n    \"url\": \"https://github.com/users/octo/projects/3\",\n    \"closed\": false,\n    \"mode\": \"field\",\n    \"scope\": []\n  }\n]\n"
     },
     {
       "argv": [

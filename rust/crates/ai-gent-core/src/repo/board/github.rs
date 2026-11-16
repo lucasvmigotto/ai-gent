@@ -35,12 +35,19 @@ fn board_of(node: &J, owner: &str, number: i64) -> Board {
         url: s(node.get("url")),
         closed: matches!(node.get("closed"), Some(J::Bool(true))),
         mode: "field".into(),
+        scope: Vec::new(),
     }
 }
 
 /// The member `root` of the answer's `data`, `None` when it is null.
 fn root<'a>(g: &'a Gql, name: &str) -> Option<&'a J> {
     g.data.get(name).filter(|j| !matches!(j, J::Null))
+}
+
+fn partial(op: &str) -> Failed {
+    Failed::err(format!(
+        "{op}: GitHub returned data together with NOT_FOUND errors; refusing the partial answer"
+    ))
 }
 
 fn has_next(page: &J) -> Option<String> {
@@ -55,7 +62,7 @@ fn has_next(page: &J) -> Option<String> {
 }
 
 impl GitHub {
-    fn owner_boards(&self, ctx: &Ctx, owner: &str) -> R<Vec<Board>> {
+    fn owner_boards(&self, ctx: &Ctx, owner: &str) -> R<(Vec<Board>, bool)> {
         for (doc, kind) in [
             (docs::BOARDS_OF_USER, "user"),
             (docs::BOARDS_OF_ORG, "organization"),
@@ -63,13 +70,18 @@ impl GitHub {
             let mut out = Vec::new();
             let mut after = J::Null;
             let mut found = false;
-            for _ in 0..self.net.max_pages {
-                let g = self.net.gql(
+            let mut truncated = false;
+            for page_no in 1..=self.net.max_pages {
+                let g = self.net.gql_lookup(
                     ctx,
                     doc,
                     &[("login", J::s(owner)), ("after", after.clone())],
                 )?;
-                let Some(page) = root(&g, kind).and_then(|r| r.get("projectsV2")) else {
+                let target = root(&g, kind).and_then(|r| r.get("projectsV2"));
+                if g.not_found && target.is_some() {
+                    return Err(partial(doc.0));
+                }
+                let Some(page) = target else {
                     break;
                 };
                 found = true;
@@ -78,13 +90,15 @@ impl GitHub {
                         board_of(n, owner, n.get("number").and_then(J::as_i64).unwrap_or(0))
                     }));
                 }
-                match has_next(page) {
-                    Some(c) => after = J::s(c),
-                    None => break,
+                if let Some(c) = has_next(page) {
+                    after = J::s(c);
+                    truncated = page_no == self.net.max_pages;
+                } else {
+                    break;
                 }
             }
             if found {
-                return Ok(out);
+                return Ok((out, truncated));
             }
         }
         Err(Failed::err(format!(
@@ -98,7 +112,7 @@ impl GitHub {
             (docs::BOARD_OF_USER, "user"),
             (docs::BOARD_OF_ORG, "organization"),
         ] {
-            let g = self.net.gql(
+            let g = self.net.gql_lookup(
                 ctx,
                 doc,
                 &[
@@ -107,10 +121,14 @@ impl GitHub {
                     ("field", J::s(&b.field)),
                 ],
             )?;
-            if let Some(p) = root(&g, kind).and_then(|r| r.get("projectV2")) {
-                if !matches!(p, J::Null) {
-                    return Ok((p.clone(), kind.to_string()));
-                }
+            let target = root(&g, kind)
+                .and_then(|r| r.get("projectV2"))
+                .filter(|p| !matches!(p, J::Null));
+            if g.not_found && target.is_some() {
+                return Err(partial(doc.0));
+            }
+            if let Some(p) = target {
+                return Ok((p.clone(), kind.to_string()));
             }
         }
         Err(Failed::err(format!(
@@ -142,7 +160,7 @@ impl GitHub {
 }
 
 impl BoardAdapter for GitHub {
-    fn list(&self, ctx: &Ctx, scope: &Scope) -> R<Vec<Board>> {
+    fn list(&self, ctx: &Ctx, scope: &Scope) -> R<(Vec<Board>, bool)> {
         self.net.check_token(ctx)?;
         let owner = if let Some(o) = scope.owner.clone().filter(|o| !o.is_empty()) {
             o

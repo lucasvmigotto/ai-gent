@@ -12,6 +12,9 @@
       "body": {
         "message": "API rate limit exceeded for user ID 1."
       },
+      "headers": {
+        "Retry-After": "30"
+      },
       "method": "POST",
       "op": "BoardsOfUser",
       "path": "/graphql",
@@ -29,6 +32,9 @@
             "type": "RATE_LIMITED"
           }
         ]
+      },
+      "headers": {
+        "X-RateLimit-Reset": "1700000000"
       },
       "method": "POST",
       "op": "BoardsOfUser",
@@ -73,7 +79,8 @@
         }
       ],
       "stderr_has": [
-        "rate limit"
+        "rate limit",
+        "retry after 30s"
       ],
       "stdin": null,
       "stdout": ""
@@ -99,7 +106,8 @@
         }
       ],
       "stderr_has": [
-        "rate limit"
+        "rate limit",
+        "resets at epoch 1700000000"
       ],
       "stdin": null,
       "stdout": ""

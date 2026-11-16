@@ -25,7 +25,15 @@ impl GitLab {
         }
     }
 
-    fn board(&self, ctx: &Ctx, project: &str, id: &str, title: &str, mode: &str) -> R<Board> {
+    fn board(
+        &self,
+        ctx: &Ctx,
+        project: &str,
+        id: &str,
+        title: &str,
+        mode: &str,
+        scope: Vec<String>,
+    ) -> R<Board> {
         let origin = self.net.web_origin(ctx)?;
         Ok(Board {
             platform: "gitlab".into(),
@@ -35,6 +43,7 @@ impl GitLab {
             url: format!("{origin}/{project}/-/boards/{id}"),
             closed: false,
             mode: mode.to_string(),
+            scope,
         })
     }
 }
@@ -112,7 +121,14 @@ impl GitLab {
         options.push(builtin("closed", "Closed"));
         let title = text(board.get("name"));
         Ok((
-            self.board(ctx, &b.project, &b.board_id.to_string(), &title, "labels")?,
+            self.board(
+                ctx,
+                &b.project,
+                &b.board_id.to_string(),
+                &title,
+                "labels",
+                board_scope(&board),
+            )?,
             Field {
                 id: "lists".into(),
                 name: "Lists".into(),
@@ -165,6 +181,7 @@ impl GitLab {
                 &b.board_id.to_string(),
                 &b.project,
                 "status",
+                Vec::new(),
             )?,
             Field {
                 id: "status".into(),
@@ -237,8 +254,15 @@ impl GitLab {
         Ok((out, truncated))
     }
 
-    fn label_items(&self, ctx: &Ctx, b: &BoardRef, field: &Field) -> R<(Vec<Item>, bool)> {
+    fn label_items(
+        &self,
+        ctx: &Ctx,
+        resolved: &Board,
+        b: &BoardRef,
+        field: &Field,
+    ) -> R<(Vec<Item>, bool)> {
         let path = format!("/projects/{}/issues", project_segment(&b.project));
+        let (scope_labels, scope_pairs) = scope_query(&resolved.scope);
         let label_lists: Vec<&str> = field
             .options
             .iter()
@@ -249,22 +273,36 @@ impl GitLab {
         // issue id -> (issue, indexes of the lists it sits in), first seen first.
         let mut seen: Vec<(String, J, Vec<usize>)> = Vec::new();
         for (idx, o) in field.options.iter().enumerate() {
-            let (rows, cut) = if o.id == "open" {
-                self.net.get_pages(ctx, &path, &[("state", "opened")])?
-            } else if o.id == "closed" {
-                self.net.get_pages(ctx, &path, &[("state", "closed")])?
+            let mut q: Vec<(String, String)> = Vec::new();
+            let mut labels = scope_labels.clone();
+            let mut skip_scope_key = "";
+            if o.id == "open" || o.id == "closed" {
+                // the board's scope still applies
             } else if let Some((kind, v)) = o.id.split_once(':') {
                 let key = match kind {
                     "assignee" => "assignee_username",
                     "milestone" => "milestone",
                     _ => "iteration_id",
                 };
-                self.net
-                    .get_pages(ctx, &path, &[(key, v), ("state", "opened")])?
+                skip_scope_key = key;
+                q.push((key.into(), v.to_string()));
             } else {
-                self.net
-                    .get_pages(ctx, &path, &[("labels", &o.name), ("state", "opened")])?
-            };
+                labels.insert(0, o.name.clone());
+            }
+            if !labels.is_empty() {
+                q.insert(0, ("labels".into(), labels.join(",")));
+            }
+            q.push((
+                "state".into(),
+                if o.id == "closed" { "closed" } else { "opened" }.into(),
+            ));
+            q.extend(
+                scope_pairs
+                    .iter()
+                    .filter(|(k, _)| k != skip_scope_key)
+                    .cloned(),
+            );
+            let (rows, cut) = self.net.get_pages(ctx, &path, &q)?;
             truncated |= cut;
             for r in rows {
                 if o.id == "open" {
@@ -284,24 +322,7 @@ impl GitLab {
         let items = seen
             .into_iter()
             .map(|(id, r, lists)| {
-                let mapped: Vec<&Opt> = lists
-                    .iter()
-                    .map(|i| &field.options[*i])
-                    .filter(|o| o.state.is_some())
-                    .collect();
-                let (value, state) = match mapped.as_slice() {
-                    [] => (lists.first().map(|i| field.options[*i].name.clone()), None),
-                    [one] => (Some(one.name.clone()), one.state.map(str::to_string)),
-                    many => (
-                        Some(
-                            many.iter()
-                                .map(|o| o.name.as_str())
-                                .collect::<Vec<_>>()
-                                .join(", "),
-                        ),
-                        Some("conflict".to_string()),
-                    ),
-                };
+                let (value, state) = classify(&r, &lists, field);
                 Item {
                     id,
                     kind: "issue",
@@ -318,8 +339,104 @@ impl GitLab {
     }
 }
 
+/// The column and canonical state of one issue. An open issue's mapped labels decide, read from its
+/// own `labels` (two of them is `conflict`), so the page cap of any one list cannot hide a conflict;
+/// otherwise the lists it was found in decide.
+fn classify(r: &J, lists: &[usize], field: &Field) -> (Option<String>, Option<String>) {
+    if text(r.get("state")) == "opened" {
+        let labels: Vec<&str> = match r.get("labels") {
+            Some(J::Arr(a)) => a.iter().filter_map(J::as_str).collect(),
+            _ => Vec::new(),
+        };
+        let mapped: Vec<&Opt> = field
+            .options
+            .iter()
+            .filter(|o| {
+                !o.builtin
+                    && o.mappable
+                    && !o.id.contains(':')
+                    && o.state.is_some()
+                    && labels.contains(&o.name.as_str())
+            })
+            .collect();
+        match mapped.as_slice() {
+            [] => {}
+            [one] => return (Some(one.name.clone()), one.state.map(str::to_string)),
+            many => {
+                let names: Vec<&str> = many.iter().map(|o| o.name.as_str()).collect();
+                return (Some(names.join(", ")), Some("conflict".to_string()));
+            }
+        }
+    }
+    let mapped: Vec<&Opt> = lists
+        .iter()
+        .map(|i| &field.options[*i])
+        .filter(|o| o.state.is_some())
+        .collect();
+    match mapped.as_slice() {
+        [] => (lists.first().map(|i| field.options[*i].name.clone()), None),
+        [one] => (Some(one.name.clone()), one.state.map(str::to_string)),
+        many => {
+            let names: Vec<&str> = many.iter().map(|o| o.name.as_str()).collect();
+            (Some(names.join(", ")), Some("conflict".to_string()))
+        }
+    }
+}
+
+/// How a board is scoped (Premium: labels, milestone, assignee, weight), as `kind:value` entries.
+fn board_scope(b: &J) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(J::Arr(ls)) = b.get("labels") {
+        for l in ls {
+            let n = text(l.get("name"));
+            let n = if n.is_empty() {
+                text(l.get("title"))
+            } else {
+                n
+            };
+            if !n.is_empty() {
+                out.push(format!("label:{n}"));
+            }
+        }
+    }
+    if let Some(m) = non_null(b, "milestone") {
+        let t = text(m.get("title"));
+        if !t.is_empty() && !t.eq_ignore_ascii_case("any milestone") {
+            out.push(format!("milestone:{t}"));
+        }
+    }
+    if let Some(a) = non_null(b, "assignee") {
+        let u = text(a.get("username"));
+        if !u.is_empty() {
+            out.push(format!("assignee:{u}"));
+        }
+    }
+    if let Some(w) = non_null(b, "weight") {
+        let w = text(Some(w));
+        if !w.is_empty() {
+            out.push(format!("weight:{w}"));
+        }
+    }
+    out
+}
+
+/// A scope as issue-query parts: the labels to add to every list's `labels`, and the other pairs.
+fn scope_query(scope: &[String]) -> (Vec<String>, Vec<(String, String)>) {
+    let (mut labels, mut pairs) = (Vec::new(), Vec::new());
+    for e in scope {
+        match e.split_once(':') {
+            Some(("label", v)) => labels.push(v.to_string()),
+            Some(("milestone", v)) => pairs.push(("milestone".to_string(), v.to_string())),
+            Some(("assignee", v)) => pairs.push(("assignee_username".to_string(), v.to_string())),
+            Some(("weight", v)) => pairs.push(("weight".to_string(), v.to_string())),
+            _ => {}
+        }
+    }
+    (labels, pairs)
+}
+
 impl BoardAdapter for GitLab {
-    fn list(&self, ctx: &Ctx, scope: &Scope) -> R<Vec<Board>> {
+    fn list(&self, ctx: &Ctx, scope: &Scope) -> R<(Vec<Board>, bool)> {
         self.net.check_token(ctx)?;
         let project = if let Some(p) = scope.project.clone().filter(|p| !p.is_empty()) {
             p
@@ -336,12 +453,13 @@ impl BoardAdapter for GitLab {
                 "no project: pass --project <group/project or id> (the remote isn't on GitLab)",
             ));
         }
-        let (rows, _) = self.net.get_pages(
+        let (rows, truncated) = self.net.get_pages(
             ctx,
             &format!("/projects/{}/boards", project_segment(&project)),
             &[],
         )?;
-        rows.iter()
+        let boards = rows
+            .iter()
             .map(|r| {
                 self.board(
                     ctx,
@@ -349,9 +467,11 @@ impl BoardAdapter for GitLab {
                     &text(r.get("id")),
                     &text(r.get("name")),
                     "labels",
+                    board_scope(r),
                 )
             })
-            .collect()
+            .collect::<R<Vec<Board>>>()?;
+        Ok((boards, truncated))
     }
 
     fn fields(&self, ctx: &Ctx, b: &BoardRef) -> R<(Board, Field)> {
@@ -366,14 +486,14 @@ impl BoardAdapter for GitLab {
     fn items(
         &self,
         ctx: &Ctx,
-        _resolved: &Board,
+        resolved: &Board,
         b: &BoardRef,
         field: &Field,
     ) -> R<(Vec<Item>, bool)> {
         if self.status {
             self.status_items(ctx, b, field)
         } else {
-            self.label_items(ctx, b, field)
+            self.label_items(ctx, resolved, b, field)
         }
     }
 }
@@ -409,6 +529,42 @@ mod tests {
         let m = parse(r#"{"id":7,"milestone":{"title":"v1"}}"#).unwrap();
         assert_eq!(list_option(&m).unwrap().id, "milestone:v1");
         assert!(list_option(&parse(r#"{"id":8}"#).unwrap()).is_none());
+    }
+
+    #[test]
+    fn a_conflict_comes_from_the_issues_own_labels_not_from_the_lists_it_was_found_in() {
+        let mut todo = Opt::new("1", "workflow::todo");
+        todo.state = Some("todo");
+        let mut review = Opt::new("2", "workflow::review");
+        review.state = Some("review");
+        let field = Field {
+            id: "lists".into(),
+            name: "Lists".into(),
+            kind: "lists",
+            options: vec![builtin("open", "Open"), todo, review],
+        };
+        let issue =
+            parse(r#"{"state":"opened","labels":["workflow::todo","workflow::review"]}"#).unwrap();
+        // found in one list only (the other list's page cap cut it off): still a conflict
+        let (value, state) = classify(&issue, &[1], &field);
+        assert_eq!(state.as_deref(), Some("conflict"));
+        assert_eq!(value.as_deref(), Some("workflow::todo, workflow::review"));
+        let one = parse(r#"{"state":"opened","labels":["workflow::review","bug"]}"#).unwrap();
+        assert_eq!(classify(&one, &[2], &field).1.as_deref(), Some("review"));
+    }
+
+    #[test]
+    fn a_board_scope_is_read_and_turned_into_query_parts() {
+        let b = parse(r#"{"labels":[{"name":"team::a"}],"milestone":{"title":"v1"},"assignee":{"username":"al"},"weight":3}"#).unwrap();
+        let scope = board_scope(&b);
+        assert_eq!(
+            scope,
+            ["label:team::a", "milestone:v1", "assignee:al", "weight:3"]
+        );
+        let (labels, pairs) = scope_query(&scope);
+        assert_eq!(labels, ["team::a"]);
+        assert_eq!(pairs.len(), 3);
+        assert!(board_scope(&parse(r#"{"labels":[],"milestone":null}"#).unwrap()).is_empty());
     }
 
     #[test]

@@ -1,0 +1,99 @@
+{
+  "derived_from": "spec 045 FR-024 (Link rel=next; truncated board list)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-gitlab-link-header-and-list-truncation",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": [
+        {
+          "id": 12,
+          "name": "Development"
+        }
+      ],
+      "headers": {
+        "Link": "<http://x/projects/grp%2Fproj/boards?page=2>; rel=\"next\""
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards?per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 13,
+          "name": "Triage"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards?per_page=100&page=2",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list",
+        "--max-pages",
+        "1"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards?per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [
+        "truncated"
+      ],
+      "stdin": null,
+      "stdout": "BOARD               TITLE        CLOSED  URL\ngitlab:grp/proj/12  Development  no      http://<STUB>/grp/proj/-/boards/12\ntruncated by --max-pages\n"
+    },
+    {
+      "argv": [
+        "board",
+        "list"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards?per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards?per_page=100&page=2"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "BOARD               TITLE        CLOSED  URL\ngitlab:grp/proj/12  Development  no      http://<STUB>/grp/proj/-/boards/12\ngitlab:grp/proj/13  Triage       no      http://<STUB>/grp/proj/-/boards/13\n"
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

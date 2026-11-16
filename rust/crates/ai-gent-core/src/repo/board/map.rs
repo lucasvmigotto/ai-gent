@@ -137,6 +137,9 @@ fn lines(text: &str) -> R<Vec<Ln>> {
     let mut out = Vec::new();
     for (i, raw) in text.lines().enumerate() {
         let no = i + 1;
+        if raw.contains('\t') {
+            return Err(refuse(no, "tabs are not supported (indent with spaces)"));
+        }
         let body = raw.trim_end();
         let trimmed = body.trim_start_matches([' ', '\t']);
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -387,21 +390,41 @@ pub fn load(ctx: &Ctx) -> R<Option<Map>> {
         std::path::PathBuf::from(top)
     };
     let path = base.join(".ai-gent").join("board.yaml");
-    match std::fs::metadata(&path) {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => {
-            return Err(Failed::err(format!(".ai-gent/board.yaml: {}", e.kind())));
-        }
-        Ok(m) if m.len() > MAX_BYTES as u64 => {
-            return Err(Failed::usage(
-                ".ai-gent/board.yaml is over 64 KiB; the board map is a few lines",
-            ));
-        }
-        Ok(_) => {}
+    match read_bounded(&path)? {
+        Some(text) => parse(&text).map(Some),
+        None => Ok(None),
     }
-    let text = std::fs::read_to_string(&path)
+}
+
+/// The file's text, at most 64 KiB, read from an open handle (no size race), and only a regular file
+/// (a symlink to `/dev/zero` or a FIFO is refused). `None` when it does not exist.
+fn read_bounded(path: &std::path::Path) -> R<Option<String>> {
+    use std::io::Read;
+    let file = match std::fs::File::open(path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(Failed::err(format!(".ai-gent/board.yaml: {}", e.kind()))),
+        Ok(f) => f,
+    };
+    let meta = file
+        .metadata()
         .map_err(|e| Failed::err(format!(".ai-gent/board.yaml: {}", e.kind())))?;
-    parse(&text).map(Some)
+    if !meta.is_file() {
+        return Err(Failed::usage(
+            ".ai-gent/board.yaml is not a regular file; the board map is a few lines of text",
+        ));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| Failed::err(format!(".ai-gent/board.yaml: {}", e.kind())))?;
+    if bytes.len() > MAX_BYTES {
+        return Err(Failed::usage(
+            ".ai-gent/board.yaml is over 64 KiB; the board map is a few lines",
+        ));
+    }
+    String::from_utf8(bytes)
+        .map(Some)
+        .map_err(|_| Failed::usage(".ai-gent/board.yaml is not UTF-8 text"))
 }
 
 /// Set each option's canonical state: the board's entry in the file, else the alias table (FR-011).
@@ -460,6 +483,41 @@ mod tests {
             mapped_by: MappedBy::Unmapped,
             mappable: true,
             builtin: false,
+        }
+    }
+
+    #[test]
+    fn tabs_are_refused_anywhere() {
+        for t in [
+            "version: 1\t\nboards:\n",
+            "version: 1\nboards:\n  # a\tnote\n  a: x\n",
+            "version: 1\nboards:\n  a:\n    platform: gitlab\n    project: g\tp\n",
+        ] {
+            let e = parse(t).unwrap_err();
+            assert!(e.msg.contains("tabs"), "{t:?}: {}", e.msg);
+        }
+    }
+
+    #[test]
+    fn the_read_is_bounded_and_regular_files_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let big = dir.path().join("big.yaml");
+        std::fs::write(&big, vec![b'#'; MAX_BYTES + 10]).unwrap();
+        assert!(read_bounded(&big).unwrap_err().msg.contains("64 KiB"));
+        let ok = dir.path().join("ok.yaml");
+        std::fs::write(&ok, "version: 1\n").unwrap();
+        assert_eq!(read_bounded(&ok).unwrap().as_deref(), Some("version: 1\n"));
+        assert!(read_bounded(&dir.path().join("none")).unwrap().is_none());
+        #[cfg(unix)]
+        {
+            let link = dir.path().join("zero.yaml");
+            std::os::unix::fs::symlink("/dev/zero", &link).unwrap();
+            assert!(
+                read_bounded(&link)
+                    .unwrap_err()
+                    .msg
+                    .contains("regular file")
+            );
         }
     }
 

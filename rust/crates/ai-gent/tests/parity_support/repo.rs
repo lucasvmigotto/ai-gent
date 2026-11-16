@@ -107,6 +107,15 @@ fn handle(mut s: TcpStream, seen: &Seen, counter: &Arc<Mutex<i64>>, port: u16, r
     let scripted = routes
         .iter()
         .find(|r| route_matches(r, &method, &path, &body));
+    let mut extra = String::new();
+    if let Some(h) = scripted.and_then(|r| r["headers"].as_object()) {
+        for (k, v) in h {
+            extra += k;
+            extra += ": ";
+            extra += v.as_str().unwrap_or("");
+            extra += "\r\n";
+        }
+    }
     let (status, raw) = if !routes.is_empty() {
         match scripted {
             Some(r) => (
@@ -151,7 +160,7 @@ fn handle(mut s: TcpStream, seen: &Seen, counter: &Arc<Mutex<i64>>, port: u16, r
         )
     };
     let resp = format!(
-        "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{raw}",
+        "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{raw}",
         raw.len()
     );
     let _ = s.write_all(resp.as_bytes());

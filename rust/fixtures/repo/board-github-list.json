@@ -146,7 +146,7 @@
       ],
       "stderr_has": [],
       "stdin": null,
-      "stdout": "[\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_1\",\n    \"key\": \"github:octo/1\",\n    \"title\": \"Roadmap\",\n    \"url\": \"https://github.com/users/octo/projects/1\",\n    \"closed\": false,\n    \"mode\": \"field\"\n  },\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_2\",\n    \"key\": \"github:octo/2\",\n    \"title\": \"Bugs\",\n    \"url\": \"https://github.com/users/octo/projects/2\",\n    \"closed\": false,\n    \"mode\": \"field\"\n  },\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_3\",\n    \"key\": \"github:octo/3\",\n    \"title\": \"Old board\",\n    \"url\": \"https://github.com/users/octo/projects/3\",\n    \"closed\": true,\n    \"mode\": \"field\"\n  }\n]\n"
+      "stdout": "[\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_1\",\n    \"key\": \"github:octo/1\",\n    \"title\": \"Roadmap\",\n    \"url\": \"https://github.com/users/octo/projects/1\",\n    \"closed\": false,\n    \"mode\": \"field\",\n    \"scope\": []\n  },\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_2\",\n    \"key\": \"github:octo/2\",\n    \"title\": \"Bugs\",\n    \"url\": \"https://github.com/users/octo/projects/2\",\n    \"closed\": false,\n    \"mode\": \"field\",\n    \"scope\": []\n  },\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_3\",\n    \"key\": \"github:octo/3\",\n    \"title\": \"Old board\",\n    \"url\": \"https://github.com/users/octo/projects/3\",\n    \"closed\": true,\n    \"mode\": \"field\",\n    \"scope\": []\n  }\n]\n"
     },
     {
       "argv": [
@@ -171,9 +171,39 @@
           "path": "/graphql"
         }
       ],
-      "stderr_has": [],
+      "stderr_has": [
+        "truncated"
+      ],
       "stdin": null,
-      "stdout": "[\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_1\",\n    \"key\": \"github:octo/1\",\n    \"title\": \"Roadmap\",\n    \"url\": \"https://github.com/users/octo/projects/1\",\n    \"closed\": false,\n    \"mode\": \"field\"\n  },\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_2\",\n    \"key\": \"github:octo/2\",\n    \"title\": \"Bugs\",\n    \"url\": \"https://github.com/users/octo/projects/2\",\n    \"closed\": false,\n    \"mode\": \"field\"\n  }\n]\n"
+      "stdout": "[\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_1\",\n    \"key\": \"github:octo/1\",\n    \"title\": \"Roadmap\",\n    \"url\": \"https://github.com/users/octo/projects/1\",\n    \"closed\": false,\n    \"mode\": \"field\",\n    \"scope\": []\n  },\n  {\n    \"platform\": \"github\",\n    \"id\": \"PVT_2\",\n    \"key\": \"github:octo/2\",\n    \"title\": \"Bugs\",\n    \"url\": \"https://github.com/users/octo/projects/2\",\n    \"closed\": false,\n    \"mode\": \"field\",\n    \"scope\": []\n  }\n]\n"
+    },
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "octo",
+        "--max-pages",
+        "1"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardsOfUser($login: String!, $after: String) { user(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"octo\", \"after\": null}, \"operationName\": \"BoardsOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "truncated"
+      ],
+      "stdin": null,
+      "stdout": "BOARD          TITLE    CLOSED  URL\ngithub:octo/1  Roadmap  no      https://github.com/users/octo/projects/1\ngithub:octo/2  Bugs     no      https://github.com/users/octo/projects/2\ntruncated by --max-pages\n"
     }
   ],
   "store": {
