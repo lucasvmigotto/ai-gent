@@ -276,15 +276,7 @@ impl PostgresConnector {
                 .ok_or("invalid port")?,
         };
         let timeout = request::timeout(req.timeout).map_err(String::from)?;
-        let mut options = format!(
-            "-c statement_timeout={} -c lock_timeout={LOCK_TIMEOUT_MS} -c idle_in_transaction_session_timeout={IDLE_IN_TRANSACTION_MS}",
-            timeout.as_millis().max(1)
-        );
-        // Pinned so the value normalisation of `text_value` cannot be defeated by a server's own setting.
-        options.push_str(" -c DateStyle=ISO -c bytea_output=hex");
-        if req.mode != Mode::Write {
-            options.push_str(" -c default_transaction_read_only=on");
-        }
+        let options = session_options(timeout, req.mode);
         let mut config = Config::new();
         config
             .host(host)
@@ -317,6 +309,19 @@ impl PostgresConnector {
             }),
         })
     }
+}
+
+fn session_options(timeout: Duration, mode: Mode) -> String {
+    let mut options = format!(
+        "-c statement_timeout={} -c lock_timeout={LOCK_TIMEOUT_MS} -c idle_in_transaction_session_timeout={IDLE_IN_TRANSACTION_MS}",
+        timeout.as_millis().max(1)
+    );
+    // Pin text rendering independently of the database's defaults (FR-013, FR-022).
+    options.push_str(" -c DateStyle=ISO -c bytea_output=hex -c TimeZone=UTC");
+    if mode != Mode::Write {
+        options.push_str(" -c default_transaction_read_only=on");
+    }
+    options
 }
 
 fn is_unix_socket(host: &str) -> bool {
@@ -608,6 +613,27 @@ fn execute_in(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn session_options_bound_waits_and_pin_rendering_in_every_mode() {
+        for mode in [Mode::Read, Mode::Test, Mode::Write] {
+            let options = session_options(Duration::from_millis(1250), mode);
+            for option in [
+                "statement_timeout=1250",
+                "lock_timeout=5000",
+                "idle_in_transaction_session_timeout=60000",
+                "DateStyle=ISO",
+                "bytea_output=hex",
+                "TimeZone=UTC",
+            ] {
+                assert!(options.contains(&format!("-c {option}")), "{options}");
+            }
+            assert_eq!(
+                options.contains("-c default_transaction_read_only=on"),
+                mode != Mode::Write
+            );
+        }
+    }
 
     fn cols() -> Vec<(String, Type)> {
         vec![("id".to_string(), Type::INT4)]

@@ -228,6 +228,7 @@ fn a_verified_connection_with_the_ca_reaches_the_server_and_sends_the_session_op
         "-c statement_timeout=5000",
         "-c lock_timeout=5000",
         "-c idle_in_transaction_session_timeout=60000",
+        "-c TimeZone=UTC",
         "-c default_transaction_read_only=on",
         "database|shop|",
     ] {
@@ -992,6 +993,48 @@ fn the_count_is_the_command_tag_number_for_every_kind_of_statement() {
     assert_eq!(results[0].rows.as_ref().map(Vec::len), Some(1));
     assert_eq!(results[0].truncated, Some(false));
     assert!(server.has("COMMIT"));
+}
+
+#[test]
+fn postgres_contract_fixtures_match_command_tags_over_tls() {
+    use ai_gent_dbrun::connector::contract;
+
+    let ca = TestCa::new("contract-tags");
+    let (c, cert, _dir) = wire_connector(&ca);
+    // These are protocol replies, not a SQL evaluator. The real-server fixture test below
+    // independently checks that PostgreSQL actually emits these tags and result shapes.
+    let server = wire(
+        &cert,
+        &script(|sql| match sql {
+            "/* change */ UPDATE ai_gent_t SET n = n + 1" => Some(Reply::tag("UPDATE 2")),
+            "CREATE TABLE ai_gent_u (x integer)" => Some(Reply::tag("CREATE TABLE")),
+            "DELETE FROM ai_gent_t WHERE id = 99" => Some(Reply::tag("DELETE 0")),
+            "WITH d AS (DELETE FROM ai_gent_t WHERE id = 1 RETURNING id) SELECT id FROM d" => {
+                Some(Reply::rows(&[("id", INT4)], &[&["1"]], "SELECT 1"))
+            }
+            "SHOW server_version" => Some(Reply::rows(
+                &[("server_version", TEXT)],
+                &[&["17.0"]],
+                "SHOW",
+            )),
+            "EXPLAIN SELECT 1" => Some(Reply::rows(
+                &[("QUERY PLAN", TEXT)],
+                &[&["Result  (cost=0.00..0.01 rows=1 width=4)"]],
+                "EXPLAIN",
+            )),
+            _ => None,
+        }),
+    );
+    let ran = contract::run_exec_cases(
+        &c,
+        "postgresql",
+        contract::Profile::Port,
+        |_case, _setup| request("127.0.0.1", server.port).conn,
+    );
+    assert!(ran >= 1, "the PostgreSQL fixtures must run");
+    assert!(server.has("COMMIT"));
+    assert!(server.has("BEGIN READ ONLY"));
+    assert!(server.has("ROLLBACK"));
 }
 
 #[test]
