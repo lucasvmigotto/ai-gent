@@ -93,6 +93,44 @@ function autonomyDenied(text) {
   return new RegExp(w + "autonomy([^A-Za-z0-9_-]|$)").test(rest);
 }
 
+// Follow the leading `cd DIR` segments of a command, joined by && or ;. Returns { dir, followed }
+// (followed: at least one cd), or null when a cd cannot be followed: a variable, ~, -, an option, a
+// glob, a quote or backslash in the word, or any other cd (nested, after ||, later) so the caller
+// keeps asking. Must decide as cd_prefix in the Rust guard and cd_resolve in guard.sh.
+function cdPrefix(cmd, cwd, segments) {
+  const total = segments.filter((s) => /(^|[ \t\n\r\v\f])(cd|pushd|popd)([ \t\n\r\v\f]|$)/.test(s)).length;
+  const ws = /^[ \t\n\r\v\f]+/;
+  let rest = cmd;
+  let dir = cwd === "" ? "." : cwd;
+  let n = 0;
+  for (;;) {
+    const t = rest.replace(ws, "");
+    if (!/^cd[ \t\n\r\v\f]/.test(t)) break;
+    const a = t.slice(2).replace(ws, "");
+    let arg;
+    let tail;
+    if (a.startsWith('"') || a.startsWith("'")) {
+      const end = a.indexOf(a[0], 1);
+      if (end < 0) return null;
+      arg = a.slice(1, end);
+      tail = a.slice(end + 1);
+    } else {
+      const m = /^[^ \t\n\r\v\f;&|()<>]*/.exec(a)[0];
+      arg = m;
+      tail = a.slice(m.length);
+    }
+    if (arg === "" || arg.startsWith("-") || /[$`\\*?[\]{}~"'!#\n\r]/.test(arg)) return null;
+    tail = tail.replace(ws, "");
+    if (tail.startsWith("&&")) rest = tail.slice(2);
+    else if (tail.startsWith(";")) rest = tail.slice(1);
+    else return null;
+    dir = arg.startsWith("/") ? arg : `${dir}/${arg}`;
+    n += 1;
+  }
+  if (n !== total) return null;
+  return { dir: n === 0 ? cwd : dir, followed: n > 0 };
+}
+
 // branchOf(dir) returns the current branch name ("" when unknown). The plugin
 // passes a git-backed resolver; tests do too.
 export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantAt } = {}) {
@@ -188,8 +226,15 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantA
     return ask("this rewrites history or discards work; allow only on the user's explicit request");
   }
   if (gitHas(segments, "commit") || gitHas(segments, "merge")) {
+    const cd = cdPrefix(cmd, cwd, segments);
+    if (cd === null) {
+      return ask(
+        "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)",
+      );
+    }
     const cMatch = new RegExp("git[ \\t]+-C[ \\t]+([^ \\t]*)").exec(segments.join("\n"));
-    const dir = cMatch ? cMatch[1] : cwd;
+    let dir = cMatch ? cMatch[1] : cd.dir;
+    if (cd.followed && cMatch && dir !== "" && !dir.startsWith("/")) dir = `${cd.dir}/${dir}`; // relative to the cd
     const branch = branchOf(dir);
     if (branch === "main" || branch === "master") {
       return ask(`this commits or merges on ${branch}; the workflow works on a branch (allow only if the user asked for it)`);

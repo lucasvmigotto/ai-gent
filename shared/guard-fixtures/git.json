@@ -2057,6 +2057,360 @@
         "grant"
       ],
       "reason": "git:workflow guard: the autonomy grant is created and removed by the user, never by the agent (ai-gent autonomy grant / revoke); ask the user to run it in their terminal, or with ! in the prompt"
+    },
+    {
+      "id": "git-119",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "cd {feat} && git add -A && git commit -m \"fix: x\"",
+      "want": "none",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ]
+    },
+    {
+      "id": "git-120",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd {develop} && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: this commits directly on develop; work goes on a branch merged into it (conclude a merge with git merge --continue)"
+    },
+    {
+      "id": "git-121",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "cd \"{feat}\" && git commit -m \"fix: x\"",
+      "want": "none",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ]
+    },
+    {
+      "id": "git-122",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "cd '{feat}' && git commit -m \"fix: x\"",
+      "want": "none",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ]
+    },
+    {
+      "id": "git-123",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "cd {feat}; git commit -m \"fix: x\"",
+      "want": "none",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ]
+    },
+    {
+      "id": "git-124",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "cd {develop}; cd {feat}; git commit -m \"fix: x\"",
+      "want": "none",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ]
+    },
+    {
+      "id": "git-125",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd {feat}; cd {develop}; git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: this commits directly on develop; work goes on a branch merged into it (conclude a merge with git merge --continue)"
+    },
+    {
+      "id": "git-126",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd {develop} && git status; git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: this commits directly on develop; work goes on a branch merged into it (conclude a merge with git merge --continue)"
+    },
+    {
+      "id": "git-127",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "cd {feat} && git -C {develop} commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: this commits directly on develop; work goes on a branch merged into it (conclude a merge with git merge --continue)"
+    },
+    {
+      "id": "git-128",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "cd {develop} && git -C {feat} commit -m \"fix: x\"",
+      "want": "none",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ]
+    },
+    {
+      "id": "git-129",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd {main} && git merge --no-ff feat/x",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: this commits or merges on main; the workflow works on a branch (allow only if the user asked for it)"
+    },
+    {
+      "id": "git-130",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd $WORK && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-131",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "cd $WORK && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-132",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd \"$(echo {develop})\" && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-133",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd - && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-134",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd ~/work && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-135",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-136",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd -P {feat} && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-137",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd {feat} || cd {develop} && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-138",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd {feat} && (cd {develop} && git commit -m \"fix: x\")",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-139",
+      "tool": "Bash",
+      "cwd": "@develop",
+      "shell": "sh",
+      "command": "(cd {feat} && git status); git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-140",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "(cd {develop} && git status); git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-141",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd {feat} | cat && git commit -m \"fix: x\"",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+    },
+    {
+      "id": "git-142",
+      "tool": "Bash",
+      "cwd": "@feat",
+      "shell": "sh",
+      "command": "cd \"{feat} && git commit -m x",
+      "want": "ask",
+      "source": [
+        "new:cd-prefix"
+      ],
+      "tags": [
+        "cd"
+      ],
+      "reason": "git:workflow guard: the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
     }
   ]
 }

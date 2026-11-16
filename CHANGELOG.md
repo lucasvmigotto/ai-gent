@@ -6,6 +6,10 @@ changes.
 
 ## Unreleased
 
+### Fixed
+
+- **Git guard:** a leading `cd DIR && git commit` (or `cd DIR; ...`) is judged by the branch of DIR, as `git -C DIR` already was, so committing in a feature-branch worktree from a session on `develop` is no longer asked. A `cd` the guard cannot follow (variable, command substitution, `~`, `cd -`, an option, a nested, later or `||`-joined `cd`) keeps asking, with its own reason. Same decision in the Rust guard, `guard.sh` and the OpenCode rules.
+
 ### Changed
 
 - **Integration branch:** `dev` is renamed `develop` (the owner's decision: no alias, 3.0.0 ships with `main` and `develop` only). The release job's back-merge targets `develop` and, when the protected branch refuses the push, warns that a pull request from `main` to `develop` is needed; Docs CI runs on pushes to `main` and `develop`; the git:workflow skill and its references, the README, `shared/releasing.md` and the docs site name `develop`; `ai-gent tokens` and `token_report.py` read stage markers from `origin/develop` first, and the delegate review base tries `develop` before `main`. The guards, the branch chain and the worktree tools still accept `dev` as well, so a repository that keeps it works unchanged.

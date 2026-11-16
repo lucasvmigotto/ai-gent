@@ -1,7 +1,7 @@
 //! Port of `plugins/git/hooks/guard.sh`.
 use super::{any, attributed, re};
 use crate::guard::reasons::decide;
-use crate::guard::segment::View;
+use crate::guard::segment::{Shell, View};
 use crate::guard::{Ctx, Decision, Event, grant};
 use regex::Regex;
 
@@ -90,7 +90,16 @@ pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
         return decide("git.rewrite", &[]);
     }
     if has(s, "(commit|merge)", None) {
-        let branch = (ctx.branch_of)(&working_dir(s, cwd)).unwrap_or_default();
+        let (base, cd) = match cd_prefix(&decoded(v), cwd, s) {
+            Cd::Bad => return decide("git.cd_unresolved", &[]),
+            Cd::None => (cwd.to_string(), false),
+            Cd::Dir(d) => (d, true),
+        };
+        let mut dir = working_dir(s, &base);
+        if cd && dir != base && !dir.starts_with('/') {
+            dir = format!("{base}/{dir}"); // a relative -C is relative to the cd
+        }
+        let branch = (ctx.branch_of)(&dir).unwrap_or_default();
         match branch.as_str() {
             "main" | "master" => return decide("git.on_main", &[("branch", &branch)]),
             "homolog" | "staging" => return decide("git.on_chain", &[("branch", &branch)]),
@@ -186,6 +195,103 @@ pub fn grant_file_tool(ev: &Event) -> Decision {
             decide("git.grant_file", &[])
         }
         _ => Decision::none(),
+    }
+}
+
+/// What the leading `cd` segments of a command say about where it runs.
+enum Cd {
+    /// No `cd` anywhere: the session's cwd.
+    None,
+    /// Leading `cd DIR &&` / `cd DIR;` segments, resolved against the cwd.
+    Dir(String),
+    /// A `cd` the guard cannot follow (variable, `~`, `-`, option, later or nested `cd`, ...).
+    Bad,
+}
+
+/// The command as typed: `raw` is JSON-escaped for `sh`.
+fn decoded(v: &View) -> String {
+    if v.shell != Shell::Sh {
+        return v.raw.clone();
+    }
+    let mut out = String::with_capacity(v.raw.len());
+    let mut it = v.raw.chars();
+    while let Some(c) = it.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match it.next() {
+            Some('n') => out.push('\n'),
+            Some('t') => out.push('\t'),
+            Some('r') => out.push('\r'),
+            Some(o) => out.push(o),
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+fn is_ws(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0b' | '\x0c')
+}
+
+/// Follow the leading `cd DIR` segments joined by `&&` or `;`. A path is a plain word or a quoted
+/// string with no `$`, backtick, backslash, glob or `~`; any other `cd` (also after the leading
+/// ones, in a subshell or after `||`) is `Bad`, so the caller keeps asking.
+fn cd_prefix(raw: &str, cwd: &str, segments: &[String]) -> Cd {
+    let word = re(r"(^|[[:space:]])(cd|pushd|popd)([[:space:]]|$)");
+    let total = segments.iter().filter(|s| word.is_match(s)).count();
+    let mut rest = raw;
+    let mut dir = if cwd.is_empty() {
+        ".".to_string()
+    } else {
+        cwd.to_string()
+    };
+    let mut n = 0;
+    loop {
+        let t = rest.trim_start_matches(is_ws);
+        let Some(after) = t.strip_prefix("cd").filter(|a| a.starts_with(is_ws)) else {
+            break;
+        };
+        let a = after.trim_start_matches(is_ws);
+        let (arg, tail) = if let Some(q @ ('"' | '\'')) = a.chars().next() {
+            let Some(pair) = a[1..].split_once(q) else {
+                return Cd::Bad;
+            };
+            pair
+        } else {
+            let end = a
+                .find(|c: char| is_ws(c) || ";&|()<>".contains(c))
+                .unwrap_or(a.len());
+            a.split_at(end)
+        };
+        if arg.is_empty()
+            || arg.starts_with('-')
+            || arg.contains(|c: char| "$`\\*?[]{}~\"'!#\n\r".contains(c))
+        {
+            return Cd::Bad;
+        }
+        let tail = tail.trim_start_matches(is_ws);
+        rest = if let Some(r) = tail.strip_prefix("&&") {
+            r
+        } else if let Some(r) = tail.strip_prefix(';') {
+            r
+        } else {
+            return Cd::Bad;
+        };
+        dir = if arg.starts_with('/') {
+            arg.to_string()
+        } else {
+            format!("{dir}/{arg}")
+        };
+        n += 1;
+    }
+    if n != total {
+        Cd::Bad
+    } else if n == 0 {
+        Cd::None
+    } else {
+        Cd::Dir(dir)
     }
 }
 

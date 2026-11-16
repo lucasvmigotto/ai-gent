@@ -81,6 +81,7 @@ _gw_find() { # _gw_find <reason>: the guard and the entry a reason belongs to
     git:*'the workflow works on a branch'*) _gw_match='the workflow works on a branch' _gw_say='This commits or merges on a long-lived branch.' _gw_if='Allow only if you asked for it.' ;;
     git:*'promotion up the branch chain'*) _gw_match='promotion up the branch chain' _gw_say='This commits or merges on a branch higher in the chain.' _gw_if='Allow only if you asked to promote.' ;;
     git:*'commits directly on'*) _gw_match='commits directly on' _gw_say='This commits straight onto the integration branch.' _gw_if='Work goes on a branch merged into it; allow only if you meant this (concluding a merge is fine).' ;;
+    git:*'cannot follow the cd'*) _gw_match='cannot follow the cd' _gw_say='This commits or merges after a cd the guard cannot follow, so the branch is unknown.' _gw_if='Allow only if the target is not an integration branch; git -C with a plain path is understood.' ;;
     db:*'db credentials file'*) _gw_match='db credentials file' _gw_say='Only dbrun reads database credential files.' _gw_do='use dbrun profiles, classify or test.' ;;
     db:*'restores into a database'*) _gw_match='restores into a database' _gw_say='A direct restore changes a database.' _gw_do='local restores go through dbrun restore; anything else is a script for a person to run.' ;;
     db:*'with SQL that writes'*) _gw_match='with SQL that writes' _gw_say='A direct client call would write to a database.' _gw_do='use dbrun (plan and apply on a proven local database, a script for anything else).' ;;
@@ -295,6 +296,60 @@ work_dir() {
   printf '%s' "${d:-.}"
 }
 
+# Follow the leading `cd DIR` segments of the command, joined by && or ;. Sets cd_dir
+# (the directory it runs in) and cd_n (how many cd), and fails when a cd cannot be followed: a
+# variable, ~, -, an option, a glob, a quote or backslash in the word, or any other cd (nested,
+# after ||, later), so the caller keeps asking. $cmd is JSON-escaped here: \" is a double quote and
+# \n a newline. Must decide as cd_prefix in the Rust guard and cdPrefix in opencode/guard/rules.mjs.
+cd_ws() { # strip leading whitespace, also the JSON escapes \n \t \r
+  while :; do
+    rest="${rest#"${rest%%[![:space:]]*}"}"
+    case "$rest" in '\n'* | '\t'* | '\r'*) rest="${rest#??}" ;; *) break ;; esac
+  done
+}
+cd_resolve() {
+  cd_total="$(printf '%s\n' "$segments" | grep -Ec '(^|[[:space:]])(cd|pushd|popd)([[:space:]]|$)')"
+  cd_dir="${cwd:-.}" cd_n=0 rest="$cmd"
+  while :; do
+    cd_ws
+    case "$rest" in cd[[:space:]]* | 'cd\n'* | 'cd\t'* | 'cd\r'*) ;; *) break ;; esac
+    rest="${rest#cd}"
+    cd_ws
+    case "$rest" in
+      '\"'*)
+        r1="${rest#'\"'}"
+        case "$r1" in *'\"'*) ;; *) return 1 ;; esac
+        a="${r1%%'\"'*}"
+        rest="${r1#*'\"'}"
+        ;;
+      "'"*)
+        r1="${rest#"'"}"
+        case "$r1" in *"'"*) ;; *) return 1 ;; esac
+        a="${r1%%"'"*}"
+        rest="${r1#*"'"}"
+        ;;
+      *)
+        a="${rest%%[[:space:];&|()<>]*}"
+        rest="${rest#"$a"}"
+        ;;
+    esac
+    case "$a" in
+      '' | -* | *[\$\`\\\*\?\[\]\{\}\~\"\'\!\#]*) return 1 ;;
+    esac
+    cd_ws
+    case "$rest" in
+      '&&'*) rest="${rest#&&}" ;;
+      ';'*) rest="${rest#;}" ;;
+      *) return 1 ;;
+    esac
+    case "$a" in /*) cd_dir="$a" ;; *) cd_dir="$cd_dir/$a" ;; esac
+    cd_n=$((cd_n + 1))
+  done
+  [ "$cd_n" -eq "$cd_total" ] || return 1
+  [ "$cd_n" -gt 0 ] || cd_dir="$cwd"
+  return 0
+}
+
 # The autonomy grant: .ai-gent/autonomy at the repository root, key: value lines
 # (expires: 2026-11-06T18:00:00Z, branches: develop dev, actions: push pr merge
 # issues). Active only while expires lies in the future; anything unreadable is
@@ -408,9 +463,16 @@ if has 'reset' '--hard' || has 'clean' '(^|[[:space:]])-[a-zA-Z]*f' ||
   decide ask "this rewrites history or discards work; allow only on the user's explicit request"
 fi
 if has '(commit|merge)'; then
-  dir="$cwd"
+  cd_resolve ||
+    decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+  dir="$cd_dir"
   c_dir="$(printf '%s\n' "$segments" | sed -n 's/.*git[[:space:]]\{1,\}-C[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' | head -n1)"
-  [ -n "$c_dir" ] && dir="$c_dir"
+  if [ -n "$c_dir" ]; then
+    case "$c_dir" in
+      /*) dir="$c_dir" ;;
+      *) if [ "$cd_n" -gt 0 ]; then dir="$cd_dir/$c_dir"; else dir="$c_dir"; fi ;; # relative to the cd
+    esac
+  fi
   branch="$(git -C "${dir:-.}" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
   case "$branch" in
     main | master)
