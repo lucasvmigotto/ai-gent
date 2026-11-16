@@ -66,15 +66,15 @@ test('rows sort running, stalled, queued, failed, done, taken back', () => {
 })
 
 test('no workers: the pane says No workers and the pipeline line adds nothing', () => {
-  expect(text(snapshot({}), ctx)).toBe('No workers')
-  expect(text(null, ctx)).toBe('No workers')
+  expect(text(snapshot({}), ctx)).toBe('No workers\nIdle reason: not recorded')
+  expect(text(null, ctx)).toBe('No workers\nIdle reason: not recorded')
   expect(compactLine(snapshot({}))).toBeNull()
   expect(compactLine(null)).toBeNull()
   expect(build(snapshot({}), ctx).isEmpty).toBe(true)
 })
 
 test('unreadable status files are counted', () => {
-  expect(text(snapshot({}, { skipped: 2 }), ctx)).toBe('No workers\n2 status files unreadable')
+  expect(text(snapshot({}, { skipped: 2 }), ctx)).toBe('No workers\nIdle reason: not recorded\n2 status files unreadable')
 })
 
 test('compact line: counts, slots, a marker for stalled or failed', () => {
@@ -511,6 +511,18 @@ test('044 US1.8: each group has its own row budget, and +N more adds both', () =
   expect(only).not.toContain('more')
 })
 
+test('044 US1.8b: an open History does not exceed the WORKERS row budget', () => {
+  const running = Object.fromEntries(Array.from({ length: 3 }, (_, i) => [`r${i}`, track(`r${i}`, 'running')]))
+  const done = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`d${i}`, track(`d${i}`, 'done')]))
+  const out = lines(snapshot({ ...running, ...done }, { cap: 9 }), { maxRows: 3, columns: 70, expanded: { [HISTORY_KEY]: true } })
+  expect(out.match(/▶ r\d/g)?.length).toBe(3)
+  expect(out.match(/✓ d\d/g)).toBeNull()
+  expect(out).toContain('+5 more')
+  const some = lines(snapshot({ r0: running.r0 as string, ...done }, { cap: 9 }), { maxRows: 3, columns: 70, expanded: { [HISTORY_KEY]: true } })
+  expect(some.match(/✓ d\d/g)?.length).toBe(2)
+  expect(some).toContain('+3 more')
+})
+
 test('044 US1.2: failed with an accepted verdict keeps State and Verdict on separate lines', () => {
   const out = lines(snapshot({ a: track('a', 'failed', { verdict: { result: 'accepted' } }) }), { expanded: { a: true } })
   expect(out).toMatch(/State: Failed[^\n]*\n\s+Verdict: accepted/)
@@ -540,7 +552,7 @@ test('044 US1.4: nothing running or queued says Idle reason: not recorded, never
   }
   expect(lines(snapshot({ a: track('a', 'running') }))).not.toContain('Idle reason')
   expect(lines(snapshot({ a: track('a', 'queued') }))).not.toContain('Idle reason')
-  expect(text(snapshot({}), ctx)).toBe('No workers')
+  expect(text(snapshot({}), ctx)).toBe('No workers\nIdle reason: not recorded')
 })
 
 test('044 US1.5: a null cap with nothing in use keeps 0 in use (limit unknown)', () => {
@@ -587,6 +599,12 @@ test('044: marks stay inside every fitted line in ascii and at every width', () 
           expect(m.from).toBeGreaterThanOrEqual(0)
           expect(m.to).toBeLessThanOrEqual(l.text.length)
           expect(m.from).toBeLessThan(m.to)
+        }
+        if (l.buttonKey?.startsWith('attention:')) {
+          // the state word survives the cut, whatever the width and glyph set
+          expect(l.marks?.length).toBe(2)
+          const word = l.marks?.[1] as { from: number; to: number }
+          expect(l.text.slice(word.from, word.to)).toMatch(/^(failed|stalled)$/)
         }
       }
     }

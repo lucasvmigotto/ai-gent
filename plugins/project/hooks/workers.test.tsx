@@ -67,7 +67,7 @@ test('/workers lists every worker with its state, from the status files', async 
 test('no status files: /workers says No workers', async ($, on) => {
   world(on, {})
   await $.session.start(START)
-  expect(await run($)).toBe('No workers')
+  expect(await run($)).toBe('No workers\nIdle reason: not recorded')
 })
 
 test('a malformed status file is counted, a file naming another track is not trusted', async ($, on) => {

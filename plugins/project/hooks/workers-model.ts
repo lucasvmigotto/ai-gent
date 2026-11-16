@@ -365,6 +365,7 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
 
   if (workers.length === 0) {
     add('No workers', 'dim')
+    add(IDLE_REASON, 'dim')
     if (snapshot !== null && snapshot.skipped > 0) add(`${snapshot.skipped} status ${snapshot.skipped === 1 ? 'file' : 'files'} unreadable`, 'warn')
     return { isEmpty: true, counts, slots, lines }
   }
@@ -404,11 +405,15 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
       const isOpen = ctx.expanded[w.track] === true
       const verdictNote = w.verdict.result === 'rejected' ? `${g.sep}verdict rejected` : ''
       const lead = `${isOpen ? g.open : g.closed} `
-      const track = fit(w.track, 24, g.ellipsis)
+      // The state word is reserved before the name is fitted, so a narrow pane cuts the name and the tail, never the state.
+      const track = fit(w.track, Math.max(1, Math.min(24, width - lead.length - glyphOf(w).length - 2 - w.state.length)), g.ellipsis)
       const at = lead.length + glyphOf(w).length + 1 + track.length + 1
       const t = STATE_TONE[w.state]
+      const headText = `${lead}${glyphOf(w)} ${track} ${w.state}`
+      const tail = `${g.sep}${tasksOf(w)}${g.sep}${elapsedOf(w)}${verdictNote}`
+      const room = width - headText.length
       addMarked(
-        `${lead}${glyphOf(w)} ${track} ${w.state}${g.sep}${tasksOf(w)}${g.sep}${elapsedOf(w)}${verdictNote}`,
+        `${headText}${room <= g.ellipsis.length ? '' : room >= tail.length ? tail : fit(tail, room, g.ellipsis)}`,
         [
           { from: lead.length, to: lead.length + glyphOf(w).length, tone: t },
           { from: at, to: at + w.state.length, tone: t },
@@ -471,8 +476,10 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
     const kinds = [counts.done > 0 ? `${counts.done} done` : '', counts['taken-back'] > 0 ? `${counts['taken-back']} taken back` : ''].filter(Boolean).join(g.sep)
     add(`${open ? g.open : g.closed} History${g.sep}${kinds}`, 'dim', HISTORY_KEY)
     if (open) {
-      for (const w of history.slice(0, budget)) row(w)
-      hidden += Math.max(0, history.length - budget)
+      // History shares the WORKERS budget: it gets only what the active list left of it.
+      const room = Math.max(0, budget - shownActive.length)
+      for (const w of history.slice(0, room)) row(w)
+      hidden += history.length - Math.min(history.length, room)
     }
   }
   if (hidden > 0) add(`+${hidden} more`, 'dim')
