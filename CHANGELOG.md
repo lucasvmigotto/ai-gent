@@ -6,6 +6,10 @@ changes.
 
 ## Unreleased
 
+### Fixed
+
+- **Git guard:** a leading `cd DIR && git commit` is judged by the branch of DIR, as `git -C DIR` already was, so committing in a feature-branch worktree from a session on `develop` is no longer asked. This is an allowlist: only `&&` follows a cd, and after it every `&&` segment must start with the literal word `git`, with no unquoted `<`, `$`, backtick, `;`, `|`, parentheses, braces or background `&`. Anything else asks with its own reason, as do a cd with a variable, `~`, `-`, `..` or an option, any other cd-like word (quoted, nested, `eval`, `exec`, `source`, `sh -c`, `env -C`), a missing or branchless directory, and `GIT_*`, `--git-dir`, `--work-tree`, `-c core.*`, `-c alias.*` or `core.hooksPath`, `-c include.*` or `CDPATH` (searched with quotes and backslashes removed). The guard also now sees a commit or merge behind `env`, `exec`, `command`, `nohup`, `xargs`, `time` or inside `sh -c`. A commit is also recognised behind `NAME=value` prefixes, `git "commit"`, `git c\ommit`, `git -P`, `git -ccore.x=1`, and a git alias (`-c alias.*`, `git config alias.*` next to another git command) asks. Same decision in the Rust guard, `guard.sh` and the OpenCode rules.
+
 ### Added
 
 - **`ai-gent repo board list|show|fields` (spec 045, slice 1: the reads):** GitHub Projects v2 over GraphQL and GitLab issue boards (label mode by default, work item Status mode opt-in and fixtures-only) through the existing request path, so the GraphQL read check classifies every board query as a read. One canonical model (`todo`, `doing`, `review`, `done`) on both platforms, a git-excluded `.ai-gent/board.yaml` read by a small hand-written parser that refuses anything outside its subset with the line number, cursor and page pagination capped by `--max-pages` (`truncated` is reported), and `--json`. `--write` on a read is a usage error. Azure DevOps, Jira, Forgejo and Bitbucket refuse with the plan. `set` and `add` come in the next slice.

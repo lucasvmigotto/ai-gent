@@ -69,6 +69,16 @@
           "match": "commits directly on",
           "say": "This commits straight onto the integration branch.",
           "allowIf": "Work goes on a branch merged into it; allow only if you meant this (concluding a merge is fine)."
+        },
+        {
+          "match": "cannot follow the cd",
+          "say": "This commits or merges after a cd the guard cannot follow, so the branch is unknown.",
+          "allowIf": "Allow only if the target is not an integration branch; git -C with a plain path is understood."
+        },
+        {
+          "match": "a git alias can run any command",
+          "say": "A git alias can run any command, so the branch a commit lands on is unknown.",
+          "allowIf": "Allow only if you asked for this alias."
         }
       ]
     },

@@ -57,17 +57,22 @@ export function grantAt(dir, now = new Date()) {
 }
 
 const GIT_RE_SRC =
-  "^[ \\t]*(sudo[ \\t]+)?git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t]+|--[a-z-]+(?:=[^ \\t]+)?))*[ \\t]+";
+  "^[ \\t]*(?:[A-Za-z_][A-Za-z0-9_]*=[^ \\t]*[ \\t]+)*((?:sudo|env|exec|command|nohup|xargs|time)[ \\t]+(?:[^ \\t;&|()]+[ \\t]+)*)?git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t]+|-[Cc][^ \\t]+|-[A-Za-z]|--[a-z-]+(?:=[^ \\t]+)?))*[ \\t]+";
 
 // Split a raw command the way the shell guards do: quoted strings blanked so
 // their text cannot look like options, then split on ; & | ( ) and newlines.
 function gitSegments(cmd) {
-  return cmd
+  const segs = cmd
     .replace(/"(?:[^"\\]|\\.)*"/g, '""')
     .replace(/'[^']*'/g, "''")
     .replace(/\\n/g, "\n")
     .replace(/[;&|()]/g, "\n")
     .split("\n");
+  // sh -c 'git commit': the quoted text is blanked above, so look inside the quotes too
+  if (/(^|[ \t;&|(/])(sh|bash|zsh|dash|ksh)[ \t]+-[A-Za-z]*c/.test(cmd.replace(/['"\\]/g, ""))) {
+    segs.push(...cmd.replace(/\\n/g, "\n").replace(/['"`;&|()]/g, "\n").split("\n"));
+  }
+  return segs;
 }
 
 function gitHas(segments, sub, arg) {
@@ -93,10 +98,155 @@ function autonomyDenied(text) {
   return new RegExp(w + "autonomy([^A-Za-z0-9_-]|$)").test(rest);
 }
 
+const CD_UNRESOLVED =
+  "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)";
+
+// The command with quotes and backslashes removed (the plain copy of the autonomy check).
+const stripped = (cmd) => cmd.replace(/['"\\]/g, "");
+
+const HAZARD = /GIT_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|core\.hookspath|CDPATH|(^|[ \t])-c[ \t]*(core|alias|include)\./i;
+
+// Text that changes where git runs after a followed cd, searched on the stripped copy so splitting
+// a word with quotes does not hide it (see HAZARD).
+function cdHazard(cmd) {
+  return HAZARD.test(stripped(cmd));
+}
+
+// segments of the stripped copy: git "commit", git c\ommit and --git-""dir read as typed to the
+// shell. Used to recognise a commit, never to read an option's value or a deny rule.
+function strippedSegments(cmd) {
+  return stripped(cmd.split("\\n").join("\n").split("\\t").join(" ")).replace(/[;&|()]/g, "\n").split("\n");
+}
+
+// A repository, work tree, hook path or config given before a commit or merge subcommand, or a
+// GIT_* or CDPATH assignment on its own.
+function prefixHazard(st) {
+  const pre = new RegExp(GIT_RE_SRC + "(?:commit|merge)");
+  const assign = /^[ \t]*(export[ \t]+)?(GIT_[A-Za-z_]*|CDPATH)=/;
+  return st.some((s) => {
+    const m = pre.exec(s);
+    return (m !== null && HAZARD.test(m[0])) || assign.test(s);
+  });
+}
+
+// git -c alias.x=... in any spacing, or git config alias.* next to another git command.
+function aliasUse(st) {
+  if (st.some((s) => /(^|[ \t])git[ \t].*-c[ \t]*alias\./i.test(s))) return true;
+  const cfg = /(^|[ \t])git[ \t]+(-[^ \t]+[ \t]+)*config[ \t].*alias\./i;
+  const git = new RegExp(GIT_RE_SRC + "[a-z]");
+  return st.some((s) => cfg.test(s)) && st.filter((s) => git.test(s)).length >= 2;
+}
+
+// A git command that can move HEAD or a branch.
+function branchChange(st) {
+  return (
+    gitHas(st, "(?:checkout|switch|worktree|reset|update-ref|symbolic-ref)") ||
+    gitHas(st, "branch", "(^|[ \\t])(-m|-M|--move)([ \\t]|$)")
+  );
+}
+
+// After the leading cd DIR && chain only plain git commands may follow: every segment (split on &&
+// outside quotes) starts with the literal word git, and outside quotes there is no <, $, backtick,
+// ;, |, (, ), {, }, newline or lone & (>& is fine); inside double quotes no backtick, $( or ${.
+function restOk(rest) {
+  const ws = /[ \t\n\r\v\f]/;
+  const d = rest.replace(/[ \t\n\r\v\f]+$/, "");
+  const word = (t) => t.replace(/^[ \t\n\r\v\f]+/, "").split(ws)[0] === "git";
+  let q = 0;
+  let start = 0;
+  for (let i = 0; i < d.length; i++) {
+    const c = d[i];
+    const nx = d[i + 1];
+    if (q === 1) {
+      if (c === "'") q = 0;
+    } else if (q === 2) {
+      if (c === '"') q = 0;
+      else if (c === "\\") i++;
+      else if (c === "`") return false;
+      else if (c === "$" && (nx === "(" || nx === "{")) return false;
+    } else if (c === "'") q = 1;
+    else if (c === '"') q = 2;
+    else if (c === "\\") i++;
+    else if (c === "&" && nx === "&") {
+      if (!word(d.slice(start, i))) return false;
+      start = i + 2;
+      i++;
+    } else if (c === "&" && i > 0 && d[i - 1] === ">") {
+      // 2>&1
+    } else if ("&<$`;|(){}\n\r".includes(c)) return false;
+  }
+  return q === 0 && word(d.slice(Math.min(start, d.length)));
+}
+
+// How many words of the command can change the working directory or run other code that can: cd,
+// pushd, popd anywhere; eval, exec, source, . as the command of a segment; sh -c and friends;
+// env -C. Counted on a copy with quotes and backslashes stripped, so "cd", \cd and eval 'cd ..'
+// count. Must count as cd_like in the Rust guard and the awk in guard.sh.
+function cdLike(cmd) {
+  const t = cmd
+    .split("\\n").join("\n")
+    .split("\\t").join(" ")
+    .split("\\r").join(" ")
+    .replace(/['"\\]/g, "")
+    .replace(/[`;&|()]/g, "\n");
+  const skip = ["then", "do", "else", "elif", "if", "while", "until", "{", "!", "time", "command", "builtin", "nohup", "sudo"];
+  let count = 0;
+  for (const line of t.split("\n")) {
+    const w = line.split(/[ \t]+/).filter(Boolean);
+    count += w.filter((x) => x === "cd" || x === "pushd" || x === "popd").length;
+    const first = w.find((x) => !skip.includes(x));
+    if (first !== undefined && ["eval", "exec", "source", "."].includes(first)) count += 1;
+    w.forEach((x, i) => {
+      if (["sh", "bash", "zsh", "dash", "ksh"].includes(x) && i + 1 < w.length && /^-[^-]/.test(w[i + 1]) && w[i + 1].includes("c")) count += 1;
+      if (x === "env" && w.slice(i + 1).some((y) => y.startsWith("--chdir") || (/^-[^-]/.test(y) && y.includes("C")))) count += 1;
+    });
+  }
+  return count;
+}
+
+// Follow the leading `cd DIR &&` segments of a command. Returns { dir, followed } (followed: at
+// least one cd), or null when a cd cannot be followed: a variable, ~, -, an option, "..", a glob, a
+// quote or backslash in the word, a ; after the cd, or any other cd-like word (nested, after ||,
+// later, eval, sh -c, ...) so the caller keeps asking. Must decide as cd_prefix in the Rust guard
+// and cd_resolve in guard.sh.
+function cdPrefix(cmd, cwd) {
+  const total = cdLike(cmd);
+  const ws = /^[ \t\n\r\v\f]+/;
+  let rest = cmd;
+  let dir = cwd === "" ? "." : cwd;
+  let n = 0;
+  for (;;) {
+    const t = rest.replace(ws, "");
+    if (!/^cd[ \t\n\r\v\f]/.test(t)) break;
+    const a = t.slice(2).replace(ws, "");
+    let arg;
+    let tail;
+    if (a.startsWith('"') || a.startsWith("'")) {
+      const end = a.indexOf(a[0], 1);
+      if (end < 0) return null;
+      arg = a.slice(1, end);
+      tail = a.slice(end + 1);
+    } else {
+      const m = /^[^ \t\n\r\v\f;&|()<>]*/.exec(a)[0];
+      arg = m;
+      tail = a.slice(m.length);
+    }
+    if (arg === "" || arg.startsWith("-") || arg.includes("..") || /[$`\\*?[\]{}~"'!#\n\r]/.test(arg)) return null;
+    tail = tail.replace(ws, "");
+    if (!tail.startsWith("&&")) return null;
+    rest = tail.slice(2);
+    dir = arg.startsWith("/") ? arg : `${dir}/${arg}`;
+    n += 1;
+  }
+  if (n !== total || (n > 0 && (cdHazard(cmd) || !restOk(rest)))) return null;
+  return { dir: n === 0 ? cwd : dir, followed: n > 0 };
+}
+
 // branchOf(dir) returns the current branch name ("" when unknown). The plugin
 // passes a git-backed resolver; tests do too.
 export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantAt } = {}) {
   const segments = gitSegments(cmd);
+  const st = strippedSegments(cmd);
   const deny = (reason) => ({ decision: "deny", reason: `git:workflow guard: ${reason}` });
   const ask = (reason) => ({ decision: "ask", reason: `git:workflow guard: ${reason}` });
 
@@ -187,17 +337,34 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantA
   ) {
     return ask("this rewrites history or discards work; allow only on the user's explicit request");
   }
-  if (gitHas(segments, "commit") || gitHas(segments, "merge")) {
+  if (aliasUse(st)) {
+    return ask(
+      "a git alias can run any command, so the guard cannot tell which branch a commit lands on; allow only if the user asked for this alias",
+    );
+  }
+  const seen = (sub) => gitHas(segments, sub) || gitHas(st, sub);
+  if (seen("(?:commit|merge)")) {
+    if (prefixHazard(st)) return ask(CD_UNRESOLVED);
+    const cd = cdPrefix(cmd, cwd);
+    if (cd === null || (cd.followed && branchChange(st))) {
+      return ask(CD_UNRESOLVED);
+    }
     const cMatch = new RegExp("git[ \\t]+-C[ \\t]+([^ \\t]*)").exec(segments.join("\n"));
-    const dir = cMatch ? cMatch[1] : cwd;
+    let dir = cMatch ? cMatch[1] : cd.dir;
+    if (cd.followed && cMatch && dir !== "" && !dir.startsWith("/")) {
+      if (dir.includes("..")) return ask(CD_UNRESOLVED);
+      dir = `${cd.dir}/${dir}`; // relative to the cd
+    }
+    if (/["']/.test(dir)) return ask(CD_UNRESOLVED);
     const branch = branchOf(dir);
+    if (cd.followed && branch === "") return ask(CD_UNRESOLVED);
     if (branch === "main" || branch === "master") {
       return ask(`this commits or merges on ${branch}; the workflow works on a branch (allow only if the user asked for it)`);
     }
     if (branch === "homolog" || branch === "staging") {
       return ask(`this commits or merges on ${branch}; promotion up the branch chain needs the user's explicit request`);
     }
-    if ((branch === "dev" || branch === "develop") && gitHas(segments, "commit")) {
+    if ((branch === "dev" || branch === "develop") && seen("commit")) {
       return ask(
         `this commits directly on ${branch}; work goes on a branch merged into it (conclude a merge with git merge --continue)`,
       );

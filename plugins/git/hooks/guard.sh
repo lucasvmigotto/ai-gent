@@ -81,6 +81,8 @@ _gw_find() { # _gw_find <reason>: the guard and the entry a reason belongs to
     git:*'the workflow works on a branch'*) _gw_match='the workflow works on a branch' _gw_say='This commits or merges on a long-lived branch.' _gw_if='Allow only if you asked for it.' ;;
     git:*'promotion up the branch chain'*) _gw_match='promotion up the branch chain' _gw_say='This commits or merges on a branch higher in the chain.' _gw_if='Allow only if you asked to promote.' ;;
     git:*'commits directly on'*) _gw_match='commits directly on' _gw_say='This commits straight onto the integration branch.' _gw_if='Work goes on a branch merged into it; allow only if you meant this (concluding a merge is fine).' ;;
+    git:*'cannot follow the cd'*) _gw_match='cannot follow the cd' _gw_say='This commits or merges after a cd the guard cannot follow, so the branch is unknown.' _gw_if='Allow only if the target is not an integration branch; git -C with a plain path is understood.' ;;
+    git:*'a git alias can run any command'*) _gw_match='a git alias can run any command' _gw_say='A git alias can run any command, so the branch a commit lands on is unknown.' _gw_if='Allow only if you asked for this alias.' ;;
     db:*'db credentials file'*) _gw_match='db credentials file' _gw_say='Only dbrun reads database credential files.' _gw_do='use dbrun profiles, classify or test.' ;;
     db:*'restores into a database'*) _gw_match='restores into a database' _gw_say='A direct restore changes a database.' _gw_do='local restores go through dbrun restore; anything else is a script for a person to run.' ;;
     db:*'with SQL that writes'*) _gw_match='with SQL that writes' _gw_say='A direct client call would write to a database.' _gw_do='use dbrun (plan and apply on a proven local database, a script for anything else).' ;;
@@ -271,9 +273,20 @@ segments="$(printf '%s\n' "$cmd" | awk '{
   gsub(/\\"([^\\]|\\[^"])*\\"/, "\"\""); gsub(/\047[^\047]*\047/, "\047\047")
   gsub(/\\n/, "\n"); gsub(/[;&|()]/, "\n"); print }')"
 
+# The same with quotes and backslashes removed, to recognise git "commit", git c\ommit, --git-""dir
+# as the shell reads them; used to recognise a commit, never to read an option's value or a deny rule.
+stripped_segments="$(printf '%s\n' "$cmd" | awk '{ gsub(/\\n/, "\n"); gsub(/\\t/, " "); gsub(/[\047"\\]/, ""); gsub(/[;&|()]/, "\n"); print }')"
+hazard_re='GIT_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|core\.hookspath|CDPATH|(^|[[:space:]])-c[[:space:]]*(core|alias|include)\.'
+
+# sh -c 'git commit': the quoted text is blanked above, so look inside the quotes too
+if printf '%s' "$cmd" | tr -d "'\"\\" | grep -Eq '(^|[ \t;&|(/])(sh|bash|zsh|dash|ksh)[ \t]+-[A-Za-z]*c'; then
+  segments="$segments
+$(printf '%s\n' "$cmd" | awk '{ gsub(/\\n/, "\n"); gsub(/[\047"`;&|()]/, "\n"); print }')"
+fi
+
 # git, optionally with global options (-C <dir>, -c <k=v>, --no-pager, ...),
 # followed by the subcommand.
-git_re='^[[:space:]]*(sudo[[:space:]]+)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+'
+git_re='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((sudo|env|exec|command|nohup|xargs|time)[[:space:]]+([^[:space:];&|()]+[[:space:]]+)*)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|-[Cc][^[:space:]]+|-[A-Za-z]|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+'
 
 has() { # has <subcommand regex> [<argument regex>]
   printf '%s\n' "$segments" | grep -Eq "$git_re$1([[:space:]].*)?\$" || return 1
@@ -293,6 +306,143 @@ work_dir() {
   d="$(printf '%s\n' "$segments" | sed -n 's/.*git[[:space:]]\{1,\}-C[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' | head -n1)"
   [ -n "$d" ] || d="$cwd"
   printf '%s' "${d:-.}"
+}
+
+# Follow the leading `cd DIR` segments of the command, joined by && or ;. Sets cd_dir
+# (the directory it runs in) and cd_n (how many cd), and fails when a cd cannot be followed: a
+# variable, ~, -, an option, a glob, a quote or backslash in the word, or any other cd (nested,
+# after ||, later), so the caller keeps asking. $cmd is JSON-escaped here: \" is a double quote and
+# \n a newline. Must decide as cd_prefix in the Rust guard and cdPrefix in opencode/guard/rules.mjs.
+shas() { # has, on the stripped segments
+  _sv="$segments" segments="$stripped_segments"
+  has "$@"
+  _sr=$?
+  segments="$_sv"
+  return $_sr
+}
+seen() { has "$@" || shas "$@"; }
+prefix_hazard() { # a repository, work tree, hook path or config before the subcommand, or a bare GIT_* / CDPATH assignment
+  printf '%s\n' "$stripped_segments" | grep -oE "$git_re(commit|merge)" | grep -Eqi -e "$hazard_re" && return 0
+  printf '%s\n' "$stripped_segments" | grep -Eq '^[[:space:]]*(export[[:space:]]+)?(GIT_[A-Za-z_]*|CDPATH)='
+}
+alias_use() { # git -c alias.x=... in any spacing, or git config alias.* next to another git command
+  printf '%s\n' "$stripped_segments" | grep -Eqi '(^|[[:space:]])git[[:space:]].*-c[[:space:]]*alias\.' && return 0
+  printf '%s\n' "$stripped_segments" | grep -Eqi '(^|[[:space:]])git[[:space:]]+(-[^[:space:]]+[[:space:]]+)*config[[:space:]].*alias\.' || return 1
+  [ "$(printf '%s\n' "$stripped_segments" | grep -Ec "${git_re}[a-z]")" -ge 2 ]
+}
+branch_change() { # a git command that can move HEAD or a branch
+  shas '(checkout|switch|worktree|reset|update-ref|symbolic-ref)' ||
+    shas 'branch' '(^|[[:space:]])(-m|-M|--move)([[:space:]]|$)'
+}
+
+cd_ws() { # strip leading whitespace, also the JSON escapes \n \t \r
+  while :; do
+    rest="${rest#"${rest%%[![:space:]]*}"}"
+    case "$rest" in '\n'* | '\t'* | '\r'*) rest="${rest#??}" ;; *) break ;; esac
+  done
+}
+cd_like() { # how many words of the command can change the directory or run code that can
+  printf '%s' "$cmd" | awk '{
+    s = $0; gsub(/\\n/, "\n", s); gsub(/\\[tr]/, " ", s); gsub(/[\047"\\]/, "", s)
+    gsub(/[`;&|()]/, "\n", s)
+    cnt = 0; m = split(s, lines, "\n")
+    for (i = 1; i <= m; i++) {
+      k = split(lines[i], parts, /[ \t]+/); nw = 0
+      for (j = 1; j <= k; j++) if (parts[j] != "") w[++nw] = parts[j]
+      first = ""
+      for (j = 1; j <= nw; j++) {
+        if (w[j] == "cd" || w[j] == "pushd" || w[j] == "popd") cnt++
+        if (first == "" && w[j] !~ /^(then|do|else|elif|if|while|until|\{|!|time|command|builtin|nohup|sudo)$/) first = w[j]
+        if (w[j] ~ /^(sh|bash|zsh|dash|ksh)$/ && j < nw && w[j+1] ~ /^-[^-]/ && index(w[j+1], "c")) cnt++
+        if (w[j] == "env") for (l = j + 1; l <= nw; l++) if (w[l] ~ /^--chdir/ || (w[l] ~ /^-[^-]/ && index(w[l], "C"))) { cnt++; break }
+      }
+      if (first ~ /^(eval|exec|source|\.)$/) cnt++
+    }
+    print cnt
+  }'
+}
+cd_rest_ok() { # stdin: what follows the leading cds (JSON-escaped); prints ok or bad
+  awk 'function word(t,   w) { sub(/^[[:space:]]+/, "", t); w = t; sub(/[[:space:]].*$/, "", w); return w == "git" }
+  {
+    e = $0; d = ""; n = length(e)
+    for (i = 1; i <= n; i++) {
+      c = substr(e, i, 1)
+      if (c == "\\" && i < n) {
+        i++; c = substr(e, i, 1)
+        if (c == "n") c = "\n"; else if (c == "t") c = "\t"; else if (c == "r") c = "\r"
+      }
+      d = d c
+    }
+    sub(/[[:space:]]+$/, "", d)
+    q = 0; start = 1; ok = 1; n = length(d)
+    for (i = 1; i <= n && ok; i++) {
+      c = substr(d, i, 1); nx = substr(d, i + 1, 1)
+      if (q == 1) { if (c == "\047") q = 0; continue }
+      if (q == 2) {
+        if (c == "\"") q = 0
+        else if (c == "\\") i++
+        else if (c == "`") ok = 0
+        else if (c == "$" && (nx == "(" || nx == "{")) ok = 0
+        continue
+      }
+      if (c == "\047") q = 1
+      else if (c == "\"") q = 2
+      else if (c == "\\") i++
+      else if (c == "&" && nx == "&") { if (!word(substr(d, start, i - start))) ok = 0; start = i + 2; i++ }
+      else if (c == "&" && i > 1 && substr(d, i - 1, 1) == ">") { }
+      else if (index("&<$`;|(){}\n\r", c)) ok = 0
+    }
+    if (q != 0) ok = 0
+    if (ok && !word(substr(d, start))) ok = 0
+    print ok ? "ok" : "bad"
+  }'
+}
+cd_resolve() {
+  cd_total="$(cd_like)"
+  cd_dir="${cwd:-.}" cd_n=0 rest="$cmd"
+  while :; do
+    cd_ws
+    case "$rest" in cd[[:space:]]* | 'cd\n'* | 'cd\t'* | 'cd\r'*) ;; *) break ;; esac
+    rest="${rest#cd}"
+    cd_ws
+    case "$rest" in
+      '\"'*)
+        r1="${rest#'\"'}"
+        case "$r1" in *'\"'*) ;; *) return 1 ;; esac
+        a="${r1%%'\"'*}"
+        rest="${r1#*'\"'}"
+        ;;
+      "'"*)
+        r1="${rest#"'"}"
+        case "$r1" in *"'"*) ;; *) return 1 ;; esac
+        a="${r1%%"'"*}"
+        rest="${r1#*"'"}"
+        ;;
+      *)
+        a="${rest%%[[:space:];&|()<>]*}"
+        rest="${rest#"$a"}"
+        ;;
+    esac
+    case "$a" in
+      '' | -* | *..* | *[\$\`\\\*\?\[\]\{\}\~\"\'\!\#]*) return 1 ;;
+    esac
+    cd_ws
+    case "$rest" in
+      '&&'*) rest="${rest#&&}" rest_raw="$rest" ;;
+      *) return 1 ;;
+    esac
+    case "$a" in /*) cd_dir="$a" ;; *) cd_dir="$cd_dir/$a" ;; esac
+    cd_n=$((cd_n + 1))
+  done
+  [ "$cd_n" -eq "$cd_total" ] || return 1
+  if [ "$cd_n" -gt 0 ]; then
+    # only plain git commands may follow, and nothing that moves the repository
+    [ "$(printf '%s' "$rest_raw" | cd_rest_ok)" = ok ] || return 1
+    ! printf '%s' "$cmd" | tr -d "'\"\\" |
+      grep -Eqi -e "$hazard_re" || return 1
+  fi
+  [ "$cd_n" -gt 0 ] || cd_dir="$cwd"
+  return 0
 }
 
 # The autonomy grant: .ai-gent/autonomy at the repository root, key: value lines
@@ -407,11 +557,40 @@ if has 'reset' '--hard' || has 'clean' '(^|[[:space:]])-[a-zA-Z]*f' ||
   has 'commit' '--amend' || has '(filter-branch|filter-repo)'; then
   decide ask "this rewrites history or discards work; allow only on the user's explicit request"
 fi
-if has '(commit|merge)'; then
-  dir="$cwd"
+if alias_use; then
+  decide ask "a git alias can run any command, so the guard cannot tell which branch a commit lands on; allow only if the user asked for this alias"
+fi
+if seen '(commit|merge)'; then
+  prefix_hazard && decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+  cd_resolve ||
+    decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+  if [ "$cd_n" -gt 0 ] && branch_change; then
+    decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+  fi
+  dir="$cd_dir"
   c_dir="$(printf '%s\n' "$segments" | sed -n 's/.*git[[:space:]]\{1,\}-C[[:space:]]\{1,\}\([^[:space:]]*\).*/\1/p' | head -n1)"
-  [ -n "$c_dir" ] && dir="$c_dir"
+  if [ -n "$c_dir" ]; then
+    case "$c_dir" in
+      /*) dir="$c_dir" ;;
+      *)
+        if [ "$cd_n" -gt 0 ]; then
+          case "$c_dir" in
+            *..*) decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)" ;;
+          esac
+          dir="$cd_dir/$c_dir" # relative to the cd
+        else
+          dir="$c_dir"
+        fi
+        ;;
+    esac
+  fi
+  case "$dir" in
+    *\"* | *\'*) decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)" ;;
+  esac
   branch="$(git -C "${dir:-.}" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  if [ "$cd_n" -gt 0 ] && [ -z "$branch" ]; then
+    decide ask "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
+  fi
   case "$branch" in
     main | master)
       decide ask "this commits or merges on $branch; the workflow works on a branch (allow only if the user asked for it)"
@@ -420,7 +599,7 @@ if has '(commit|merge)'; then
       decide ask "this commits or merges on $branch; promotion up the branch chain needs the user's explicit request"
       ;;
     dev | develop)
-      has 'commit' &&
+      seen 'commit' &&
         decide ask "this commits directly on $branch; work goes on a branch merged into it (conclude a merge with git merge --continue)"
       ;;
   esac
