@@ -3,7 +3,10 @@
 // Local columns are exactly what `wt.py list --json` reports (FR-002), the check
 // rollup is data-model.md's mapping (FR-007); nothing else is computed.
 
-import type { Line, Tone } from './cards-view'
+import type { Line as BaseLine, Tone } from './cards-view'
+
+// A row's line carries the branch it opens and closes by, when it is pressable.
+export type Line = BaseLine & { toggle?: string }
 
 export type Checks = 'failing' | 'pending' | 'passing' | 'none'
 export type Pr = { number: number; state: 'OPEN' | 'MERGED' | 'CLOSED'; isDraft: boolean; checks: Checks }
@@ -11,16 +14,25 @@ export type Pr = { number: number; state: 'OPEN' | 'MERGED' | 'CLOSED'; isDraft:
 export type Row = { branch: string; path: string; dirty: boolean; ahead: number | null; behind: number | null; pr?: Pr | null }
 export type Mark = 'failing' | 'removable' | 'nothing of its own'
 export type Gh = { usable: boolean; platform: string }
+// One source's freshness (FR-023): when a read last started, when one last parsed, and why the last one failed.
+export type Fresh = { attemptedAt: number; okAt: number; error: string | null }
 export type Board = {
   rows: Row[]
   // The first stderr line of the last failed wt.py run, or null.
   error: string | null
   gh: Gh
+  // Absent in a plain board: nothing is cached. `okAt` 0 is no good read yet.
+  local?: Fresh
+  remote?: Fresh
+  // Draw the divergence as `^a vb` and the row marker as `>`/`v`.
+  ascii?: boolean
+  // Rows open by branch (FR-022); `text` ignores it and prints every row open.
+  expanded?: Readonly<Record<string, boolean>>
 }
 
 // Rows drawn; the rest is "+N more" (wt.py list spawns git per worktree).
 export const MAX_ROWS = 30
-// Under this many columns a row is `branch +a/-b ●`.
+// Under this many columns a row is `branch ↑a ↓b ●`.
 export const NARROW = 60
 export const NO_ROWS = 'no worktrees under .worktrees/'
 
@@ -106,7 +118,10 @@ export function markOf(r: Row): Mark | null {
   return null
 }
 
-const counts = (r: Row): string => (r.ahead === null || r.behind === null ? '?' : `+${r.ahead}/-${r.behind}`)
+const counts = (r: Row, ascii: boolean): string => (r.ahead === null || r.behind === null ? '?' : ascii ? `^${r.ahead} v${r.behind}` : `↑${r.ahead} ↓${r.behind}`)
+
+// A clock time for a freshness note, UTC so it reads the same everywhere.
+const clock = (ms: number): string => `${new Date(ms).toISOString().slice(11, 19)}Z`
 const PLATFORMS: Record<string, string> = { github: 'GitHub', gitlab: 'GitLab', azure: 'Azure DevOps', bitbucket: 'Bitbucket' }
 
 // Whether the pull request column is drawn: gh usable on GitHub.
@@ -126,26 +141,48 @@ function summary(b: Board): string {
 
 function prCell(r: Row, b: Board): string[] {
   if (!hasPrColumn(b)) return []
-  if (r.pr === undefined) return [r.branch === DETACHED ? '—' : '…']
+  if (r.pr === undefined) return [r.branch === DETACHED ? '—' : b.remote?.error ? 'read failed' : '…']
   if (r.pr === null) return ['no PR']
   const state = r.pr.state === 'OPEN' ? (r.pr.isDraft ? 'draft' : 'open') : r.pr.state.toLowerCase()
-  return [`#${r.pr.number} ${state}`, ...(r.pr.checks === 'none' ? [] : [`checks ${r.pr.checks}`])]
+  // A failing check is the row's `failing` mark, said once; the others stay words here.
+  return [`#${r.pr.number} ${state}`, ...(r.pr.checks === 'none' || r.pr.checks === 'failing' ? [] : [`checks ${r.pr.checks}`])]
 }
 
-function row(r: Row, b: Board, width: number, isNarrow: boolean): { text: string; tone: Tone } {
+function row(r: Row, b: Board, width: number, isNarrow: boolean, marker: string): { text: string; tone: Tone } {
   const mark = markOf(r)
   const tone: Tone = mark === 'failing' ? 'bad' : mark === 'removable' || mark === 'nothing of its own' ? 'dim' : 'plain'
-  if (isNarrow) return { text: [r.branch, counts(r), r.dirty ? '●' : ''].filter(Boolean).join(' '), tone }
-  const cells = [r.branch.padEnd(width), counts(r).padEnd(6), r.dirty ? '●' : ' ', ...prCell(r, b)]
+  const ascii = b.ascii === true
+  if (isNarrow) return { text: `${marker} ${[r.branch, counts(r, ascii), r.dirty ? '●' : '', mark === 'failing' ? 'failing' : ''].filter(Boolean).join(' ')}`, tone }
+  const cells = [r.branch.padEnd(width), counts(r, ascii).padEnd(6), r.dirty ? '●' : ' ', ...prCell(r, b)]
   if (mark === 'removable') cells.push(`removable: wt.py remove ${r.branch}`)
   else if (mark !== null) cells.push(mark)
-  return { text: cells.join('  ').trimEnd(), tone }
+  return { text: `${marker} ${cells.join('  ').trimEnd()}`, tone }
 }
+
+// An open row's lines: every fact the collapsed row cut or folded, whole (never fitted).
+function details(r: Row, b: Board): string[] {
+  const out = [`Branch: ${r.branch}`, `Path: ${r.path}`, `Uncommitted changes: ${r.dirty ? 'yes' : 'no'}`]
+  out.push(r.ahead === null || r.behind === null ? 'Divergence: unknown (no base branch found)' : `Divergence: ahead ${r.ahead}, behind ${r.behind}`)
+  if (hasPrColumn(b)) {
+    if (r.pr === undefined) out.push(r.branch === DETACHED ? 'Pull request: not looked up (detached HEAD)' : (b.remote?.error ? 'Pull request: read failed' : 'Pull request: being read'))
+    else if (r.pr === null) out.push('Pull request: none')
+    else {
+      const state = r.pr.state === 'OPEN' ? (r.pr.isDraft ? 'draft' : 'open') : r.pr.state.toLowerCase()
+      out.push(`Pull request: #${r.pr.number} ${state}`, `Checks: ${r.pr.checks}`)
+    }
+  }
+  return out.map(t => `    ${t}`)
+}
+
+const lastGood = (f: Fresh): string => (f.okAt > 0 ? `last good ${clock(f.okAt)}` : 'no good read yet')
 
 function notes(b: Board): { text: string; tone: Tone }[] {
   const out: { text: string; tone: Tone }[] = []
   if (b.error !== null) out.push({ text: `wt.py failed: ${b.error}`, tone: 'warn' })
-  if (b.rows.some(r => r.ahead === null || r.behind === null)) out.push({ text: 'no dev branch found: ahead and behind are unknown (?)', tone: 'dim' })
+  if (b.rows.some(r => r.ahead !== null && r.behind !== null)) out.push({ text: b.ascii === true ? '^ ahead of, v behind the base branch' : '↑ ahead of, ↓ behind the base branch', tone: 'dim' })
+  if (b.local !== undefined && b.local.error !== null) out.push({ text: `local: ${b.local.okAt > 0 ? 'cached, ' : ''}read failed at ${clock(b.local.attemptedAt)}; ${lastGood(b.local)}`, tone: 'warn' })
+  if (b.remote !== undefined && b.remote.error !== null && hasPrColumn(b)) out.push({ text: `GitHub: ${b.remote.okAt > 0 ? 'cached, ' : ''}read failed at ${clock(b.remote.attemptedAt)}; ${lastGood(b.remote)}`, tone: 'warn' })
+  if (b.rows.some(r => r.ahead === null || r.behind === null)) out.push({ text: 'no base branch found: ahead and behind are unknown (?)', tone: 'dim' })
   if (b.gh.platform === 'github' && !b.gh.usable) out.push({ text: 'gh is not signed in: gh auth login would add the pull request and checks', tone: 'dim' })
   else if (b.gh.platform !== 'github' && b.gh.platform !== '') {
     const name = PLATFORMS[b.gh.platform]
@@ -154,13 +191,14 @@ function notes(b: Board): { text: string; tone: Tone }[] {
   return out
 }
 
-const fit = (text: string, columns: number): string => (text.length > columns ? `${text.slice(0, Math.max(1, columns - 1))}…` : text)
+const fit = (text: string, columns: number, ascii = false): string => (text.length > columns ? `${text.slice(0, Math.max(1, columns - 1))}${ascii ? '~' : '…'}` : text)
 
 export function view(b: Board, columns: number): Line[] {
   const lines: Line[] = []
   const add = (text: string, tone: Tone = 'plain'): void => {
-    lines.push({ key: `l${lines.length}`, text: fit(text, columns), tone })
+    lines.push({ key: `l${lines.length}`, text: fit(text, columns, b.ascii === true), tone })
   }
+  const ascii = b.ascii === true
   if (b.rows.length === 0) {
     add(NO_ROWS, 'dim')
   } else {
@@ -168,8 +206,10 @@ export function view(b: Board, columns: number): Line[] {
     const shown = b.rows.slice(0, MAX_ROWS)
     const width = Math.max(...shown.map(r => r.branch.length))
     for (const r of shown) {
-      const cell = row(r, b, width, columns < NARROW)
-      add(cell.text, cell.tone)
+      const isOpen = b.expanded?.[r.path] === true
+      const cell = row(r, b, width, columns < NARROW, isOpen ? (ascii ? 'v' : '▾') : ascii ? '>' : '▸')
+      lines.push({ key: `row:${r.path}`, text: fit(cell.text, columns, ascii), tone: cell.tone, toggle: r.path })
+      if (isOpen) for (const d of details(r, b)) lines.push({ key: `l${lines.length}`, text: d, tone: 'dim' })
     }
     if (b.rows.length > MAX_ROWS) add(`+${b.rows.length - MAX_ROWS} more`, 'dim')
   }
@@ -180,5 +220,6 @@ export function view(b: Board, columns: number): Line[] {
 // The same content as plain text, for a surface that cannot dock the pane.
 export function text(b: Board): string {
   if (b.rows.length === 0 && b.error === null) return NO_ROWS
-  return view(b, Number.MAX_SAFE_INTEGER).map(l => l.text).join('\n')
+  const open = Object.fromEntries(b.rows.map(r => [r.path, true]))
+  return view({ ...b, expanded: open }, Number.MAX_SAFE_INTEGER).map(l => l.text).join('\n')
 }
