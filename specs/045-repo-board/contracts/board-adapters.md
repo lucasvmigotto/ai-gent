@@ -11,11 +11,11 @@ Field   { id, name, kind: "single_select" | "lists" | "status", options: [Option
 Option  { id, name, state: State | null, mapped_by: "map" | "alias" | "unmapped" | "stale" }
 Item    { id, kind: "issue" | "pull_request" | "draft", number, url, title, open,
           value: Option.name | null, state: State | "conflict" | null }
-Change  { board, item, from: Option.name | null, to: Option.name, state: State | null,
-          changed: bool, added: bool, sent: [request summary], dry_run: bool }
+Change  { board, item, field, from: Option.name | null, to: Option.name | null, state: State | null,
+          changed: bool, added: bool, sent: [request summary], dry_run: bool, error: string | null }
 ```
 
-`--json` prints these objects (`list` → `[Board]`, `show` → `{board, field, items: [Item], truncated}`, `fields` → `{board, field, unmapped: [State]}`, `set`/`add` → `Change`). Text output is a table of the same fields. Raw platform ids appear only in `id`.
+`--json` prints these objects (`list` → `[Board]`, `show` → `{board, field, items: [Item], truncated}`, `fields` → `{board, field, unmapped: [State]}`, `set`/`add` → `Change`; `error` is set when `add --state` sent `BoardAdd` and `BoardSet` then failed). Text output is a table of the same fields. Raw platform ids appear only in `id`.
 
 The adapter interface, in Rust terms:
 

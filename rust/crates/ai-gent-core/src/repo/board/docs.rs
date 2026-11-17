@@ -56,8 +56,38 @@ pub const GITLAB_STATUS_INTROSPECT: (&str, &str) = (
     "query BoardStatusIntrospect { widget: __type(name: \"WorkItemWidgetStatus\") { name fields { name type { name kind ofType { name kind } } } } definition: __type(name: \"WorkItemWidgetDefinitionStatus\") { name fields { name type { name kind ofType { name kind } } } } workItem: __type(name: \"WorkItem\") { fields { name } } }",
 );
 
+/// GitHub: where an issue or pull request sits on boards (the item ids and the column value).
+pub const ITEM_ON_BOARD: (&str, &str) = (
+    "ItemOnBoard",
+    "query ItemOnBoard($url: URI!, $field: String!, $after: String) { resource(url: $url) { __typename ... on Issue { id number url title state projectItems(first: 50, after: $after) { nodes { id project { id } fieldValueByName(name: $field) { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } } ... on PullRequest { id number url title state projectItems(first: 50, after: $after) { nodes { id project { id } fieldValueByName(name: $field) { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } } } }",
+);
+
+/// GitLab status mode (fixtures only, unverified): one work item of a project with its status.
+pub const GITLAB_STATUS_LOCATE: (&str, &str) = (
+    "BoardStatusLocate",
+    "query BoardStatusLocate($fullPath: ID!, $iid: String!) { project(fullPath: $fullPath) { workItems(iids: [$iid]) { nodes { id iid title webUrl state widgets { ... on WorkItemWidgetStatus { status { id name } } } } } } }",
+);
+
+/// GitHub write: add an issue or pull request to a board.
+pub const BOARD_ADD: (&str, &str) = (
+    "BoardAdd",
+    "mutation BoardAdd($project: ID!, $content: ID!) { addProjectV2ItemById(input: {projectId: $project, contentId: $content}) { item { id } } }",
+);
+
+/// GitHub write: set the single-select value of an item.
+pub const BOARD_SET: (&str, &str) = (
+    "BoardSet",
+    "mutation BoardSet($project: ID!, $item: ID!, $field: ID!, $option: String!) { updateProjectV2ItemFieldValue(input: {projectId: $project, itemId: $item, fieldId: $field, value: {singleSelectOptionId: $option}}) { projectV2Item { id } } }",
+);
+
+/// GitLab status mode write (fixtures only, every name unverified): set a work item's status.
+pub const BOARD_STATUS: (&str, &str) = (
+    "BoardStatus",
+    "mutation BoardStatus($item: WorkItemID!, $status: WorkItemsStatusesStatusID!) { workItemUpdate(input: {id: $item, statusWidget: {status: $status}}) { workItem { id } errors } }",
+);
+
 /// Every read document, for the classification test and nothing else.
-pub const READS: [(&str, &str); 9] = [
+pub const READS: [(&str, &str); 11] = [
     BOARDS_OF_USER,
     BOARDS_OF_ORG,
     BOARD_OF_USER,
@@ -67,7 +97,12 @@ pub const READS: [(&str, &str); 9] = [
     GITLAB_STATUS_FIELDS,
     GITLAB_STATUS_ITEMS,
     GITLAB_STATUS_INTROSPECT,
+    ITEM_ON_BOARD,
+    GITLAB_STATUS_LOCATE,
 ];
+
+/// Every write document, for the classification test and nothing else.
+pub const WRITES: [(&str, &str); 3] = [BOARD_ADD, BOARD_SET, BOARD_STATUS];
 
 #[cfg(test)]
 mod tests {
@@ -103,6 +138,34 @@ mod tests {
                 !api_is_write("gitlab", "POST", "/api/graphql", Some(b.as_bytes()), &[]),
                 "{name}: gitlab"
             );
+        }
+    }
+
+    #[test]
+    fn every_write_document_is_a_write() {
+        for (name, doc) in WRITES {
+            assert!(doc.starts_with(&format!("mutation {name}")), "{name}");
+            let b = body(name, doc);
+            assert!(!is_read_body(Some(b.as_bytes())), "{name} reads as a read");
+            for (platform, path) in [("github", "/graphql"), ("gitlab", "/api/graphql")] {
+                assert!(
+                    api_is_write(platform, "POST", path, Some(b.as_bytes()), &[]),
+                    "{name}: {platform}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_planned_gitlab_put_is_a_write() {
+        for path in ["/projects/g%2Fp/issues/3", "/projects/7/issues/12"] {
+            assert!(api_is_write(
+                "gitlab",
+                "PUT",
+                path,
+                Some(b"{\"add_labels\":\"x\"}"),
+                &[]
+            ));
         }
     }
 

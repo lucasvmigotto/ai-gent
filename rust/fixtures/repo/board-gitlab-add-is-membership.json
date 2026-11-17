@@ -1,0 +1,249 @@
+{
+  "derived_from": "spec 045 contract 4.1 (add is membership; a scoped board refuses an outside issue)",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "repo/.ai-gent/board.yaml": "version: 1\nboards:\n  web:\n    platform: gitlab\n    project: grp/proj\n    board: 12\n    states:\n      todo: \"workflow::todo\"\n      doing: \"workflow::doing\"\n      review: \"workflow::review\"\n      done: closed\n  scoped:\n    platform: gitlab\n    project: grp/proj\n    board: 13\n    states:\n      todo: \"workflow::todo\"\n"
+  },
+  "git": [],
+  "name": "board-gitlab-add-is-membership",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "id": 12,
+        "lists": [
+          {
+            "id": 101,
+            "label": {
+              "id": 1,
+              "name": "workflow::todo"
+            },
+            "position": 0
+          },
+          {
+            "id": 102,
+            "label": {
+              "id": 2,
+              "name": "workflow::doing"
+            },
+            "position": 1
+          },
+          {
+            "id": 103,
+            "label": {
+              "id": 3,
+              "name": "workflow::review"
+            },
+            "position": 2
+          }
+        ],
+        "name": "Development"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/12",
+      "status": 200
+    },
+    {
+      "body": {
+        "id": 1007,
+        "iid": 7,
+        "labels": [
+          "bug"
+        ],
+        "state": "opened",
+        "title": "Issue 7",
+        "web_url": "https://gitlab.com/grp/proj/-/issues/7"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues/7",
+      "status": 200
+    },
+    {
+      "body": {
+        "id": 1007,
+        "iid": 7
+      },
+      "method": "PUT",
+      "path": "/projects/grp%2Fproj/issues/7",
+      "status": 200
+    },
+    {
+      "body": {
+        "id": 13,
+        "labels": [
+          {
+            "name": "team::a"
+          }
+        ],
+        "lists": [
+          {
+            "id": 101,
+            "label": {
+              "id": 1,
+              "name": "workflow::todo"
+            },
+            "position": 0
+          },
+          {
+            "id": 102,
+            "label": {
+              "id": 2,
+              "name": "workflow::doing"
+            },
+            "position": 1
+          },
+          {
+            "id": 103,
+            "label": {
+              "id": 3,
+              "name": "workflow::review"
+            },
+            "position": 2
+          }
+        ],
+        "name": "Development"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/13",
+      "status": 200
+    },
+    {
+      "body": {
+        "id": 1009,
+        "iid": 9,
+        "labels": [
+          "bug"
+        ],
+        "state": "opened",
+        "title": "Issue 9",
+        "web_url": "https://gitlab.com/grp/proj/-/issues/9"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues/9",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "add",
+        "web",
+        "#7",
+        "--write",
+        "--json"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues/7"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"1007\",\n    \"kind\": \"issue\",\n    \"number\": 7,\n    \"url\": \"https://gitlab.com/grp/proj/-/issues/7\",\n    \"title\": \"Issue 7\"\n  },\n  \"field\": \"Lists\",\n  \"from\": \"Open\",\n  \"to\": null,\n  \"state\": null,\n  \"changed\": false,\n  \"added\": false,\n  \"sent\": [],\n  \"dry_run\": false,\n  \"error\": null\n}\n"
+    },
+    {
+      "argv": [
+        "board",
+        "add",
+        "web",
+        "#7",
+        "--state",
+        "todo",
+        "--write"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues/7"
+        },
+        {
+          "body": "{\"add_labels\": \"workflow::todo\"}",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "PUT",
+          "path": "/projects/grp%2Fproj/issues/7"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/12 · https://gitlab.com/grp/proj/-/issues/7\nOpen -> workflow::todo (todo)\nchanged: yes · added: no\nsent: PUT /projects/grp%2Fproj/issues/7 {\"add_labels\": \"workflow::todo\"}\n"
+    },
+    {
+      "argv": [
+        "board",
+        "add",
+        "scoped",
+        "#9",
+        "--write"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/13"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues/9"
+        }
+      ],
+      "stderr_has": [
+        "scoped by label:team::a"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

@@ -1,0 +1,171 @@
+{
+  "derived_from": "spec 045 contract 4.2 (a scoped board cannot be checked in status mode: refused)",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "repo/.ai-gent/board.yaml": "version: 1\nboards:\n  web:\n    platform: gitlab\n    project: grp/proj\n    board: 12\n    mode: status\n    states:\n      todo: \"To do\"\n      doing: \"In progress\"\n      done: Done\n"
+  },
+  "git": [],
+  "name": "board-gitlab-status-scoped-refused",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "data": {
+          "project": {
+            "id": "gid://gitlab/Project/1",
+            "workItemTypes": {
+              "nodes": [
+                {
+                  "name": "Issue",
+                  "widgetDefinitions": [
+                    {},
+                    {
+                      "allowedStatuses": [
+                        {
+                          "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/1",
+                          "name": "To do"
+                        },
+                        {
+                          "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/2",
+                          "name": "In progress"
+                        },
+                        {
+                          "id": "gid://gitlab/WorkItems::Statuses::Custom::Status/3",
+                          "name": "Done"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardStatusFields",
+      "path": "/api/graphql",
+      "status": 200,
+      "vars": {
+        "fullPath": "grp/proj"
+      }
+    },
+    {
+      "body": {
+        "id": 12,
+        "labels": [
+          {
+            "name": "team::a"
+          }
+        ],
+        "name": "Development"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/12",
+      "status": 200
+    },
+    {
+      "body": {
+        "data": {
+          "project": {
+            "workItems": {
+              "nodes": [
+                {
+                  "id": "gid://gitlab/WorkItem/2",
+                  "iid": "2",
+                  "state": "OPEN",
+                  "title": "Work item 2",
+                  "webUrl": "https://gitlab.com/grp/proj/-/work_items/2",
+                  "widgets": [
+                    {},
+                    {
+                      "status": {
+                        "id": "s",
+                        "name": "To do"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardStatusLocate",
+      "path": "/api/graphql",
+      "status": 200,
+      "vars": {
+        "fullPath": "grp/proj",
+        "iid": "2"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "workItemUpdate": {
+            "errors": [],
+            "workItem": {
+              "id": "gid://gitlab/WorkItem/2"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardStatus",
+      "path": "/api/graphql",
+      "status": 200,
+      "vars": {
+        "item": "gid://gitlab/WorkItem/2"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "set",
+        "web",
+        "#2",
+        "--state",
+        "doing",
+        "--write"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardStatusFields($fullPath: ID!) { project(fullPath: $fullPath) { id workItemTypes { nodes { name widgetDefinitions { ... on WorkItemWidgetDefinitionStatus { allowedStatuses { id name } } } } } } }\", \"variables\": {\"fullPath\": \"grp/proj\"}, \"operationName\": \"BoardStatusFields\"}",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/api/graphql"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        }
+      ],
+      "stderr_has": [
+        "is scoped",
+        "use mode: labels"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

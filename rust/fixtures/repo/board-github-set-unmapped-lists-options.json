@@ -1,0 +1,177 @@
+{
+  "derived_from": "spec 045 FR-011, FR-022 (unmapped and stale are refused)",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "repo/.ai-gent/board.yaml": "version: 1\nboards:\n  stale:\n    platform: github\n    owner: me\n    number: 1\n    states:\n      done: Finished\n"
+  },
+  "git": [],
+  "name": "board-github-set-unmapped-lists-options",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [
+    {
+      "body": {
+        "data": {
+          "user": {
+            "projectV2": {
+              "closed": false,
+              "field": {
+                "dataType": "SINGLE_SELECT",
+                "id": "PVTSSF_1",
+                "name": "Status",
+                "options": [
+                  {
+                    "id": "O1",
+                    "name": "Backlog"
+                  },
+                  {
+                    "id": "O2",
+                    "name": "Building"
+                  },
+                  {
+                    "id": "O3",
+                    "name": "Shipped"
+                  }
+                ]
+              },
+              "id": "PVT_1",
+              "title": "Roadmap",
+              "url": "https://github.com/users/me/projects/1"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "me",
+        "number": 1
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "resource": {
+            "__typename": "Issue",
+            "id": "I_5",
+            "number": 5,
+            "projectItems": {
+              "nodes": [
+                {
+                  "fieldValueByName": {
+                    "name": "Backlog",
+                    "optionId": "x"
+                  },
+                  "id": "PVTI_5",
+                  "project": {
+                    "id": "PVT_1"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "endCursor": null,
+                "hasNextPage": false
+              }
+            },
+            "state": "OPEN",
+            "title": "Export CSV",
+            "url": "https://github.com/o/r/issues/5"
+          }
+        }
+      },
+      "method": "POST",
+      "op": "ItemOnBoard",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "url": "https://github.com/o/r/issues/5"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "updateProjectV2ItemFieldValue": {
+            "projectV2Item": {
+              "id": "PVTI_5"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardSet",
+      "path": "/graphql",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "set",
+        "github:me/1",
+        "https://github.com/o/r/issues/5",
+        "--state",
+        "review",
+        "--write"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"me\", \"number\": 1, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "--value",
+        "Backlog",
+        "Shipped"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "set",
+        "stale",
+        "https://github.com/o/r/issues/5",
+        "--state",
+        "done",
+        "--write"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"me\", \"number\": 1, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "stale map",
+        "Finished"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}
