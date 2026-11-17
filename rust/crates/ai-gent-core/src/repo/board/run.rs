@@ -32,6 +32,8 @@ pub struct WriteOpts<'a> {
     pub write: bool,
     /// `--dry-run`: read, print the plan, send nothing.
     pub dry_run: bool,
+    /// The platform the caller works on (a batch plan's); the resolved board must be on it.
+    pub platform: Option<&'a str>,
 }
 
 fn option_names(field: &Field) -> String {
@@ -161,6 +163,13 @@ pub fn run_change(ctx: &Ctx, o: &WriteOpts<'_>) -> R<Change> {
     let item: ItemRef = parse_item(o.item)?;
     let map = map::load(ctx)?;
     let mut bref = resolve_ref(o.board, map.as_ref())?;
+    if let Some(p) = o.platform.filter(|p| *p != bref.platform) {
+        return Err(Failed::usage(format!(
+            "{} is a {} board, the plan is for {p}",
+            bref.key(),
+            bref.platform
+        )));
+    }
     check_item(ctx, &bref, &item)?;
     if let Some(f) = o.field.filter(|f| !f.is_empty()) {
         if bref.platform != "github" {

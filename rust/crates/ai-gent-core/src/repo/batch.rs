@@ -413,14 +413,9 @@ pub fn run(ctx: &Ctx, o: &Options<'_>) -> R<Outcome> {
                         max_pages: 10,
                         write: o.write,
                         dry_run: false,
+                        platform: Some(&plat),
                     },
                 )?;
-                if get("board").is_none() && c.board.platform != plat {
-                    return Err(Failed::usage(format!(
-                        "the board is on {}, the plan is for {plat}",
-                        c.board.platform
-                    )));
-                }
                 match &c.failed {
                     Some(e) => Err(Failed::err(format!(
                         "{e} (already sent: {})",

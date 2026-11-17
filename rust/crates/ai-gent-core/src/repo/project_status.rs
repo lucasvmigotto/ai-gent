@@ -139,6 +139,7 @@ pub fn project_status_call(ctx: &Ctx, s: &Status<'_>) -> R<J> {
             max_pages: 10,
             write: s.write,
             dry_run: false,
+            platform: None,
         },
     )?;
     if let Some(e) = &c.failed {

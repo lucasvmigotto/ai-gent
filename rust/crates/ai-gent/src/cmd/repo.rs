@@ -353,6 +353,7 @@ pub fn run(args: &RepoArgs, json: bool) -> Exit {
                     max_pages: change.max_pages,
                     write: change.write,
                     dry_run: change.dry_run,
+                    platform: None,
                 },
                 json,
             );
