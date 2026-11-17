@@ -21,6 +21,7 @@
 
 pub mod api;
 pub mod batch;
+pub mod board;
 pub mod chain;
 pub mod cli;
 pub mod detect;
@@ -57,6 +58,8 @@ pub struct Failed {
     pub refused: bool,
     /// HTTP status, for API errors.
     pub http_status: Option<u16>,
+    /// For a rate-limited answer: when to retry (`Retry-After` or `x-ratelimit-reset`), never a credential.
+    pub hint: Option<String>,
 }
 
 impl Failed {
@@ -68,6 +71,7 @@ impl Failed {
             code: EXIT_ERROR,
             refused: false,
             http_status: None,
+            hint: None,
         }
     }
 
@@ -79,6 +83,7 @@ impl Failed {
             code: EXIT_USAGE,
             refused: false,
             http_status: None,
+            hint: None,
         }
     }
 
@@ -90,6 +95,7 @@ impl Failed {
             code: EXIT_REFUSED,
             refused: true,
             http_status: None,
+            hint: None,
         }
     }
 }

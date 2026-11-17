@@ -81,20 +81,20 @@ test('the marks: failing, removable on a merged pull request and a clean tree, n
 test('wide rows carry counts, the dirty dot, the pull request and its checks, and the hint once for a removable row', () => {
   const out = lines(board())
   expect(out).toContain('5 worktrees · 1 uncommitted · 1 failing · 1 removable')
-  expect(out).toMatch(/feat\/us1\s+\+3\/-0\s+●\s+#41 open\s+checks failing\s+failing/)
-  expect(out).toMatch(/feat\/us2\s+\+2\/-1\s+#42 draft\s+checks pending/)
-  expect(out).toMatch(/feat\/us3\s+\+4\/-0\s+#43 merged\s+checks passing\s+removable: wt\.py remove feat\/us3/)
-  expect(out).toMatch(/feat\/us4\s+\+0\/-2\s+no PR\s+nothing of its own/)
+  expect(out).toMatch(/feat\/us1\s+↑3 ↓0\s+●\s+#41 open\s+failing/)
+  expect(out).toMatch(/feat\/us2\s+↑2 ↓1\s+#42 draft\s+checks pending/)
+  expect(out).toMatch(/feat\/us3\s+↑4 ↓0\s+#43 merged\s+checks passing\s+removable: wt\.py remove feat\/us3/)
+  expect(out).toMatch(/feat\/us4\s+↑0 ↓2\s+no PR\s+nothing of its own/)
   expect(out.match(/wt\.py remove/g)).toHaveLength(1)
   expect(out).not.toContain('wt.py remove feat/us1')
 })
 
-test('null counts read ? and one line says no dev branch was found, once', () => {
+test('null counts read ? and one line says no base branch was found, once', () => {
   const out = lines(board({ rows: [...rows().slice(0, 1), ...(parseWt(WT_LIST_NO_BASE) ?? []).map(r => ({ ...r, branch: 'feat/b' })), ...rows().slice(4)] }))
   expect(out).toMatch(/feat\/b\s+\?/)
   expect(out).toMatch(/\(detached\)\s+\?/)
-  expect(out.match(/no dev branch found/g)).toHaveLength(1)
-  expect(lines(board({ rows: rows().slice(0, 4) }))).not.toContain('no dev branch found')
+  expect(out.match(/no base branch found/g)).toHaveLength(1)
+  expect(lines(board({ rows: rows().slice(0, 4) }))).not.toContain('no base branch found')
 })
 
 test('without gh the pull request columns are omitted and one line says gh auth login would add them', () => {
@@ -102,7 +102,7 @@ test('without gh the pull request columns are omitted and one line says gh auth 
   expect(out).not.toMatch(/#41|no PR/)
   expect(out).toContain('gh auth login')
   expect(out).not.toContain('removable') // no hint without gh
-  expect(out).toMatch(/feat\/us4\s+\+0\/-2\s+nothing of its own/)
+  expect(out).toMatch(/feat\/us4\s+↑0 ↓2\s+nothing of its own/)
 })
 
 test('another platform says its pull requests are not read yet', () => {
@@ -114,14 +114,14 @@ test('another platform says its pull requests are not read yet', () => {
 
 test('a pull request still being read shows an ellipsis, and a row not looked up a dash', () => {
   const out = lines(board({ rows: rows().map(r => ({ ...r })) }))
-  expect(out).toMatch(/feat\/us1\s+\+3\/-0\s+●\s+…/)
+  expect(out).toMatch(/feat\/us1\s+↑3 ↓0\s+●\s+…/)
   expect(lines(board())).toMatch(/\(detached\)\s+\?\s+—/)
 })
 
-test('the narrow form is branch +a/-b and a dot', () => {
+test('the narrow form is branch ↑a ↓b and a dot', () => {
   const out = lines(board(), 40)
-  expect(out).toContain('feat/us1 +3/-0 ●')
-  expect(out).toContain('feat/us2 +2/-1')
+  expect(out).toContain('feat/us1 ↑3 ↓0 ●')
+  expect(out).toContain('feat/us2 ↑2 ↓1')
   expect(out).not.toContain('#41')
   expect(out).not.toContain('checks')
 })
@@ -148,7 +148,7 @@ test('more than the cap shows +N more', () => {
 test('the text form lists every row, wide, for a surface that cannot dock the pane', () => {
   const out = boardText(board())
   expect(out).toContain('5 worktrees · 1 uncommitted · 1 failing · 1 removable')
-  expect(out).toMatch(/feat\/us3\s+\+4\/-0\s+#43 merged/)
+  expect(out).toMatch(/feat\/us3\s+↑4 ↓0\s+#43 merged/)
   expect(boardText(board({ rows: [] }))).toBe('no worktrees under .worktrees/')
 })
 
@@ -235,7 +235,7 @@ test('/worktree-board opens a pane listing every row on terminal and desktop, an
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect(await ui.find({ type: 'Text', text: /5 worktrees · 1 uncommitted · 1 failing · 1 removable/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /feat\/us1\s+\+3\/-0\s+●\s+#41 open\s+checks failing/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /feat\/us1\s+↑3 ↓0\s+●\s+#41 open/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /feat\/us3.*#43 merged.*removable: wt\.py remove feat\/us3/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /feat\/us4.*no PR.*nothing of its own/ })).toBeDefined()
     await ui.unmount()
@@ -258,7 +258,7 @@ test('with no worktrees the command says so and opens nothing', async ($, on) =>
   expect(w.runs.filter(r => r[0] === 'python3')).toHaveLength(1) // not left polling
 })
 
-test('null counts are drawn as ? with the no dev branch line', async ($, on) => {
+test('null counts are drawn as ? with the no base branch line', async ($, on) => {
   const w = world(on)
   w.wt.stdout = WT_LIST_NO_BASE
   w.gh.prs = '[]'
@@ -266,7 +266,7 @@ test('null counts are drawn as ? with the no dev branch line', async ($, on) => 
   await $.command.run(open())
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /feat\/us1\s+\?\s+no PR/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /no dev branch found/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /no base branch found/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -277,7 +277,7 @@ test('gh not signed in: no gh pr list, local columns, and the gh auth login line
   await $.command.run(open())
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /gh auth login/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /feat\/us1\s+\+3\/-0\s+●/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /feat\/us1\s+↑3 ↓0\s+●/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /#41/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /wt\.py remove/ })).toBeUndefined()
   await ui.unmount()
@@ -344,7 +344,7 @@ test('the Bash refresh redraws the rows and never overlaps a run in flight', asy
   w.wt.gate = null
   release()
   await w.clock.settle()
-  expect(await ui.find({ type: 'Text', text: /feat\/us1\s+\+5\/-0/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /feat\/us1\s+↑5 ↓0/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -423,7 +423,7 @@ test('wt.py failing keeps the last rows and says why with the first stderr line'
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /wt\.py failed: fatal: not a git repository$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /second line/ })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /feat\/us1\s+\+3\/-0/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /feat\/us1\s+↑3 ↓0/ })).toBeDefined()
   w.wt.exit = 0
   w.wt.stdout = WT_LIST
   await w.clock.advance(15_000)
@@ -461,7 +461,7 @@ test('where no pane can open the command prints the text form and leaves nothing
   await $.session.start({ ...START, surface: 'mobile' })
   const plain = (await $.command.run(open())).text ?? ''
   expect(plain).toContain('5 worktrees · 1 uncommitted · 1 failing · 1 removable')
-  expect(plain).toMatch(/feat\/us3\s+\+4\/-0\s+#43 merged/)
+  expect(plain).toMatch(/feat\/us3\s+↑4 ↓0\s+#43 merged/)
   const count = w.runs.length
   await w.clock.advance(600_000)
   expect(w.runs).toHaveLength(count)
@@ -513,4 +513,167 @@ test('the board registers beside the token status and the card pane', async ($, 
   const w = world(on)
   await $.session.start(START)
   expect(w.registered).toEqual(expect.arrayContaining(['tokens', 'cards-pane', 'worktree-board']))
+})
+
+// ---------------------------------------------- spec 044 slice 2: Worktrees
+
+const count = (text: string, re: RegExp): number => text.match(re)?.length ?? 0
+
+test('044 T010 spike: the pane mounts Button rows among Text lines and a press reaches the handler', async ($, on) => {
+  world(on)
+  await $.session.start(START)
+  await $.command.run(open())
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Button', key: 'row:.worktrees/feat-us1' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /5 worktrees/ })).toBeDefined()
+  await ui.press({ key: 'row:.worktrees/feat-us1' })
+  expect(await ui.find({ type: 'Text', text: /Path: \.worktrees\/feat-us1/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('044 US2.1: divergence is ↑a ↓b, the narrow form keeps it, null counts stay ?, and a legend explains the arrows once', () => {
+  const wide = lines(board())
+  expect(wide).toMatch(/feat\/us2\s+↑2 ↓1/)
+  expect(wide).not.toMatch(/\+\d\/-\d/)
+  expect(count(wide, /↑ ahead of, ↓ behind the base branch/g)).toBe(1)
+  for (const columns of [100, 50]) expect(lines(board(), columns)).toMatch(columns === 50 ? /feat\/us1 ↑3 ↓0 ●/ : /↑3 ↓0/)
+  expect(lines(board(), 50)).not.toMatch(/\+\d\/-\d/)
+  expect(lines(board({ rows: rows().slice(4) }))).toMatch(/\(detached\)\s+\?/)
+  expect(lines(board({ rows: rows().slice(4) }))).not.toContain('↑ ahead') // nothing known, no legend
+})
+
+test('044 US2.2: ASCII uses ^a vb and ASCII markers only', () => {
+  const out = lines(board({ ascii: true, expanded: { 'feat/us1': true } }))
+  expect(out).toContain('^3 v0')
+  expect(out).toContain('^ ahead of, v behind the base branch')
+  expect(lines(board({ ascii: true }), 50)).toContain('feat/us1 ^3 v0 ● failing')
+  // Only the dirty dot is outside ASCII, as before; the arrows and the markers are not.
+  expect(out).not.toMatch(/[↑↓▸▾]/)
+  expect(out.replace(/[●—·]/g, '')).toMatch(/^[\x00-\x7f\n]*$/)
+  expect(lines(board({ ascii: true }), 50).replace(/[●—·]/g, '')).toMatch(/^[\x00-\x7f\n]*$/)
+})
+
+test('044 US2.3: a failing check is said once per row and once in the summary', () => {
+  const out = lines(board())
+  const us1 = out.split('\n').find(l => l.includes('feat/us1')) ?? ''
+  expect(count(us1, /failing/g)).toBe(1)
+  expect(count(out, /failing/g)).toBe(2) // the row, the summary
+  const none = lines(board({ rows: rows().slice(3, 4) }))
+  expect(none).not.toContain('failing')
+  expect(lines(board())).toMatch(/feat\/us3.*removable: wt\.py remove feat\/us3/)
+})
+
+const FRESH = { attemptedAt: 1_800_000_000_000, okAt: 1_799_999_000_000, error: 'boom' }
+
+test('044 US2.5: stale sources are labelled cached with the failure and last good time', () => {
+  const both = lines(board({ local: FRESH, remote: FRESH }))
+  expect(both).toMatch(/local: cached, read failed at \d\d:\d\d:\d\dZ; last good \d\d:\d\d:\d\dZ/)
+  expect(both).toMatch(/GitHub: cached, read failed at \d\d:\d\d:\d\dZ; last good \d\d:\d\d:\d\dZ/)
+  const never = lines(board({ remote: { ...FRESH, okAt: 0 }, local: { ...FRESH, okAt: 0 } }))
+  expect(never).toContain('no good read yet')
+  expect(never).toMatch(/GitHub: read failed at/)
+  expect(never).not.toContain('cached')
+  expect(lines(board({ local: { ...FRESH, error: null }, remote: { ...FRESH, error: null } }))).not.toContain('cached')
+  // No gh column: no GitHub note, whatever the record says.
+  const noGh = lines(board({ rows: rows(), gh: { usable: false, platform: 'github' }, remote: FRESH }))
+  expect(noGh).not.toContain('GitHub: cached')
+  expect(noGh).toContain('gh auth login')
+  expect(lines(board({ rows: rows(), gh: { usable: false, platform: 'gitlab' }, remote: FRESH }))).not.toContain('cached')
+})
+
+test('044 US2.5/2.6: a failed read keeps the rows and okAt; one source failing keeps the other', async ($, on) => {
+  const w = world(on)
+  await $.session.start(START)
+  await $.command.run(open())
+  w.gh.prsExit = 1
+  w.gh.prs = ''
+  await w.clock.advance(120_000)
+  let ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /GitHub: cached, read failed at 08:02:00Z; last good 08:00:00Z/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /#41 open/ })).toBeDefined() // gh failed: PRs kept
+  expect(await ui.find({ type: 'Text', text: /local: cached/ })).toBeUndefined()
+  await ui.unmount()
+  w.gh.prsExit = 0
+  w.gh.prs = GH_PR_LIST
+  w.wt.exit = 1
+  w.wt.stdout = ''
+  w.wt.stderr = 'fatal: x'
+  await w.clock.advance(120_000)
+  ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /local: cached, read failed at/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /GitHub: cached/ })).toBeUndefined() // gh recovered
+  expect(await ui.find({ type: 'Text', text: /feat\/us1/ })).toBeDefined() // wt rows kept
+  expect(await ui.find({ type: 'Text', text: /#41 open/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('044 US2.5: an unparseable read does not move okAt', async ($, on) => {
+  const w = world(on)
+  await $.session.start(START)
+  await $.command.run(open())
+  w.wt.stdout = 'not json'
+  await w.clock.advance(15_000)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const note = await ui.find({ type: 'Text', text: /local: cached, read failed at \d\d:\d\d:\d\dZ; last good/ })
+  expect(note).toBeDefined()
+  const [failedAt, goodAt] = (JSON.stringify(note).match(/\d\d:\d\d:\d\dZ/g) ?? []) as [string, string]
+  expect(failedAt > goodAt).toBe(true)
+  await ui.unmount()
+})
+
+test('044 US2.4: a row opens on press, stays open across a refresh, closes on a second press and spawns nothing', async ($, on) => {
+  const w = world(on)
+  await $.session.start(START)
+  await $.command.run(open())
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ text: /Path: / })).toBeUndefined()
+  w.runs.length = 0
+  await ui.press({ key: 'row:.worktrees/feat-us1' })
+  for (const re of [/Branch: feat\/us1/, /Path: \.worktrees\/feat-us1/, /Uncommitted changes: yes/, /Divergence: ahead 3, behind 0/, /Pull request: #41 open/, /Checks: failing/]) expect(await ui.find({ type: 'Text', text: re })).toBeDefined()
+  expect(await ui.find({ text: /▾ feat\/us1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Path: \.worktrees\/feat-us2/ })).toBeUndefined()
+  expect(w.runs).toEqual([]) // a press runs nothing
+  await w.clock.advance(15_000)
+  expect(wtRuns(w)).toHaveLength(1) // the poll only
+  expect(await ui.find({ type: 'Text', text: /Path: \.worktrees\/feat-us1/ })).toBeDefined() // survived the refresh
+  await ui.press({ key: 'row:.worktrees/feat-us1' })
+  expect(await ui.find({ type: 'Text', text: /Path: / })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('044 US2.4: the key of a vanished branch is dropped and the text form prints every row open', async ($, on) => {
+  const w = world(on)
+  await $.session.start(START)
+  await $.command.run(open())
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'row:.worktrees/feat-us2' })
+  w.wt.stdout = JSON.stringify((parseWt(WT_LIST) ?? []).filter(r => r.branch !== 'feat/us2'))
+  await w.clock.advance(15_000)
+  w.wt.stdout = WT_LIST
+  await w.clock.advance(15_000) // the branch is back: it is not still open
+  expect(await ui.find({ type: 'Text', text: /Path: \.worktrees\/feat-us2/ })).toBeUndefined()
+  await ui.unmount()
+  const all = boardText(board())
+  for (const r of rows()) expect(all).toContain(`Path: ${r.path}`)
+})
+
+test('044 review: a narrow failing row keeps the word, and a PR never read says the read failed', () => {
+  expect(lines(board(), 50)).toMatch(/feat\/us1 ↑3 ↓0 ● failing/)
+  expect(lines(board(), 50)).not.toMatch(/feat\/us2 .*failing/)
+  const unread = board({ rows: rows().map(r => ({ ...r })), remote: { ...FRESH, okAt: 0 }, expanded: { '.worktrees/feat-us2': true } })
+  expect(lines(unread)).toContain('Pull request: read failed')
+  expect(lines(unread)).not.toContain('being read')
+  expect(lines(unread)).toMatch(/feat\/us2\s+↑2 ↓1\s+read failed/)
+})
+
+test('044 review: rows are keyed by path, so two detached worktrees open one at a time', () => {
+  const two: Row[] = [
+    { branch: '(detached)', path: '.worktrees/a', dirty: false, ahead: null, behind: null },
+    { branch: '(detached)', path: '.worktrees/b', dirty: false, ahead: null, behind: null },
+  ]
+  const b = board({ rows: two, expanded: { '.worktrees/b': true } })
+  const keys = view(b, 100).map(l => l.key)
+  expect(new Set(keys).size).toBe(keys.length)
+  expect(lines(b)).toContain('Path: .worktrees/b')
+  expect(lines(b)).not.toContain('Path: .worktrees/a')
 })

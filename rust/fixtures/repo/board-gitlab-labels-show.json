@@ -1,0 +1,412 @@
+{
+  "derived_from": "spec 045 FR-026, US1.3, error cases (conflict)",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "repo/.ai-gent/board.yaml": "version: 1\nboards:\n  web:\n    platform: gitlab\n    project: grp/proj\n    board: 12\n    states:\n      todo: \"workflow::todo\"\n      doing: \"workflow::doing\"\n      review: \"workflow::review\"\n      done: closed\n"
+  },
+  "git": [],
+  "name": "board-gitlab-labels-show",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "id": 12,
+        "lists": [
+          {
+            "id": 103,
+            "label": {
+              "id": 3,
+              "name": "workflow::review"
+            },
+            "position": 2
+          },
+          {
+            "id": 101,
+            "label": {
+              "id": 1,
+              "name": "workflow::todo"
+            },
+            "position": 0
+          },
+          {
+            "id": 102,
+            "label": {
+              "id": 2,
+              "name": "workflow::doing"
+            },
+            "position": 1
+          }
+        ],
+        "name": "Development"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/12",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1001,
+          "iid": 1,
+          "labels": [
+            "workflow::todo"
+          ],
+          "state": "opened",
+          "title": "Issue 1",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/1"
+        },
+        {
+          "id": 1002,
+          "iid": 2,
+          "labels": [
+            "workflow::doing",
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 2",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/2"
+        },
+        {
+          "id": 1003,
+          "iid": 3,
+          "labels": [
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 3",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/3"
+        },
+        {
+          "id": 1005,
+          "iid": 5,
+          "labels": [
+            "workflow::todo",
+            "workflow::review"
+          ],
+          "state": "opened",
+          "title": "Issue 5",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/5"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1001,
+          "iid": 1,
+          "labels": [
+            "workflow::todo"
+          ],
+          "state": "opened",
+          "title": "Issue 1",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/1"
+        },
+        {
+          "id": 1005,
+          "iid": 5,
+          "labels": [
+            "workflow::todo",
+            "workflow::review"
+          ],
+          "state": "opened",
+          "title": "Issue 5",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/5"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Atodo&state=opened&per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1002,
+          "iid": 2,
+          "labels": [
+            "workflow::doing",
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 2",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/2"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Adoing&state=opened&per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1005,
+          "iid": 5,
+          "labels": [
+            "workflow::todo",
+            "workflow::review"
+          ],
+          "state": "opened",
+          "title": "Issue 5",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/5"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Areview&state=opened&per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1004,
+          "iid": 4,
+          "labels": [
+            "workflow::doing"
+          ],
+          "state": "closed",
+          "title": "Issue 4",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/4"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "fields",
+        "web"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/12 (Development, mode labels)\nfield: Lists (lists)\nOPTION            STATE   MAPPED BY\nOpen              -       unmapped\nworkflow::todo    todo    map\nworkflow::doing   doing   map\nworkflow::review  review  map\nClosed            done    map\n"
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "web",
+        "--json"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Atodo&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Adoing&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Areview&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  \"field\": {\n    \"id\": \"lists\",\n    \"name\": \"Lists\",\n    \"kind\": \"lists\",\n    \"options\": [\n      {\n        \"id\": \"open\",\n        \"name\": \"Open\",\n        \"state\": null,\n        \"mapped_by\": \"unmapped\"\n      },\n      {\n        \"id\": \"101\",\n        \"name\": \"workflow::todo\",\n        \"state\": \"todo\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"102\",\n        \"name\": \"workflow::doing\",\n        \"state\": \"doing\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"103\",\n        \"name\": \"workflow::review\",\n        \"state\": \"review\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"closed\",\n        \"name\": \"Closed\",\n        \"state\": \"done\",\n        \"mapped_by\": \"map\"\n      }\n    ]\n  },\n  \"items\": [\n    {\n      \"id\": \"1003\",\n      \"kind\": \"issue\",\n      \"number\": 3,\n      \"url\": \"https://gitlab.com/grp/proj/-/issues/3\",\n      \"title\": \"Issue 3\",\n      \"open\": true,\n      \"value\": \"Open\",\n      \"state\": null\n    },\n    {\n      \"id\": \"1001\",\n      \"kind\": \"issue\",\n      \"number\": 1,\n      \"url\": \"https://gitlab.com/grp/proj/-/issues/1\",\n      \"title\": \"Issue 1\",\n      \"open\": true,\n      \"value\": \"workflow::todo\",\n      \"state\": \"todo\"\n    },\n    {\n      \"id\": \"1005\",\n      \"kind\": \"issue\",\n      \"number\": 5,\n      \"url\": \"https://gitlab.com/grp/proj/-/issues/5\",\n      \"title\": \"Issue 5\",\n      \"open\": true,\n      \"value\": \"workflow::todo, workflow::review\",\n      \"state\": \"conflict\"\n    },\n    {\n      \"id\": \"1002\",\n      \"kind\": \"issue\",\n      \"number\": 2,\n      \"url\": \"https://gitlab.com/grp/proj/-/issues/2\",\n      \"title\": \"Issue 2\",\n      \"open\": true,\n      \"value\": \"workflow::doing\",\n      \"state\": \"doing\"\n    },\n    {\n      \"id\": \"1004\",\n      \"kind\": \"issue\",\n      \"number\": 4,\n      \"url\": \"https://gitlab.com/grp/proj/-/issues/4\",\n      \"title\": \"Issue 4\",\n      \"open\": false,\n      \"value\": \"Closed\",\n      \"state\": \"done\"\n    }\n  ],\n  \"truncated\": false\n}\n"
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "web"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Atodo&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Adoing&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Areview&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/12 (Development) · field Lists\nSTATE     COLUMN                            KIND   #  TITLE    URL\n-         Open                              issue  3  Issue 3  https://gitlab.com/grp/proj/-/issues/3\ntodo      workflow::todo                    issue  1  Issue 1  https://gitlab.com/grp/proj/-/issues/1\nconflict  workflow::todo, workflow::review  issue  5  Issue 5  https://gitlab.com/grp/proj/-/issues/5\ndoing     workflow::doing                   issue  2  Issue 2  https://gitlab.com/grp/proj/-/issues/2\ndone      Closed                            issue  4  Issue 4  https://gitlab.com/grp/proj/-/issues/4\n5 item(s)\n"
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "web",
+        "--state",
+        "doing"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Atodo&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Adoing&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Areview&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/12 (Development) · field Lists\nSTATE  COLUMN           KIND   #  TITLE    URL\ndoing  workflow::doing  issue  2  Issue 2  https://gitlab.com/grp/proj/-/issues/2\n1 item(s)\n"
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

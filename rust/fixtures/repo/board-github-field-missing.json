@@ -1,0 +1,193 @@
+{
+  "derived_from": "spec 045 error cases (field missing or not single-select)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-github-field-missing",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [
+    {
+      "body": {
+        "data": {
+          "user": {
+            "projectV2": {
+              "closed": false,
+              "field": null,
+              "id": "PVT_1",
+              "title": "Roadmap",
+              "url": "https://github.com/users/octo/projects/1"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "octo",
+        "number": 1
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "user": {
+            "projectV2": {
+              "closed": false,
+              "field": {
+                "dataType": "TEXT",
+                "id": "F1",
+                "name": "Status"
+              },
+              "id": "PVT_2",
+              "title": "Notes",
+              "url": "https://github.com/users/octo/projects/2"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "octo",
+        "number": 2
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "node": {
+            "fields": {
+              "nodes": [
+                {
+                  "dataType": "TITLE",
+                  "id": "F0",
+                  "name": "Title"
+                },
+                {
+                  "dataType": "ASSIGNEES",
+                  "id": "F2",
+                  "name": "Assignees"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardFields",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "project": "PVT_1"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "node": {
+            "fields": {
+              "nodes": [
+                {
+                  "dataType": "TEXT",
+                  "id": "F1",
+                  "name": "Status"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardFields",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "project": "PVT_2"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "fields",
+        "github:octo/1"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"octo\", \"number\": 1, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardFields($project: ID!) { node(id: $project) { ... on ProjectV2 { fields(first: 50) { nodes { ... on ProjectV2FieldCommon { id name dataType } } } } } }\", \"variables\": {\"project\": \"PVT_1\"}, \"operationName\": \"BoardFields\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "doesn't exist",
+        "fields: Title, Assignees"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "fields",
+        "github:octo/2"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"octo\", \"number\": 2, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardFields($project: ID!) { node(id: $project) { ... on ProjectV2 { fields(first: 50) { nodes { ... on ProjectV2FieldCommon { id name dataType } } } } } }\", \"variables\": {\"project\": \"PVT_2\"}, \"operationName\": \"BoardFields\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "isn't a single-select field"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

@@ -1,0 +1,64 @@
+{
+  "derived_from": "spec 045 FR-023, error cases (scope)",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-github-scope-error",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [
+    {
+      "body": {
+        "data": null,
+        "errors": [
+          {
+            "message": "Your token has not been granted the required scopes",
+            "type": "INSUFFICIENT_SCOPES"
+          }
+        ]
+      },
+      "method": "POST",
+      "op": "BoardsOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "octo"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "list",
+        "--owner",
+        "octo"
+      ],
+      "exit": 1,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardsOfUser($login: String!, $after: String) { user(login: $login) { projectsV2(first: 50, after: $after) { nodes { id number title url closed } pageInfo { hasNextPage endCursor } } } }\", \"variables\": {\"login\": \"octo\", \"after\": null}, \"operationName\": \"BoardsOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [
+        "classic token",
+        "read:project"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

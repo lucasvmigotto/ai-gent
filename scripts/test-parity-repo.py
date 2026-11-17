@@ -18,7 +18,10 @@ the child's environment and the stub's request may carry. Network: only the loop
 Fixture keys: name, derived_from, remote (git remote URL or null), git ([[git args]] run first in the
 repo), store ({entry: text}), tools ({name: {"rules": [...]}}), env ({NAME: value, "{stub}" expands to the
 stub URL, null removes}), stub (bool), files ({path under the root: text}), runs ([{argv, stdin, git,
-exit, stdout, stderr_has, seen}]), expect_files. `<ROOT>` is the temp root; `<STUB>` the stub address.
+exit, stdout, stderr_has, seen, files}]), expect_files. `<ROOT>` is the temp root; `<STUB>` the stub address.
+Rust-owned cases ("owner": "rust", spec 045 FR-041) are written by hand for the Rust tool: this script never
+blesses, deletes or runs them (they also carry routes, the stub's scripted answers, and per-run files);
+`AI_GENT_BLESS_BOARD=1 cargo test -p ai-gent --test parity_repo` fills in their stdout and requests for review.
 """
 import argparse
 import json
@@ -682,7 +685,8 @@ def main():
             return 1
         FIXTURES.mkdir(parents=True, exist_ok=True)
         for old in FIXTURES.glob("*.json"):
-            old.unlink()
+            if json.loads(old.read_text(encoding="utf-8")).get("owner") != "rust":  # spec 045 FR-041
+                old.unlink()
         bad = []
         for name, (derived, scn) in cases().items():
             case = {"name": name, "derived_from": derived, **scn.c}
@@ -702,6 +706,8 @@ def main():
         if a.only and a.only not in path.stem:
             continue
         case = json.loads(path.read_text(encoding="utf-8"))
+        if case.get("owner") == "rust":  # written by hand for the Rust tool (spec 045 FR-041); no oracle
+            continue
         runs, files = execute(case, tool, prefix, fake)
         problems += compare(case["name"], case, runs, files)
         n += 1

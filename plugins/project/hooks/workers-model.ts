@@ -253,6 +253,10 @@ export type Context = {
 }
 export type WorkersView = { isEmpty: boolean; counts: Counts; slots: { used: number; cap: number | null; subagents: number }; lines: Line[] }
 
+// Spec 044 FR-004: one constant, replaced by the reader a follow-up spec adds. Nothing here knows why work stopped.
+export const IDLE_REASON = 'Idle reason: not recorded'
+export const NOT_RECORDED = 'not recorded'
+
 // The expansion key of the History / Done disclosure. It cannot be a track name (TRACK has no '#').
 export const HISTORY_KEY = '#history'
 
@@ -339,6 +343,13 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
   const add = (text: string, tone: Tone = 'plain', toggle?: string, buttonKey?: string) =>
     lines.push({ key: `l${lines.length}`, text: fit(text, width, g.ellipsis), tone, toggle, buttonKey })
   // Wrapped, not cut: a detail line keeps the whole value on continuation lines.
+  // A row whose glyph and state word carry the status tone (FR-005): the marks are cut to the fitted text, so a
+  // narrow pane never leaves a range past the end of the line.
+  const addMarked = (text: string, marks: Mark[], toggle: string, buttonKey: string | undefined, tone: Tone = 'plain') => {
+    const fitted = fit(text, width, g.ellipsis)
+    const kept = marks.map(m => ({ ...m, to: Math.min(m.to, fitted.length) })).filter(m => m.from < m.to)
+    lines.push({ key: `l${lines.length}`, text: fitted, tone, toggle, buttonKey, ...(kept.length > 0 ? { marks: kept } : {}) })
+  }
   const detail = (label: string, value: string) => {
     let lead = `    ${label}: `
     let first = lead
@@ -354,6 +365,7 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
 
   if (workers.length === 0) {
     add('No workers', 'dim')
+    add(IDLE_REASON, 'dim')
     if (snapshot !== null && snapshot.skipped > 0) add(`${snapshot.skipped} status ${snapshot.skipped === 1 ? 'file' : 'files'} unreadable`, 'warn')
     return { isEmpty: true, counts, slots, lines }
   }
@@ -369,6 +381,7 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
 
   // Capacity.
   for (const l of capacity(slots.used, cap, slots.subagents, head, ctx.ascii, g.ellipsis)) lines.push({ ...l, key: `l${lines.length}`, text: l.text })
+  if (counts.running === 0 && counts.queued === 0) add(IDLE_REASON, 'dim')
 
   const tier = width < NARROW ? 'narrow' : width < WIDE ? 'medium' : 'wide'
   const nowS = ctx.now / 1000
@@ -381,16 +394,36 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
   const nameOf = (w: WorkerStatus) => `${w.track}${w.note === null ? '' : `: ${w.note}`}`
 
   // Attention: failed and stalled only, from the same workers. A press opens the worker's details.
+  // They leave the WORKERS list (FR-001) and have a row budget of their own (FR-002).
+  const budget = Math.max(1, ctx.maxRows)
   const attention = sorted.filter(needsAttention)
+  let hidden = 0
   if (attention.length > 0) {
     lines.push({ key: `l${lines.length}`, text: '', tone: 'plain' })
     add(`ATTENTION${g.sep}${attention.length} ${attention.length === 1 ? 'issue' : 'issues'}`, attention.some(w => w.state === 'failed') ? 'bad' : 'warn')
-    for (const w of attention) {
+    for (const w of attention.slice(0, budget)) {
       const isOpen = ctx.expanded[w.track] === true
       const verdictNote = w.verdict.result === 'rejected' ? `${g.sep}verdict rejected` : ''
-      add(`${isOpen ? g.open : g.closed} ${glyphOf(w)} ${fit(w.track, 24, g.ellipsis)} ${w.state}${g.sep}${tasksOf(w)}${g.sep}${elapsedOf(w)}${verdictNote}`, STATE_TONE[w.state], w.track, `attention:${w.track}`)
+      const lead = `${isOpen ? g.open : g.closed} `
+      // The state word is reserved before the name is fitted, so a narrow pane cuts the name and the tail, never the state.
+      const track = fit(w.track, Math.max(1, Math.min(24, width - lead.length - glyphOf(w).length - 2 - w.state.length)), g.ellipsis)
+      const at = lead.length + glyphOf(w).length + 1 + track.length + 1
+      const t = STATE_TONE[w.state]
+      const headText = `${lead}${glyphOf(w)} ${track} ${w.state}`
+      const tail = `${g.sep}${tasksOf(w)}${g.sep}${elapsedOf(w)}${verdictNote}`
+      const room = width - headText.length
+      addMarked(
+        `${headText}${room <= g.ellipsis.length ? '' : room >= tail.length ? tail : fit(tail, room, g.ellipsis)}`,
+        [
+          { from: lead.length, to: lead.length + glyphOf(w).length, tone: t },
+          { from: at, to: at + w.state.length, tone: t },
+        ],
+        w.track,
+        `attention:${w.track}`,
+      )
       if (isOpen) details(w)
     }
+    hidden += Math.max(0, attention.length - budget)
   }
 
   function details(w: WorkerStatus) {
@@ -400,6 +433,7 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
     detail('State', `${stateOf(w)}${g.sep}Elapsed: ${elapsedOf(w)}`)
     const reason = w.verdict.reason === null ? '' : ` (${w.verdict.reason})`
     detail('Verdict', `${w.verdict.result}${reason}`)
+    if (w.state === 'failed' && w.verdict.reason === null) detail('Cause', NOT_RECORDED)
     if (w.kind !== 'subagent') detail('Last event', `${w.events} ${w.events === 1 ? 'event' : 'events'}${isLive(w) ? `, last update ${duration(nowS - w.updated)} ago` : ''}`)
     if (w.worktree !== '') detail('Worktree', w.worktree)
     if (w.tokens !== null) detail('Tokens', compactNumber(w.tokens))
@@ -408,38 +442,44 @@ export function build(snapshot: WorkersSnapshot | null, ctx: Context): WorkersVi
   }
 
   // Workers.
-  const active = sorted.filter(w => !isHistory(w))
+  const active = sorted.filter(w => !isHistory(w) && !needsAttention(w))
   const history = sorted.filter(isHistory)
-  const budget = Math.max(1, ctx.maxRows)
   const row = (w: WorkerStatus) => {
     const isOpen = ctx.expanded[w.track] === true
     const mark = isOpen ? g.open : g.closed
     const t = STATE_TONE[w.state]
+    const glyphMark: Mark = { from: mark.length + 1, to: mark.length + 1 + glyphOf(w).length, tone: t }
     if (tier === 'wide') {
       const nameW = Math.min(36, Math.max(14, ...[...active, ...history].map(x => nameOf(x).length)))
-      add(`${mark} ${glyphOf(w)} ${pad(fit(nameOf(w), nameW, g.ellipsis), nameW)}  ${pad(KIND_TAG[w.kind], 4)}  ${pad(stateOf(w), 10)}  ${pad(fit(tasksOf(w), 22, g.ellipsis), 22)}  ${elapsedOf(w)}`.trimEnd(), t, w.track)
+      const lead = `${mark} ${glyphOf(w)} ${pad(fit(nameOf(w), nameW, g.ellipsis), nameW)}  ${pad(KIND_TAG[w.kind], 4)}  `
+      addMarked(`${lead}${pad(stateOf(w), 10)}  ${pad(fit(tasksOf(w), 22, g.ellipsis), 22)}  ${elapsedOf(w)}`.trimEnd(), [glyphMark, { from: lead.length, to: lead.length + stateOf(w).length, tone: t }], w.track, undefined)
     } else {
-      add(`${mark} ${glyphOf(w)} ${spread(nameOf(w), stateOf(w), width - 4, g.ellipsis)}`, t, w.track)
+      const body = `${mark} ${glyphOf(w)} ${spread(nameOf(w), stateOf(w), width - 4, g.ellipsis)}`
+      // The state word is flush right unless the pane is so narrow that spread cut it.
+      const stateMark: Mark[] = body.endsWith(stateOf(w)) ? [{ from: body.length - stateOf(w).length, to: body.length, tone: t }] : []
+      addMarked(body, [glyphMark, ...stateMark], w.track, undefined)
       const extra = tier === 'medium' ? `${g.sep}${w.role}${g.sep}${KIND_TAG[w.kind]}${g.sep}verdict ${w.verdict.result}` : ''
       add(`    ${tasksOf(w)}${g.sep}${elapsedOf(w)}${tier === 'narrow' ? `${g.sep}${KIND_TAG[w.kind]}` : ''}${extra}`, 'dim')
     }
     if (isOpen) details(w)
   }
   lines.push({ key: `l${lines.length}`, text: '', tone: 'plain' })
-  if (tier === 'wide') add(`  ${' '.repeat(2)}${pad('WORKER / TRACK', Math.min(36, Math.max(14, ...[...active, ...history].map(x => nameOf(x).length))))}  ${pad('KIND', 4)}  ${pad('STATE', 10)}  ${pad('TASKS', 22)}  TIME`, 'dim')
-  else add('WORKERS', 'dim')
+  const historyOpen = history.length > 0 && ctx.expanded[HISTORY_KEY] === true
+  if (tier === 'wide' && (active.length > 0 || historyOpen)) add(`  ${' '.repeat(2)}${pad('WORKER / TRACK', Math.min(36, Math.max(14, ...[...active, ...history].map(x => nameOf(x).length))))}  ${pad('KIND', 4)}  ${pad('STATE', 10)}  ${pad('TASKS', 22)}  TIME`, 'dim')
+  else if (tier !== 'wide') add('WORKERS', 'dim')
   const shownActive = active.slice(0, budget)
-  if (active.length === 0) add('No active workers', 'dim')
+  if (active.length === 0) add('No running workers', 'dim')
   for (const w of shownActive) row(w)
-  let hidden = active.length - shownActive.length
+  hidden += active.length - shownActive.length
   if (history.length > 0) {
     const open = ctx.expanded[HISTORY_KEY] === true
     const kinds = [counts.done > 0 ? `${counts.done} done` : '', counts['taken-back'] > 0 ? `${counts['taken-back']} taken back` : ''].filter(Boolean).join(g.sep)
     add(`${open ? g.open : g.closed} History${g.sep}${kinds}`, 'dim', HISTORY_KEY)
     if (open) {
+      // History shares the WORKERS budget: it gets only what the active list left of it.
       const room = Math.max(0, budget - shownActive.length)
       for (const w of history.slice(0, room)) row(w)
-      hidden += Math.max(0, history.length - room)
+      hidden += history.length - Math.min(history.length, room)
     }
   }
   if (hidden > 0) add(`+${hidden} more`, 'dim')

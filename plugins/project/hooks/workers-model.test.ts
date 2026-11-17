@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { WorkersSnapshot } from '../types'
-import { AGENTS, ALL_STATES, LOG, NOW, PROFILE_AND_CODEX, statusJson, track } from './workers-fixtures'
+import { AGENTS, ALL_STATES, LOG, LONG_PREFIX, MANY_DONE, NOW, PROFILE_AND_CODEX, SHARED_PREFIX, statusJson, track } from './workers-fixtures'
 import { HISTORY_KEY, agentRow, build, compactLine, duration, parseCap, parseLog, parseStatus, sortWorkers, text } from './workers-model'
 
 const snapshot = (files: Record<string, string>, over: Partial<WorkersSnapshot> = {}): WorkersSnapshot => ({
@@ -66,15 +66,15 @@ test('rows sort running, stalled, queued, failed, done, taken back', () => {
 })
 
 test('no workers: the pane says No workers and the pipeline line adds nothing', () => {
-  expect(text(snapshot({}), ctx)).toBe('No workers')
-  expect(text(null, ctx)).toBe('No workers')
+  expect(text(snapshot({}), ctx)).toBe('No workers\nIdle reason: not recorded')
+  expect(text(null, ctx)).toBe('No workers\nIdle reason: not recorded')
   expect(compactLine(snapshot({}))).toBeNull()
   expect(compactLine(null)).toBeNull()
   expect(build(snapshot({}), ctx).isEmpty).toBe(true)
 })
 
 test('unreadable status files are counted', () => {
-  expect(text(snapshot({}, { skipped: 2 }), ctx)).toBe('No workers\n2 status files unreadable')
+  expect(text(snapshot({}, { skipped: 2 }), ctx)).toBe('No workers\nIdle reason: not recorded\n2 status files unreadable')
 })
 
 test('compact line: counts, slots, a marker for stalled or failed', () => {
@@ -175,9 +175,7 @@ ATTENTION · 2 issues
 
     WORKER / TRACK  KIND  STATE       TASKS                   TIME
 ▸ ▶ feat-core       ext   Running     T010, T011              10m
-▸ ⚠ feat-ui         ext   Stalled     T020                    10m
 ▸ ○ feat-docs       ext   Queued      T040                    —
-▸ ✕ feat-api        ext   Failed      T030                    5m
 ▸ History · 1 done · 1 taken back`)
 })
 
@@ -185,14 +183,15 @@ test('golden: medium is two lines per worker, state flush right', () => {
   expect(lines(snapshot(ALL_STATES), { columns: 70 })).toContain(`WORKERS
 ▸ ▶ feat-core                                                  Running
     T010, T011 · 10m · builder · ext · verdict pending
-▸ ⚠ feat-ui                                                    Stalled`)
+▸ ○ feat-docs                                                   Queued`)
 })
 
 test('golden: narrow keeps state visible and a compact capacity', () => {
   const out = lines(snapshot(ALL_STATES), { columns: 40 })
   expect(out).toContain('CAPACITY         2/3 slots · 1 available')
   expect(out).not.toContain('[■]')
-  expect(out).toContain('▸ ✕ feat-api                      Failed\n    T030 · 5m · ext')
+  expect(out).toContain('ATTENTION · 2 issues\n▸ ⚠ feat-ui stalled · T020 · 10m\n▸ ✕ feat-api failed')
+  expect(out).not.toContain('Failed\n    T030')
 })
 
 test('golden: ascii uses only ASCII', () => {
@@ -318,8 +317,9 @@ test('attention lists failed and stalled only, stalled first, and is absent othe
 test('a failure without a verdict reason or events invents none', () => {
   const out = lines(snapshot({ a: track('a', 'failed', { events: 0 }) }), { expanded: { a: true } })
   expect(out).toContain('Verdict: pending')
+  expect(out).toContain('Cause: not recorded')
   expect(out).toContain('Last event: 0 events')
-  expect(out).not.toMatch(/reason|because|retry|fix/i)
+  expect(out.replace('Idle reason: not recorded', '')).not.toMatch(/reason|because|retry|fix/i)
 })
 
 test('history is collapsed with its count; opening it lists done and taken-back rows', () => {
@@ -335,7 +335,7 @@ test('history is collapsed with its count; opening it lists done and taken-back 
 
 test('only done workers: no active rows, history still counted', () => {
   const out = lines(snapshot({ a: track('a', 'done') }))
-  expect(out).toContain('No active workers')
+  expect(out).toContain('No running workers')
   expect(out).toContain('History · 1 done')
 })
 
@@ -460,7 +460,153 @@ test('an unknown cap is said once, dim, with no marks and no error tone', () => 
   expect(cap[0]?.text).toContain('2 in use (limit unknown)')
   expect(cap[0]?.text).toContain('+1 subagent')
   expect(cap[0]?.tone).toBe('dim')
-  expect(view.lines.some(l => l.marks !== undefined || l.tone === 'bad')).toBe(false)
+  expect(view.lines.filter(l => l.toggle === undefined).some(l => l.marks !== undefined || l.tone === 'bad')).toBe(false)
   expect(lines(snap)).not.toContain('[')
   expect(compactLine(snap)).toEqual({ text: 'Workers: 3 running · 2 in use (limit unknown) · +1 subagent', tone: 'plain' })
+})
+
+
+// Spec 044, slice 1.
+const rowsOf = (s: WorkersSnapshot, over: Record<string, unknown> = {}) => build(s, { ...ctx, ...over } as never).lines
+const countOf = (out: string, needle: string) => out.split(needle).length - 1
+
+test('044 US1.1: a failed or stalled worker is in ATTENTION only, counts and History as before', () => {
+  const snap = snapshot(MANY_DONE)
+  const view = build(snap, ctx)
+  const out = view.lines.map(l => l.text).join('\n')
+  expect(view.counts).toEqual({ running: 0, queued: 0, stalled: 0, failed: 2, done: 32, 'taken-back': 1 })
+  expect(out).toContain('ATTENTION · 2 issues')
+  expect(out.split('\n')[0]).toMatch(/2 failed$/)
+  expect(out).toContain('▸ History · 32 done · 1 taken back')
+  for (const name of ['feat-a', 'feat-b']) expect(countOf(out, name)).toBe(1)
+  expect(out).toContain('No running workers')
+  // the WORKERS group has no toggle row for a failed worker
+  expect(view.lines.filter(l => l.toggle === 'feat-a' || l.toggle === 'feat-b').map(l => l.buttonKey)).toEqual(['attention:feat-a', 'attention:feat-b'])
+  const stalled = lines(snapshot(ALL_STATES))
+  expect(countOf(stalled, 'feat-ui')).toBe(1)
+  expect(countOf(stalled, 'feat-api')).toBe(1)
+  expect(slotsOfStalled()).toBe(1)
+})
+
+function slotsOfStalled() {
+  return build(snapshot({ a: track('a', 'stalled') }), ctx).slots.used
+}
+
+test('044 US1.1: /workers text opens every worker once under its section', () => {
+  const out = text(snapshot(ALL_STATES), { columns: 120, now: NOW, ascii: false, maxRows: 30 })
+  for (const name of ['feat-core', 'feat-ui', 'feat-docs', 'feat-api', 'feat-db', 'feat-old']) expect(countOf(out, `Track: ${name}`)).toBe(1)
+})
+
+test('044 US1.8: each group has its own row budget, and +N more adds both', () => {
+  const failed = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`f${i}`, track(`f${i}`, 'failed')]))
+  const running = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`r${i}`, track(`r${i}`, 'running')]))
+  const out = lines(snapshot({ ...failed, ...running }, { cap: 9 }), { maxRows: 3, columns: 70 })
+  expect(out.match(/✕ f\d/g)?.length).toBe(3)
+  expect(out.match(/▶ r\d/g)?.length).toBe(3)
+  expect(out).toContain('+4 more')
+  expect(out).toContain('ATTENTION · 5 issues')
+  // a failure no longer eats the active list's budget
+  const only = lines(snapshot({ ...failed, ...running }, { cap: 9 }), { maxRows: 5, columns: 70 })
+  expect(only.match(/▶ r\d/g)?.length).toBe(5)
+  expect(only).not.toContain('more')
+})
+
+test('044 US1.8b: an open History does not exceed the WORKERS row budget', () => {
+  const running = Object.fromEntries(Array.from({ length: 3 }, (_, i) => [`r${i}`, track(`r${i}`, 'running')]))
+  const done = Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`d${i}`, track(`d${i}`, 'done')]))
+  const out = lines(snapshot({ ...running, ...done }, { cap: 9 }), { maxRows: 3, columns: 70, expanded: { [HISTORY_KEY]: true } })
+  expect(out.match(/▶ r\d/g)?.length).toBe(3)
+  expect(out.match(/✓ d\d/g)).toBeNull()
+  expect(out).toContain('+5 more')
+  const some = lines(snapshot({ r0: running.r0 as string, ...done }, { cap: 9 }), { maxRows: 3, columns: 70, expanded: { [HISTORY_KEY]: true } })
+  expect(some.match(/✓ d\d/g)?.length).toBe(2)
+  expect(some).toContain('+3 more')
+})
+
+test('044 US1.2: failed with an accepted verdict keeps State and Verdict on separate lines', () => {
+  const out = lines(snapshot({ a: track('a', 'failed', { verdict: { result: 'accepted' } }) }), { expanded: { a: true } })
+  expect(out).toMatch(/State: Failed[^\n]*\n\s+Verdict: accepted/)
+  expect(out).not.toMatch(/State:[^\n]*accepted/)
+  expect(out).not.toMatch(/succe|passed|Done/i)
+  expect(out).toContain('Cause: not recorded')
+})
+
+test('044 US1.3: Cause says not recorded without a reason, keeps the reason when there is one, Tokens is omitted when null', () => {
+  const plain = lines(snapshot({ a: track('a', 'failed') }), { expanded: { a: true } })
+  expect(plain).toContain('    Cause: not recorded')
+  expect(plain).not.toContain('Tokens')
+  const withReason = lines(snapshot({ a: track('a', 'failed', { verdict: { result: 'rejected', reason: 'out-of-scope-path' } }) }), { expanded: { a: true } })
+  expect(withReason).toContain('Verdict: rejected (out-of-scope-path)')
+  expect(withReason).not.toContain('Cause')
+  expect(lines(snapshot({ a: track('a', 'running') }), { expanded: { a: true } })).not.toContain('Cause')
+  expect(lines(snapshot({ a: track('a', 'failed', { tokens: { input_tokens: 0, output_tokens: 0 } }) }), { expanded: { a: true } })).toContain('Tokens: 0')
+})
+
+test('044 US1.4: nothing running or queued says Idle reason: not recorded, never all done', () => {
+  for (const files of [{ a: track('a', 'done') }, { a: track('a', 'failed') }, { a: track('a', 'stalled') }]) {
+    const out = lines(snapshot(files))
+    expect(out).toContain('Idle reason: not recorded')
+    expect(out).not.toMatch(/all done|capacity free/i)
+    const rows = out.split('\n')
+    expect(rows.indexOf('Idle reason: not recorded')).toBeGreaterThan(rows.findIndex(l => l.includes('CAPACITY')))
+  }
+  expect(lines(snapshot({ a: track('a', 'running') }))).not.toContain('Idle reason')
+  expect(lines(snapshot({ a: track('a', 'queued') }))).not.toContain('Idle reason')
+  expect(text(snapshot({}), ctx)).toBe('No workers\nIdle reason: not recorded')
+})
+
+test('044 US1.5: a null cap with nothing in use keeps 0 in use (limit unknown)', () => {
+  const out = lines(snapshot({ a: track('a', 'done') }, { cap: null }))
+  expect(out).toContain('CAPACITY  0 in use (limit unknown)')
+  expect(out).not.toMatch(/0\/\?|unverified/)
+})
+
+test('044 US1.6: the glyph and the state word are marked, the rest of the row is neutral', () => {
+  for (const columns of [120, 70, 40]) {
+    const view = rowsOf(snapshot(ALL_STATES), { columns, expanded: { [HISTORY_KEY]: true } })
+    for (const l of view.filter(l => l.toggle !== undefined && l.toggle !== HISTORY_KEY)) {
+      expect(l.marks?.length).toBe(2)
+      expect(l.tone).toBe('plain')
+      const [glyph, word] = l.marks as { from: number; to: number; tone: string }[]
+      expect(l.text.slice(glyph!.from, glyph!.to)).toMatch(/^[▶⚠○✕✓↩]$/)
+      expect(l.text.slice(word!.from, word!.to).toLowerCase()).toMatch(/^(running|stalled|queued|failed|done|taken back|taken-back)$/)
+    }
+  }
+  const failed = rowsOf(snapshot({ a: track('a', 'failed') })).find(l => l.buttonKey === 'attention:a')
+  expect(failed?.marks?.map(m => m.tone)).toEqual(['bad', 'bad'])
+  const running = rowsOf(snapshot({ a: track('a', 'running') })).find(l => l.toggle === 'a')
+  expect(running?.marks?.map(m => m.tone)).toEqual(['info', 'info'])
+})
+
+test('044 US1.7: the opened Track line is whole, the collapsed row may be cut', () => {
+  const snap = snapshot(SHARED_PREFIX)
+  for (const columns of [120, 70, 40]) {
+    const closed = lines(snap, { columns })
+    expect(closed).not.toContain(`${LONG_PREFIX}-omega`)
+    const open = lines(snap, { columns, expanded: { [`${LONG_PREFIX}-alpha`]: true, [`${LONG_PREFIX}-omega`]: true } })
+    const joined = open.replace(/\n\s+/g, '')
+    expect(joined).toContain(`Track: ${LONG_PREFIX}-alpha`)
+    expect(joined).toContain(`Track: ${LONG_PREFIX}-omega`)
+    for (const l of open.split('\n')) expect([...l].length).toBeLessThanOrEqual(columns)
+  }
+})
+
+test('044: marks stay inside every fitted line in ascii and at every width', () => {
+  for (const columns of [20, 30, 40, 60, 80, 120]) {
+    for (const ascii of [false, true]) {
+      for (const l of rowsOf(snapshot({ ...ALL_STATES, ...SHARED_PREFIX }), { columns, ascii, expanded: { [HISTORY_KEY]: true } })) {
+        for (const m of l.marks ?? []) {
+          expect(m.from).toBeGreaterThanOrEqual(0)
+          expect(m.to).toBeLessThanOrEqual(l.text.length)
+          expect(m.from).toBeLessThan(m.to)
+        }
+        if (l.buttonKey?.startsWith('attention:')) {
+          // the state word survives the cut, whatever the width and glyph set
+          expect(l.marks?.length).toBe(2)
+          const word = l.marks?.[1] as { from: number; to: number }
+          expect(l.text.slice(word.from, word.to)).toMatch(/^(failed|stalled)$/)
+        }
+      }
+    }
+  }
 })

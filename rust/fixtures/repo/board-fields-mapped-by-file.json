@@ -1,0 +1,218 @@
+{
+  "derived_from": "spec 045 FR-010, FR-011, US2",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "repo/.ai-gent/board.yaml": "version: 1\ndefault: app\nboards:\n  app:\n    platform: github\n    owner: octo\n    number: 1\n    states:\n      todo: Backlog\n      doing: Building\n      review: \"Waiting on QA\"   # the QA column\n      done: Shipped\n"
+  },
+  "git": [],
+  "name": "board-fields-mapped-by-file",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [
+    {
+      "body": {
+        "data": {
+          "user": {
+            "projectV2": {
+              "closed": false,
+              "field": {
+                "dataType": "SINGLE_SELECT",
+                "id": "PVTSSF_1",
+                "name": "Status",
+                "options": [
+                  {
+                    "id": "OPT_0",
+                    "name": "Backlog"
+                  },
+                  {
+                    "id": "OPT_1",
+                    "name": "Building"
+                  },
+                  {
+                    "id": "OPT_2",
+                    "name": "Waiting on QA"
+                  },
+                  {
+                    "id": "OPT_3",
+                    "name": "Shipped"
+                  },
+                  {
+                    "id": "OPT_4",
+                    "name": "Icebox"
+                  }
+                ]
+              },
+              "id": "PVT_1",
+              "title": "Roadmap",
+              "url": "https://github.com/users/octo/projects/1"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "octo",
+        "number": 1
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "node": {
+            "items": {
+              "nodes": [
+                {
+                  "content": {
+                    "__typename": "Issue",
+                    "number": 1,
+                    "state": "OPEN",
+                    "title": "Item 1",
+                    "url": "https://github.com/o/r/issues/1"
+                  },
+                  "fieldValueByName": {
+                    "name": "Building",
+                    "optionId": "x"
+                  },
+                  "id": "PVTI_1"
+                },
+                {
+                  "content": {
+                    "__typename": "Issue",
+                    "number": 2,
+                    "state": "CLOSED",
+                    "title": "Item 2",
+                    "url": "https://github.com/o/r/issues/2"
+                  },
+                  "fieldValueByName": {
+                    "name": "Shipped",
+                    "optionId": "x"
+                  },
+                  "id": "PVTI_2"
+                },
+                {
+                  "content": {
+                    "__typename": "Issue",
+                    "number": 3,
+                    "state": "OPEN",
+                    "title": "Item 3",
+                    "url": "https://github.com/o/r/issues/3"
+                  },
+                  "fieldValueByName": {
+                    "name": "Icebox",
+                    "optionId": "x"
+                  },
+                  "id": "PVTI_3"
+                }
+              ],
+              "pageInfo": {
+                "endCursor": null,
+                "hasNextPage": false
+              }
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardItems",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "after": null,
+        "field": "Status",
+        "project": "PVT_1"
+      }
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "fields",
+        "app",
+        "--json"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"octo\", \"number\": 1, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"github\",\n    \"id\": \"PVT_1\",\n    \"key\": \"github:octo/1\",\n    \"title\": \"Roadmap\",\n    \"url\": \"https://github.com/users/octo/projects/1\",\n    \"closed\": false,\n    \"mode\": \"field\",\n    \"scope\": []\n  },\n  \"field\": {\n    \"id\": \"PVTSSF_1\",\n    \"name\": \"Status\",\n    \"kind\": \"single_select\",\n    \"options\": [\n      {\n        \"id\": \"OPT_0\",\n        \"name\": \"Backlog\",\n        \"state\": \"todo\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"OPT_1\",\n        \"name\": \"Building\",\n        \"state\": \"doing\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"OPT_2\",\n        \"name\": \"Waiting on QA\",\n        \"state\": \"review\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"OPT_3\",\n        \"name\": \"Shipped\",\n        \"state\": \"done\",\n        \"mapped_by\": \"map\"\n      },\n      {\n        \"id\": \"OPT_4\",\n        \"name\": \"Icebox\",\n        \"state\": null,\n        \"mapped_by\": \"unmapped\"\n      }\n    ]\n  },\n  \"unmapped\": [],\n  \"stale\": []\n}\n"
+    },
+    {
+      "argv": [
+        "board",
+        "fields"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"octo\", \"number\": 1, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "github:octo/1 (Roadmap, mode field)\nfield: Status (single_select)\nOPTION         STATE   MAPPED BY\nBacklog        todo    map\nBuilding       doing   map\nWaiting on QA  review  map\nShipped        done    map\nIcebox         -       unmapped\n"
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "app",
+        "--state",
+        "doing"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "{\"query\": \"query BoardOfUser($login: String!, $number: Int!, $field: String!) { user(login: $login) { projectV2(number: $number) { id title url closed field(name: $field) { ... on ProjectV2FieldCommon { id name dataType } ... on ProjectV2SingleSelectField { options { id name } } } } } }\", \"variables\": {\"login\": \"octo\", \"number\": 1, \"field\": \"Status\"}, \"operationName\": \"BoardOfUser\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        },
+        {
+          "body": "{\"query\": \"query BoardItems($project: ID!, $field: String!, $after: String) { node(id: $project) { ... on ProjectV2 { items(first: 100, after: $after) { nodes { id content { __typename ... on Issue { number url title state } ... on PullRequest { number url title state } ... on DraftIssue { title } } fieldValueByName(name: $field) { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } } } }\", \"variables\": {\"project\": \"PVT_1\", \"field\": \"Status\", \"after\": null}, \"operationName\": \"BoardItems\"}",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer tok-3f9a1c77e0",
+            "Content-Type": "application/json"
+          },
+          "method": "POST",
+          "path": "/graphql"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "github:octo/1 (Roadmap) · field Status\nSTATE  COLUMN    KIND   #  TITLE   URL\ndoing  Building  issue  1  Item 1  https://github.com/o/r/issues/1\n1 item(s)\n"
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

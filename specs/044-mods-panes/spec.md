@@ -48,7 +48,7 @@ A person with 2 failed workers, 32 done and 1 taken back opens the Workers pane 
 
 **Acceptance Scenarios**:
 
-1. **Given** a row with ahead 2 and behind 0, **When** drawn wide, **Then** `↑2 ↓0`; in ASCII `^2 v0`; with either count null, `?` as today. The notes line says once what the arrows mean (`↑ ahead of dev, ↓ behind`; ASCII `^ ahead of dev, v behind`).
+1. **Given** a row with ahead 2 and behind 0, **When** drawn wide, **Then** `↑2 ↓0`; in ASCII `^2 v0`; with either count null, `?` as today. The notes line says once what the arrows mean (`↑ ahead of, ↓ behind the base branch`; ASCII `^ ahead of, v behind the base branch`; the missing-base note reads `no base branch found`).
 2. **Given** a narrow pane (under 60), **Then** the row is `branch ↑a ↓b ●`, `branch ? ●` when unknown.
 3. **Given** an open pull request whose checks fail, **Then** one `CI failing` signal per row (the `checks failing` cell of `prCell` is dropped, the mark stays); the summary counts it once (`1 failing`). A branch with no GitHub status shows no CI word.
 4. **Given** a row, **When** its `▸` Button is pressed, **Then** the row opens in place to full branch, path, dirty, ahead/behind, PR and checks as `Text` lines; pressing again closes it. Rows keep their expansion across refreshes, keyed by branch; a vanished branch drops its key.

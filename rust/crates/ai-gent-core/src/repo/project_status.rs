@@ -96,6 +96,26 @@ pub fn resolve_field<'a>(fields: &'a [J], field_name: &str) -> R<&'a J> {
     )))
 }
 
+/// The index of the option name that matches a sync state: the last exact alias hit in alias order,
+/// else the first substring hit (the matching `resolve_option` does, shared with the board map).
+#[must_use]
+pub fn alias_index(names: &[String], state: &str) -> Option<usize> {
+    let aliases = ALIASES.iter().find(|(s, _)| *s == state).map(|(_, a)| *a)?;
+    for alias in aliases {
+        let a = norm(alias);
+        if let Some(i) = names.iter().rposition(|n| norm(n) == a) {
+            return Some(i);
+        }
+    }
+    let normed: Vec<String> = aliases.iter().map(|a| norm(a)).collect();
+    names.iter().position(|n| {
+        let n = norm(n);
+        normed
+            .iter()
+            .any(|a| a.contains(&n) || n.contains(a.as_str()))
+    })
+}
+
 /// The field's live option that matches a sync state, by alias then substring.
 ///
 /// # Errors
@@ -108,36 +128,19 @@ pub fn resolve_option<'a>(field: &'a J, state: &str) -> R<&'a J> {
             .collect(),
         _ => Vec::new(),
     };
-    let aliases = ALIASES
-        .iter()
-        .find(|(s, _)| *s == state)
-        .map(|(_, a)| *a)
-        .ok_or_else(|| {
-            Failed::err(format!(
-                "unknown sync state '{state}' (todo, doing, review, done)"
-            ))
-        })?;
-    for alias in aliases {
-        let a = norm(alias);
-        if let Some(hit) = options.iter().rev().find(|o| norm(&name_of(o)) == a) {
-            return Ok(hit);
-        }
+    if !ALIASES.iter().any(|(s, _)| *s == state) {
+        return Err(Failed::err(format!(
+            "unknown sync state '{state}' (todo, doing, review, done)"
+        )));
     }
-    let normed: Vec<String> = aliases.iter().map(|a| norm(a)).collect();
-    for o in &options {
-        let n = norm(&name_of(o));
-        if normed
-            .iter()
-            .any(|a| a.contains(&n) || n.contains(a.as_str()))
-        {
-            return Ok(o);
-        }
+    let option_names: Vec<String> = options.iter().map(|o| name_of(o)).collect();
+    if let Some(i) = alias_index(&option_names, state) {
+        return Ok(options[i]);
     }
-    let names: Vec<String> = options.iter().map(|o| name_of(o)).collect();
-    let list = if names.is_empty() {
+    let list = if option_names.is_empty() {
         "(none)".to_string()
     } else {
-        names.join(", ")
+        option_names.join(", ")
     };
     Err(Failed::err(format!(
         "no option on '{}' matches sync state '{state}'; options: {list}; pass --value with the exact option name instead",

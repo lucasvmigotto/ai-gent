@@ -1,7 +1,7 @@
 {
   "contract_version": 1,
   "name": "postgres-ddl-and-command-tags",
-  "derived_from": "spec 043 T031 and FR-010 on PostgreSQL: psycopg reports cursor.rowcount -1 for DDL, the server's command-tag number for DML (also with RETURNING and in a CTE) and the rows received for SHOW and EXPLAIN; the port reports the CommandComplete number, and 0 where the tag carries none (DDL, EXPLAIN, SHOW). This fixture runs UPDATE, DDL, a no-match DELETE and a CTE delete; the SHOW, EXPLAIN and SELECT counts are covered by the wire test the_count_is_the_command_tag_number_for_every_kind_of_statement.",
+  "derived_from": "spec 043 T031 and FR-022 on PostgreSQL: psycopg reports cursor.rowcount -1 for DDL and the rows received for SHOW and EXPLAIN; the port reports the CommandComplete number, 0 for DDL, and the rows received for SHOW and EXPLAIN (D-011). DML, including RETURNING and a CTE, keeps the server count. SHOW and EXPLAIN also exercise a zero row cap in read mode.",
   "kind": "exec",
   "engines": [
     "postgresql"
@@ -79,6 +79,78 @@
               ]
             ],
             "truncated": false
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SHOW server_version",
+          "EXPLAIN SELECT 1"
+        ],
+        "timeout": 5,
+        "max_rows": 200
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "columns": [
+              "server_version"
+            ],
+            "rows": [
+              [
+                "$string"
+              ]
+            ],
+            "truncated": false
+          },
+          {
+            "rowcount": 1,
+            "columns": [
+              "QUERY PLAN"
+            ],
+            "rows": [
+              [
+                "$string"
+              ]
+            ],
+            "truncated": false
+          }
+        ]
+      }
+    },
+    {
+      "request": {
+        "mode": "read",
+        "statements": [
+          "SHOW server_version",
+          "EXPLAIN SELECT 1"
+        ],
+        "timeout": 5,
+        "max_rows": 0
+      },
+      "expected": {
+        "ok": true,
+        "results": [
+          {
+            "rowcount": 1,
+            "columns": [
+              "server_version"
+            ],
+            "rows": [],
+            "truncated": true
+          },
+          {
+            "rowcount": 1,
+            "columns": [
+              "QUERY PLAN"
+            ],
+            "rows": [],
+            "truncated": true
           }
         ]
       }

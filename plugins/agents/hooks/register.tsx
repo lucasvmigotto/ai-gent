@@ -22,7 +22,7 @@ import type { Tone } from './cards-view'
 import { landing, resetLanding } from './landing'
 import { refresh, refreshThrottled, tokensText } from './tokens'
 import type { TokenOptions } from './tokens'
-import { PANE as BOARD, close as closeBoard, command as boardCommand, intervals, resume as resumeBoard, snapshot as boardSnapshot, worktreeBash } from './worktrees'
+import { PANE as BOARD, close as closeBoard, command as boardCommand, intervals, readExpanded as boardExpanded, resume as resumeBoard, snapshot as boardSnapshot, toggle as boardToggle, worktreeBash } from './worktrees'
 import type { BoardOptions, Intervals } from './worktrees'
 import { view as boardView } from './worktrees-model'
 
@@ -37,10 +37,10 @@ const COLOR: Partial<Record<Tone, string>> = { good: 'success', warn: 'warning',
 // feature's step has its own `.catch`: a failing one never takes the other down.
 // The board's own handlers, composed ahead of the cards' early return below so that
 // the cards pane off does not take it with it.
-function worktreeBoard(on: Parameters<Register>[0], every: Intervals): void {
+function worktreeBoard(on: Parameters<Register>[0], every: Intervals, ascii: boolean): void {
   worktreeBash(on)
 
-  on('command.run', { command: 'worktree-board' }, async $ => boardCommand($, every))
+  on('command.run', { command: 'worktree-board' }, async $ => boardCommand($, every, ascii))
 
   on('ui.close', { id: BOARD }, async ($, e, next) => {
     const closed = await next(e)
@@ -49,15 +49,25 @@ function worktreeBoard(on: Parameters<Register>[0], every: Intervals): void {
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Pane', requestId: BOARD }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
-    const lines = boardView(await boardSnapshot($), e.props.bodyColumns)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const lines = boardView({ ...(await boardSnapshot($)), ascii, expanded: await boardExpanded($) }, e.props.bodyColumns)
     return (
       <Box flexDirection="column">
-        {lines.map(line => (
-          <Text key={line.key} bold={line.tone === 'bold'} dimColor={line.tone === 'dim'} color={COLOR[line.tone]}>
-            {line.text}
-          </Text>
-        ))}
+        {lines.map(line => {
+          const text = (
+            <Text key={line.key} bold={line.tone === 'bold'} dimColor={line.tone === 'dim'} color={COLOR[line.tone]}>
+              {line.text}
+            </Text>
+          )
+          // A row is one press target of label text; the branch opens or closes it.
+          return line.toggle === undefined ? (
+            text
+          ) : (
+            <Button key={line.key} plain onPress={() => boardToggle($, line.toggle as string)}>
+              {text}
+            </Button>
+          )
+        })}
       </Box>
     )
   })
@@ -81,7 +91,7 @@ export const register: Register = (on, options: Options) => {
   const isLanding = options.cardCostToast !== false
 
   if (hasTokens && isLanding) landing(on, rate)
-  if (hasBoard) worktreeBoard(on, every)
+  if (hasBoard) worktreeBoard(on, every, options.worktreeBoardAscii === true)
 
   on('session.start', async ($, e, next) => {
     // A new session's first ledger read is a first look: nothing already landed is replayed.

@@ -1,0 +1,194 @@
+{
+  "derived_from": "spec 045 contract 4.1 (assignee list), error cases",
+  "env": {},
+  "expect_files": {},
+  "files": {},
+  "git": [],
+  "name": "board-gitlab-non-label-list",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "id": 14,
+        "lists": [
+          {
+            "id": 201,
+            "label": {
+              "id": 9,
+              "name": "workflow::todo"
+            },
+            "position": 0
+          },
+          {
+            "assignee": {
+              "id": 7,
+              "username": "alice"
+            },
+            "id": 202,
+            "label": null,
+            "position": 1
+          }
+        ],
+        "name": "Mixed"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/14",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1001,
+          "iid": 1,
+          "labels": [
+            "workflow::todo"
+          ],
+          "state": "opened",
+          "title": "Issue 1",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/1"
+        },
+        {
+          "id": 1003,
+          "iid": 3,
+          "labels": [
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Issue 3",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/3"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1001,
+          "iid": 1,
+          "labels": [
+            "workflow::todo"
+          ],
+          "state": "opened",
+          "title": "Issue 1",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/1"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Atodo&state=opened&per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [
+        {
+          "id": 1006,
+          "iid": 6,
+          "labels": [
+            "bug"
+          ],
+          "state": "opened",
+          "title": "Alice's",
+          "web_url": "https://gitlab.com/grp/proj/-/issues/6"
+        }
+      ],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?assignee_username=alice&state=opened&per_page=100&page=1",
+      "status": 200
+    },
+    {
+      "body": [],
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "fields",
+        "gitlab:grp/proj/14"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/14"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/14 (Mixed, mode labels)\nfield: Lists (lists)\nOPTION           STATE  MAPPED BY\nOpen             todo   alias\nworkflow::todo   -      unmapped\nassignee: alice  -      unmapped\nClosed           done   alias\nunmapped states: doing, review\n"
+    },
+    {
+      "argv": [
+        "board",
+        "show",
+        "gitlab:grp/proj/14"
+      ],
+      "exit": 0,
+      "seen": [
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/14"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?labels=workflow%3A%3Atodo&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?assignee_username=alice&state=opened&per_page=100&page=1"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/issues?state=closed&per_page=100&page=1"
+        }
+      ],
+      "stderr_has": [],
+      "stdin": null,
+      "stdout": "gitlab:grp/proj/14 (Mixed) · field Lists\nSTATE  COLUMN           KIND   #  TITLE    URL\ntodo   Open             issue  3  Issue 3  https://gitlab.com/grp/proj/-/issues/3\n-      workflow::todo   issue  1  Issue 1  https://gitlab.com/grp/proj/-/issues/1\n-      assignee: alice  issue  6  Alice's  https://gitlab.com/grp/proj/-/issues/6\n3 item(s)\n"
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

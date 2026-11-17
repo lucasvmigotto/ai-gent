@@ -228,6 +228,7 @@ fn a_verified_connection_with_the_ca_reaches_the_server_and_sends_the_session_op
         "-c statement_timeout=5000",
         "-c lock_timeout=5000",
         "-c idle_in_transaction_session_timeout=60000",
+        "-c TimeZone=UTC",
         "-c default_transaction_read_only=on",
         "database|shop|",
     ] {
@@ -976,8 +977,8 @@ fn the_count_is_the_command_tag_number_for_every_kind_of_statement() {
         Some(1),
         Some(4),
         Some(0),
-        Some(0),
-        Some(0),
+        Some(1),
+        Some(1),
         Some(3),
     ];
     let out = c.run(&req);
@@ -985,13 +986,88 @@ fn the_count_is_the_command_tag_number_for_every_kind_of_statement() {
     let results = out.results.unwrap();
     assert_eq!(
         results.iter().map(|r| r.rowcount).collect::<Vec<_>>(),
-        vec![2, 1, 4, 0, 0, 0, 3],
+        vec![2, 1, 4, 0, 1, 1, 3],
         "CTE delete, insert returning, update, DDL, EXPLAIN, SHOW, SELECT"
     );
     // max_rows applies in write mode, truncated stays false.
     assert_eq!(results[0].rows.as_ref().map(Vec::len), Some(1));
     assert_eq!(results[0].truncated, Some(false));
     assert!(server.has("COMMIT"));
+}
+
+#[test]
+fn postgres_contract_fixtures_match_command_tags_over_tls() {
+    use ai_gent_dbrun::connector::contract;
+
+    let ca = TestCa::new("contract-tags");
+    let (c, cert, _dir) = wire_connector(&ca);
+    // These are protocol replies, not a SQL evaluator. The real-server fixture test below
+    // independently checks that PostgreSQL actually emits these tags and result shapes.
+    let server = wire(
+        &cert,
+        &script(|sql| match sql {
+            "/* change */ UPDATE ai_gent_t SET n = n + 1" => Some(Reply::tag("UPDATE 2")),
+            "CREATE TABLE ai_gent_u (x integer)" => Some(Reply::tag("CREATE TABLE")),
+            "DELETE FROM ai_gent_t WHERE id = 99" => Some(Reply::tag("DELETE 0")),
+            "WITH d AS (DELETE FROM ai_gent_t WHERE id = 1 RETURNING id) SELECT id FROM d" => {
+                Some(Reply::rows(&[("id", INT4)], &[&["1"]], "SELECT 1"))
+            }
+            "SHOW server_version" => Some(Reply::rows(
+                &[("server_version", TEXT)],
+                &[&["17.0"]],
+                "SHOW",
+            )),
+            "EXPLAIN SELECT 1" => Some(Reply::rows(
+                &[("QUERY PLAN", TEXT)],
+                &[&["Result  (cost=0.00..0.01 rows=1 width=4)"]],
+                "EXPLAIN",
+            )),
+            _ => None,
+        }),
+    );
+    let ran = contract::run_exec_cases(
+        &c,
+        "postgresql",
+        contract::Profile::Port,
+        |_case, _setup| request("127.0.0.1", server.port).conn,
+    );
+    assert_eq!(ran, 1, "exactly the one PostgreSQL fixture case runs");
+    assert!(
+        server.log().iter().filter(|q| *q == READ_STATE).count() >= 2,
+        "read-mode steps check the read-only flag: {:?}",
+        server.log()
+    );
+    assert!(server.has("COMMIT"));
+    assert!(server.has("BEGIN READ ONLY"));
+    assert!(server.has("ROLLBACK"));
+}
+
+#[test]
+fn read_mode_fails_when_the_server_reports_transaction_read_only_off() {
+    let ca = TestCa::new("ro-off");
+    let (c, cert, _dir) = wire_connector(&ca);
+    let server = wire(
+        &cert,
+        &script(|sql| match sql {
+            READ_STATE => Some(Reply::rows(
+                &[("s", TEXT), ("t", TEXT)],
+                &[&["off", "2026-01-01 00:00:00+00"]],
+                "SELECT 1",
+            )),
+            "SELECT 1" => Some(one_int("1")),
+            _ => None,
+        }),
+    );
+    let out = c.run(&wire_request(
+        server.port,
+        Mode::Read,
+        &["SELECT 1", "SELECT 1"],
+    ));
+    assert!(!out.ok, "{out:?}");
+    assert!(
+        error(&out).contains("read-only enforcement was lost"),
+        "{out:?}"
+    );
 }
 
 #[test]
@@ -1204,14 +1280,14 @@ fn real_server_counts_come_from_the_server() {
             "SHOW TimeZone",
         ],
     );
-    req.expect = vec![Some(0), Some(3), Some(2), Some(1), Some(0)];
+    req.expect = vec![Some(0), Some(3), Some(2), Some(1), Some(1)];
     req.max_rows = 1;
     let out = c.run(&req);
     assert!(out.ok, "{out:?}");
     let r = out.results.unwrap();
     assert_eq!(
         r.iter().map(|e| e.rowcount).collect::<Vec<_>>(),
-        vec![0, 3, 2, 1, 0]
+        vec![0, 3, 2, 1, 1]
     );
     assert_eq!(
         r[2].rows.as_ref().map(Vec::len),
