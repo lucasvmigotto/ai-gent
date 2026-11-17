@@ -35,6 +35,18 @@ fn write_status(root: &Path, track: &str, state: &str, started: u64, updated: u6
     std::fs::write(dir.join("status.json"), s.to_string()).unwrap();
 }
 
+fn update_status(root: &Path, track: &str, fields: &Value) {
+    let path = root
+        .join(".ai-gent/delegate")
+        .join(track)
+        .join("status.json");
+    let mut s: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    for (key, value) in fields.as_object().unwrap() {
+        s[key] = value.clone();
+    }
+    std::fs::write(path, s.to_string()).unwrap();
+}
+
 fn lines(root: &Path, file: &str) -> Vec<Value> {
     std::fs::read_to_string(root.join(".ai-gent/delegate").join(file))
         .unwrap_or_default()
@@ -219,8 +231,9 @@ fn idle_says_why_free_slots_are_not_used() {
         idle(d.path(), &list),
         "free_slots=2 ready_tasks=0 reason=approval"
     );
-    // Once T1 is done, T2 is ready.
+    // Once T1 is done and the supervisor accepts it, T2 is ready.
     write_status(d.path(), "t1", "done", 1, 2, &["T1"]);
+    update_status(d.path(), "t1", &json!({"verdict": {"result": "accepted"}}));
     let list = json!([
         task("T1", "docs/a.md", &none),
         task("T2", "docs/b.md", &json!({"depends": ["T1"]})),
@@ -238,4 +251,119 @@ fn idle_says_why_free_slots_are_not_used() {
     );
     // It never dispatched anything.
     assert!(!d.path().join(".ai-gent/delegate/t2").exists());
+}
+
+#[test]
+fn idle_requires_supervisor_acceptance_before_unlocking_dependencies() {
+    for verdict in ["pending", "rejected", "accepted"] {
+        let d = tempfile::tempdir().unwrap();
+        write_status(d.path(), "t1", "done", 1, 2, &["T1"]);
+        let v = if verdict == "rejected" {
+            json!({"result": verdict, "reason": "path-outside-allowed"})
+        } else {
+            json!({"result": verdict})
+        };
+        update_status(d.path(), "t1", &json!({"verdict": v}));
+        let list = json!([
+            task("T1", "docs/a.md", &json!({})),
+            task("T2", "docs/b.md", &json!({"depends": ["T1"]})),
+        ]);
+        let expected = if verdict == "accepted" {
+            "free_slots=3 ready_tasks=1 reason=dispatch"
+        } else {
+            "free_slots=3 ready_tasks=0 reason=dependency"
+        };
+        assert_eq!(idle(d.path(), &list), expected, "verdict={verdict}");
+    }
+}
+
+#[test]
+fn an_accepted_reviewer_does_not_complete_the_builders_tasks() {
+    let d = tempfile::tempdir().unwrap();
+    write_status(d.path(), "builder", "failed", 1, 2, &["T1"]);
+    write_status(d.path(), "review-builder", "done", 3, 4, &["T1"]);
+    update_status(
+        d.path(),
+        "review-builder",
+        &json!({
+            "role": "reviewer", "verdict": {"result": "accepted"}
+        }),
+    );
+    let list = json!([
+        task("T1", "docs/a.md", &json!({})),
+        task("T2", "docs/b.md", &json!({"depends": ["T1"]})),
+    ]);
+    assert_eq!(
+        idle(d.path(), &list),
+        "free_slots=3 ready_tasks=0 reason=dependency"
+    );
+}
+
+#[test]
+fn a_new_attempt_does_not_inherit_an_older_acceptance() {
+    for state in ["failed", "taken-back"] {
+        let d = tempfile::tempdir().unwrap();
+        write_status(d.path(), "old", "done", 1, 2, &["T1"]);
+        update_status(d.path(), "old", &json!({"verdict": {"result": "accepted"}}));
+        write_status(d.path(), "retry", state, 3, 4, &["T1"]);
+        let list = json!([
+            task(
+                "T1",
+                "docs/a.md",
+                &json!({"needs": {"owner_decision": true}})
+            ),
+            task("T2", "docs/b.md", &json!({"depends": ["T1"]})),
+        ]);
+        let expected = if state == "taken-back" {
+            "free_slots=3 ready_tasks=0 reason=approval"
+        } else {
+            "free_slots=3 ready_tasks=0 reason=dependency"
+        };
+        assert_eq!(idle(d.path(), &list), expected, "state={state}");
+    }
+}
+
+#[test]
+fn ambiguous_equal_start_attempts_do_not_inherit_acceptance() {
+    let d = tempfile::tempdir().unwrap();
+    write_status(d.path(), "accepted", "done", 1, 2, &["T1"]);
+    update_status(
+        d.path(),
+        "accepted",
+        &json!({"verdict": {"result": "accepted"}}),
+    );
+    write_status(d.path(), "other", "failed", 1, 3, &["T1"]);
+    let list = json!([
+        task("T1", "docs/a.md", &json!({})),
+        task("T2", "docs/b.md", &json!({"depends": ["T1"]})),
+    ]);
+    assert_eq!(
+        idle(d.path(), &list),
+        "free_slots=3 ready_tasks=0 reason=dependency"
+    );
+}
+
+#[test]
+fn accepted_research_can_satisfy_a_dependency_but_a_failed_run_cannot() {
+    for state in ["done", "failed"] {
+        let d = tempfile::tempdir().unwrap();
+        write_status(d.path(), "research", state, 1, 2, &["T1"]);
+        update_status(
+            d.path(),
+            "research",
+            &json!({
+                "role": "researcher", "verdict": {"result": "accepted"}
+            }),
+        );
+        let list = json!([
+            task("T1", "docs/a.md", &json!({})),
+            task("T2", "docs/b.md", &json!({"depends": ["T1"]})),
+        ]);
+        let expected = if state == "done" {
+            "free_slots=3 ready_tasks=1 reason=dispatch"
+        } else {
+            "free_slots=3 ready_tasks=0 reason=dependency"
+        };
+        assert_eq!(idle(d.path(), &list), expected, "state={state}");
+    }
 }

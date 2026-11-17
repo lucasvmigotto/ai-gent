@@ -1,0 +1,221 @@
+{
+  "baseline": {
+    "version": "2.28.0",
+    "source_revision": "0cca79b6e5f3b260dd7f63a746d39452161897e8",
+    "date": "2026-11-17",
+    "host": "Linux",
+    "kind": "synthetic evaluator and CLI inputs; no model calls"
+  },
+  "scratch": "<SCRATCH>",
+  "results": {
+    "rust-routing": {
+      "exit": 0,
+      "output": {
+        "schema": 1,
+        "ok": true,
+        "data": {
+          "deferred": [],
+          "pool": {
+            "cap": 3,
+            "disk_checked": false,
+            "estimate_gb": 10.0,
+            "floor_gb": null,
+            "free_gb": null,
+            "live": 0,
+            "unreadable_status_files": 0
+          },
+          "slots": 3,
+          "start": [
+            {
+              "class": "judgment",
+              "id": "t001",
+              "reason": "T001 is a judgment task (FR-004a)",
+              "tasks": [
+                "T001"
+              ],
+              "worker": "claude"
+            }
+          ],
+          "tracks": [
+            {
+              "class": "judgment",
+              "id": "t001",
+              "reason": "T001 is a judgment task (FR-004a)",
+              "tasks": [
+                "T001"
+              ],
+              "worker": "claude"
+            }
+          ]
+        }
+      },
+      "stderr": ""
+    },
+    "reverse-order": {
+      "exit": 0,
+      "output": {
+        "schema": 1,
+        "ok": true,
+        "data": {
+          "deferred": [],
+          "pool": {
+            "cap": 3,
+            "disk_checked": false,
+            "estimate_gb": 10.0,
+            "floor_gb": null,
+            "free_gb": null,
+            "live": 0,
+            "unreadable_status_files": 0
+          },
+          "slots": 3,
+          "start": [
+            {
+              "agent": "codex",
+              "class": "simple",
+              "id": "t002",
+              "reason": null,
+              "tasks": [
+                "T002",
+                "T001"
+              ],
+              "worker": "delegate"
+            }
+          ],
+          "tracks": [
+            {
+              "agent": "codex",
+              "class": "simple",
+              "id": "t002",
+              "reason": null,
+              "tasks": [
+                "T002",
+                "T001"
+              ],
+              "worker": "delegate"
+            }
+          ]
+        }
+      },
+      "stderr": ""
+    },
+    "cycle": {
+      "exit": 0,
+      "output": {
+        "schema": 1,
+        "ok": true,
+        "data": {
+          "deferred": [],
+          "pool": {
+            "cap": 3,
+            "disk_checked": false,
+            "estimate_gb": 10.0,
+            "floor_gb": null,
+            "free_gb": null,
+            "live": 0,
+            "unreadable_status_files": 0
+          },
+          "slots": 3,
+          "start": [
+            {
+              "agent": "codex",
+              "class": "simple",
+              "id": "t001",
+              "reason": null,
+              "tasks": [
+                "T001",
+                "T002"
+              ],
+              "worker": "delegate"
+            }
+          ],
+          "tracks": [
+            {
+              "agent": "codex",
+              "class": "simple",
+              "id": "t001",
+              "reason": null,
+              "tasks": [
+                "T001",
+                "T002"
+              ],
+              "worker": "delegate"
+            }
+          ]
+        }
+      },
+      "stderr": ""
+    },
+    "rejected-dependency": {
+      "exit": 0,
+      "output": {
+        "schema": 1,
+        "ok": true,
+        "data": {
+          "free_slots": 3,
+          "ready_tasks": 1,
+          "reason": "dispatch"
+        }
+      },
+      "stderr": ""
+    },
+    "negated-source": {
+      "exit": 0,
+      "output": {
+        "schema": 1,
+        "ok": true,
+        "data": {
+          "outcome": "confirmed",
+          "terms": [
+            {
+              "found_in": [
+                {
+                  "excerpt": "crate-x is not archived.",
+                  "source": "<SCRATCH>/negated-source.txt"
+                }
+              ],
+              "term": "crate-x"
+            }
+          ],
+          "unreachable": []
+        }
+      },
+      "stderr": ""
+    },
+    "guard-Edit-credential": {
+      "exit": 0,
+      "output": {
+        "hookSpecificOutput": {
+          "additionalContext": "db guard: instead, use dbrun profiles, classify or test.",
+          "hookEventName": "PreToolUse",
+          "permissionDecision": "deny",
+          "permissionDecisionReason": "db guard: that's a db credentials file; only dbrun reads it \u2014 use dbrun profiles / classify / test"
+        },
+        "systemMessage": "db guard refused this. Only dbrun reads database credential files. Instead: use dbrun profiles, classify or test. (db:connect)"
+      },
+      "stderr": ""
+    },
+    "guard-apply_patch-credential": {
+      "exit": 0,
+      "output": null,
+      "stderr": ""
+    },
+    "guard-Edit-grant": {
+      "exit": 0,
+      "output": {
+        "hookSpecificOutput": {
+          "additionalContext": "git:workflow guard: instead, create or change the grant file yourself (expires, branches and actions lines).",
+          "hookEventName": "PreToolUse",
+          "permissionDecision": "deny",
+          "permissionDecisionReason": "git:workflow guard: the autonomy grant (.ai-gent/autonomy) is written by the user, never by the agent; ask the user to create or change it"
+        },
+        "systemMessage": "git:workflow guard refused this. Only you write the autonomy grant; an agent that could write it could give itself the permissions. Instead: create or change the grant file yourself (expires, branches and actions lines). (git:workflow)"
+      },
+      "stderr": ""
+    },
+    "guard-apply_patch-grant": {
+      "exit": 0,
+      "output": null,
+      "stderr": ""
+    }
+  }
+}

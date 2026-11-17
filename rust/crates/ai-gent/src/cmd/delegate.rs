@@ -717,17 +717,39 @@ fn claimed_and_done(root: &Path) -> (HashSet<String>, HashSet<String>) {
     let Ok(rd) = std::fs::read_dir(root.join(".ai-gent").join("delegate")) else {
         return (claimed, done);
     };
+    let mut latest: BTreeMap<String, (u64, bool, bool)> = BTreeMap::new();
     for e in rd.flatten() {
         let Ok(s) = status::read(root, &e.file_name().to_string_lossy()) else {
             continue;
         };
-        if s.state == State::TakenBack {
+        if s.role == Role::Reviewer {
             continue;
         }
-        if s.state == State::Done {
-            done.extend(s.tasks.iter().cloned());
+        let complete = s.state == State::Done && s.verdict.result == VerdictResult::Accepted;
+        let holds_task = s.state != State::TakenBack;
+        for task in s.tasks {
+            latest
+                .entry(task)
+                .and_modify(|old| {
+                    if s.started > old.0 {
+                        *old = (s.started, holds_task, complete);
+                    } else if s.started == old.0 {
+                        // Seconds cannot distinguish concurrent attempts. Any outstanding or rejected
+                        // attempt prevents completion, regardless of directory iteration order.
+                        old.1 |= holds_task;
+                        old.2 &= complete;
+                    }
+                })
+                .or_insert((s.started, holds_task, complete));
         }
-        claimed.extend(s.tasks);
+    }
+    for (task, (_, holds_task, complete)) in latest {
+        if holds_task {
+            claimed.insert(task.clone());
+        }
+        if complete {
+            done.insert(task);
+        }
     }
     (claimed, done)
 }

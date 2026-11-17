@@ -9,6 +9,7 @@ use super::brief::protected_path;
 use super::glob;
 use super::{Error, Res};
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
 
 /// What a task is, as the task list declares it. Unknown or missing means `Other`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -89,9 +90,9 @@ pub enum Worker {
 /// A track: tasks that share paths or depend on each other, run in order by one worker.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Track {
-    /// The track id, from its first task (`t013`).
+    /// The track id, from its first declared task (`t013`), independent of execution order.
     pub id: String,
-    /// Task ids, in list order.
+    /// Task ids in dependency order, with input order breaking ties.
     pub tasks: Vec<String>,
     /// The track's class: judgment if any task is.
     pub class: Class,
@@ -230,10 +231,73 @@ fn share(a: &Task, b: &Task) -> bool {
         .any(|x| b.paths.iter().any(|y| overlap(x, y)))
 }
 
+// The caller has already checked unique ids and known dependencies. Kahn's algorithm keeps
+// unrelated tasks in input order; duplicate dependency edges count only once.
+fn dependency_order(tasks: &[Task]) -> Res<Vec<usize>> {
+    let indexes: BTreeMap<&str, usize> = tasks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (t.id.as_str(), i))
+        .collect();
+    let dependencies: Vec<BTreeSet<usize>> = tasks
+        .iter()
+        .map(|t| t.depends.iter().map(|d| indexes[d.as_str()]).collect())
+        .collect();
+    let mut remaining: Vec<usize> = dependencies.iter().map(BTreeSet::len).collect();
+    let mut consumers = vec![Vec::new(); tasks.len()];
+    for (i, deps) in dependencies.iter().enumerate() {
+        for &dep in deps {
+            consumers[dep].push(i);
+        }
+    }
+    let mut ready: BTreeSet<usize> = remaining
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &n)| (n == 0).then_some(i))
+        .collect();
+    let mut ordered = Vec::with_capacity(tasks.len());
+    while let Some(i) = ready.pop_first() {
+        ordered.push(i);
+        for &consumer in &consumers[i] {
+            remaining[consumer] -= 1;
+            if remaining[consumer] == 0 {
+                ready.insert(consumer);
+            }
+        }
+    }
+    if let Some(mut current) = remaining.iter().position(|&n| n > 0) {
+        // A blocked node still has a blocked dependency. Follow those edges until one repeats
+        // to report an actual cycle rather than also naming its downstream consumers.
+        let mut positions = vec![None; tasks.len()];
+        let mut path: Vec<usize> = Vec::new();
+        loop {
+            if let Some(start) = positions[current] {
+                let mut cycle: Vec<&str> = path[start..]
+                    .iter()
+                    .map(|&i| tasks[i].id.as_str())
+                    .collect();
+                cycle.push(tasks[current].id.as_str());
+                return Err(Error::Invalid(format!(
+                    "dependency cycle: {}",
+                    cycle.join(" -> ")
+                )));
+            }
+            positions[current] = Some(path.len());
+            path.push(current);
+            current = *dependencies[current]
+                .iter()
+                .find(|&&dep| remaining[dep] > 0)
+                .expect("a blocked task has a blocked dependency");
+        }
+    }
+    Ok(ordered)
+}
+
 /// Split the list into tracks: tasks that share a path, or depend on each other, join one track.
+/// Tasks within each track are ordered by their dependencies, with input order breaking ties.
 ///
 /// # Errors
-/// [`Error::Invalid`] for a duplicate id, a dependency on an unknown id, or a task without paths.
+/// [`Error::Invalid`] for duplicate ids, unknown dependencies, dependency cycles or missing paths.
 pub fn tracks(tasks: &[Task]) -> Res<Vec<Vec<usize>>> {
     for (i, t) in tasks.iter().enumerate() {
         if tasks[..i].iter().any(|o| o.id == t.id) {
@@ -252,6 +316,10 @@ pub fn tracks(tasks: &[Task]) -> Res<Vec<Vec<usize>>> {
                 t.id
             )));
         }
+    }
+    let mut rank = vec![0; tasks.len()];
+    for (position, i) in dependency_order(tasks)?.into_iter().enumerate() {
+        rank[i] = position;
     }
     let mut group: Vec<usize> = (0..tasks.len()).collect();
     let find = |g: &Vec<usize>, mut i: usize| {
@@ -282,6 +350,9 @@ pub fn tracks(tasks: &[Task]) -> Res<Vec<Vec<usize>>> {
             out.push(vec![i]);
         }
     }
+    for members in &mut out {
+        members.sort_by_key(|&i| rank[i]);
+    }
     Ok(out)
 }
 
@@ -293,6 +364,11 @@ pub fn tracks(tasks: &[Task]) -> Res<Vec<Vec<usize>>> {
 pub fn plan(tasks: &[Task], allowed: &[String], pool: &Pool) -> Res<Plan> {
     let mut all = Vec::new();
     for g in tracks(tasks)? {
+        let anchor = g
+            .iter()
+            .min()
+            .copied()
+            .ok_or_else(|| Error::Invalid("a track contains no tasks".into()))?;
         let members: Vec<&Task> = g.iter().map(|&i| &tasks[i]).collect();
         let class = if members.iter().all(|t| classify(t) == Class::Simple) {
             Class::Simple
@@ -309,7 +385,7 @@ pub fn plan(tasks: &[Task], allowed: &[String], pool: &Pool) -> Res<Plan> {
             (None, Some(a)) => (Worker::Delegate(a.clone()), None),
         };
         all.push(Track {
-            id: members[0].id.to_lowercase(),
+            id: tasks[anchor].id.to_lowercase(),
             tasks: members.iter().map(|t| t.id.clone()).collect(),
             class,
             worker,
@@ -471,6 +547,71 @@ mod tests {
         assert!(tracks(&[t("A", &[], &["a"]), t("A", &[], &["b"])]).is_err());
         assert!(tracks(&[t("A", &["Z"], &["a"])]).is_err());
         assert!(tracks(&[t("A", &[], &[])]).is_err());
+    }
+
+    #[test]
+    fn dependent_tasks_are_ordered_before_their_consumers() {
+        let tasks: Vec<Task> = serde_json::from_value(serde_json::json!([
+            {"id": "T004", "kind": "docs", "paths": ["docs/join.md"], "depends": ["T002", "T003"]},
+            {"id": "T002", "kind": "docs", "paths": ["docs/left.md"], "depends": ["T001", "T001"]},
+            {"id": "T003", "kind": "docs", "paths": ["docs/right.md"], "depends": ["T001"]},
+            {"id": "T001", "kind": "docs", "paths": ["docs/root.md"]}
+        ]))
+        .unwrap();
+        let p = plan(&tasks, &codex(), &pool(3, 0, 100.0)).unwrap();
+        assert_eq!(p.tracks.len(), 1);
+        assert_eq!(p.tracks[0].id, "t004");
+        assert_eq!(ids(&p.tracks[0]), ["T001", "T002", "T003", "T004"]);
+    }
+
+    #[test]
+    fn dependency_cycles_are_refused_including_self_dependencies() {
+        for (first, second) in [("T001", "T002"), ("T001", "T001")] {
+            let mut tasks = vec![Task {
+                id: first.into(),
+                kind: Kind::Docs,
+                paths: vec!["docs/a.md".into()],
+                depends: vec![second.into()],
+                needs: Needs::default(),
+            }];
+            if first != second {
+                tasks.push(Task {
+                    id: second.into(),
+                    kind: Kind::Docs,
+                    paths: vec!["docs/b.md".into()],
+                    depends: vec![first.into()],
+                    needs: Needs::default(),
+                });
+            }
+            let e = tracks(&tasks).unwrap_err().to_string();
+            assert!(e.contains("cycle"), "{e}");
+            assert!(e.contains(first) && e.contains(second), "{e}");
+        }
+    }
+
+    #[test]
+    fn independent_tasks_keep_input_order_and_an_empty_list_is_valid() {
+        let tasks: Vec<Task> = serde_json::from_value(serde_json::json!([
+            {"id": "T002", "paths": ["docs/shared.md"]},
+            {"id": "T001", "paths": ["docs/shared.md"]},
+            {"id": "T003", "paths": ["docs/other.md"]}
+        ]))
+        .unwrap();
+        assert_eq!(tracks(&tasks).unwrap(), [vec![0, 1], vec![2]]);
+        assert!(tracks(&[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn cycle_diagnostic_excludes_consumers_outside_the_cycle() {
+        let tasks: Vec<Task> = serde_json::from_value(serde_json::json!([
+            {"id": "T004", "paths": ["docs/consumer.md"], "depends": ["T003"]},
+            {"id": "T003", "paths": ["docs/a.md"], "depends": ["T002"]},
+            {"id": "T002", "paths": ["docs/b.md"], "depends": ["T003"]}
+        ]))
+        .unwrap();
+        let e = tracks(&tasks).unwrap_err().to_string();
+        assert!(e.contains("T003 -> T002 -> T003"), "{e}");
+        assert!(!e.contains("T004"), "{e}");
     }
 
     #[test]

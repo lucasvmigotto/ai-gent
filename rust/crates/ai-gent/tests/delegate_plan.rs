@@ -86,6 +86,59 @@ fn plan_assigns_tracks_and_admits_up_to_the_default_cap() {
 }
 
 #[test]
+fn plan_orders_prerequisites_before_consumers() {
+    let d = tempfile::tempdir().unwrap();
+    let f = d.path().join("tasks.json");
+    std::fs::write(
+        &f,
+        json!([
+            {"id": "T002", "kind": "docs", "paths": ["docs/b.md"], "depends": ["T001"]},
+            {"id": "T001", "kind": "docs", "paths": ["docs/a.md"]}
+        ])
+        .to_string(),
+    )
+    .unwrap();
+    let (code, v) = run(
+        d.path(),
+        None,
+        &["plan", "--tasks-file", f.to_str().unwrap()],
+    );
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["data"]["tracks"][0]["id"], "t002");
+    assert_eq!(v["data"]["tracks"][0]["tasks"], json!(["T001", "T002"]));
+    assert_eq!(v["data"]["start"][0]["tasks"], json!(["T001", "T002"]));
+}
+
+#[test]
+fn plan_and_idle_refuse_cycles_with_a_diagnostic() {
+    let d = tempfile::tempdir().unwrap();
+    let f = d.path().join("tasks.json");
+    std::fs::write(
+        &f,
+        json!([
+            {"id": "T001", "paths": ["docs/a.md"], "depends": ["T002"]},
+            {"id": "T002", "paths": ["docs/b.md"], "depends": ["T001"]}
+        ])
+        .to_string(),
+    )
+    .unwrap();
+    for action in ["plan", "idle"] {
+        let (code, v) = run(
+            d.path(),
+            None,
+            &[action, "--tasks-file", f.to_str().unwrap()],
+        );
+        assert_eq!(code, 1, "{v}");
+        assert_eq!(v["ok"], false, "{v}");
+        let error = v.to_string();
+        assert!(
+            error.contains("dependency cycle") && error.contains("T001") && error.contains("T002"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
 fn live_tracks_and_the_cap_come_from_the_project_files() {
     let d = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(d.path().join(".ai-gent")).unwrap();
