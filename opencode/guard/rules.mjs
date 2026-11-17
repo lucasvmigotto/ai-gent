@@ -57,7 +57,7 @@ export function grantAt(dir, now = new Date()) {
 }
 
 const GIT_RE_SRC =
-  "^[ \\t]*((?:sudo|env|exec|command|nohup|xargs|time)[ \\t]+(?:[^ \\t;&|()]+[ \\t]+)*)?git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t]+|--[a-z-]+(?:=[^ \\t]+)?))*[ \\t]+";
+  "^[ \\t]*(?:[A-Za-z_][A-Za-z0-9_]*=[^ \\t]*[ \\t]+)*((?:sudo|env|exec|command|nohup|xargs|time)[ \\t]+(?:[^ \\t;&|()]+[ \\t]+)*)?git(?:[ \\t]+(?:-[Cc][ \\t]+[^ \\t]+|-[Cc][^ \\t]+|-[A-Za-z]|--[a-z-]+(?:=[^ \\t]+)?))*[ \\t]+";
 
 // Split a raw command the way the shell guards do: quoted strings blanked so
 // their text cannot look like options, then split on ; & | ( ) and newlines.
@@ -104,12 +104,44 @@ const CD_UNRESOLVED =
 // The command with quotes and backslashes removed (the plain copy of the autonomy check).
 const stripped = (cmd) => cmd.replace(/['"\\]/g, "");
 
+const HAZARD = /GIT_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|core\.hookspath|CDPATH|(^|[ \t])-c[ \t]*(core|alias|include)\./i;
+
 // Text that changes where git runs after a followed cd, searched on the stripped copy so splitting
-// a word with quotes does not hide it: any GIT_ variable, --git-dir, --work-tree, --exec-path,
-// --config-env, core.worktree, -c core.* or -c alias.*, CDPATH.
+// a word with quotes does not hide it (see HAZARD).
 function cdHazard(cmd) {
-  return /GIT_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|CDPATH|(^|[ \t])-c[ \t]*(core|alias)\./.test(
-    stripped(cmd),
+  return HAZARD.test(stripped(cmd));
+}
+
+// segments of the stripped copy: git "commit", git c\ommit and --git-""dir read as typed to the
+// shell. Used to recognise a commit, never to read an option's value or a deny rule.
+function strippedSegments(cmd) {
+  return stripped(cmd.split("\\n").join("\n").split("\\t").join(" ")).replace(/[;&|()]/g, "\n").split("\n");
+}
+
+// A repository, work tree, hook path or config given before a commit or merge subcommand, or a
+// GIT_* or CDPATH assignment on its own.
+function prefixHazard(st) {
+  const pre = new RegExp(GIT_RE_SRC + "(?:commit|merge)");
+  const assign = /^[ \t]*(export[ \t]+)?(GIT_[A-Za-z_]*|CDPATH)=/;
+  return st.some((s) => {
+    const m = pre.exec(s);
+    return (m !== null && HAZARD.test(m[0])) || assign.test(s);
+  });
+}
+
+// git -c alias.x=... in any spacing, or git config alias.* next to another git command.
+function aliasUse(st) {
+  if (st.some((s) => /(^|[ \t])git[ \t].*-c[ \t]*alias\./i.test(s))) return true;
+  const cfg = /(^|[ \t])git[ \t]+(-[^ \t]+[ \t]+)*config[ \t].*alias\./i;
+  const git = new RegExp(GIT_RE_SRC + "[a-z]");
+  return st.some((s) => cfg.test(s)) && st.filter((s) => git.test(s)).length >= 2;
+}
+
+// A git command that can move HEAD or a branch.
+function branchChange(st) {
+  return (
+    gitHas(st, "(?:checkout|switch|worktree|reset|update-ref|symbolic-ref)") ||
+    gitHas(st, "branch", "(^|[ \\t])(-m|-M|--move)([ \\t]|$)")
   );
 }
 
@@ -214,6 +246,7 @@ function cdPrefix(cmd, cwd) {
 // passes a git-backed resolver; tests do too.
 export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantAt } = {}) {
   const segments = gitSegments(cmd);
+  const st = strippedSegments(cmd);
   const deny = (reason) => ({ decision: "deny", reason: `git:workflow guard: ${reason}` });
   const ask = (reason) => ({ decision: "ask", reason: `git:workflow guard: ${reason}` });
 
@@ -304,9 +337,16 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantA
   ) {
     return ask("this rewrites history or discards work; allow only on the user's explicit request");
   }
-  if (gitHas(segments, "commit") || gitHas(segments, "merge")) {
+  if (aliasUse(st)) {
+    return ask(
+      "a git alias can run any command, so the guard cannot tell which branch a commit lands on; allow only if the user asked for this alias",
+    );
+  }
+  const seen = (sub) => gitHas(segments, sub) || gitHas(st, sub);
+  if (seen("(?:commit|merge)")) {
+    if (prefixHazard(st)) return ask(CD_UNRESOLVED);
     const cd = cdPrefix(cmd, cwd);
-    if (cd === null) {
+    if (cd === null || (cd.followed && branchChange(st))) {
       return ask(CD_UNRESOLVED);
     }
     const cMatch = new RegExp("git[ \\t]+-C[ \\t]+([^ \\t]*)").exec(segments.join("\n"));
@@ -315,6 +355,7 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantA
       if (dir.includes("..")) return ask(CD_UNRESOLVED);
       dir = `${cd.dir}/${dir}`; // relative to the cd
     }
+    if (/["']/.test(dir)) return ask(CD_UNRESOLVED);
     const branch = branchOf(dir);
     if (cd.followed && branch === "") return ask(CD_UNRESOLVED);
     if (branch === "main" || branch === "master") {
@@ -323,7 +364,7 @@ export function gitGuard(cmd, { cwd = ".", branchOf = () => "", grantOf = grantA
     if (branch === "homolog" || branch === "staging") {
       return ask(`this commits or merges on ${branch}; promotion up the branch chain needs the user's explicit request`);
     }
-    if ((branch === "dev" || branch === "develop") && gitHas(segments, "commit")) {
+    if ((branch === "dev" || branch === "develop") && seen("commit")) {
       return ask(
         `this commits directly on ${branch}; work goes on a branch merged into it (conclude a merge with git merge --continue)`,
       );

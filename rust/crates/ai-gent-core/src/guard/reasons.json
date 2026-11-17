@@ -91,6 +91,13 @@
     "text": "the guard cannot follow the cd before this commit or merge, so it cannot tell which branch it lands on; use git -C with a plain path (allow only if the target is not an integration branch)"
   },
   {
+    "id": "git.alias",
+    "guard": "git",
+    "marker": "git:workflow guard:",
+    "decision": "ask",
+    "text": "a git alias can run any command, so the guard cannot tell which branch a commit lands on; allow only if the user asked for this alias"
+  },
+  {
     "id": "db.creds",
     "guard": "db",
     "marker": "db guard:",

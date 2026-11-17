@@ -5,7 +5,7 @@ use crate::guard::segment::{Shell, View};
 use crate::guard::{Ctx, Decision, Event, grant};
 use regex::Regex;
 
-const GIT_RE: &str = r"^[[:space:]]*((sudo|env|exec|command|nohup|xargs|time)[[:space:]]+([^[:space:];&|()]+[[:space:]]+)*)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+";
+const GIT_RE: &str = r"^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((sudo|env|exec|command|nohup|xargs|time)[[:space:]]+([^[:space:];&|()]+[[:space:]]+)*)?git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|-[Cc][^[:space:]]+|-[A-Za-z]|--[a-z-]+(=[^[:space:]]+)?))*[[:space:]]+";
 
 /// `has <subcommand regex> [<argument regex>]` of the shell guard.
 fn has(segments: &[String], sub: &str, arg: Option<&str>) -> bool {
@@ -55,11 +55,73 @@ fn stripped(raw: &str) -> String {
         .collect()
 }
 
+/// `segments` of the stripped copy: `git "commit"`, `git c\ommit` and `--git-""dir` read as typed
+/// to the shell. Used to recognise a commit, never to read an option's value or a deny rule.
+fn stripped_segments(raw: &str) -> Vec<String> {
+    let t = stripped(&raw.replace("\\n", "\n").replace("\\t", " "));
+    t.chars()
+        .map(|c| {
+            if matches!(c, ';' | '&' | '|' | '(' | ')') {
+                '\n'
+            } else {
+                c
+            }
+        })
+        .collect::<String>()
+        .split('\n')
+        .map(str::to_string)
+        .collect()
+}
+
+/// Matched against an ASCII-lowercased copy (case-insensitive without the Unicode tables).
+const HAZARD: &str = r"git_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|core\.hookspath|cdpath|(^|[[:space:]])-c[[:space:]]*(core|alias|include)\.";
+
+/// A repository, work tree, hook path or config given before a commit or merge subcommand, or a
+/// `GIT_*` or `CDPATH` assignment on its own: the branch the guard reads may not be the one used.
+fn prefix_hazard(st: &[String]) -> bool {
+    let pre = re(&format!("{GIT_RE}(commit|merge)"));
+    let hz = re(HAZARD);
+    let assign = re(r"^[[:space:]]*(export[[:space:]]+)?(GIT_[A-Za-z_]*|CDPATH)=");
+    st.iter().any(|s| {
+        pre.find(s)
+            .is_some_and(|m| hz.is_match(&m.as_str().to_ascii_lowercase()))
+            || assign.is_match(s)
+    })
+}
+
+/// `git -c alias.x=...` in any spacing, or `git config alias.*` next to another git command.
+fn alias_use(st: &[String]) -> bool {
+    let inline = re(r"(^|[[:space:]])git[[:space:]].*-c[[:space:]]*alias\.");
+    if st.iter().any(|s| inline.is_match(&s.to_ascii_lowercase())) {
+        return true;
+    }
+    let cfg = re(
+        r"(^|[[:space:]])git[[:space:]]+(-[^[:space:]]+[[:space:]]+)*config[[:space:]].*alias\.",
+    );
+    let git = re(&format!("{GIT_RE}[a-z]"));
+    st.iter().any(|s| cfg.is_match(&s.to_ascii_lowercase()))
+        && st.iter().filter(|s| git.is_match(s)).count() >= 2
+}
+
+/// A git command that can move HEAD or a branch.
+fn branch_change(st: &[String]) -> bool {
+    has(
+        st,
+        "(checkout|switch|worktree|reset|update-ref|symbolic-ref)",
+        None,
+    ) || has(
+        st,
+        "branch",
+        Some(r"(^|[[:space:]])(-m|-M|--move)([[:space:]]|$)"),
+    )
+}
+
 /// Evaluate the git guard on a shell command.
 #[must_use]
 pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
     let combined = with_inner(v);
     let s = &combined;
+    let st = stripped_segments(&v.raw);
     if has(
         s,
         "(commit|merge|push|am|rebase|cherry-pick|revert)",
@@ -118,13 +180,26 @@ pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
     {
         return decide("git.rewrite", &[]);
     }
-    if has(s, "(commit|merge)", None) {
+    if alias_use(&st) {
+        return decide("git.alias", &[]);
+    }
+    let seen = |sub: &str| has(s, sub, None) || has(&st, sub, None);
+    if seen("(commit|merge)") {
+        if prefix_hazard(&st) {
+            return decide("git.cd_unresolved", &[]);
+        }
         let (base, cd) = match cd_prefix(&decoded(v), &v.raw, cwd) {
             Cd::Bad => return decide("git.cd_unresolved", &[]),
             Cd::None => (cwd.to_string(), false),
             Cd::Dir(d) => (d, true),
         };
+        if cd && branch_change(&st) {
+            return decide("git.cd_unresolved", &[]);
+        }
         let mut dir = working_dir(s, &base);
+        if dir.contains(['"', '\'']) {
+            return decide("git.cd_unresolved", &[]);
+        }
         if cd && dir != base && !dir.starts_with('/') {
             if dir.contains("..") {
                 return decide("git.cd_unresolved", &[]);
@@ -138,7 +213,7 @@ pub fn evaluate(v: &View, cwd: &str, ctx: &Ctx) -> Decision {
         match branch.as_str() {
             "main" | "master" => return decide("git.on_main", &[("branch", &branch)]),
             "homolog" | "staging" => return decide("git.on_chain", &[("branch", &branch)]),
-            "dev" | "develop" if has(s, "commit", None) => {
+            "dev" | "develop" if seen("commit") => {
                 return decide("git.on_dev", &[("branch", &branch)]);
             }
             _ => {}
@@ -332,8 +407,7 @@ fn cd_prefix(text: &str, raw: &str, cwd: &str) -> Cd {
 /// `--git-dir`, `--work-tree`, `--exec-path`, `--config-env`, `core.worktree`, `-c core.*` or
 /// `-c alias.*`, `CDPATH`.
 fn cd_hazard(raw: &str) -> bool {
-    re(r"GIT_|--git-dir|--work-tree|--exec-path|--config-env|core\.worktree|CDPATH|(^|[[:space:]])-c[[:space:]]*(core|alias)\.")
-        .is_match(&stripped(raw))
+    re(HAZARD).is_match(&stripped(raw).to_ascii_lowercase())
 }
 
 /// After the leading `cd DIR &&` chain only plain git commands may follow: every segment (split on
