@@ -1,0 +1,866 @@
+{
+  "schema_version": 1,
+  "status": "Planned",
+  "date": "2026-11-17",
+  "branch": "docs/codex-parity-plan",
+  "base": "0a61fc4546491d6696fa46a1f2595958f4903ed0",
+  "features": [
+    {
+      "id": 46,
+      "slug": "task-usage-ledger",
+      "title": "Task identity and durable usage ledger",
+      "depends": [],
+      "audit": [
+        "F02",
+        "F10"
+      ],
+      "module": "usage",
+      "stories": [
+        {
+          "title": "Register work before execution",
+          "goal": "A coordinator registers a globally unambiguous task and execution scope before any model invocation.",
+          "positive": "Given two repositories each containing T001, when runs are registered, then their repository/feature/task keys and attempt IDs remain distinct.",
+          "negative": "Given an unknown task or a reused run identity with changed contents, when ingestion is attempted, then it fails without mutating the accepted record.",
+          "requirements": [
+            "Assign repository UUID, feature slug, task ID, attempt UUID, phase, run UUID, parent run, session/thread and execution-segment identity before dispatch; task prose and branch names MUST NOT be identity sources.",
+            "Represent builder, reviewer, repair, planner, coordinator, verification and recovery phases; retain cancelled and failed attempts and reject orphan parent references or parent cycles.",
+            "Persist agent application, requested and effective provider/model/effort, configuration digest, source version and explicit unknown identity separately; changes create a new segment."
+          ],
+          "test": "identity_and_segment_boundaries"
+        },
+        {
+          "title": "Ingest evidence exactly once",
+          "goal": "A collector records source usage without double counting overlapping counters or replayed events.",
+          "positive": "Given repeated incremental events and one cumulative terminal summary, when replayed, then one authoritative contribution is counted per request and each raw observation remains traceable.",
+          "negative": "Given a counter reset, null usage, an invalid subset or conflicting duplicate, when normalized, then quality degrades or ingestion rejects with a typed reason; unknown never becomes zero.",
+          "requirements": [
+            "Preserve immutable raw numeric fields and source reference/digest alongside normalized total input, cached input, cache creation, output and reasoning with declared subset/additive semantics and measurement scope.",
+            "Deduplicate by source namespace/session/request/event identity, distinguish observations from contributions and cumulative from delta counters, and reconcile terminal snapshots without summing both.",
+            "Support complete, partial, imported and missing evidence independently of exclusive/shared/unattributed attribution and local/reconciled attestation; reject negative counts, integer overflow and cross-run replay."
+          ],
+          "test": "usage_semantics_and_dedup"
+        },
+        {
+          "title": "Recover durable records",
+          "goal": "A supervisor can restart after a crash without losing acknowledged usage or presenting a torn receipt.",
+          "positive": "Given a crash at each append/flush/rename boundary, when replay runs, then acknowledged records survive and an incomplete tail is isolated with a diagnostic.",
+          "negative": "Given a full disk or a competing writer, when persistence fails, then success is never emitted and task acceptance remains blocked.",
+          "requirements": [
+            "Serialize writes per repository ledger with bounded lock wait, durable acknowledgement, checksummed frames and monotonic sequence; retain immutable event IDs across retries.",
+            "Create immutable content-addressed receipts by same-filesystem atomic publication after their evidence is durable; record predecessor digest and schema version; detect corruption without claiming provider authentication.",
+            "Keep raw transcripts and prompts outside tracked receipts, restrict file permissions where supported, enforce size/path limits, and provide versioned export/import with dry-run validation."
+          ],
+          "test": "journal_crash_and_concurrency"
+        }
+      ],
+      "design": "Add a reusable usage module in ai-gent-core and a thin usage CLI. Use a per-repository append journal with framed JSON, existing lock primitives where suitable, durable flush and atomic receipt files. A projection index is disposable and reconstructible. Reject a mandatory service or database dependency; optional remote attestation is a later extension.",
+      "operations": [
+        [
+          "register",
+          "coordinator",
+          "Create immutable scope and return registration/run IDs"
+        ],
+        [
+          "ingest",
+          "collector",
+          "Append one bounded source observation idempotently"
+        ],
+        [
+          "replay",
+          "collector",
+          "Recover journal and rebuild disposable projection"
+        ],
+        [
+          "export",
+          "owner",
+          "Export sanitized normalized evidence with digests"
+        ]
+      ],
+      "entities": [
+        [
+          "TaskKey",
+          "repository UUID + feature slug + task ID; immutable, unique within registration namespace"
+        ],
+        [
+          "Attempt",
+          "UUID, TaskKey, ordinal, parent attempt, purpose and terminal outcome"
+        ],
+        [
+          "Run",
+          "UUID, attempt, role, parent run, host session and lifecycle"
+        ],
+        [
+          "Segment",
+          "run, ordinal, effective provider/model/effort/config and start/end sequence"
+        ],
+        [
+          "UsageObservation",
+          "event ID, source identity, scope, raw counters, normalized counters, provenance and quality"
+        ],
+        [
+          "ReceiptEnvelope",
+          "schema, evidence digests, ledger sequence and predecessor; publication is immutable"
+        ]
+      ]
+    },
+    {
+      "id": 47,
+      "slug": "runtime-usage-collectors",
+      "title": "Cross-agent runtime usage collectors",
+      "depends": [
+        46
+      ],
+      "audit": [
+        "F10",
+        "F12"
+      ],
+      "module": "usage/collectors",
+      "stories": [
+        {
+          "title": "Collect both Tier 1 hosts",
+          "goal": "A Claude or Codex user gets measured task usage from the strongest available native evidence.",
+          "positive": "Given versioned Claude and Codex interactive/detached fixtures, when their collectors run, then identity and normalized counters match the fixture oracle and host diagnostics are preserved.",
+          "negative": "Given a native hook with null token usage or an unsupported host version, when the run stops, then it is partial/missing with a concrete capability diagnostic.",
+          "requirements": [
+            "Ship first-class Claude Code and Codex collectors for detached execution and supported interactive/native child execution; qualify each host/version/surface separately.",
+            "Use documented terminal/result or transcript sources where available, per-request hooks as observations, and parent/child IDs to prevent charging child usage twice to the parent.",
+            "Capture effective model/provider changes and source counter semantics; distinguish local runtime claims from provider-reconciled evidence and do not infer model from the executable name."
+          ],
+          "test": "tier1_native_and_detached"
+        },
+        {
+          "title": "Extend to other agents",
+          "goal": "A Tier 2/3 adapter can supply the same evidence without imposing one host hook API on every agent.",
+          "positive": "Given OpenCode or a synthetic lower-tier adapter with validated output, when registered through the adapter protocol, then the shared ledger and gate consume it identically.",
+          "negative": "Given an agent with no accessible counters, when collection closes, then the task remains usable but cannot claim complete measured usage under strict acceptance.",
+          "requirements": [
+            "Expose a versioned collector protocol for adapter-declared event sources, identity evidence, lifecycle closure and counter semantics; validate every adapter payload at the core boundary.",
+            "Inventory all AGENT_IDS, provide a lower-tier generic wrapped-command/import path, implement a qualified OpenCode adapter as the first extension, and publish per-host capability evidence rather than a blanket support claim.",
+            "Allow imported provider exports with matching identities and reconciliation windows; absent exports, identity joins or capabilities MUST remain explicitly unverified, never fabricated."
+          ],
+          "test": "extension_protocol_and_unknowns"
+        },
+        {
+          "title": "Close evidence after execution",
+          "goal": "A task stops once while final usage is collected without invoking more models.",
+          "positive": "Given terminal usage arrives after process exit or Stop, when bounded drain completes, then the supervisor closes all runs before issuing accounting evidence.",
+          "negative": "Given missing tail events, collector failure or restart, when recovery runs, then durable cursors resume idempotently and pending accounting remains visible.",
+          "requirements": [
+            "Treat Stop/SubagentStop/process-exit as lifecycle signals, not an accounting total or acceptance decision; collect final usage with bounded drain and mark incomplete evidence on deadline.",
+            "Resume collectors by durable source cursors across rotation/truncation; reject regressions and expose retryable transport failures separately from permanent unsupported schemas.",
+            "Recovery MUST NOT restart a builder, block Stop in a loop or invoke an LLM to recover telemetry; redact paths/secrets and bound source bytes before parsing."
+          ],
+          "test": "collector_terminal_drain"
+        }
+      ],
+      "design": "Introduce host adapters under usage/collectors with a shared observation protocol. Detached stdout JSON is read as a bounded stream; local native collectors use registered host session IDs and explicit source adapters. Prefer supported public events, treat undocumented transcript formats as versioned compatibility adapters requiring fixtures. No authentication files are read by collectors.",
+      "operations": [
+        [
+          "collect",
+          "collector",
+          "Consume bounded host observations for a registered run"
+        ],
+        [
+          "close",
+          "collector",
+          "Finalize cursor and run evidence after terminal drain"
+        ],
+        [
+          "import",
+          "owner",
+          "Validate and import external usage without upgrading its assurance"
+        ]
+      ],
+      "entities": [
+        [
+          "CollectorCapability",
+          "host, version range, OS, surface, evidence sources, known gaps and qualification digest"
+        ],
+        [
+          "SourceCursor",
+          "registered source, offset/sequence, file identity and last acknowledged event"
+        ],
+        [
+          "RunClosure",
+          "terminal signal, last sequence, drain deadline, unresolved requests and completeness"
+        ],
+        [
+          "ProviderReconciliation",
+          "provider export digest, matching window, matched and unmatched IDs; no fabricated match"
+        ]
+      ]
+    },
+    {
+      "id": 48,
+      "slug": "provider-neutral-coordination",
+      "title": "Provider-neutral planning and admitted execution",
+      "depends": [
+        46
+      ],
+      "audit": [
+        "F01",
+        "F03",
+        "F05",
+        "F07"
+      ],
+      "module": "delegate",
+      "stories": [
+        {
+          "title": "Route roles by capability",
+          "goal": "The owner can choose Claude or Codex as coordinator and route builder/reviewer work by capability and budget.",
+          "positive": "Given the same task graph and equivalent capabilities, when either Tier 1 host coordinates, then the approved dependency/ownership plan is identical except explicitly configured routing.",
+          "negative": "Given a requested provider/model/profile unavailable on a selected adapter, when planning runs, then it explains the missing capability without silently substituting.",
+          "requirements": [
+            "Replace hard-coded Claude judgment/coordinator policy with named planner/builder/reviewer/reader roles; make provider/model diversity selectable independently of agent application.",
+            "Parse the repository delegation policy, retain explicit opt-in, require an approved immutable plan digest and capability preflight before dispatch, and reject direct-run bypass.",
+            "Record requested versus effective model, provider, effort, profile, sandbox, network and approval configuration in registration and launch evidence; unknown capabilities cannot satisfy strict requirements."
+          ],
+          "test": "role_routing_and_admission"
+        },
+        {
+          "title": "Schedule dependencies and ownership separately",
+          "goal": "A coordinator runs independent tasks concurrently while respecting shared files and accepted dependencies.",
+          "positive": "Given independent ownership groups linked by a dependency edge, when scheduling runs, then ready groups may execute concurrently while the dependent group waits for accepted prerequisite evidence.",
+          "negative": "Given a dependency cycle, a duplicate scoped task or a stale prerequisite receipt, when admission runs, then no worker starts and the error identifies the graph fault.",
+          "requirements": [
+            "Separate dependency DAG edges from declared file/resource ownership conflicts; preserve deterministic stable track identity and reject cycles, unknown references and self-dependencies.",
+            "Reserve worker slots atomically under one supervisor admission transaction, enforce configured global/per-provider caps and release abandoned leases through bounded recovery.",
+            "Make dependencies consume revision-bound accepted/integrated evidence rather than text markers or last worker exit; external prerequisites use explicit scoped references."
+          ],
+          "test": "dag_ownership_and_slot_races"
+        },
+        {
+          "title": "Launch constrained workers reproducibly",
+          "goal": "A worker receives the approved configuration without ambient Git state or command-line prompt leakage.",
+          "positive": "Given poisoned GIT_DIR/GIT_WORK_TREE, a long brief and two launches in one millisecond, when workers start, then each has unique IDs, correct worktree, private scratch and bounded stdin input.",
+          "negative": "Given a permission/profile mismatch, failed preflight or oversize input, when dispatch is requested, then it fails before process creation with no slot leak.",
+          "requirements": [
+            "Use collision-resistant run IDs, allowlisted child environments, explicit Git/worktree context and private run scratch; never share a broad temporary directory as an authorization boundary.",
+            "Pass briefs through bounded stdin or a restrictive file with a documented lifecycle, never shell interpolation or unbounded argv; cap output, event bytes, process time and Git-helper time.",
+            "Report effective restrictions separately from role labels; native child inheritance cannot be presented as an independent read-only sandbox, and unsupported security requests fail closed."
+          ],
+          "test": "launch_isolation_and_limits"
+        }
+      ],
+      "design": "Extend existing delegate adapters, schedule.rs and CLI admission around usage registration. Preserve the published dependency fix 7e92b5c as prerequisite code or equivalent tested behavior, without merging it from this planning branch. Policy reads are centralized; one reservation owner creates run identities before launch. Adapter command builders remain argv-based, with stdin for prompts.",
+      "operations": [
+        [
+          "plan",
+          "coordinator",
+          "Validate DAG, ownership, policy and capability snapshot"
+        ],
+        [
+          "approve",
+          "owner",
+          "Record approved plan digest and authorization scope"
+        ],
+        [
+          "run",
+          "coordinator",
+          "Atomically reserve, register and dispatch a planned task"
+        ],
+        [
+          "recover",
+          "coordinator",
+          "Reconcile leases and unfinished runs without duplicate launches"
+        ]
+      ],
+      "entities": [
+        [
+          "RoleRoute",
+          "role, agent application, provider/model constraints, effort and fallback policy"
+        ],
+        [
+          "ExecutionPlan",
+          "immutable digest, scoped tasks, DAG, ownership graph, policy/capability digests"
+        ],
+        [
+          "Admission",
+          "plan digest, owner authorization reference and preflight result"
+        ],
+        [
+          "SlotLease",
+          "run ID, reservation generation, capacity namespace, expiry and renewal"
+        ],
+        [
+          "LaunchEvidence",
+          "requested/effective configuration, worktree/tree and bounded input digest"
+        ]
+      ]
+    },
+    {
+      "id": 49,
+      "slug": "review-provenance",
+      "title": "Independent review and repair provenance",
+      "depends": [
+        46,
+        48
+      ],
+      "audit": [
+        "F02",
+        "F06"
+      ],
+      "module": "delegate/review",
+      "stories": [
+        {
+          "title": "Review the exact artifact independently",
+          "goal": "A reviewer assesses a precise revision in a fresh context, including Codex reviewing Codex.",
+          "positive": "Given a Codex build and fresh Codex review session on the same provider, when ordinary review policy allows it, then review is eligible with both session/model identities recorded.",
+          "negative": "Given the builder session reused as reviewer or the tree changes after review, when acceptance is requested, then review is ineligible and the reason is reported.",
+          "requirements": [
+            "Allow same-agent and same-provider review with a fresh execution context; require different model/provider only when the approved policy asks for it.",
+            "Bind review to builder run, immutable tree/revision and diff digest, review policy, reviewer session/run, effective model/provider and evidence of fresh context.",
+            "Separate independence evidence, permission evidence and semantic review verdict; no reviewer role label or model name proves sandbox enforcement or independence by itself."
+          ],
+          "test": "independent_exact_revision_review"
+        },
+        {
+          "title": "Track findings through repairs",
+          "goal": "The owner can follow every finding, repair and re-review without losing the original attempt cost.",
+          "positive": "Given a reviewer requests changes and a repair produces a new tree, when re-review passes, then both reviews and the repair run remain linked with finding dispositions.",
+          "negative": "Given a finding is silently removed, a stale review reused or a review artifact hand-edited, when verification runs, then acceptance rejects the chain.",
+          "requirements": [
+            "Assign stable finding IDs, severity, location, evidence and disposition; track fixed, accepted-risk and disproved dispositions with actor and rationale.",
+            "Link repair runs to their source review and parent attempt and require re-review of each changed tree; retain failed/aborted review rounds and all their usage.",
+            "Provide explicit owner-authorized review waivers with scope/reason/expiry and distinct waived status; a waiver never becomes an independently reviewed result."
+          ],
+          "test": "findings_repair_rereview"
+        },
+        {
+          "title": "Verify review evidence mechanically",
+          "goal": "A completion consumer checks review provenance without trusting Markdown verdicts.",
+          "positive": "Given valid review evidence for a registered artifact, when verify runs, then it returns policy eligibility and actionable findings separately.",
+          "negative": "Given missing identity, an unavailable reviewer, corrupt evidence or a same-session review, when strict policy runs, then it fails without launching another model.",
+          "requirements": [
+            "Make review submission schema-validated, idempotent and durable before a supervisor can use it; workers cannot issue authoritative acceptance receipts.",
+            "Expose a deterministic verifier for task, attempt, builder run, review session, artifact digest, policy and finding closure, with typed stale/missing/conflicting errors.",
+            "Budget maximum review rounds in the approved plan, stop at that boundary and require a new owner decision rather than autonomous review loops."
+          ],
+          "test": "review_verifier_and_round_budget"
+        }
+      ],
+      "design": "Refactor current delegate/review.rs into a provider-neutral review domain with revision-bound records and a pure eligibility evaluator. Keep model execution in existing adapters; submit immutable review evidence through the supervisor. Preserve legacy review imports as unverified historical records. Codex --profile support is detected against the installed CLI, never rejected based on an old assumption.",
+      "operations": [
+        [
+          "review-start",
+          "coordinator",
+          "Register independent reviewer against a builder artifact"
+        ],
+        [
+          "review-submit",
+          "collector",
+          "Persist structured findings and verdict"
+        ],
+        [
+          "review-verify",
+          "consumer",
+          "Check freshness, independence and policy eligibility"
+        ]
+      ],
+      "entities": [
+        [
+          "ReviewPolicy",
+          "fresh-context rule, optional model/provider diversity, permissions and maximum rounds"
+        ],
+        [
+          "ReviewRecord",
+          "review run, builder run, exact artifact, findings, verdict and provenance"
+        ],
+        [
+          "Finding",
+          "stable ID, severity, evidence, disposition and authorization reference"
+        ],
+        [
+          "RepairLink",
+          "review ID, repair run, resulting tree and required next review"
+        ],
+        [
+          "ReviewWaiver",
+          "owner identity/reference, scope, reason, expiry and never-reviewed label"
+        ]
+      ]
+    },
+    {
+      "id": 50,
+      "slug": "metered-completion",
+      "title": "Required metered task completion",
+      "depends": [
+        46,
+        47,
+        48,
+        49
+      ],
+      "audit": [
+        "F02",
+        "F05",
+        "F10"
+      ],
+      "module": "completion",
+      "stories": [
+        {
+          "title": "Accept only after evidence closes",
+          "goal": "A task owner gets a durable receipt for a tested, independently reviewed artifact with closed accounting.",
+          "positive": "Given a terminal builder, final collector drain, passing checks and eligible exact-tree review, when finish is requested, then one receipt is published before accepted status is visible.",
+          "negative": "Given usage is missing, a required run remains open, checks fail, or review refers to another tree, when finish runs, then work is preserved in accounting_pending or review_pending with typed reasons.",
+          "requirements": [
+            "Implement registered -> running -> execution_finished -> accounting_pending/review_pending -> accepted -> integrated transitions; failed/cancelled/exempt are explicit outcomes, not successful measured completion.",
+            "Require closed usage for every registered builder/reviewer/repair/coordinator run in task scope, complete evidence, eligible review, passed required checks and exact accepted tree under the stored policy.",
+            "Publish one immutable receipt atomically with compare-and-swap on attempt generation; emit accepted only after durable publication and use separate integration evidence for the landed revision."
+          ],
+          "test": "finish_pending_and_atomic_acceptance"
+        },
+        {
+          "title": "Enforce every completion consumer",
+          "goal": "A hand-edited task checkbox or worker done event cannot unblock dependent work or tracker synchronization.",
+          "positive": "Given a manually ticked task without a valid receipt, when check, dependency planning, tracker sync or CI evaluates it, then it reports unverified completion and blocks downstream acceptance.",
+          "negative": "Given two finish commands race or the log append fails after worker exit, when status is read, then at most one accepted receipt exists and no in-memory success leaks.",
+          "requirements": [
+            "Route delegate mark/check/status, worktree finish, spec status, dependency readiness, generated Markdown and tracker sync through the same verifier; worker done remains an execution signal.",
+            "Add a required CI command validating newly completed scoped tasks against sanitized receipts, exact diff/revision, evidence closure, deduplication, sums and reviewed policy; baseline changes cannot exempt newly registered work.",
+            "Reject stale task fingerprints, receipt replay across repositories/features/attempts, mutable policy downgrades and manifest omission; report local hooks as optional collection assistance rather than the sole enforcement boundary."
+          ],
+          "test": "all_consumers_and_ci_bypass"
+        },
+        {
+          "title": "Migrate without inventing history",
+          "goal": "An existing project adopts strict accounting for new work while retaining honest legacy history.",
+          "positive": "Given an explicit baseline commit and enforcement cutover, when legacy tasks are imported, then they remain imported/unknown and new registered tasks require receipts.",
+          "negative": "Given an unsupported host or deliberate exception, when a human waiver is issued, then it is separately visible and never counted as complete measured evidence.",
+          "requirements": [
+            "Stage observe -> warn -> strict rollout with a versioned repository policy and explicit baseline commit; strict is the target default for registered work after cutover, not an immediate rewrite of old statuses.",
+            "Support bounded human-authorized exemptions recording actor/reference/reason/scope/expiry; count exempt separately and preserve work when evidence is unavailable.",
+            "Keep v1 receipt verification readable during upgrades, make migration dry-run and repeatable, and reject rollback that silently relabels accepted/exempt/imported evidence."
+          ],
+          "test": "baseline_waiver_and_rollback"
+        }
+      ],
+      "design": "Add a central completion verifier in ai-gent-core consumed by CLI and read models. Two-phase finish writes pending state, drains evidence without model calls, then atomically publishes the acceptance receipt. Use content/tree digests to avoid a receipt-containing commit self-reference; a later integration attestation links the actual landing commit. CI compares changed task fingerprints to a protected baseline and validates receipts before tracker writes.",
+      "operations": [
+        [
+          "finish",
+          "coordinator",
+          "Evaluate prerequisites and publish a receipt or pending reasons"
+        ],
+        [
+          "verify",
+          "consumer",
+          "Validate evidence and return acceptance eligibility"
+        ],
+        [
+          "waive",
+          "owner",
+          "Record a scoped explicit exception with distinct outcome"
+        ],
+        [
+          "check-completions",
+          "CI",
+          "Verify newly completed tasks against immutable base and receipts"
+        ]
+      ],
+      "entities": [
+        [
+          "CompletionPolicy",
+          "schema, baseline commit, cutover, strictness and required evidence dimensions"
+        ],
+        [
+          "CompletionIntent",
+          "TaskKey, attempt generation, artifact digest, check/review/run references"
+        ],
+        [
+          "CompletionReceipt",
+          "immutable links, quality, attribution, verification results and accepted artifact"
+        ],
+        [
+          "IntegrationAttestation",
+          "receipt digest, landed revision/tree, merge/check evidence and actor"
+        ],
+        [
+          "Exemption",
+          "scope, actor, reason, expiry and separate non-measured outcome"
+        ]
+      ]
+    },
+    {
+      "id": 51,
+      "slug": "usage-reporting",
+      "title": "Multi-provider and builder–reviewer usage reporting",
+      "depends": [
+        46,
+        47,
+        49,
+        50
+      ],
+      "audit": [
+        "F10"
+      ],
+      "module": "tokens",
+      "stories": [
+        {
+          "title": "Explain total task cost",
+          "goal": "A user sees all attempts and role contributions, including unsuccessful work and coordination overhead.",
+          "positive": "Given a task with failed build, repair, two reviews and shared planning, when reported, then exclusive totals reconcile and shared overhead is separate with its allocation method.",
+          "negative": "Given cached/reasoning subset counters, missing telemetry or historical heuristics, when totals render, then there is no double counting, invented zero or misleading certified total.",
+          "requirements": [
+            "Group by task/attempt/phase/run/segment, host, effective provider/model/effort and outcome; show successful and failed/cancelled work, completeness and attributable share.",
+            "Sum input-total plus output-total only across disjoint authoritative contributions; show cached/reasoning as breakdowns, preserve raw fields, and display unknown totals or explicit known lower bounds.",
+            "Support exclusive, shared and unattributed reporting; allocations include method/version/weights and cannot be labelled certified per-task measurements."
+          ],
+          "test": "all_attempts_and_counter_totals"
+        },
+        {
+          "title": "Inspect builder–reviewer combinations",
+          "goal": "A maintainer compares observed execution combinations without pretending they were a controlled quality experiment.",
+          "positive": "Given builder provider A/model X and reviewer provider B/model Y across repair rounds, when grouped, then pair counts, tokens, elapsed time and finding dispositions retain the exact run links.",
+          "negative": "Given a fallback changes model mid-run or one task is sampled twice, when grouped, then segment changes remain visible and paired totals do not duplicate shared runs.",
+          "requirements": [
+            "Record and report builder–reviewer provider/model/session pairs, review rounds, time-to-accepted and verified finding dispositions with task complexity/cohort labels where available.",
+            "Keep requested and actual model identities distinct, list unresolved aliases as unknown, and show sample size and missingness for every comparison.",
+            "Never turn raw finding counts into a quality leaderboard; explain that workload, reviewer behavior, cache warmth and repairs confound cross-model comparisons."
+          ],
+          "test": "pairs_segments_and_cohorts"
+        },
+        {
+          "title": "Estimate money without claiming bills or quotas",
+          "goal": "A user can apply dated prices to usage and export a reproducible view.",
+          "positive": "Given a model and matching price snapshot with cache categories, when cost is estimated, then currency, rates, date, rounding and pricing source are included.",
+          "negative": "Given unknown prices, subscription use or unmatched provider exports, when reported, then cost stays unknown/estimated and subscription quota is not derived from token counts.",
+          "requirements": [
+            "Keep raw usage, estimated API cost and subscription quota in distinct fields; version pricing snapshots, include currency and cache TTL/service-tier distinctions or report unsupported.",
+            "Preserve legacy token-tools JSON through an explicit compatibility mode; replace misleading billable terminology only in versioned output and label historical heuristic allocation.",
+            "Generate Markdown/JSON/CSV views from evidence without editing authoritative counters; redact source paths and exclude full transcripts from tracked exports."
+          ],
+          "test": "pricing_legacy_and_exports"
+        }
+      ],
+      "design": "Extend tokens/report.rs and history projections as consumers of the new ledger, with an explicit output schema version. Keep existing budget and mod JSON stable until a separately tested migration. Price data is a dated input, not a live network dependency of completion. Reuse existing CLI and optional existing panes; no new dashboard or TUI is requested.",
+      "operations": [
+        [
+          "report-task",
+          "consumer",
+          "Render receipt-linked task usage and unknowns"
+        ],
+        [
+          "report-pairs",
+          "consumer",
+          "Aggregate builder/reviewer cohorts with sample sizes"
+        ],
+        [
+          "estimate-cost",
+          "consumer",
+          "Apply an explicit dated pricing snapshot"
+        ],
+        [
+          "report-export",
+          "consumer",
+          "Emit deterministic sanitized JSON or CSV"
+        ]
+      ],
+      "entities": [
+        [
+          "UsageAggregate",
+          "grouping dimensions, disjoint contribution IDs, known totals and missing dimensions"
+        ],
+        [
+          "PairMetric",
+          "builder segment, reviewer segment, artifact, rounds, timings and finding dispositions"
+        ],
+        [
+          "Allocation",
+          "shared run, beneficiary keys, method/version/weights and non-certified label"
+        ],
+        [
+          "PriceSnapshot",
+          "model/provider, service class, category rates, currency, effective dates and source"
+        ],
+        [
+          "LegacyProjection",
+          "schema version, old field mapping, heuristic provenance and deprecation notice"
+        ]
+      ]
+    },
+    {
+      "id": 52,
+      "slug": "host-lifecycle",
+      "title": "Tier 1 lifecycle, guard and recovery integration",
+      "depends": [
+        46,
+        47,
+        48,
+        50
+      ],
+      "audit": [
+        "F04",
+        "F07",
+        "F08",
+        "F09",
+        "F12"
+      ],
+      "module": "hosts",
+      "stories": [
+        {
+          "title": "Qualify host enforcement honestly",
+          "goal": "A Claude or Codex user can inspect whether collection, tool normalization and guard decisions actually operate on their host.",
+          "positive": "Given equivalent shell/Edit/apply_patch credential-target fixtures, when the host normalizer runs, then canonical targets and guard decisions agree or the capability is explicitly unsupported.",
+          "negative": "Given an ask-only decision on a host lacking ask, an untrusted hook or a hook timeout/error, when doctor probes it, then enforcement is degraded/blocked and never declared effective.",
+          "requirements": [
+            "Normalize host tool payloads to the existing evaluator contract, including Codex patch text and paths, with shared parity fixtures; uncertain parse or unsupported decision cannot silently authorize protected operations.",
+            "Provide Tier 1 installation/trust/doctor probes and feature capability evidence per OS/version/surface; resolve host ask limitations through a supported native approval path or explicit block/degraded status.",
+            "Treat hooks as host-local integration rather than complete OS isolation; document direct-shell/filesystem bypass boundaries and require external CI verification for acceptance."
+          ],
+          "test": "tool_normalization_and_hook_truth"
+        },
+        {
+          "title": "Recover a supervisor across hosts",
+          "goal": "A stopped coordinator can replay workers and pending acceptance on either Tier 1 host without a Claude-only wakeup.",
+          "positive": "Given workers finish while the coordinator is offline, when it resumes via status/recover, then durable events and acknowledgements reveal exactly which actions remain.",
+          "negative": "Given duplicate wakeups, PID reuse or an expired lease, when replay occurs, then no duplicate worker or acceptance is created.",
+          "requirements": [
+            "Replace mandatory Claude Monitor assumptions with durable event replay, acknowledgements, polling/status and optional host wakeups; work must progress using the CLI alone.",
+            "Persist phase/run state before events become visible, reject ignored append failures, and support explicit takeover generation so two supervisors cannot control the same lease.",
+            "Bound event retention and helper timeouts; compact only acknowledged projections while keeping immutable usage/receipt evidence required for verification."
+          ],
+          "test": "recovery_replay_and_takeover"
+        },
+        {
+          "title": "Recap and hand off without host bias",
+          "goal": "An agent at another machine can find the plan and pending work without an ignored worktree or Claude-stamped identity.",
+          "positive": "Given Codex, Claude and supported lower-tier history fixtures, when recap runs, then it identifies the actual host/session and unfinished requests with redacted evidence.",
+          "negative": "Given unsupported private history or unavailable local paths, when handoff is generated, then it names the limitation and uses committed branch/revision links rather than claiming continuity.",
+          "requirements": [
+            "Add explicit host selection and versioned Codex history adapters to recap/checkpoint; never stamp Claude by default when identity is unknown.",
+            "Keep local checkpoints private but publish sanitized project handoffs on work branches, recording remote/ref/revision, pending work and independently replayable commands.",
+            "Provide generic lower-tier handoff/import support without reading credentials, unbounded sessions or private transcripts into tracked documents."
+          ],
+          "test": "history_handoff_and_identity"
+        }
+      ],
+      "design": "Add host normalization and lifecycle modules behind the existing Rust guard/delegate/doctor APIs. Keep sh, Rust and OpenCode guard parity where their shared decision contract changes. Hooks are capability-dependent adapters, not acceptance authorities. Extend project helpers with versioned history inputs and an explicit identity field.",
+      "operations": [
+        [
+          "host-doctor",
+          "owner",
+          "Probe version, trust, collector and guard capabilities"
+        ],
+        [
+          "host-status",
+          "consumer",
+          "Read durable lifecycle status and pending reasons"
+        ],
+        [
+          "host-recover",
+          "coordinator",
+          "Acquire takeover and replay safe outstanding work"
+        ],
+        [
+          "host-recap",
+          "owner",
+          "Generate redacted host-aware continuation evidence"
+        ]
+      ],
+      "entities": [
+        [
+          "HostCapability",
+          "host/version/OS/surface, observed probe results and evidence timestamp"
+        ],
+        [
+          "NormalizedTool",
+          "canonical verb, targets, patch paths and parse certainty"
+        ],
+        [
+          "SupervisorCursor",
+          "owner generation, acknowledged event sequence and lease"
+        ],
+        [
+          "Wakeup",
+          "optional notification ID, durable event range and acknowledgement"
+        ],
+        [
+          "Handoff",
+          "remote/ref/revision, sanitized requests, state, pending steps and host identity"
+        ]
+      ]
+    },
+    {
+      "id": 53,
+      "slug": "portable-workflows",
+      "title": "Portable skills, installation and workflow profiles",
+      "depends": [
+        48,
+        50,
+        52
+      ],
+      "audit": [
+        "F01",
+        "F12",
+        "F13"
+      ],
+      "module": "workflow",
+      "stories": [
+        {
+          "title": "Use equal Tier 1 entry points",
+          "goal": "A Claude or Codex user invokes the same lifecycle skills without provider-specific role restrictions or host assumptions.",
+          "positive": "Given the same task on each Tier 1 host, when the workflow is installed and invoked, then it reaches the same executable plan/admission/review/completion contract.",
+          "negative": "Given duplicate skills from shared and native-plugin installation, when setup/doctor runs, then discovery is deduplicated and the effective source is explicit.",
+          "requirements": [
+            "Make Claude and Codex equal Tier 1 targets for the new program, using one source of skill truth and generated host entry points; remove Claude-only role restrictions through reviewed instruction changes.",
+            "Choose Spec Kit integration from the active/detected host with explicit override; provide portable fallbacks for tool/Canvas/monitor assumptions and supported non-web project shapes.",
+            "Qualify optional native plugin packaging against current host manifests/trust APIs; retain shared skill discovery when native support is absent and prevent duplicate registration."
+          ],
+          "test": "tier1_entry_points_and_dedup"
+        },
+        {
+          "title": "Offer capability-based lower tiers",
+          "goal": "A supported lower-tier user can run the common toolbox with honest limits.",
+          "positive": "Given an installed AGENT_IDS host with only CLI access, when executing a registered task, then generic registration/collector import/finish commands remain available with declared evidence gaps.",
+          "negative": "Given no qualifying live test for a capability, when compatibility docs render, then the row stays unqualified rather than inheriting the Tier 1 guarantee.",
+          "requirements": [
+            "Define Tier 2 as adapter-qualified integration for declared capabilities and Tier 3 as best-effort portable skills/CLI; both consume the same identity, receipt and verifier contracts.",
+            "Track every registered agent across skills, CLI launch, telemetry, model identity, hooks, approvals, review isolation, continuation and packaging with evidence/version/OS dimensions.",
+            "Keep all existing agents installed; promote capability rows through evidence, not brand assumptions, and publish a scoped migration note superseding old Codex-tier-2 wording for this program only."
+          ],
+          "test": "lower_tier_capability_matrix"
+        },
+        {
+          "title": "Scale lifecycle rigor to the project",
+          "goal": "The owner selects a workflow profile without weakening required task evidence or silently granting permission.",
+          "positive": "Given a CLI-only lite project, when planning runs, then irrelevant HTTP/frontend artifacts are explicitly N/A and the same task evidence requirements remain.",
+          "negative": "Given no user answer, a protected path or a high-assurance policy, when the workflow advances, then silence is not approval and profile changes cannot waive enforcement.",
+          "requirements": [
+            "Define lite, standard and high-assurance profiles for artifact breadth, reviewer diversity and operational feedback; preserve receipt truthfulness, owner authorization and required checks in every profile.",
+            "Align QA tooling descriptions/body, source-validation semantics, commit/review sequencing and precise owner authorization scope without blanket unsupported exceptions.",
+            "Add portable trigger/behavior evals that assert artifacts and executable effects rather than Claude-specific tool names; keep paid live evals opt-in and separate from deterministic CI."
+          ],
+          "test": "profiles_permissions_and_portable_evals"
+        }
+      ],
+      "design": "Change skill/reference text only in implementation after presenting an explicit change set under AGENTS.md. Centralize capability data and generate/check README and docs-site projections. Reuse setup AGENT_IDS and package allowlist; do not create a second host registry. Keep legacy release 039 unchanged until its owner adopts the program tier amendment.",
+      "operations": [
+        [
+          "workflow-plan",
+          "owner",
+          "Resolve host, profile and applicable artifacts"
+        ],
+        [
+          "capabilities",
+          "consumer",
+          "Read versioned support/evidence matrix"
+        ],
+        [
+          "install-check",
+          "owner",
+          "Detect duplicate entry points and broken runtime packaging"
+        ]
+      ],
+      "entities": [
+        [
+          "WorkflowProfile",
+          "artifact breadth, required checks, review diversity and policy version"
+        ],
+        [
+          "CapabilityRow",
+          "AGENT_IDS key, capability, tier, version/OS/surface, evidence and status"
+        ],
+        [
+          "InstallationSource",
+          "shared skill/native plugin origin, digest, precedence and conflicts"
+        ],
+        [
+          "ArtifactApplicability",
+          "project shape, artifact path, applicable/N/A and recorded reason"
+        ]
+      ]
+    },
+    {
+      "id": 54,
+      "slug": "evidence-integrity",
+      "title": "Source, inventory and status evidence integrity",
+      "depends": [
+        46
+      ],
+      "audit": [
+        "F11",
+        "F13",
+        "F14"
+      ],
+      "module": "evidence",
+      "stories": [
+        {
+          "title": "Describe source checks truthfully",
+          "goal": "A reviewer knows whether a source merely contains terms or actually supports a claim.",
+          "positive": "Given a source says a package is not archived and a claim says archived, when lexical verification runs, then the output is lexical_match/needs_review rather than confirmed.",
+          "negative": "Given inaccessible, oversized, binary, symlink-escaped or non-regular source input, when checked, then bounded validation reports unsupported/error and does not read beyond scope.",
+          "requirements": [
+            "Replace lexical confirmed claims with explicitly lexical outcomes; preserve claim/source/digest and require distinct human or semantic review evidence before reporting supported/refuted.",
+            "Accept only bounded regular files or explicitly allowed fetched sources, prevent traversal/symlink escape, and record source time/version/digest and unavailable status.",
+            "Version verifier output and migrate consumers without silently treating old lexical confirmed as semantic certification."
+          ],
+          "test": "lexical_negation_and_source_bounds"
+        },
+        {
+          "title": "Generate inventories and status counts",
+          "goal": "A maintainer sees current feature/task/skill counts with reproducible evidence.",
+          "positive": "Given specs 044/045 exist but are absent from the index, when inventory check runs, then it reports exact missing rows and does not invent implementation statuses.",
+          "negative": "Given task flags disagree with receipts or an owner release waiver, when status renders, then it shows the discrepancy and preserves the waiver provenance.",
+          "requirements": [
+            "Generate or verify feature/skill/plugin/task inventories from their canonical files; detect missing/duplicate IDs, broken links and stale aggregate counts without rewriting owner decisions.",
+            "Distinguish observed, inferred, assumed, planned, implemented and verified claims with source revision/test evidence; a passing prose or structural check does not prove live host behavior.",
+            "Document amendments to existing 035/041 contracts and cross-links to 033/036/037/039/040 without silently changing the 3.0.0 required gate set or historical waiver status."
+          ],
+          "test": "inventory_drift_and_status_provenance"
+        },
+        {
+          "title": "Publish a reproducible capability proof",
+          "goal": "A contributor can reproduce parity claims and see untested combinations.",
+          "positive": "Given a compatibility report, when the underlying fixtures/probes run, then every qualified cell points to versioned evidence and every unsupported cell names a limit.",
+          "negative": "Given a heuristic review score or stale probe, when a release claim is assembled, then it cannot be promoted to verified solely by its label.",
+          "requirements": [
+            "Store sanitized probe manifests and deterministic fixture results with tool version, OS, command, exit status, revision and scope; separate live interactive probes from fake executables.",
+            "Allow evidence-based overrides for heuristic findings with actor/reason/source and expiry, while preserving the original signal and blocking unresolved critical gate failures.",
+            "Publish a follow-on migration and operations feedback checklist covering rollback, escaped defects and source/capability drift; do not claim billing certification from local hashes."
+          ],
+          "test": "probe_manifest_and_honest_claims"
+        }
+      ],
+      "design": "Amend delegate/sources.rs and its JSON consumers for honest lexical outcomes. Introduce an inventory verifier over existing registries and spec files, plus versioned evidence manifests. Keep evidence schemas small and shared; this feature does not implement an LLM truth oracle or repurpose heuristic scores as mandatory objective safety proof.",
+      "operations": [
+        [
+          "verify-sources",
+          "consumer",
+          "Return bounded source evidence with lexical/semantic distinction"
+        ],
+        [
+          "inventory-check",
+          "consumer",
+          "Detect registry/index/status drift without mutating it"
+        ],
+        [
+          "evidence-check",
+          "consumer",
+          "Validate reproducibility and qualification of capability claims"
+        ]
+      ],
+      "entities": [
+        [
+          "SourceObservation",
+          "claim ID, source digest/time, lexical terms and lexical outcome"
+        ],
+        [
+          "SemanticAssessment",
+          "claim/source link, evaluator identity, reasoning reference and supported/refuted/uncertain"
+        ],
+        [
+          "InventorySnapshot",
+          "revision, canonical entries, calculated counts and discrepancies"
+        ],
+        [
+          "ProbeManifest",
+          "tool/version/OS/surface, revision, command, result, evidence digest and scope"
+        ],
+        [
+          "HeuristicOverride",
+          "signal ID, actor, reason, supporting evidence, scope and expiry"
+        ]
+      ]
+    }
+  ]
+}

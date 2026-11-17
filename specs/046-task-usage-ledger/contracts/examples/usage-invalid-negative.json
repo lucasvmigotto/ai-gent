@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "event_id": "00000000-0000-4000-8000-000000000010",
+  "task": {
+    "repository_id": "00000000-0000-4000-8000-000000000001",
+    "feature_id": "046-task-usage-ledger",
+    "task_id": "T003"
+  },
+  "attempt_id": "00000000-0000-4000-8000-000000000002",
+  "run_id": "00000000-0000-4000-8000-000000000003",
+  "parent_run_id": null,
+  "segment_id": "00000000-0000-4000-8000-000000000004",
+  "phase": "builder",
+  "sequence": 1,
+  "identity": {
+    "agent_app": "codex",
+    "agent_version": "fixture-1",
+    "requested_provider": "openai",
+    "requested_model": "fixture-alias",
+    "effective_provider": "openai",
+    "effective_model": "fixture-model-X",
+    "effort": "medium",
+    "identity_quality": "verified",
+    "config_digest": "sha256:57de4cf40144bdf7d00010f2f5557a7d642c2b9705309bfade167dd313e2ca93",
+    "model_vendor": "openai",
+    "service_tier": null,
+    "provider_region": null
+  },
+  "source": {
+    "adapter": "codex-fixture",
+    "adapter_version": "1",
+    "namespace": "fixture-session",
+    "request_id": "req-1",
+    "event_id": "turn-1",
+    "scope": "turn_total",
+    "semantics": "inclusive-input-v1",
+    "reference": "evidence:fixture/run-3/turn-1",
+    "digest": "sha256:01723a1e9fec46d532c024e3232a99e21619800c8e5489a18e2506afc4cabfb3"
+  },
+  "raw_usage": {
+    "input_tokens": 1000,
+    "cached_input_tokens": 400,
+    "output_tokens": 200,
+    "reasoning_output_tokens": 80
+  },
+  "counters": {
+    "input_total": 1000,
+    "cached_input": 400,
+    "cache_creation_input": null,
+    "output_total": -1,
+    "reasoning_output": 80
+  },
+  "quality": "complete",
+  "attribution": "exclusive",
+  "attestation": "local",
+  "contribution": "authoritative",
+  "supersedes": [],
+  "extensions": {},
+  "execution_scope": {
+    "kind": "exclusive",
+    "beneficiaries": [
+      {
+        "repository_id": "00000000-0000-4000-8000-000000000001",
+        "feature_id": "046-task-usage-ledger",
+        "task_id": "T003"
+      }
+    ]
+  },
+  "observed_at": "2026-11-17T12:00:02Z",
+  "occurred_at": "2026-11-17T12:00:01Z",
+  "host_session_id": "fixture-session"
+}

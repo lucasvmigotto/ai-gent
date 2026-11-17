@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposed tracked completion policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository_id",
+    "baseline_commit",
+    "mode",
+    "cutover_at",
+    "required_phases",
+    "review_policy",
+    "artifact_exclusions",
+    "limits",
+    "authorization_reference"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "repository_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "baseline_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40,64}$"
+    },
+    "mode": {
+      "enum": [
+        "observe",
+        "warn",
+        "strict"
+      ]
+    },
+    "cutover_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "required_phases": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "planner",
+          "coordinator",
+          "builder",
+          "reviewer",
+          "repair",
+          "verification",
+          "recovery"
+        ]
+      },
+      "minItems": 2,
+      "maxItems": 7
+    },
+    "review_policy": {
+      "type": "object",
+      "required": [
+        "fresh_context",
+        "diversity",
+        "enforced_read_only",
+        "max_rounds"
+      ],
+      "properties": {
+        "fresh_context": {
+          "const": true
+        },
+        "diversity": {
+          "enum": [
+            "any",
+            "different_model",
+            "different_provider"
+          ]
+        },
+        "enforced_read_only": {
+          "type": "boolean"
+        },
+        "max_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact_exclusions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512
+      },
+      "maxItems": 32
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "record_bytes",
+        "drain_seconds",
+        "helper_seconds",
+        "lock_seconds"
+      ],
+      "properties": {
+        "record_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 1048576
+        },
+        "drain_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "helper_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "lock_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "additionalProperties": false
+    },
+    "authorization_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    }
+  }
+}
