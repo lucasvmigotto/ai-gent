@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "receipt_id": "00000000-0000-4000-8000-000000000020",
+  "task": {
+    "repository_id": "00000000-0000-4000-8000-000000000001",
+    "feature_id": "046-task-usage-ledger",
+    "task_id": "T003"
+  },
+  "task_fingerprint": "sha256:0ebb429fa86d481c2630fac53db1c91cffed5d4d41d1021c179444eb67e7ee0b",
+  "attempt_id": "00000000-0000-4000-8000-000000000002",
+  "attempt_generation": 2,
+  "policy_digest": "sha256:823412d1eacb67956220e532959f0104603057c88704863ca38e7cd188fda812",
+  "artifact_digest": "sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c",
+  "outcome": "accepted",
+  "ledger_sequence": 20,
+  "previous_receipt_digest": null,
+  "registered_run_manifest_digest": "sha256:29c9c30e0604515ced98b3d14fd88751a8f8e4b9bc69d483a67a257c14ab79fb",
+  "runs": [
+    {
+      "run_id": "00000000-0000-4000-8000-000000000003",
+      "role": "builder",
+      "closure_digest": "sha256:89d2de3c1a0aab9384f86647bec4820269fdc4710ba972e5c6c8691daeb311ef",
+      "evidence_digests": [
+        "sha256:1983ab2afe8f4a606983ad84496e31b07fd68125fd265fee4eed8d6500a0dac0"
+      ],
+      "outcome": "succeeded",
+      "counters": {
+        "input_total": 1000,
+        "cached_input": 400,
+        "cache_creation_input": null,
+        "output_total": 200,
+        "reasoning_output": 80
+      },
+      "quality": "complete",
+      "attribution": "exclusive",
+      "attempt_id": "00000000-0000-4000-8000-000000000002",
+      "segments": [
+        {
+          "segment_id": "00000000-0000-4000-8000-000000000103",
+          "identity": {
+            "agent_app": "codex",
+            "agent_version": "fixture-1",
+            "requested_provider": "openai",
+            "requested_model": "fixture-alias",
+            "effective_provider": "openai",
+            "effective_model": "fixture-model-X",
+            "effort": "medium",
+            "identity_quality": "verified",
+            "config_digest": "sha256:57de4cf40144bdf7d00010f2f5557a7d642c2b9705309bfade167dd313e2ca93",
+            "model_vendor": "openai",
+            "service_tier": null,
+            "provider_region": null
+          },
+          "counters": {
+            "input_total": 1000,
+            "cached_input": 400,
+            "cache_creation_input": null,
+            "output_total": 200,
+            "reasoning_output": 80
+          },
+          "evidence_digests": [
+            "sha256:1983ab2afe8f4a606983ad84496e31b07fd68125fd265fee4eed8d6500a0dac0"
+          ]
+        }
+      ],
+      "started_at": "2026-11-17T12:00:00Z",
+      "ended_at": "2026-11-17T12:00:30Z",
+      "elapsed_ms": 30000,
+      "host_session_id": "fixture-session-0"
+    },
+    {
+      "run_id": "00000000-0000-4000-8000-000000000005",
+      "role": "reviewer",
+      "closure_digest": "sha256:0072fa63ac1967a139fd9df06e98d807fa4d680a7cd146c5ee8117699e0d4dcd",
+      "evidence_digests": [
+        "sha256:db94772eec948316b643615fc43acd58d0c2abd9f787ab9a296b368145759994"
+      ],
+      "outcome": "succeeded",
+      "counters": {
+        "input_total": 1000,
+        "cached_input": 300,
+        "cache_creation_input": 100,
+        "output_total": 200,
+        "reasoning_output": null
+      },
+      "quality": "complete",
+      "attribution": "exclusive",
+      "attempt_id": "00000000-0000-4000-8000-000000000002",
+      "segments": [
+        {
+          "segment_id": "00000000-0000-4000-8000-000000000105",
+          "identity": {
+            "agent_app": "claude",
+            "agent_version": "fixture-1",
+            "requested_provider": "anthropic",
+            "requested_model": "fixture-alias",
+            "effective_provider": "anthropic",
+            "effective_model": "fixture-model-Y",
+            "effort": "medium",
+            "identity_quality": "verified",
+            "config_digest": "sha256:c857d09db23e6822e3600bc06ad8d58f92ed62bc8efd81c753f77048662cb97d",
+            "model_vendor": "anthropic",
+            "service_tier": null,
+            "provider_region": null
+          },
+          "counters": {
+            "input_total": 1000,
+            "cached_input": 300,
+            "cache_creation_input": 100,
+            "output_total": 200,
+            "reasoning_output": null
+          },
+          "evidence_digests": [
+            "sha256:db94772eec948316b643615fc43acd58d0c2abd9f787ab9a296b368145759994"
+          ]
+        }
+      ],
+      "started_at": "2026-11-17T12:01:00Z",
+      "ended_at": "2026-11-17T12:01:30Z",
+      "elapsed_ms": 30000,
+      "host_session_id": "fixture-session-1"
+    }
+  ],
+  "review_digests": [
+    "sha256:c97ace4c8fef2cee8fa0f3c9f52aab18dbd4f42438afe362ffb8f75ce4c04b84"
+  ],
+  "check_digests": [
+    "sha256:20f65c28671b40937c5bf23acc7c6f37e5a5ec0622e347b57685725df5ba9e50"
+  ],
+  "quality": "complete",
+  "attribution": "exclusive",
+  "attestation": "local",
+  "normalization_version": "v1",
+  "exclusive_totals": {
+    "input_total": 2000,
+    "cached_input": 700,
+    "cache_creation_input": null,
+    "output_total": 400,
+    "reasoning_output": null
+  },
+  "shared_scope_digests": [],
+  "exemption_digest": null,
+  "extensions": {}
+}

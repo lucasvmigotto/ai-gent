@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposed independent review v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "review_id",
+    "review_run_id",
+    "reviewer_session_id",
+    "builder_run_id",
+    "builder_session_id",
+    "artifact_digest",
+    "diff_digest",
+    "policy_digest",
+    "identity",
+    "fresh_context",
+    "permission_evidence_digest",
+    "verdict",
+    "findings",
+    "round"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "review_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "review_run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "reviewer_session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "builder_run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "builder_session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "artifact_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "diff_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "policy_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "agent_app": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "agent_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "requested_provider": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "requested_model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "effective_provider": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "effective_model": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "identity_quality": {
+          "enum": [
+            "verified",
+            "reported",
+            "unknown"
+          ]
+        },
+        "config_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "model_vendor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "service_tier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "provider_region": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "agent_app",
+        "agent_version",
+        "requested_provider",
+        "requested_model",
+        "effective_provider",
+        "effective_model",
+        "effort",
+        "identity_quality",
+        "config_digest",
+        "model_vendor",
+        "service_tier",
+        "provider_region"
+      ],
+      "additionalProperties": false
+    },
+    "fresh_context": {
+      "type": "boolean"
+    },
+    "permission_evidence_digest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "changes_requested",
+        "unable"
+      ]
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "severity",
+          "location",
+          "evidence_digest",
+          "disposition",
+          "actor_reference"
+        ],
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ]
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "evidence_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "disposition": {
+            "enum": [
+              "open",
+              "fixed",
+              "accepted_risk",
+              "disproved"
+            ]
+          },
+          "actor_reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 512
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

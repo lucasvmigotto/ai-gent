@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "kind": "planning_task_graph",
+  "feature_id": "054-evidence-integrity",
+  "tasks": [
+    {
+      "id": "T001",
+      "depends": [],
+      "story": null,
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "Review `specs/054-evidence-integrity/contracts/cli.md` against upstream dependencies; freeze operation/JSON compatibility and file ownership before coding. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T002",
+      "depends": [
+        "T001"
+      ],
+      "story": null,
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "Establish synthetic fixtures and shared validation helpers under `rust/crates/ai-gent/tests/fixtures/agent_054/`; include schema/identity/version rejection cases. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T003",
+      "depends": [
+        "T002"
+      ],
+      "story": "1",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US1] Define failing positive, negative and replay assertions for FR-001, FR-002, FR-003, SC-001, SC-002 and SC-003 in `rust/crates/ai-gent/tests/agent_054.rs`; record the expected failure before implementation. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T004",
+      "depends": [
+        "T013"
+      ],
+      "story": "1",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US1] Backend implementation \u2014 see US1 in ## Backend of `specs/054-evidence-integrity/tasks.md`; close only after its concrete tasks and independent story test pass. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T005",
+      "depends": [
+        "T004"
+      ],
+      "story": "2",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US2] Define failing positive, negative and replay assertions for FR-004, FR-005, FR-006, SC-001, SC-002 and SC-003 in `rust/crates/ai-gent/tests/agent_054.rs`; record the expected failure before implementation. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T006",
+      "depends": [
+        "T016"
+      ],
+      "story": "2",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US2] Backend implementation \u2014 see US2 in ## Backend of `specs/054-evidence-integrity/tasks.md`; close only after its concrete tasks and independent story test pass. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T007",
+      "depends": [
+        "T006"
+      ],
+      "story": "3",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US3] Define failing positive, negative and replay assertions for FR-007, FR-008, FR-009, SC-001, SC-002 and SC-003 in `rust/crates/ai-gent/tests/agent_054.rs`; record the expected failure before implementation. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T008",
+      "depends": [
+        "T019"
+      ],
+      "story": "3",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US3] Backend implementation \u2014 see US3 in ## Backend of `specs/054-evidence-integrity/tasks.md`; close only after its concrete tasks and independent story test pass. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T009",
+      "depends": [
+        "T021",
+        "T022"
+      ],
+      "story": null,
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "Reconcile compatibility, errors and examples in `specs/054-evidence-integrity/contracts/cli.md`; update affected README, CHANGELOG, AGENTS and docs-site pages if runtime skills/plugins changed, following skill-docs and prior approval. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T010",
+      "depends": [
+        "T009"
+      ],
+      "story": null,
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "Complete independent review and `/speckit-converge` for `specs/054-evidence-integrity`; run focused suites then full `scripts/check.sh`, record evidence and leave unmet capabilities unqualified. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: high"
+    },
+    {
+      "id": "T011",
+      "depends": [
+        "T003"
+      ],
+      "story": "1",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US1] Add domain/contract tests for FR-001, FR-002, FR-003 to `rust/crates/ai-gent-core/src/evidence/tests.rs` or existing module tests; assert authorization denials, invalid versions and idempotency. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T012",
+      "depends": [
+        "T011"
+      ],
+      "story": "1",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US1] Implement bounded source reads, lexical outcomes and separate semantic-assessment provenance in `rust/crates/ai-gent-core/src/delegate/sources.rs` and adjacent domain types; satisfy FR-001, FR-002, FR-003. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: high"
+    },
+    {
+      "id": "T013",
+      "depends": [
+        "T012"
+      ],
+      "story": "1",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US1] Wire the story's operations through `rust/crates/ai-gent/src/cli.rs` and `rust/crates/ai-gent/src/cmd/`; execute `rust/crates/ai-gent/tests/agent_054.rs` and legacy compatibility readers, recording positive/negative/replay results. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T014",
+      "depends": [
+        "T005"
+      ],
+      "story": "2",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US2] Add domain/contract tests for FR-004, FR-005, FR-006 to `rust/crates/ai-gent-core/src/evidence/tests.rs` or existing module tests; assert authorization denials, invalid versions and idempotency. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T015",
+      "depends": [
+        "T014"
+      ],
+      "story": "2",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US2] Implement canonical registry/spec/task index comparison with observed status evidence in `rust/crates/ai-gent-core/src/evidence/inventory.rs` and adjacent domain types; satisfy FR-004, FR-005, FR-006. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: high"
+    },
+    {
+      "id": "T016",
+      "depends": [
+        "T015"
+      ],
+      "story": "2",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US2] Wire the story's operations through `rust/crates/ai-gent/src/cli.rs` and `rust/crates/ai-gent/src/cmd/`; execute `rust/crates/ai-gent/tests/agent_054.rs` and legacy compatibility readers, recording positive/negative/replay results. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T017",
+      "depends": [
+        "T007"
+      ],
+      "story": "3",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US3] Add domain/contract tests for FR-007, FR-008, FR-009 to `rust/crates/ai-gent-core/src/evidence/tests.rs` or existing module tests; assert authorization denials, invalid versions and idempotency. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T018",
+      "depends": [
+        "T017"
+      ],
+      "story": "3",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US3] Implement version/OS/surface manifests, qualification freshness and heuristic override provenance in `rust/crates/ai-gent-core/src/evidence/probes.rs` and adjacent domain types; satisfy FR-007, FR-008, FR-009. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: high"
+    },
+    {
+      "id": "T019",
+      "depends": [
+        "T018"
+      ],
+      "story": "3",
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "[US3] Wire the story's operations through `rust/crates/ai-gent/src/cli.rs` and `rust/crates/ai-gent/src/cmd/`; execute `rust/crates/ai-gent/tests/agent_054.rs` and legacy compatibility readers, recording positive/negative/replay results. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T020",
+      "depends": [
+        "T004",
+        "T006",
+        "T008"
+      ],
+      "story": null,
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "Execute independent multi-persona CLI journeys and concurrency/fault scenarios from `specs/054-evidence-integrity/qa.md` against `rust/crates/ai-gent/tests/agent_054.rs`; report uncovered FR/scenario cells. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: high"
+    },
+    {
+      "id": "T021",
+      "depends": [
+        "T020"
+      ],
+      "story": null,
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "Qualify relevant Claude/Codex and lower-tier adapter cells using the probe manifest in `docs/product/agent-parity-plan/capabilities.md`; store sanitized evidence under `specs/054-evidence-integrity/evidence/` only after running the probe, never placeholder success. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    },
+    {
+      "id": "T022",
+      "depends": [
+        "T020"
+      ],
+      "story": null,
+      "executor": "builder",
+      "reviewer": "thinker",
+      "parallel": false,
+      "description": "Integrate deterministic feature suites into `scripts/check.sh`/CI where not already discovered; record target workload results and limitations in `specs/054-evidence-integrity/qa.md` and complete the story traceability review. Executor: builder \u00b7 Reviewer: thinker \u00b7 Effort: medium"
+    }
+  ]
+}

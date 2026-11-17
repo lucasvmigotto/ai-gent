@@ -53,6 +53,17 @@ Sides: the docs site has only a Frontend; the runners are command-line tools wit
 | 041 | agent-delegation | optional `agents:delegate`: Claude orchestrates and also builds beside other code agents (Codex first), with briefs, supervisor checks, cross-agent review and a delegation log | P3 | 036 (wt), agents plugin | In progress | N/A | #364 | 3.x, after 3.0.0; trial 1 in `trial-1-codex.md`, second-trial comparison in `trial-2-comparison.md` (SC-003 not yet met); 21/23 tasks done (041-agent-delegation/tasks.md); [gates](039-release-3-contract/contracts/release-gates.md) |
 | 042 | workers-over-limit | the Workers pane draws the slots beyond the cap as `[!]` cells in the error tone, with the over-limit text and the pipeline line, instead of the default warning yellow | P3 | 041 (workers pane) | Implemented | N/A | — | 3.x; a mod change in the `project` plugin only |
 | 043 | dbrun-port | production port of the db runner to Rust (`ai-gent db`): shared core, one group per engine (SQLite, PostgreSQL, MySQL/MariaDB, SQL Server, Oracle thin), optional Oracle thick, TLS verification, native backup and restore, cutover and `uv` removal | P1 | 032, 037, 038, 039 | N/A | Planned | — | runs in the 3.x line, not a 3.0.0 gate; 3.0.0 ships with `dbrun.py` Python (amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun; the relayed hold is reversed, D26/D27 of 039 stand); draft for the owner's review, many [NEEDS CLARIFICATION] points; 0/55 tasks done (043-dbrun-port/tasks.md); [gates](039-release-3-contract/contracts/release-gates.md) |
+| 044 | mods-panes | existing draft pane refinements; specification indexed without changing its approval state | P2 | 041 | Planned | N/A | — | existing draft; see 044-mods-panes/spec.md |
+| 045 | repo-board | existing draft multi-platform project-board CLI | P1 | 037, 039 | N/A | Planned | — | existing draft for owner review; see 045-repo-board/spec.md |
+| 046 | task-usage-ledger | Task identity and durable usage ledger | P1 | 032 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 046-task-usage-ledger/spec.md |
+| 047 | runtime-usage-collectors | Cross-agent runtime usage collectors | P1 | 046 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 047-runtime-usage-collectors/spec.md |
+| 048 | provider-neutral-coordination | Provider-neutral planning and admitted execution | P1 | 046 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 048-provider-neutral-coordination/spec.md |
+| 049 | review-provenance | Independent review and repair provenance | P1 | 046, 048 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 049-review-provenance/spec.md |
+| 050 | metered-completion | Required metered task completion | P1 | 046, 047, 048, 049 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 050-metered-completion/spec.md |
+| 051 | usage-reporting | Multi-provider and builder–reviewer usage reporting | P2 | 046, 047, 049, 050 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 051-usage-reporting/spec.md |
+| 052 | host-lifecycle | Tier 1 lifecycle, guard and recovery integration | P2 | 046, 047, 048, 050 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 052-host-lifecycle/spec.md |
+| 053 | portable-workflows | Portable skills, installation and workflow profiles | P2 | 048, 050, 052 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 053-portable-workflows/spec.md |
+| 054 | evidence-integrity | Source, inventory and status evidence integrity | P2 | 046 | N/A | Planned | Planned | follow-on program; 0/22 tasks; see 054-evidence-integrity/spec.md |
 
 Verified needs suites covering every story, running and passing in CI; for tooling without a UI the integration suites stand in for e2e journeys (pipeline rule 6). 008 is Verified: its unit tests run on every pull request and the real-engine suite weekly. The closest others are 006 (all stories but the interactive selector) and 002 (two of four stories).
 
@@ -79,3 +90,7 @@ Amended 2026-11-07 per owner decision (chat): 3.0.0 not held for dbrun. 3.0.0 sh
 
 - `scripts/check.sh`, `scripts/release.py`, `scripts/update-check.sh`, `scripts/opencode-config.py`, `opencode/guard/` and the `plugins/*/hooks/guard.sh` guard hooks — outside the requested scope; listed as entry points in `docs/product/introspec.md`.
 - `plugins/compact/` and `plugins/project/scripts/repo_state.py` — skill helpers, outside scope.
+
+## Cross-agent parity and task accounting program
+
+Features 046–054 are forward plans, not part of the existing 3.0.0 gate expansion. [Program scope, dependencies and handoff](../docs/product/agent-parity-plan/README.md). Owner decision 2026-11-17 sets equal Claude + Codex Tier 1 for this program and capability-based Tiers 2/3; existing 039 release policy is preserved until explicitly superseded. All 198 implementation tasks remain unchecked. Missing 044/045 rows above index existing draft specs only; their owners' approval requirements remain unchanged.
