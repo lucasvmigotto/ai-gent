@@ -1,0 +1,150 @@
+{
+  "derived_from": "spec 045 FR-032 (a wrong board is a usage error before the first write)",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"first\", \"board\": {\"action\": \"set\", \"board\": \"github:me/1\", \"item\": \"https://github.com/o/r/issues/5\", \"state\": \"review\"}}, {\"name\": \"second\", \"board\": {\"action\": \"set\", \"board\": \"gitlab:grp/proj/12\", \"item\": \"#3\", \"state\": \"done\"}}]}",
+    "n.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"only\", \"board\": {\"action\": \"set\", \"item\": \"https://github.com/o/r/issues/5\", \"state\": \"done\"}}]}"
+  },
+  "git": [],
+  "name": "board-batch-board-checked-before-any-write",
+  "owner": "rust",
+  "remote": "git@github.com:o/r.git",
+  "routes": [
+    {
+      "body": {
+        "data": {
+          "user": {
+            "projectV2": {
+              "closed": false,
+              "field": {
+                "dataType": "SINGLE_SELECT",
+                "id": "PVTSSF_1",
+                "name": "Status",
+                "options": [
+                  {
+                    "id": "OPT_TODO",
+                    "name": "To do"
+                  },
+                  {
+                    "id": "OPT_DOING",
+                    "name": "In Progress"
+                  },
+                  {
+                    "id": "OPT_REVIEW",
+                    "name": "In Review"
+                  },
+                  {
+                    "id": "OPT_DONE",
+                    "name": "Done"
+                  }
+                ]
+              },
+              "id": "PVT_1",
+              "title": "Roadmap",
+              "url": "https://github.com/users/me/projects/1"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardOfUser",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "login": "me",
+        "number": 1
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "resource": {
+            "__typename": "Issue",
+            "id": "I_5",
+            "number": 5,
+            "projectItems": {
+              "nodes": [
+                {
+                  "fieldValueByName": {
+                    "name": "In Progress",
+                    "optionId": "x"
+                  },
+                  "id": "PVTI_5",
+                  "project": {
+                    "id": "PVT_1"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "endCursor": null,
+                "hasNextPage": false
+              }
+            },
+            "state": "OPEN",
+            "title": "Export CSV",
+            "url": "https://github.com/o/r/issues/5"
+          }
+        }
+      },
+      "method": "POST",
+      "op": "ItemOnBoard",
+      "path": "/graphql",
+      "status": 200,
+      "vars": {
+        "url": "https://github.com/o/r/issues/5"
+      }
+    },
+    {
+      "body": {
+        "data": {
+          "updateProjectV2ItemFieldValue": {
+            "projectV2Item": {
+              "id": "PVTI_5"
+            }
+          }
+        }
+      },
+      "method": "POST",
+      "op": "BoardSet",
+      "path": "/graphql",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "batch",
+        "<ROOT>/b.json",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "gitlab:grp/proj/12",
+        "is a gitlab board"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "batch",
+        "<ROOT>/n.json",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "no board"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/github/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

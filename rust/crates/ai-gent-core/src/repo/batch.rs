@@ -1,6 +1,7 @@
 //! `batch`: several calls from a JSON plan, one confirmation. Steps run in order and stop at the first
 //! failure; later steps reference earlier results with `{{step.field}}`.
 use super::api::{Call, Data, api_call, api_is_write};
+use super::board;
 use super::board::run::{WriteOpts, run_change};
 use super::cli::{cli_is_write, run_cli_capture};
 use super::platforms::{PLATFORMS, platform};
@@ -9,6 +10,7 @@ use super::py::py_str;
 use super::{Ctx, Failed, R};
 use crate::passstore::redact;
 use crate::tokens::pyjson::{J, dumps, obj, parse};
+use std::collections::BTreeMap;
 
 /// Results by step name.
 pub type Results = Vec<(String, J)>;
@@ -235,20 +237,46 @@ pub fn run(ctx: &Ctx, o: &Options<'_>) -> R<Outcome> {
             "board steps need \"platform\": \"github\" or \"gitlab\"",
         ));
     }
-    for s in &steps {
-        if let Some(b) = s.get("board") {
+    // Every board step is resolved and checked against the plan's platform before anything runs, so a
+    // wrong board is a usage error before the first write of the batch. A board given by a reference
+    // (`{{...}}`) can only be checked when its step runs.
+    let mut board_keys: BTreeMap<usize, String> = BTreeMap::new();
+    if steps.iter().any(|s| s.get("board").is_some()) {
+        let map = board::map::load(ctx)?;
+        for (i, s) in steps.iter().enumerate() {
+            let Some(b) = s.get("board") else { continue };
             let action = b.get("action").and_then(J::as_str).unwrap_or("");
             if !matches!(action, "set" | "add") || b.get("item").is_none_or(|i| !i.truthy()) {
                 return Err(Failed::usage(
                     "a board step needs \"action\": \"set\" or \"add\" and an \"item\"",
                 ));
             }
+            let arg = b.get("board").and_then(J::as_str).filter(|a| !a.is_empty());
+            if arg.is_some_and(|a| a.contains("{{")) {
+                continue;
+            }
+            let r = board::resolve_ref(arg, map.as_ref())?;
+            if r.platform != plat {
+                return Err(Failed::usage(format!(
+                    "board step {}: {} is a {} board, the plan is for {plat}",
+                    names[i],
+                    r.key(),
+                    r.platform
+                )));
+            }
+            board_keys.insert(i, r.key());
         }
     }
     let mut writes: Vec<String> = Vec::new();
-    for (s, n) in steps.iter().zip(&names) {
+    let mut write_labels: Vec<String> = Vec::new();
+    for (i, (s, n)) in steps.iter().zip(&names).enumerate() {
         if step_is_write(&plat, s)? {
             writes.push(n.clone());
+            write_labels.push(
+                board_keys
+                    .get(&i)
+                    .map_or_else(|| n.clone(), |k| format!("{n} [{k}]")),
+            );
         }
     }
     if !writes.is_empty() && !o.write && !o.dry_run {
@@ -256,18 +284,22 @@ pub fn run(ctx: &Ctx, o: &Options<'_>) -> R<Outcome> {
             "{} of {} steps change something on {plat} ({}{}); after the user confirmed this batch, re-run with --write",
             writes.len(),
             steps.len(),
-            writes
+            write_labels
                 .iter()
                 .take(8)
                 .cloned()
                 .collect::<Vec<_>>()
                 .join(", "),
-            if writes.len() > 8 { "\u{2026}" } else { "" }
+            if write_labels.len() > 8 {
+                "\u{2026}"
+            } else {
+                ""
+            }
         )));
     }
     let mut res = Outcome::default();
     if o.dry_run {
-        for (s, n) in steps.iter().zip(&names) {
+        for (i, (s, n)) in steps.iter().zip(&names).enumerate() {
             let desc = if let Some(a) = s.get("api") {
                 format!(
                     "{} {}",
@@ -285,8 +317,12 @@ pub fn run(ctx: &Ctx, o: &Options<'_>) -> R<Outcome> {
                 )
             } else if let Some(b) = s.get("board") {
                 format!(
-                    "board {} {} {}",
+                    "board {} {} {} {}",
                     b.get("action").map_or_else(|| "None".to_string(), py_str),
+                    board_keys.get(&i).cloned().unwrap_or_else(|| {
+                        b.get("board")
+                            .map_or_else(|| "(default)".to_string(), py_str)
+                    }),
                     b.get("item").map_or_else(|| "None".to_string(), py_str),
                     b.get("state")
                         .filter(|v| v.truthy())
@@ -385,7 +421,13 @@ pub fn run(ctx: &Ctx, o: &Options<'_>) -> R<Outcome> {
                         c.board.platform
                     )));
                 }
-                Ok(c.to_json())
+                match &c.failed {
+                    Some(e) => Err(Failed::err(format!(
+                        "{e} (already sent: {})",
+                        c.sent.join("; ")
+                    ))),
+                    None => Ok(c.to_json()),
+                }
             } else if let Some(p) = s.get("project_status") {
                 let p = resolve(p, &results, &names)?;
                 let number = p

@@ -357,11 +357,11 @@ pub fn run(args: &RepoArgs, json: bool) -> Exit {
                 json,
             );
             match r {
-                Ok(lines) => {
+                Ok((lines, failed)) => {
                     for l in &lines {
                         repo::out(l);
                     }
-                    Exit::Success
+                    failed.map_or(Exit::Success, |f| fail(&f))
                 }
                 Err(f) => fail(&f),
             }

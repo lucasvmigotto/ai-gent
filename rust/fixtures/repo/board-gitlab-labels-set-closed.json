@@ -116,7 +116,7 @@
       ],
       "stderr_has": [],
       "stdin": null,
-      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"1003\",\n    \"kind\": \"issue\",\n    \"number\": 3,\n    \"url\": \"https://gitlab.com/grp/proj/-/issues/3\",\n    \"title\": \"Issue 3\"\n  },\n  \"field\": \"Lists\",\n  \"from\": \"workflow::doing\",\n  \"to\": \"Closed\",\n  \"state\": \"done\",\n  \"changed\": true,\n  \"added\": false,\n  \"sent\": [\n    \"PUT /projects/grp%2Fproj/issues/3 {\\\"state_event\\\": \\\"close\\\", \\\"remove_labels\\\": \\\"workflow::doing\\\"}\"\n  ],\n  \"dry_run\": false\n}\n"
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"1003\",\n    \"kind\": \"issue\",\n    \"number\": 3,\n    \"url\": \"https://gitlab.com/grp/proj/-/issues/3\",\n    \"title\": \"Issue 3\"\n  },\n  \"field\": \"Lists\",\n  \"from\": \"workflow::doing\",\n  \"to\": \"Closed\",\n  \"state\": \"done\",\n  \"changed\": true,\n  \"added\": false,\n  \"sent\": [\n    \"PUT /projects/grp%2Fproj/issues/3 {\\\"state_event\\\": \\\"close\\\", \\\"remove_labels\\\": \\\"workflow::doing\\\"}\"\n  ],\n  \"dry_run\": false,\n  \"error\": null\n}\n"
     }
   ],
   "store": {

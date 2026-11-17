@@ -1,0 +1,141 @@
+{
+  "derived_from": "spec 045 FR-003 (a GitLab board holds issues and work items of its own project and host)",
+  "env": {},
+  "expect_files": {},
+  "files": {
+    "repo/.ai-gent/board.yaml": "version: 1\nboards:\n  web:\n    platform: gitlab\n    project: grp/proj\n    board: 12\n    states:\n      todo: \"workflow::todo\"\n  st:\n    platform: gitlab\n    project: grp/proj\n    board: 14\n    mode: status\n    states:\n      todo: \"To do\"\n"
+  },
+  "git": [],
+  "name": "board-gitlab-item-refused-before-any-request",
+  "owner": "rust",
+  "remote": "git@gitlab.com:grp/proj.git",
+  "routes": [
+    {
+      "body": {
+        "id": 12,
+        "lists": [
+          {
+            "id": 101,
+            "label": {
+              "id": 1,
+              "name": "workflow::todo"
+            },
+            "position": 0
+          },
+          {
+            "id": 102,
+            "label": {
+              "id": 2,
+              "name": "workflow::doing"
+            },
+            "position": 1
+          },
+          {
+            "id": 103,
+            "label": {
+              "id": 3,
+              "name": "workflow::review"
+            },
+            "position": 2
+          }
+        ],
+        "name": "Development"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/12",
+      "status": 200
+    },
+    {
+      "body": {
+        "id": 1003,
+        "iid": 3,
+        "labels": [],
+        "state": "opened",
+        "title": "Issue 3",
+        "web_url": "https://gitlab.com/grp/proj/-/issues/3"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/issues/3",
+      "status": 200
+    }
+  ],
+  "runs": [
+    {
+      "argv": [
+        "board",
+        "set",
+        "web",
+        "https://gitlab.com/grp/proj/-/merge_requests/3",
+        "--state",
+        "todo",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "not merge_requests"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "set",
+        "st",
+        "https://gitlab.com/grp/proj/-/merge_requests/3",
+        "--state",
+        "todo",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "not merge_requests"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "set",
+        "gitlab:12345/7",
+        "https://gitlab.com/grp/proj/-/issues/3",
+        "--state",
+        "todo",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "numeric project id"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "board",
+        "set",
+        "web",
+        "https://git.example.org/grp/proj/-/issues/3",
+        "--state",
+        "todo",
+        "--write"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "not the GitLab host gitlab.com"
+      ],
+      "stdin": null,
+      "stdout": ""
+    }
+  ],
+  "store": {
+    "ai-gent/gitlab/pat": "tok-3f9a1c77e0\n"
+  },
+  "stub": true,
+  "tools": {}
+}

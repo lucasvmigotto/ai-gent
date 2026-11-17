@@ -480,27 +480,22 @@ fn mapped_labels_on(field: &Field, loc: &Located, except: &str) -> Vec<String> {
         .collect()
 }
 
-/// The column an issue sits in now: Closed, the one mapped label it carries, several (a conflict), or Open.
+/// The column an issue sits in now: Closed, the label list(s) whose label it carries (several is a
+/// conflict), or Open.
 fn label_from(field: &Field, labels: &[String], closed: bool) -> String {
     if closed {
         return "Closed".to_string();
     }
-    let mapped: Vec<&str> = field
+    let lists: Vec<&str> = field
         .options
         .iter()
-        .filter(|o| {
-            !o.builtin
-                && o.mappable
-                && !o.id.contains(':')
-                && o.state.is_some()
-                && labels.contains(&o.name)
-        })
+        .filter(|o| !o.builtin && o.mappable && !o.id.contains(':') && labels.contains(&o.name))
         .map(|o| o.name.as_str())
         .collect();
-    if mapped.is_empty() {
+    if lists.is_empty() {
         "Open".to_string()
     } else {
-        mapped.join(", ")
+        lists.join(", ")
     }
 }
 
@@ -558,6 +553,25 @@ impl GitLab {
     }
 
     fn locate_status(&self, ctx: &Ctx, bref: &BoardRef, number: i64) -> R<Located> {
+        // Work items carry no labels or milestone in this document, so a scoped board cannot be checked:
+        // it is refused rather than guessed.
+        let board = self.net.get(
+            ctx,
+            &format!(
+                "/projects/{}/boards/{}",
+                project_segment(&bref.project),
+                bref.board_id
+            ),
+            Vec::new(),
+        )?;
+        let scope = board_scope(&board);
+        if !scope.is_empty() {
+            return Err(Failed::err(format!(
+                "board {} is scoped ({}); status mode cannot tell whether work item {number} is in that scope, so it changes nothing; use mode: labels",
+                bref.key(),
+                scope.join(", ")
+            )));
+        }
         let g = self.net.gql(
             ctx,
             docs::GITLAB_STATUS_LOCATE,
@@ -662,12 +676,16 @@ impl BoardAdapter for GitLab {
             if loc.closed {
                 pairs.push(("state_event", J::s("reopen")));
             }
-            if !to.builtin {
+            // A list the issue already carries is not added again, so moving to it is a no-op.
+            if !to.builtin && !loc.labels.contains(&to.name) {
                 pairs.push(("add_labels", J::s(&to.name)));
             }
         }
         if !remove.is_empty() {
             pairs.push(("remove_labels", J::s(remove.join(","))));
+        }
+        if pairs.is_empty() {
+            return Ok(Vec::new());
         }
         Ok(vec![Req::rest("PUT", loc.path.clone(), obj(pairs))])
     }

@@ -3,7 +3,9 @@
 //! sends nothing for `--dry-run` or a no-op, and sends the rest through `Net`, which is `api_call`
 //! with the caller's `write` flag, so the GraphQL body check and the REST method decide again.
 use super::map;
-use super::{Change, Field, ItemRef, Opt, Req, ReqBody, adapter_for, parse_item, resolve_ref};
+use super::{
+    Change, Field, ItemRef, Opt, Req, ReqBody, adapter_for, check_item, parse_item, resolve_ref,
+};
 use crate::repo::{Ctx, Failed, R};
 use crate::tokens::pyjson::{J, dumps};
 
@@ -159,6 +161,7 @@ pub fn run_change(ctx: &Ctx, o: &WriteOpts<'_>) -> R<Change> {
     let item: ItemRef = parse_item(o.item)?;
     let map = map::load(ctx)?;
     let mut bref = resolve_ref(o.board, map.as_ref())?;
+    check_item(ctx, &bref, &item)?;
     if let Some(f) = o.field.filter(|f| !f.is_empty()) {
         if bref.platform != "github" {
             return Err(Failed::usage("--field is for GitHub boards"));
@@ -185,14 +188,23 @@ pub fn run_change(ctx: &Ctx, o: &WriteOpts<'_>) -> R<Change> {
         };
         adapter.plan_set(&board, &field, &loc, t)?
     };
-    let added = o.add && !loc.on_board && !reqs.is_empty();
     let mut sent: Vec<String> = Vec::new();
+    let mut failed = None;
     if o.dry_run {
         sent.extend(reqs.iter().map(Req::summary));
     } else {
         let mut prev = J::Null;
         for r in &reqs {
-            prev = send(adapter.as_ref(), ctx, r, &prev, o.write)?;
+            match send(adapter.as_ref(), ctx, r, &prev, o.write) {
+                Ok(d) => prev = d,
+                // Nothing sent yet: a plain failure. After a first request went through (the
+                // BoardAdd of `add --state`), report what changed together with the failure.
+                Err(f) if sent.is_empty() => return Err(f),
+                Err(f) => {
+                    failed = Some(crate::passstore::redact(&f.msg));
+                    break;
+                }
+            }
             sent.push(r.summary());
         }
     }
@@ -206,22 +218,25 @@ pub fn run_change(ctx: &Ctx, o: &WriteOpts<'_>) -> R<Change> {
             .map(str::to_string)
             .or_else(|| state.map(str::to_string)),
         changed: !reqs.is_empty(),
-        added,
+        added: o.add && !loc.on_board && !sent.is_empty(),
+        failed,
         sent,
         dry_run: o.dry_run,
         item: loc,
     })
 }
 
-/// `board set` / `board add`: the lines to print.
+/// `board set` / `board add`: the lines to print and, when a later request failed after an earlier one
+/// had been sent, that failure (the caller prints the lines, then fails).
 ///
 /// # Errors
 /// As `run_change`.
-pub fn run_write(ctx: &Ctx, o: &WriteOpts<'_>, json: bool) -> R<Vec<String>> {
+pub fn run_write(ctx: &Ctx, o: &WriteOpts<'_>, json: bool) -> R<(Vec<String>, Option<Failed>)> {
     let c = run_change(ctx, o)?;
-    Ok(if json {
+    let lines = if json {
         vec![dumps(&c.to_json(), false, Some(2))]
     } else {
         c.to_text()
-    })
+    };
+    Ok((lines, c.failed.as_ref().map(Failed::err)))
 }

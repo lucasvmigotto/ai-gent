@@ -261,6 +261,10 @@ pub struct ItemRef {
     pub number: i64,
     /// `owner/repo` (GitHub) or the project path (GitLab) the URL names; empty for `#N`.
     pub repo: String,
+    /// The URL's host; empty for `#N`.
+    pub host: String,
+    /// The URL's kind segment: `issues`, `pull`, `work_items` or `merge_requests`; empty for `#N`.
+    pub kind: String,
 }
 
 /// Parse the ITEM argument (FR-003).
@@ -289,7 +293,7 @@ pub fn parse_item(arg: &str) -> R<ItemRef> {
     if segs.len() < 5 {
         return Err(bad());
     }
-    segs.remove(0); // the host
+    let host = segs.remove(0).to_ascii_lowercase();
     while segs.last() == Some(&"") {
         segs.pop();
     }
@@ -298,12 +302,11 @@ pub fn parse_item(arg: &str) -> R<ItemRef> {
         .and_then(|n| n.parse::<i64>().ok())
         .filter(|n| *n > 0)
         .ok_or_else(bad)?;
-    if !matches!(
-        segs.pop(),
-        Some("issues" | "pull" | "work_items" | "merge_requests")
-    ) {
-        return Err(bad());
-    }
+    let kind = segs
+        .pop()
+        .filter(|k| matches!(*k, "issues" | "pull" | "work_items" | "merge_requests"))
+        .ok_or_else(bad)?
+        .to_string();
     if segs.last() == Some(&"-") {
         segs.pop();
     }
@@ -314,7 +317,57 @@ pub fn parse_item(arg: &str) -> R<ItemRef> {
         url: arg.to_string(),
         number,
         repo: segs.join("/"),
+        host,
+        kind,
     })
+}
+
+/// A URL item must be an issue (or, on GitHub, a pull request) on the platform's own host, and on a
+/// GitLab board named by project path; refused before any request. `#N` is always the board's own.
+///
+/// # Errors
+/// A usage error naming what is wrong.
+pub fn check_item(ctx: &Ctx, bref: &BoardRef, item: &ItemRef) -> R<()> {
+    if item.url.is_empty() {
+        return Ok(());
+    }
+    let remote = detect_repo(ctx);
+    let bad = |why: String| Failed::usage(format!("{}: {why}", item.url));
+    if bref.platform == "github" {
+        if !matches!(item.kind.as_str(), "issues" | "pull") {
+            return Err(bad("not an issue or pull request URL".into()));
+        }
+        if item.host != "github.com" {
+            return Err(bad(format!(
+                "host {} is not github.com; use #N or a github.com URL",
+                item.host
+            )));
+        }
+        return Ok(());
+    }
+    if !matches!(item.kind.as_str(), "issues" | "work_items") {
+        return Err(bad(format!(
+            "a GitLab board holds issues and work items, not {}",
+            item.kind
+        )));
+    }
+    if bref.project.chars().all(|c| c.is_ascii_digit()) {
+        return Err(bad(
+            "this board is named by a numeric project id, so a URL cannot be matched to it; use #N or name the board by project path".into(),
+        ));
+    }
+    let want = if remote.str("platform") == "gitlab" && !remote.str("host").is_empty() {
+        remote.str("host").to_ascii_lowercase()
+    } else {
+        "gitlab.com".to_string()
+    };
+    if item.host != want {
+        return Err(bad(format!(
+            "host {} is not the GitLab host {want}; use #N or a URL on that host",
+            item.host
+        )));
+    }
+    Ok(())
 }
 
 /// One planned request. `from_prev` fills a variable from the previous request's answer (the item id
@@ -443,6 +496,8 @@ pub struct Change {
     pub sent: Vec<String>,
     /// Nothing was sent.
     pub dry_run: bool,
+    /// A request failed after an earlier one had been sent (an `add --state` whose `BoardSet` failed).
+    pub failed: Option<String>,
 }
 
 impl Change {
@@ -469,6 +524,7 @@ impl Change {
             ("added", J::Bool(self.added)),
             ("sent", J::strs(&self.sent)),
             ("dry_run", J::Bool(self.dry_run)),
+            ("error", J::opt_s(self.failed.as_deref())),
         ])
     }
 
@@ -497,6 +553,9 @@ impl Change {
                 "{} {r}",
                 if self.dry_run { "would send:" } else { "sent:" }
             ));
+        }
+        if let Some(e) = &self.failed {
+            out.push(format!("failed after the above: {e}"));
         }
         out
     }

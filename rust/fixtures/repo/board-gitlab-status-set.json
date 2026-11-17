@@ -54,6 +54,15 @@
     },
     {
       "body": {
+        "id": 12,
+        "name": "Development"
+      },
+      "method": "GET",
+      "path": "/projects/grp%2Fproj/boards/12",
+      "status": 200
+    },
+    {
+      "body": {
         "data": {
           "project": {
             "workItems": {
@@ -190,6 +199,15 @@
           "path": "/api/graphql"
         },
         {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
+        },
+        {
           "body": "{\"query\": \"query BoardStatusLocate($fullPath: ID!, $iid: String!) { project(fullPath: $fullPath) { workItems(iids: [$iid]) { nodes { id iid title webUrl state widgets { ... on WorkItemWidgetStatus { status { id name } } } } } } }\", \"variables\": {\"fullPath\": \"grp/proj\", \"iid\": \"2\"}, \"operationName\": \"BoardStatusLocate\"}",
           "headers": {
             "Accept": "application/json",
@@ -212,7 +230,7 @@
       ],
       "stderr_has": [],
       "stdin": null,
-      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"grp/proj\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"status\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"gid://gitlab/WorkItem/2\",\n    \"kind\": \"issue\",\n    \"number\": 2,\n    \"url\": \"https://gitlab.com/grp/proj/-/work_items/2\",\n    \"title\": \"Work item 2\"\n  },\n  \"field\": \"Status\",\n  \"from\": \"To do\",\n  \"to\": \"In progress\",\n  \"state\": \"doing\",\n  \"changed\": true,\n  \"added\": false,\n  \"sent\": [\n    \"POST graphql BoardStatus {\\\"item\\\": \\\"gid://gitlab/WorkItem/2\\\", \\\"status\\\": \\\"gid://gitlab/WorkItems::Statuses::Custom::Status/2\\\"}\"\n  ],\n  \"dry_run\": false\n}\n"
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"grp/proj\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"status\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"gid://gitlab/WorkItem/2\",\n    \"kind\": \"issue\",\n    \"number\": 2,\n    \"url\": \"https://gitlab.com/grp/proj/-/work_items/2\",\n    \"title\": \"Work item 2\"\n  },\n  \"field\": \"Status\",\n  \"from\": \"To do\",\n  \"to\": \"In progress\",\n  \"state\": \"doing\",\n  \"changed\": true,\n  \"added\": false,\n  \"sent\": [\n    \"POST graphql BoardStatus {\\\"item\\\": \\\"gid://gitlab/WorkItem/2\\\", \\\"status\\\": \\\"gid://gitlab/WorkItems::Statuses::Custom::Status/2\\\"}\"\n  ],\n  \"dry_run\": false,\n  \"error\": null\n}\n"
     },
     {
       "argv": [
@@ -235,6 +253,15 @@
           },
           "method": "POST",
           "path": "/api/graphql"
+        },
+        {
+          "body": "",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer tok-3f9a1c77e0"
+          },
+          "method": "GET",
+          "path": "/projects/grp%2Fproj/boards/12"
         },
         {
           "body": "{\"query\": \"query BoardStatusLocate($fullPath: ID!, $iid: String!) { project(fullPath: $fullPath) { workItems(iids: [$iid]) { nodes { id iid title webUrl state widgets { ... on WorkItemWidgetStatus { status { id name } } } } } } }\", \"variables\": {\"fullPath\": \"grp/proj\", \"iid\": \"9\"}, \"operationName\": \"BoardStatusLocate\"}",

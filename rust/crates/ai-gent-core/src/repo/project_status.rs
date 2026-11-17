@@ -141,6 +141,9 @@ pub fn project_status_call(ctx: &Ctx, s: &Status<'_>) -> R<J> {
             dry_run: false,
         },
     )?;
+    if let Some(e) = &c.failed {
+        return Err(Failed::err(e.clone()));
+    }
     let chosen = c.to.clone().unwrap_or_default();
     let suffix = match (state, value) {
         (Some(st), None) => format!(" for state {st}"),

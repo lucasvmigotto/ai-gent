@@ -130,7 +130,7 @@
       ],
       "stderr_has": [],
       "stdin": null,
-      "stdout": "{\n  \"board\": {\n    \"platform\": \"github\",\n    \"id\": \"PVT_1\",\n    \"key\": \"github:me/1\",\n    \"title\": \"Roadmap\",\n    \"url\": \"https://github.com/users/me/projects/1\",\n    \"closed\": false,\n    \"mode\": \"field\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"PVTI_5\",\n    \"kind\": \"issue\",\n    \"number\": 5,\n    \"url\": \"https://github.com/o/r/issues/5\",\n    \"title\": \"Export CSV\"\n  },\n  \"field\": \"Status\",\n  \"from\": \"In Progress\",\n  \"to\": \"In Review\",\n  \"state\": \"review\",\n  \"changed\": true,\n  \"added\": false,\n  \"sent\": [\n    \"POST graphql BoardSet {\\\"project\\\": \\\"PVT_1\\\", \\\"item\\\": \\\"PVTI_5\\\", \\\"field\\\": \\\"PVTSSF_1\\\", \\\"option\\\": \\\"OPT_REVIEW\\\"}\"\n  ],\n  \"dry_run\": true\n}\n"
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"github\",\n    \"id\": \"PVT_1\",\n    \"key\": \"github:me/1\",\n    \"title\": \"Roadmap\",\n    \"url\": \"https://github.com/users/me/projects/1\",\n    \"closed\": false,\n    \"mode\": \"field\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"PVTI_5\",\n    \"kind\": \"issue\",\n    \"number\": 5,\n    \"url\": \"https://github.com/o/r/issues/5\",\n    \"title\": \"Export CSV\"\n  },\n  \"field\": \"Status\",\n  \"from\": \"In Progress\",\n  \"to\": \"In Review\",\n  \"state\": \"review\",\n  \"changed\": true,\n  \"added\": false,\n  \"sent\": [\n    \"POST graphql BoardSet {\\\"project\\\": \\\"PVT_1\\\", \\\"item\\\": \\\"PVTI_5\\\", \\\"field\\\": \\\"PVTSSF_1\\\", \\\"option\\\": \\\"OPT_REVIEW\\\"}\"\n  ],\n  \"dry_run\": true,\n  \"error\": null\n}\n"
     },
     {
       "argv": [

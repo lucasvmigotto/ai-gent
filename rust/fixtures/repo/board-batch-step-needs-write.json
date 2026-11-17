@@ -4,7 +4,8 @@
   "expect_files": {},
   "files": {
     "b.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"move\", \"board\": {\"action\": \"set\", \"board\": \"github:me/1\", \"item\": \"https://github.com/o/r/issues/5\", \"state\": \"review\"}}]}",
-    "bad.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"x\", \"board\": {\"action\": \"move\", \"item\": \"https://github.com/o/r/issues/5\"}}]}"
+    "bad.json": "{\"platform\": \"github\", \"steps\": [{\"name\": \"x\", \"board\": {\"action\": \"move\", \"item\": \"https://github.com/o/r/issues/5\"}}]}",
+    "other.json": "{\"platform\": \"gitlab\", \"steps\": [{\"name\": \"move\", \"board\": {\"action\": \"set\", \"board\": \"github:me/1\", \"item\": \"https://github.com/o/r/issues/5\", \"state\": \"review\"}}]}"
   },
   "git": [],
   "name": "board-batch-step-needs-write",
@@ -120,7 +121,8 @@
       "exit": 3,
       "seen": [],
       "stderr_has": [
-        "1 of 1 steps"
+        "1 of 1 steps",
+        "move [github:me/1]"
       ],
       "stdin": null,
       "stdout": ""
@@ -135,7 +137,7 @@
       "seen": [],
       "stderr_has": [],
       "stdin": null,
-      "stdout": "move             write board set https://github.com/o/r/issues/5 review\n"
+      "stdout": "move             write board set github:me/1 https://github.com/o/r/issues/5 review\n"
     },
     {
       "argv": [
@@ -147,6 +149,21 @@
       "seen": [],
       "stderr_has": [
         "action"
+      ],
+      "stdin": null,
+      "stdout": ""
+    },
+    {
+      "argv": [
+        "batch",
+        "<ROOT>/other.json",
+        "--dry-run"
+      ],
+      "exit": 2,
+      "seen": [],
+      "stderr_has": [
+        "github:me/1",
+        "plan is for gitlab"
       ],
       "stdin": null,
       "stdout": ""

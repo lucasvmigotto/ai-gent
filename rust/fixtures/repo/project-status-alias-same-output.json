@@ -234,7 +234,7 @@
           "path": "/graphql"
         },
         {
-          "body": "{\"query\": \"query ItemOnBoard($url: URI!, $field: String!, $after: String) { resource(url: $url) { __typename ... on Issue { id number url title state projectItems(first: 50, after: $after) { nodes { id project { id } fieldValueByName(name: $field) { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } } ... on PullRequest { id number url title state projectItems(first: 50, after: $after) { nodes { id project { id } fieldValueByName(name: $field) { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } } } }\", \"variables\": {\"url\": \"https://github.com/o/r/issues/5\", \"field\": \"status\", \"after\": null}, \"operationName\": \"ItemOnBoard\"}",
+          "body": "{\"query\": \"query ItemOnBoard($url: URI!, $field: String!, $after: String) { resource(url: $url) { __typename ... on Issue { id number url title state projectItems(first: 50, after: $after) { nodes { id project { id } fieldValueByName(name: $field) { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } } ... on PullRequest { id number url title state projectItems(first: 50, after: $after) { nodes { id project { id } fieldValueByName(name: $field) { ... on ProjectV2ItemFieldSingleSelectValue { name optionId } } } pageInfo { hasNextPage endCursor } } } } }\", \"variables\": {\"url\": \"https://github.com/o/r/issues/5\", \"field\": \"Status\", \"after\": null}, \"operationName\": \"ItemOnBoard\"}",
           "headers": {
             "Accept": "application/vnd.github+json",
             "Authorization": "Bearer tok-3f9a1c77e0",

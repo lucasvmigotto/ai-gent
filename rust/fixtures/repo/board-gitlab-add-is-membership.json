@@ -158,7 +158,7 @@
       ],
       "stderr_has": [],
       "stdin": null,
-      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"1007\",\n    \"kind\": \"issue\",\n    \"number\": 7,\n    \"url\": \"https://gitlab.com/grp/proj/-/issues/7\",\n    \"title\": \"Issue 7\"\n  },\n  \"field\": \"Lists\",\n  \"from\": \"Open\",\n  \"to\": null,\n  \"state\": null,\n  \"changed\": false,\n  \"added\": false,\n  \"sent\": [],\n  \"dry_run\": false\n}\n"
+      "stdout": "{\n  \"board\": {\n    \"platform\": \"gitlab\",\n    \"id\": \"12\",\n    \"key\": \"gitlab:grp/proj/12\",\n    \"title\": \"Development\",\n    \"url\": \"http://<STUB>/grp/proj/-/boards/12\",\n    \"closed\": false,\n    \"mode\": \"labels\",\n    \"scope\": []\n  },\n  \"item\": {\n    \"id\": \"1007\",\n    \"kind\": \"issue\",\n    \"number\": 7,\n    \"url\": \"https://gitlab.com/grp/proj/-/issues/7\",\n    \"title\": \"Issue 7\"\n  },\n  \"field\": \"Lists\",\n  \"from\": \"Open\",\n  \"to\": null,\n  \"state\": null,\n  \"changed\": false,\n  \"added\": false,\n  \"sent\": [],\n  \"dry_run\": false,\n  \"error\": null\n}\n"
     },
     {
       "argv": [

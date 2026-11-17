@@ -168,8 +168,8 @@ impl BoardAdapter for GitHub {
         &self,
         ctx: &Ctx,
         board: &Board,
-        bref: &BoardRef,
-        _field: &Field,
+        _bref: &BoardRef,
+        field: &Field,
         item: &ItemRef,
     ) -> R<Located> {
         self.net.check_token(ctx)?;
@@ -199,7 +199,7 @@ impl BoardAdapter for GitHub {
                 docs::ITEM_ON_BOARD,
                 &[
                     ("url", J::s(&url)),
-                    ("field", J::s(&bref.field)),
+                    ("field", J::s(&field.name)),
                     ("after", after.clone()),
                 ],
             )?;
@@ -326,15 +326,32 @@ impl BoardAdapter for GitHub {
 
     fn fields(&self, ctx: &Ctx, b: &BoardRef) -> R<(Board, Field)> {
         self.net.check_token(ctx)?;
-        let (p, _) = self.board_node(ctx, b)?;
+        let (mut p, _) = self.board_node(ctx, b)?;
         let board = board_of(&p, &b.owner, b.number);
+        let mut known: Option<Vec<String>> = None;
+        if p.get("field").is_none_or(|f| matches!(f, J::Null)) {
+            // The field is looked up by exact name; the tool has always matched it case-insensitively
+            // (`--field status`), so a missing one is retried under the board's own spelling.
+            let names = known.insert(self.field_names(ctx, &board.id)?);
+            let mut hits = names
+                .iter()
+                .filter(|n| n.eq_ignore_ascii_case(&b.field) && **n != b.field);
+            if let (Some(exact), None) = (hits.next(), hits.next()) {
+                let mut again = b.clone();
+                again.field.clone_from(exact);
+                p = self.board_node(ctx, &again)?.0;
+            }
+        }
         let cell = p.get("field").filter(|f| !matches!(f, J::Null));
         let options = cell.and_then(|f| match f.get("options") {
             Some(J::Arr(a)) => Some(a),
             _ => None,
         });
         let Some((cell, options)) = cell.zip(options) else {
-            let names = self.field_names(ctx, &board.id)?;
+            let names = match known {
+                Some(n) => n,
+                None => self.field_names(ctx, &board.id)?,
+            };
             let list = if names.is_empty() {
                 "(none)".to_string()
             } else {
@@ -370,7 +387,7 @@ impl BoardAdapter for GitHub {
         &self,
         ctx: &Ctx,
         resolved: &Board,
-        b: &BoardRef,
+        _b: &BoardRef,
         field: &Field,
     ) -> R<(Vec<Item>, bool)> {
         let mut out = Vec::new();
@@ -382,7 +399,7 @@ impl BoardAdapter for GitHub {
                 docs::BOARD_ITEMS,
                 &[
                     ("project", J::s(&resolved.id)),
-                    ("field", J::s(&b.field)),
+                    ("field", J::s(&field.name)),
                     ("after", after.clone()),
                 ],
             )?;

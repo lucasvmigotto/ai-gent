@@ -61,6 +61,13 @@ Each fixture records the exact requests (`seen`), the canary token, and stdout/s
 - The order of refusals is kept: state/value usage error, owner usage error, then the `--write` refusal, before any request. The field name is matched by GitHub (`field(name:)`), not case-insensitively by the tool; the printed `field` is GitHub's name. Not verified until G30-22.
 - Alias matching now assigns each state to a distinct option (`map::apply`), as `board fields` shows it; the old per-call search could map two states to one option.
 - GitLab label-mode `set` removes only the mapped labels (options with a state) the issue carries; unmapped list labels stay. `Open` is a valid `set` target (reopens, removes mapped labels).
+- A URL item is checked before any request: an issue or pull request on `github.com` for GitHub; an `issues` or `work_items` URL on the GitLab host (the remote's, else `gitlab.com`) for GitLab, never a merge request, and never on a board named by numeric project id (use `#N` or name the board by path). Merge request URLs would otherwise be PUT to `issues/N`.
+- A batch `board` step is resolved against `.ai-gent/board.yaml` and the plan's platform before any step runs; the refusal and `--dry-run` text name the board key. A board given by a `{{reference}}` is checked when its step runs.
+- `add --state` whose `BoardSet` fails after `BoardAdd` went through prints the Change (`added: true`, `sent`, `error`) and exits 1.
+- GitHub field lookup stays exact; when the field is missing, a single case-insensitive match among `BoardFields` is retried under the board's spelling (keeps `project-status --field status`).
+- GitLab status mode reads the board (`GET /projects/:id/boards/:id`) before a write and refuses a scoped board: a work item carries no labels or milestone in the status document, so the scope cannot be checked.
+- GitLab label mode: the current column counts every label list the issue carries; moving to a list it already carries, or to `Open` with nothing to remove, sends nothing. Multi-column case: an issue in two mapped lists is a `conflict` on reads; `set` removes the other mapped labels.
+- Python oracle coverage: the six `project-status-*` cases that sent `gh` requests are no longer run through `reporun.py` (Rust-owned now). The oracle still runs the five that send none. Follow-up (tasks.md): once `reporun.py` is deleted at the cutover nothing else changes; until then the `gh`-based write path of `reporun.py` is untested by the fixtures.
 - Status-mode names (`BoardStatusLocate`, `BoardStatus`, `WorkItemID`, `WorkItemsStatusesStatusID`) are unverified, fixtures-only like the reads.
 
 ## Tests
