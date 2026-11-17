@@ -74,6 +74,12 @@
       "title": "Worktree board pull request refresh (seconds)",
       "description": "How often the open board runs one gh pr list for the pull requests and their checks",
       "default": 120
+    },
+    "worktreeBoardAscii": {
+      "type": "boolean",
+      "title": "Worktree board: ASCII glyphs",
+      "description": "Draw ahead and behind as ^a vb and the row markers as > and v, for a terminal whose font lacks the arrows",
+      "default": false
     }
   }
 }

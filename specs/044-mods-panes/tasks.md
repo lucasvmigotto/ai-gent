@@ -10,12 +10,12 @@ Slice 1 - Workers (`plugins/project/`)
 
 Slice 2 - Worktrees (`plugins/agents/`)
 
-- [ ] T010 Spike: a test in `plugins/agents/hooks/worktrees.test.tsx` mounting the `worktrees` `Pane` with one `Button` row among `Text` lines; if the host refuses, stop and ask the owner (Q2); acceptance: the test passes or the owner has decided the fallback
-- [ ] T011 Arrow divergence and legend note in `plugins/agents/hooks/worktrees-model.ts` (`counts`, `row`, `notes`), narrow form `branch ↑a ↓b ●`, ASCII `^a vb`; tests at 100 and 50 columns, ASCII, null counts `?`; US2.1, US2.2, US2.7; FR-020
-- [ ] T012 One CI-failure signal: drop `checks failing` from `prCell`, keep `markOf`; tests: failing PR shows `failing` once per row and once in the summary, no-status branch shows none, `removable` hint still text; US2.3; FR-021
-- [ ] T013 Freshness: `Board.local`/`remote` `{ attemptedAt, okAt, error }`, set in `plugins/agents/hooks/worktrees.ts` (okAt only after a non-null parse), atom declared in `plugins/agents/types/index.d.ts`, notes `local: cached` and `GitHub: cached, read failed at <t>; last good <t>`; tests with a fake clock: failure keeps rows and `okAt`, one source failing keeps the other's rows, no-`gh` and non-GitHub notes unchanged; US2.5, US2.6; FR-023, SC-003
-- [ ] T014 Row expansion: `toggle` keys in `view`, `worktreesExpanded` atom, `Button` rows in `plugins/agents/hooks/register.tsx`, `text()` prints all open; tests: press opens full branch/path/dirty/divergence/PR/checks, survives a refresh, a vanished branch's key is dropped; refresh runs no spawn beyond the polls; US2.4; FR-022, FR-024; only after T010
-- [ ] T015 Update 022's tests that assert `+a/-b` by hand; mutation pass; `claude plugin test plugins/agents`, `claude plugin validate plugins/agents`; README and CHANGELOG lines; `scripts/check.sh`; commit by path; Codex review; PR notes `/reload-plugins`
+- [x] T010 Spike: a test in `plugins/agents/hooks/worktrees.test.tsx` mounting the `worktrees` `Pane` with one `Button` row among `Text` lines; if the host refuses, stop and ask the owner (Q2); acceptance: the test passes or the owner has decided the fallback
+- [x] T011 Arrow divergence and legend note in `plugins/agents/hooks/worktrees-model.ts` (`counts`, `row`, `notes`), narrow form `branch ↑a ↓b ●`, ASCII `^a vb`; tests at 100 and 50 columns, ASCII, null counts `?`; US2.1, US2.2, US2.7; FR-020
+- [x] T012 One CI-failure signal: drop `checks failing` from `prCell`, keep `markOf`; tests: failing PR shows `failing` once per row and once in the summary, no-status branch shows none, `removable` hint still text; US2.3; FR-021
+- [x] T013 Freshness: `Board.local`/`remote` `{ attemptedAt, okAt, error }`, set in `plugins/agents/hooks/worktrees.ts` (okAt only after a non-null parse), atom declared in `plugins/agents/types/index.d.ts`, notes `local: cached` and `GitHub: cached, read failed at <t>; last good <t>`; tests with a fake clock: failure keeps rows and `okAt`, one source failing keeps the other's rows, no-`gh` and non-GitHub notes unchanged; US2.5, US2.6; FR-023, SC-003
+- [x] T014 Row expansion: `toggle` keys in `view`, `worktreesExpanded` atom, `Button` rows in `plugins/agents/hooks/register.tsx`, `text()` prints all open; tests: press opens full branch/path/dirty/divergence/PR/checks, survives a refresh, a vanished branch's key is dropped; refresh runs no spawn beyond the polls; US2.4; FR-022, FR-024; only after T010
+- [x] T015 Update 022's tests that assert `+a/-b` by hand; mutation pass; `claude plugin test plugins/agents`, `claude plugin validate plugins/agents`; README and CHANGELOG lines; `scripts/check.sh`; commit by path; Codex review; PR notes `/reload-plugins`
 
 Slice 3 - Pipeline (`plugins/project/`)
 

@@ -59,10 +59,12 @@ declare module 'claude-code' {
       }[]
       // The first stderr line of the last failed wt.py run; null after a good one.
       worktreeError: string | null
-      // When wt.py list --json last ran (ms): the local interval and the Bash-triggered refresh.
-      worktreeLocalAt: number
-      // When gh pr list last ran (ms): the remote interval.
-      worktreeRemoteAt: number
+      // Freshness per source (specs/044 FR-023): when a read started (the poll floor), when one last parsed
+      // (`okAt`, only then) and why the last one failed (null after a good one). 0 is never.
+      worktreeLocalFresh: { attemptedAt: number; okAt: number; error: string | null }
+      worktreeRemoteFresh: { attemptedAt: number; okAt: number; error: string | null }
+      // Rows the user opened, by worktree path; a worktree that is gone is dropped at the next good read.
+      worktreesExpanded: Record<string, boolean>
       // gh auth status and the platform of `git remote get-url origin`, read when the board opens.
       worktreeGh: { usable: boolean; platform: string }
     }

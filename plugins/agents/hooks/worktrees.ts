@@ -19,11 +19,15 @@ export const PANE = 'worktrees'
 const openAtom = atom({ plugin: 'agents', key: 'worktreeIsOpen' } as const, false)
 const rowsAtom = atom({ plugin: 'agents', key: 'worktreeRows' } as const, [])
 const errorAtom = atom({ plugin: 'agents', key: 'worktreeError' } as const, null)
-const localAtAtom = atom({ plugin: 'agents', key: 'worktreeLocalAt' } as const, 0)
-const remoteAtAtom = atom({ plugin: 'agents', key: 'worktreeRemoteAt' } as const, 0)
+const NEVER = { attemptedAt: 0, okAt: 0, error: null }
+// Per source: when a read started, when one last parsed (`okAt` moves only then) and why the last failed.
+const localFreshAtom = atom({ plugin: 'agents', key: 'worktreeLocalFresh' } as const, NEVER)
+const remoteFreshAtom = atom({ plugin: 'agents', key: 'worktreeRemoteFresh' } as const, NEVER)
+// Rows opened by the user, keyed by worktree path (detached worktrees share a branch name).
+const expandedAtom = atom({ plugin: 'agents', key: 'worktreesExpanded' } as const, {})
 const ghAtom = atom({ plugin: 'agents', key: 'worktreeGh' } as const, { usable: false, platform: '' })
 
-export type BoardOptions = { worktreeBoard?: boolean; worktreeBoardSeconds?: number; worktreeBoardRemoteSeconds?: number }
+export type BoardOptions = { worktreeBoard?: boolean; worktreeBoardAscii?: boolean; worktreeBoardSeconds?: number; worktreeBoardRemoteSeconds?: number }
 export type Intervals = { localMs: number; remoteMs: number }
 
 const RUN_TIMEOUT_MS = 30_000
@@ -49,17 +53,22 @@ export async function refreshLocal($: EngineInterface): Promise<boolean> {
   isLocalRunning = true
   try {
     const started = await $.clock.now()
-    await update($, localAtAtom, () => started)
+    await update($, localFreshAtom, f => ({ ...f, attemptedAt: started }))
     const cwd = await $.session.cwd()
     const run = await $.process.run(['python3', `${$.plugin.root}/scripts/wt.py`, 'list', '--json'], { cwd, timeoutMs: RUN_TIMEOUT_MS }).catch(() => undefined)
     const parsed = run?.exitCode === 0 ? parseWt(run.stdout) : null
     if (parsed === null) {
       const why = run === undefined ? 'it did not finish or could not start' : run.exitCode !== 0 ? firstLine(run.stderr) || `exit ${run.exitCode}` : 'its output was not the expected JSON'
       await update($, errorAtom, () => why)
+      await update($, localFreshAtom, f => ({ ...f, error: why }))
       return false
     }
     await update($, errorAtom, () => null)
+    await update($, localFreshAtom, f => ({ ...f, okAt: started, error: null }))
     await update($, rowsAtom, old => carryPrs(parsed, old))
+    // A branch that is gone takes its open state with it.
+    const kept = new Set(parsed.map(r => r.path))
+    await update($, expandedAtom, old => (Object.keys(old).every(k => kept.has(k)) ? old : Object.fromEntries(Object.entries(old).filter(([k]) => kept.has(k)))))
     return true
   } finally {
     isLocalRunning = false
@@ -72,13 +81,19 @@ export async function refreshRemote($: EngineInterface): Promise<void> {
   isRemoteRunning = true
   try {
     const started = await $.clock.now()
-    await update($, remoteAtAtom, () => started)
+    await update($, remoteFreshAtom, f => ({ ...f, attemptedAt: started }))
     const cwd = await $.session.cwd()
     const run = await $.process
       .run(['gh', 'pr', 'list', '--state', 'all', '--limit', '100', '--json', 'number,headRefName,state,isDraft,statusCheckRollup'], { cwd, timeoutMs: RUN_TIMEOUT_MS })
       .catch(() => undefined)
     const prs = run?.exitCode === 0 ? parseGh(run.stdout) : null
-    if (prs !== null) await update($, rowsAtom, old => joinPrs(old, prs))
+    if (prs !== null) {
+      await update($, remoteFreshAtom, f => ({ ...f, okAt: started, error: null }))
+      await update($, rowsAtom, old => joinPrs(old, prs))
+    } else {
+      const why = run === undefined ? 'it did not finish or could not start' : run.exitCode !== 0 ? firstLine(run.stderr) || `exit ${run.exitCode}` : 'its output was not the expected JSON'
+      await update($, remoteFreshAtom, f => ({ ...f, error: why }))
+    }
   } finally {
     isRemoteRunning = false
   }
@@ -103,20 +118,30 @@ export async function detect($: EngineInterface): Promise<void> {
 }
 
 export async function snapshot($: EngineInterface): Promise<Board> {
-  return { rows: await read($, rowsAtom), error: await read($, errorAtom), gh: await read($, ghAtom) }
+  return { rows: await read($, rowsAtom), error: await read($, errorAtom), gh: await read($, ghAtom), local: await read($, localFreshAtom), remote: await read($, remoteFreshAtom) }
+}
+
+// A row's button: open or close it. It never runs anything.
+export async function toggle($: EngineInterface, path: string): Promise<void> {
+  await update($, expandedAtom, old => ({ ...old, [path]: old[path] !== true }))
+}
+
+// For register.tsx (an atom is read only in the file that declares it).
+export function readExpanded($: EngineInterface): Promise<Record<string, boolean>> {
+  return read($, expandedAtom)
 }
 
 // A floor, not a schedule: a run that happened sooner (a Bash-triggered one) counts.
 export async function localTick($: EngineInterface, ms: number): Promise<void> {
   if (!(await read($, openAtom))) return stop()
   const now = await $.clock.now()
-  if (now - (await read($, localAtAtom)) >= ms) await refreshLocal($).catch(() => undefined)
+  if (now - (await read($, localFreshAtom)).attemptedAt >= ms) await refreshLocal($).catch(() => undefined)
 }
 
 export async function remoteTick($: EngineInterface, ms: number): Promise<void> {
   if (!(await read($, openAtom))) return stop()
   const now = await $.clock.now()
-  if (now - (await read($, remoteAtAtom)) >= ms) await refreshRemote($).catch(() => undefined)
+  if (now - (await read($, remoteFreshAtom)).attemptedAt >= ms) await refreshRemote($).catch(() => undefined)
 }
 
 function startPolls($: EngineInterface, every: Intervals): void {
@@ -133,14 +158,14 @@ export function stop(): void {
 
 // `/worktree-board`: reads the rows, then opens the pane (focused) and starts the polls, or, with
 // no worktrees, says so and opens nothing, or, where no surface draws it, answers with the text form.
-export async function command($: EngineInterface, every: Intervals): Promise<{ text: string }> {
+export async function command($: EngineInterface, every: Intervals, ascii = false): Promise<{ text: string }> {
   await detect($).catch(() => undefined)
   await refreshLocal($).catch(() => undefined)
   const before = await snapshot($)
   if (before.rows.length === 0) {
     await update($, openAtom, () => false)
     stop()
-    return { text: boardText(before) }
+    return { text: boardText({ ...before, ascii }) }
   }
   const placed = await $.ui.open({ id: PANE, title: 'Worktrees', focus: true }).catch(() => ({ isPlaced: false }))
   await refreshRemote($).catch(() => undefined)
@@ -151,7 +176,7 @@ export async function command($: EngineInterface, every: Intervals): Promise<{ t
   }
   await update($, openAtom, () => false)
   stop()
-  return { text: boardText(await snapshot($)) }
+  return { text: boardText({ ...(await snapshot($)), ascii }) }
 }
 
 export async function close($: EngineInterface): Promise<void> {
