@@ -1,6 +1,9 @@
 //! Registered execution identities (046 US1). This module does not collect tokens or accept tasks.
+mod contributions;
 mod identity;
 mod journal;
+mod normalize;
+mod observations;
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -87,11 +90,34 @@ pub fn execute(root: &Path, operation: &str, input: &[u8]) -> Result<Value> {
 /// # Errors
 /// Rejects unsafe paths, invalid frames, integrity/scope violations, lock timeout or I/O failure.
 pub fn replay(root: &Path) -> Result<Value> {
-    let state = journal::replay(root)?;
-    Ok(json!({"schema_version":1,"operation":"replay","ok":true,
-        "result":{"repository_id":state.repository_id,"sequence":state.sequence,
-        "runs":state.runs.values().collect::<Vec<_>>()},"warnings":[]}))
+    observations::replay(root)
 }
 
 #[cfg(test)]
 mod tests;
+
+/// Normalize and durably record a source observation for an existing execution scope.
+///
+/// # Errors
+/// Rejects scope conflicts, inconsistent counters, ambiguous coverage, corrupt journals,
+/// unsupported attestation claims and bounded I/O failures. Never certifies a provider bill.
+pub fn ingest(root: &Path, input: &[u8]) -> Result<Value> {
+    if input.len() > MAX_RECORD {
+        return Err(limit());
+    }
+    let request: normalize::IngestRequest = observations::parse(input)?;
+    if request.schema_version != 1 {
+        return Err(Error::new(
+            "unsupported_version",
+            "only usage ingest version 1 is supported",
+            2,
+        ));
+    }
+    if request.request_id.is_nil()
+        || request.repository_id.is_nil()
+        || request.operation != "ingest"
+    {
+        return Err(invalid());
+    }
+    observations::ingest(root, &request)
+}

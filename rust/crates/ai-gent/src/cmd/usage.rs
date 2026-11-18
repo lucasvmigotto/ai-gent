@@ -21,6 +21,8 @@ pub struct UsageArgs {
 enum Action {
     /// Register an existing task before executing it; this does not collect usage.
     Register(Input),
+    /// Record normalized usage for a registered run; local evidence is not provider attestation.
+    Ingest(Input),
     /// Start a new immutable provider/model/configuration segment in a registered run.
     Segment(Input),
     /// Record running/finished/failed/cancelled execution; never accepts the task.
@@ -66,6 +68,7 @@ fn exit(code: u8) -> Exit {
 pub fn run(args: &UsageArgs, json_output: bool) -> Exit {
     let operation = match args.action {
         Action::Register(_) => "register",
+        Action::Ingest(_) => "ingest",
         Action::Segment(_) => "segment",
         Action::Transition(_) => "transition",
         Action::Replay => "replay",
@@ -73,6 +76,10 @@ pub fn run(args: &UsageArgs, json_output: bool) -> Exit {
     let (code, value) = if args.protocol_version == 1 {
         let result = match &args.action {
             Action::Replay => usage::replay(&args.root),
+            Action::Ingest(input) => match read(input) {
+                Ok(bytes) => usage::ingest(&args.root, &bytes),
+                Err(_) => return failure(operation, json_output),
+            },
             Action::Register(input) | Action::Segment(input) | Action::Transition(input) => {
                 match read(input) {
                     Ok(bytes) => usage::execute(&args.root, operation, &bytes),
@@ -100,6 +107,11 @@ pub fn run(args: &UsageArgs, json_output: bool) -> Exit {
             println!(
                 "Registration journal: {} events",
                 value["result"]["sequence"]
+            );
+        } else if operation == "ingest" {
+            println!(
+                "Usage observation {} recorded (local, unclosed coverage)",
+                value["result"]["event_id"]
             );
         } else {
             println!(

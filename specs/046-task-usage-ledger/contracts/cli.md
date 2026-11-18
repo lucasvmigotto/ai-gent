@@ -1,6 +1,6 @@
 # CLI Contract: Task identity and durable usage ledger
 
-Status: proposed v1; these operations are design targets, not claims that flags already exist. Operation IDs below are stable boundary names; implementation maps them into existing `ai-gent delegate`, `tokens`, `doctor`, `spec` or new `usage` groups without two overlapping public commands.
+Status: v1 design contract with partial implementation. Registration/segment/transition/replay are implemented as described in `registration.md`; ingest is implemented as described in `usage-ingestion.md`. Export, protected collector authorization, receipts and pagination remain design targets. Operation IDs below are stable boundary names; implementation maps them into existing `ai-gent delegate`, `tokens`, `doctor`, `spec` or new `usage` groups without two overlapping public commands.
 
 | Operation ID | Actor | Purpose |
 |---|---|---|

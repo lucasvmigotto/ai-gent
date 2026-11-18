@@ -1,0 +1,21 @@
+# 046 US2 implementation evidence — 2026-11-18
+
+Status: implementation slice, not feature convergence or live capability qualification. Branch `feat/usage-normalization`, based on develop `e0c5ddb09b085ec4a3b366854553c4d4e5ce2b57`. PR #462 merged the preceding plan/registration slice after explicit owner waiver of cancelled macOS ARM and dependent skipped packaging; those platform cells remain unqualified.
+
+## Scope and red-to-green evidence
+
+T005/T006/T014/T015/T016 implemented. Initial four ingestion tests failed because `usage ingest` did not exist; shared-scope registration initially failed as an unknown field. Those tests now pass. Local diagnostic logs were `/tmp/usage-046-normalize-red.log` and `/tmp/usage-046-scope-red.log`; they are not required handoff inputs. Tests, fixtures and the contract are committed sources of reproducible evidence.
+
+`rust/crates/ai-gent/tests/agent_046_usage.rs` contains 18 executable CLI tests covering inclusive/disjoint normalization, unknown semantics, deduplication, cumulative replacement, counter reset across missing fields, conflicts, unsupported attestation, registration binding, discovered session boundaries, shared/unattributed scopes, required nullable fields, actual calendar validation, integer overflow, concurrent ingestion, corrupt-log refusal and request identity across logs. A synthetic historical registration fixture verifies old checksums remain compatible. Existing 14 registration tests remain green. Four additional core tests exercise subset bounds, missing versus zero, unsafe arithmetic and calendar ranges.
+
+The implementation contract is `../contracts/usage-ingestion.md`. Code is in `rust/crates/ai-gent-core/src/usage/{normalize,contributions,observations}.rs`, registration scope changes in `identity.rs`, and CLI wiring in `rust/crates/ai-gent/src/cmd/usage.rs`. No runtime skills/plugins/hooks/shared reference changed.
+
+## Validation
+
+Focused CLI suite: 18 ingestion tests and 14 registration tests passed. Focused lint passed with warnings denied on the pinned Rust toolchain. All 8 core usage tests passed. Full `scripts/check.sh --quiet` passed with the pinned toolchain, including workspace tests, lint, guard parity, installers, migration and packaging checks (local log `/tmp/ai-gent-usage-normalization-full-check.log`, final line `all checks passed`). Optional cargo-deny was unavailable locally; no supply-chain scan is claimed. The plan validator passed: 9 features, 27 stories, 81 requirements, 198 tasks, 12 completed. No live host or other operating-system qualification is inferred.
+
+## Limits and next owner
+
+T010 independent review/convergence is open; no independent reviewer claim is made. US3 fault injection, atomic content-addressed receipts, projections and target workload qualification remain open. Local checksum integrity does not authenticate provider/model identity or prove source completeness. All summaries remain `local_unverified` and `unclosed`. No protected collector authorization, host token collection, final cost reporting or completion gate ships here; those require later program features. No real paid host run or live Tier 1/2/3 qualification was performed.
+
+The home agent can fetch `origin/feat/usage-normalization`; do not rely on the ignored office worktree or a private checkpoint. Continue 046 US3 with failing crash/recovery and receipt tests, then independent review and QA. Reserve the shared usage module/CLI files before concurrent edits. Preserve legacy registration serialization and conservative unknown/null behavior.

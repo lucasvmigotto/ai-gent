@@ -31,3 +31,17 @@ All fixtures are synthetic; create a temporary repo per test and reset by fixtur
 ## Exploratory Charter and Exit
 
 Try to claim acceptance with missing final usage, a different artifact, a forged role, an unsupported host and a manually ticked task. Investigate any path that converts a failure to success or unknown to zero. Verified requires all FR/scenario fixtures passing in CI, independent exact-artifact review, no open High defects, compatibility coverage and live evidence for every advertised host cell. No browser/accessibility suite is added because this feature adds no UI; existing docs-site checks still run. Flakes are quarantined only with owner/issue/deadline and remain visible; never retry silently to green.
+
+## Implemented US2 evidence — 2026-11-18
+
+The planned names above are scenario labels, not promises that all suites exist. Actual CLI tests are in `rust/crates/ai-gent/tests/agent_046_usage.rs`:
+
+| Scenario | Executable coverage |
+|---|---|
+| Normalization and attribution | `usage_semantics_and_dedup_positive`, `disjoint_cache_input_is_added_once_and_unknown_is_not_zero`, shared/unattributed scope tests |
+| Invalid/contradictory source input | `inconsistent_counters_and_replayed_identities_cannot_mutate_totals`, malformed dates/fields/integer ranges, unknown semantics, unsupported certification tests |
+| Replay and concurrent ingestion | transport/source duplicate test, `concurrent_ingestion_replays_once_without_multiplying_totals`, corrupt observation log refusal |
+| Cumulative boundaries | replacement/reset test, null-gap reset test, lost optional counters test |
+| Scope/legacy compatibility | cross-run/adapter request ownership, discovered host-session boundary, shared-scope preregistration, historical registration frame fixture |
+
+18 ingestion CLI tests, 14 registration CLI tests and 8 core usage tests passed locally. This covers builder implementation checks, not independent persona authorization or live adapter qualification. Full-disk/process-kill/lock-timeout injection, receipt envelopes and the 100k/16-writer workload remain unexecuted US3/QA targets. No platform or source-completeness certification is inferred. See `evidence/ingestion-slice.md` for validation and limitations.
