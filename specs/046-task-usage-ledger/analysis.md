@@ -33,3 +33,7 @@ Next action: implement the dependency-eligible story slice under tasks.md using 
 | SC-003 | Yes | T003, T005, T007, T020–T022 | Planned, not executed |
 
 Design traceability coverage: 12/12 requirement keys (100%). Open ambiguity markers: 0. Unresolved critical design findings: 0. Duplicate authoritative requirement IDs: 0. Live implementation coverage: not measured in this planning run.
+
+## Development status — 2026-11-18
+
+The analysis above records planning readiness at 2026-11-17, not current build coverage. Seven US1/foundation tasks now have implementation/test evidence in `evidence/registration-slice.md`; 046 remains In progress. Independent review/convergence and US2/US3 stay open. Actual actor/collector isolation and live host qualification are not claimed by this registration-only CLI.

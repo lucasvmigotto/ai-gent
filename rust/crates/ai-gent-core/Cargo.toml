@@ -18,6 +18,8 @@ serde.workspace = true
 serde_json.workspace = true
 regex.workspace = true
 thiserror.workspace = true
+sha2 = "0.10.9"
+uuid = { version = "1.29.2", features = ["v4", "serde"] }
 
 [target.'cfg(unix)'.dependencies]
 # O_NOFOLLOW and O_NONBLOCK (libc) and the current user (rustix) for the guard log (guard/words.rs).

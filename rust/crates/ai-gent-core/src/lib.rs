@@ -14,5 +14,6 @@ pub mod repo;
 pub mod spec;
 pub mod tokens;
 pub mod update;
+pub mod usage;
 pub mod version;
 pub mod wt;

@@ -13,6 +13,8 @@ pub enum Exit {
     NothingToDo,
     /// Refused by policy or verification (a checksum, an attestation, a guard hard stop).
     Refused,
+    /// I/O or integrity failure of the opt-in usage protocol v1.
+    ProtocolIo,
     /// Internal error (a panic).
     Internal,
 }
@@ -28,6 +30,7 @@ impl Exit {
             Self::NothingToDo => 3,
             Self::Refused => 4,
             Self::Internal => 101,
+            Self::ProtocolIo => 5,
         }
     }
 }

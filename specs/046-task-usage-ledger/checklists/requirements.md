@@ -8,6 +8,6 @@ Purpose: planning readiness, not implementation certification. Created 2026-11-1
 - [x] Plan, entities, boundary contract, migration and QA traceability are present.
 - [x] All stories have tests-first tasks with executor/reviewer roles and scoped IDs.
 - [x] Equal Tier 1 and honest lower-tier capability semantics are preserved.
-- [x] Implementation is not represented as complete; all task checkboxes remain unchecked.
+- [x] Feature completion is not claimed; checked tasks point to development evidence and remaining implementation/review items stay open.
 - [ ] Implementation/contract/fault suites pass (future build evidence).
 - [ ] Live host cells qualified and independent review complete (future evidence).

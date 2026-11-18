@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "request_id": "10000000-0000-4000-8000-000000000001",
+  "repository_id": "20000000-0000-4000-8000-000000000001",
+  "operation": "register",
+  "payload": {
+    "task": {
+      "repository_id": "20000000-0000-4000-8000-000000000001",
+      "feature_id": "046-task-usage-ledger",
+      "task_id": "T001"
+    },
+    "phase": "builder",
+    "role": "builder",
+    "purpose": "implementation",
+    "configuration": {
+      "agent_app": "codex",
+      "agent_version": "fixture-1",
+      "requested_provider": "openai",
+      "requested_model": "fixture-model",
+      "effective_provider": null,
+      "effective_model": null,
+      "effort": "medium",
+      "config_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}
