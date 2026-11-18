@@ -103,3 +103,8 @@ The exact local DAG is recorded in `task-graph.json`; it is planning metadata, n
 ## Development evidence — 2026-11-18
 
 Twelve tasks completed across registration and ingestion slices. See `evidence/ingestion-slice.md` for the ingestion contract, validation and remaining gaps. Seven tasks completed in the first registration slice. See `evidence/registration-slice.md` for actual tests, trust limits and pending work. T010 independent review/convergence remains unchecked; 046 is In progress, not Implemented/Verified.
+
+
+## Bounded US3 progress — 2026-11-18
+
+Recovery and local immutable snapshots are implemented on `feat/usage-recovery`; see `evidence/recovery-slice.md` and `contracts/recovery-and-snapshots.md`. A fresh reviewer found and verified correction of a snapshot retry evidence-verification bypass. Thirteen CLI recovery tests and five new core fault suites pass. Keep T007/T008/T017/T018/T019 unchecked: bulk versioned import/dry-run, actual process-kill/power-loss coverage and target workload qualification are not complete. Test-only failure checkpoints do not establish real crash durability or qualify new operating-system/host cells. T010/T020–T022 also remain open.

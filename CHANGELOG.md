@@ -6,6 +6,8 @@ changes.
 
 ## Unreleased
 
+- **Usage recovery and snapshots (046 US3 slice):** `usage recover` offers digest-pinned dry-run/apply for torn tails with durable quarantine; `usage snapshot` publishes immutable content-addressed local evidence with predecessor and journal-prefix validation. Snapshot retries refuse missing bound evidence. Bulk import, real crash/scale qualification and task-acceptance receipts remain pending.
+
 - **Usage ingestion (046 US2):** `ai-gent usage ingest` records bounded observations, normalizes inclusive/disjoint cache semantics, rejects contradictory counters and deduplicates request/turn/session contributions. Replay separates exclusive, shared and unattributed totals, preserving unknown counters and local assurance. Live collectors, protected authorization, receipts and task-completion enforcement remain pending.
 
 ### Added

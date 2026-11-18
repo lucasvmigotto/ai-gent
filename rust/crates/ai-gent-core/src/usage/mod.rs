@@ -1,9 +1,12 @@
 //! Registered execution identities (046 US1). This module does not collect tokens or accept tasks.
 mod contributions;
+mod durable;
 mod identity;
 mod journal;
 mod normalize;
 mod observations;
+mod receipts;
+mod recovery;
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -94,6 +97,8 @@ pub fn replay(root: &Path) -> Result<Value> {
 }
 
 #[cfg(test)]
+mod recovery_tests;
+#[cfg(test)]
 mod tests;
 
 /// Normalize and durably record a source observation for an existing execution scope.
@@ -120,4 +125,22 @@ pub fn ingest(root: &Path, input: &[u8]) -> Result<Value> {
         return Err(invalid());
     }
     observations::ingest(root, &request)
+}
+
+/// Publish an immutable local usage snapshot after flushing its journal evidence.
+///
+/// # Errors
+/// Rejects stale sequences/predecessors, conflicting requests, corruption and I/O failure.
+/// This snapshot never accepts a task or certifies a provider bill.
+pub fn snapshot(root: &Path, input: &[u8]) -> Result<Value> {
+    receipts::snapshot(root, input)
+}
+
+/// Plan or explicitly apply digest-pinned isolation of incomplete trailing journal frames.
+///
+/// # Errors
+/// Refuses interior corruption, changed evidence, missing registered prefixes and I/O failure.
+/// Dry runs create no files; apply preserves original damaged evidence before truncation.
+pub fn recover(root: &Path, input: Option<&[u8]>, dry_run: bool) -> Result<Value> {
+    recovery::recover(root, input, dry_run)
 }

@@ -23,6 +23,10 @@ enum Action {
     Register(Input),
     /// Record normalized usage for a registered run; local evidence is not provider attestation.
     Ingest(Input),
+    /// Publish an immutable local snapshot; never accepts a task.
+    Snapshot(Input),
+    /// Isolate incomplete trailing frames after a read-only dry-run plan.
+    Recover(RecoveryInput),
     /// Start a new immutable provider/model/configuration segment in a registered run.
     Segment(Input),
     /// Record running/finished/failed/cancelled execution; never accepts the task.
@@ -35,6 +39,15 @@ struct Input {
     /// Bounded UTF-8 JSON request file, or - for stdin.
     #[arg(long, default_value = "-")]
     input: PathBuf,
+}
+#[derive(Debug, Args)]
+struct RecoveryInput {
+    /// Explicit digest-pinned recovery request file, or - for stdin.
+    #[arg(long)]
+    input: Option<PathBuf>,
+    /// Validate and print a recovery plan without changing evidence.
+    #[arg(long)]
+    dry_run: bool,
 }
 fn read(input: &Input) -> std::io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
@@ -69,6 +82,8 @@ pub fn run(args: &UsageArgs, json_output: bool) -> Exit {
     let operation = match args.action {
         Action::Register(_) => "register",
         Action::Ingest(_) => "ingest",
+        Action::Snapshot(_) => "snapshot",
+        Action::Recover(_) => "recover",
         Action::Segment(_) => "segment",
         Action::Transition(_) => "transition",
         Action::Replay => "replay",
@@ -76,6 +91,23 @@ pub fn run(args: &UsageArgs, json_output: bool) -> Exit {
     let (code, value) = if args.protocol_version == 1 {
         let result = match &args.action {
             Action::Replay => usage::replay(&args.root),
+            Action::Snapshot(input) => match read(input) {
+                Ok(bytes) => usage::snapshot(&args.root, &bytes),
+                Err(_) => return failure(operation, json_output),
+            },
+            Action::Recover(input) => {
+                let bytes = if let Some(path) = &input.input {
+                    match read(&Input {
+                        input: path.clone(),
+                    }) {
+                        Ok(bytes) => Some(bytes),
+                        Err(_) => return failure(operation, json_output),
+                    }
+                } else {
+                    None
+                };
+                usage::recover(&args.root, bytes.as_deref(), input.dry_run)
+            }
             Action::Ingest(input) => match read(input) {
                 Ok(bytes) => usage::ingest(&args.root, &bytes),
                 Err(_) => return failure(operation, json_output),
@@ -107,6 +139,17 @@ pub fn run(args: &UsageArgs, json_output: bool) -> Exit {
             println!(
                 "Registration journal: {} events",
                 value["result"]["sequence"]
+            );
+        } else if operation == "snapshot" {
+            println!("Local usage snapshot {}", value["result"]["receipt_digest"]);
+        } else if operation == "recover" {
+            println!(
+                "Usage recovery {}",
+                if value["result"]["dry_run"] == true {
+                    "plan (no changes)"
+                } else {
+                    "completed; original evidence retained"
+                }
             );
         } else if operation == "ingest" {
             println!(

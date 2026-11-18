@@ -8,13 +8,13 @@ The owner wants all agreed parity/accounting work specified completely before im
 
 Development update 2026-11-18: PR [#462](https://github.com/lucasvmigotto/ai-gent/pull/462) merged the plan and 046 US1 into `develop` at `e0c5ddb09b085ec4a3b366854553c4d4e5ce2b57`. The owner explicitly waived the macOS ARM job cancelled before steps twice and its skipped packaging dependency; those cells remain unqualified. Executed checks passed. No independent GitHub self-approval was submitted.
 
-Current implementation branch: `feat/usage-normalization`, based on that develop commit. It adds 046 US2 ingestion, conservative normalization/deduplication and preregistered shared/unattributed execution scopes. Twelve of 22 feature tasks are complete; feature remains In progress. See `specs/046-task-usage-ledger/evidence/ingestion-slice.md`. Runtime skills/plugins/hooks/shared references remain unchanged. Before editing those, present the proposal and obtain approval under AGENTS.md. Prior PR waiver applies only to #462; it is not a waiver for future CI.
+Ingestion PR [#463](https://github.com/lucasvmigotto/ai-gent/pull/463) merged into `develop` at `87d0861b4323656d24b0d8b05476ba45016f258e` after fresh independent review and all current-head CI passed, including all six Rust targets and packaging; no waiver was needed. Current implementation branch: `feat/usage-recovery`, aligned to that develop tree. The old ingestion remote branch was deleted after merge. The ingestion slice adds 046 US2 ingestion, conservative normalization/deduplication and preregistered shared/unattributed execution scopes. Twelve of 22 feature tasks are complete; feature remains In progress. See `specs/046-task-usage-ledger/evidence/ingestion-slice.md`. Runtime skills/plugins/hooks/shared references remain unchanged. Before editing those, present the proposal and obtain approval under AGENTS.md. Prior PR waiver applies only to #462; it is not a waiver for future CI.
 
 ## Resume on another machine
 
 ```sh
 git fetch origin
-git switch -c feat/usage-normalization --track origin/feat/usage-normalization
+git switch -c feat/usage-recovery --track origin/feat/usage-recovery
 python3 docs/product/agent-parity-plan/validate_plan.py
 ```
 
@@ -28,7 +28,7 @@ Then fetch current develop and inspect changes since the pinned base. Reserve fe
 
 ## First build step
 
-Fetch `origin/feat/usage-normalization` for the next slice; the old registration remote branch was deleted after merge. Review the ingestion contract/evidence and run tests before resuming. Next: 046 US3 (T007/T017–T019/T008), including fault injection, scale qualification and atomic receipt envelopes. Existing durable append behavior does not qualify those acceptance criteria. Independent review/convergence T010 and QA T020–T022 remain open. Then continue the dependency-ordered program; actual host collectors are 047 and enforced completion is 050. Set SPECIFY_FEATURE=046-task-usage-ledger and SPECIFY_FEATURE_DIRECTORY=specs/046-task-usage-ledger.
+Fetch `origin/feat/usage-recovery` for the next slice; the old registration remote branch was deleted after merge. Review the ingestion contract/evidence and run tests before resuming. The bounded recovery/snapshot slice adds explicit torn-tail recovery, preserved originals, immutable local snapshots and synthetic failure checkpoints. See `specs/046-task-usage-ledger/evidence/recovery-slice.md`. Next: finish remaining 046 US3 (T007/T017–T019/T008), especially versioned bulk import/dry-run, actual crash/failure and scale qualification. Synthetic boundary failures and local snapshots do not qualify full US3 or 050 accepted completion. Independent review/convergence T010 and QA T020–T022 remain open. Then continue the dependency-ordered program; actual host collectors are 047 and enforced completion is 050. Set SPECIFY_FEATURE=046-task-usage-ledger and SPECIFY_FEATURE_DIRECTORY=specs/046-task-usage-ledger.
 
 Spec Kit infrastructure/templates/constitution are committed; generated local .claude skills are not shipped. A different host can install its matching Spec Kit integration without changing these feature contracts. Do not rely on a checkout-local .specify/feature.json pointer; set the feature explicitly.
 
