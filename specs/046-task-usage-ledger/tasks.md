@@ -1,7 +1,7 @@
 # Tasks: Task identity and durable usage ledger
 
 **Input**: spec.md, plan.md, research.md, data-model.md, contracts/cli.md, backend.md and qa.md.
-**Status**: US1 implementation and its tests are complete; independent review, usage ingestion and final qualification remain open. Tests are required.
+**Status**: US1 registration and US2 ingestion implementation and tests are complete; US3 recovery qualification, independent review and final qualification remain open. Tests are required.
 **Roles**: executor builder, independent reviewer thinker; both roles can be Claude or Codex. Model/provider selection follows approved capabilities.
 **Scope**: `046-task-usage-ledger`; task IDs below are local to this feature, never globally unique alone.
 
@@ -32,8 +32,8 @@
 **Goal**: A collector records source usage without double counting overlapping counters or replayed events.
 **Independent test**: `usage_semantics_and_dedup`; scenarios and required negative paths in qa.md.
 
-- [ ] T005 [US2] Define failing positive, negative and replay assertions for FR-004, FR-005, FR-006, SC-001, SC-002 and SC-003 in `rust/crates/ai-gent/tests/agent_046.rs`; record the expected failure before implementation. Executor: builder · Reviewer: thinker · Effort: medium
-- [ ] T006 [US2] Backend implementation — see US2 in ## Backend of `specs/046-task-usage-ledger/tasks.md`; close only after its concrete tasks and independent story test pass. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T005 [US2] Define failing positive, negative and replay assertions for FR-004, FR-005, FR-006, SC-001, SC-002 and SC-003 in `rust/crates/ai-gent/tests/agent_046_usage.rs`; record the expected failure before implementation. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T006 [US2] Backend implementation — see US2 in ## Backend of `specs/046-task-usage-ledger/tasks.md`; close only after its concrete tasks and independent story test pass. Executor: builder · Reviewer: thinker · Effort: medium
 
 **Checkpoint**: story works independently against the foundation; prior story tests still pass.
 
@@ -68,9 +68,9 @@ Follow Setup → Foundational → US1 → US2 → US3 → Polish above. These ar
 
 ### US2: Ingest evidence exactly once
 
-- [ ] T014 [US2] Add domain/contract tests for FR-004, FR-005, FR-006 to `rust/crates/ai-gent-core/src/usage/tests.rs` or existing module tests; assert authorization denials, invalid versions and idempotency. Executor: builder · Reviewer: thinker · Effort: medium
-- [ ] T015 [US2] Implement source semantics, authoritative contribution selection, subset/overflow validation and quality dimensions in `rust/crates/ai-gent-core/src/usage/normalize.rs` and adjacent domain types; satisfy FR-004, FR-005, FR-006. Executor: builder · Reviewer: thinker · Effort: high
-- [ ] T016 [US2] Wire the story's operations through `rust/crates/ai-gent/src/cli.rs` and `rust/crates/ai-gent/src/cmd/`; execute `rust/crates/ai-gent/tests/agent_046.rs` and legacy compatibility readers, recording positive/negative/replay results. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T014 [US2] Add domain/contract tests for FR-004, FR-005, FR-006 to `rust/crates/ai-gent-core/src/usage/tests.rs` or existing module tests; assert authorization denials, invalid versions and idempotency. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T015 [US2] Implement source semantics, authoritative contribution selection, subset/overflow validation and quality dimensions in `rust/crates/ai-gent-core/src/usage/normalize.rs` and adjacent domain types; satisfy FR-004, FR-005, FR-006. Executor: builder · Reviewer: thinker · Effort: high
+- [x] T016 [US2] Wire the story's operations through `rust/crates/ai-gent/src/cli.rs` and `rust/crates/ai-gent/src/cmd/`; execute `rust/crates/ai-gent/tests/agent_046.rs` and legacy compatibility readers, recording positive/negative/replay results. Executor: builder · Reviewer: thinker · Effort: medium
 
 **Checkpoint**: T014–T016 and the story acceptance test pass; then close its layer pointer.
 
@@ -102,4 +102,4 @@ The exact local DAG is recorded in `task-graph.json`; it is planning metadata, n
 
 ## Development evidence — 2026-11-18
 
-Seven tasks completed in the first registration slice. See `evidence/registration-slice.md` for actual tests, trust limits and pending work. T010 independent review/convergence remains unchecked; 046 is In progress, not Implemented/Verified.
+Twelve tasks completed across registration and ingestion slices. See `evidence/ingestion-slice.md` for the ingestion contract, validation and remaining gaps. Seven tasks completed in the first registration slice. See `evidence/registration-slice.md` for actual tests, trust limits and pending work. T010 independent review/convergence remains unchecked; 046 is In progress, not Implemented/Verified.

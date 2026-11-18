@@ -1,10 +1,10 @@
 //! Immutable registered scopes and model segments; all caller claims remain reported/unknown.
 use super::{Error, Result, conflict, invalid};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[expect(
     clippy::struct_field_names,
@@ -14,6 +14,71 @@ pub(super) struct TaskKey {
     pub repository_id: Uuid,
     pub feature_id: String,
     pub task_id: String,
+}
+impl TaskKey {
+    pub(super) fn validate(&self) -> Result<()> {
+        let feature = &self.feature_id;
+        if self.repository_id.is_nil()
+            || feature.len() < 5
+            || feature.len() > 128
+            || !feature.as_bytes()[..3].iter().all(u8::is_ascii_digit)
+            || feature.as_bytes()[3] != b'-'
+            || !feature[4..].split('-').all(|part| {
+                !part.is_empty()
+                    && part
+                        .bytes()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+            })
+            || self.task_id.len() < 4
+            || self.task_id.len() > 32
+            || !self.task_id.starts_with('T')
+            || !self.task_id.as_bytes()[1..].iter().all(u8::is_ascii_digit)
+        {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Attribution {
+    Exclusive,
+    Shared,
+    Unattributed,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ExecutionScope {
+    pub kind: Attribution,
+    pub beneficiaries: Vec<TaskKey>,
+}
+impl ExecutionScope {
+    pub(super) fn exclusive(task: &TaskKey) -> Self {
+        Self {
+            kind: Attribution::Exclusive,
+            beneficiaries: vec![task.clone()],
+        }
+    }
+    fn validate(&self, anchor: &TaskKey) -> Result<()> {
+        let mut unique = BTreeSet::new();
+        for task in &self.beneficiaries {
+            task.validate()?;
+            if task.repository_id != anchor.repository_id || !unique.insert(task) {
+                return Err(invalid());
+            }
+        }
+        let valid = match self.kind {
+            Attribution::Exclusive => self.beneficiaries == [anchor.clone()],
+            Attribution::Shared => {
+                self.beneficiaries.len() >= 2 && self.beneficiaries.contains(anchor)
+            }
+            Attribution::Unattributed => self.beneficiaries.is_empty(),
+        };
+        if !valid {
+            return Err(invalid());
+        }
+        Ok(())
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -37,7 +102,7 @@ fn selector(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || b"-_.:/@+".contains(&c))
 }
 impl Configuration {
-    fn validate(&self) -> Result<()> {
+    pub(super) fn validate(&self) -> Result<()> {
         if !selector(&self.agent_app)
             || !selector(&self.agent_version)
             || [
@@ -127,6 +192,8 @@ impl State {
 #[serde(deny_unknown_fields)]
 pub(super) struct Registration {
     pub task: TaskKey,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_scope: Option<ExecutionScope>,
     pub host_session_id: Option<String>,
     pub phase: Phase,
     pub role: Role,
@@ -193,23 +260,11 @@ impl Request {
                 if r.task.repository_id != self.repository_id {
                     return Err(conflict());
                 }
-                let f = &r.task.feature_id;
-                if f.len() > 128
-                    || f.len() < 5
-                    || !f.as_bytes()[..3].iter().all(u8::is_ascii_digit)
-                    || f.as_bytes()[3] != b'-'
-                    || !f[4..].split('-').all(|p| {
-                        !p.is_empty()
-                            && p.bytes()
-                                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-                    })
-                    || r.task.task_id.len() < 4
-                    || r.task.task_id.len() > 32
-                    || !r.task.task_id.starts_with('T')
-                    || !r.task.task_id.as_bytes()[1..]
-                        .iter()
-                        .all(u8::is_ascii_digit)
-                    || r.phase.role() != r.role
+                r.task.validate()?;
+                if let Some(scope) = &r.execution_scope {
+                    scope.validate(&r.task)?;
+                }
+                if r.phase.role() != r.role
                     || [r.attempt_id, r.parent_attempt_id, r.parent_run_id, r.run_id]
                         .iter()
                         .flatten()
@@ -273,6 +328,8 @@ impl Segment {
 )]
 pub(super) struct Run {
     pub task: TaskKey,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_scope: Option<ExecutionScope>,
     pub host_session_id: Option<String>,
     pub task_fingerprint: String,
     pub attempt_id: Uuid,
@@ -287,6 +344,13 @@ pub(super) struct Run {
     pub state: State,
     pub segments: Vec<Segment>,
     pub usage_quality: String,
+}
+impl Run {
+    pub(super) fn scope(&self) -> ExecutionScope {
+        self.execution_scope
+            .clone()
+            .unwrap_or_else(|| ExecutionScope::exclusive(&self.task))
+    }
 }
 #[derive(Default)]
 pub(super) struct Ledger {
@@ -395,7 +459,10 @@ impl Ledger {
         }
         if let Some(parent) = r.parent_run_id {
             let p = self.runs.get(&parent).ok_or_else(missing)?;
-            if p.task != r.task {
+            if p.task != r.task
+                && !(p.scope().kind == Attribution::Shared
+                    && p.scope().beneficiaries.contains(&r.task))
+            {
                 return Err(conflict());
             }
         }
@@ -455,6 +522,7 @@ impl Ledger {
         }
         Ok(Run {
             task: r.task.clone(),
+            execution_scope: r.execution_scope.clone(),
             host_session_id: r.host_session_id.clone(),
             task_fingerprint: fingerprint.into(),
             attempt_id,

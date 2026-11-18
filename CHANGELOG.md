@@ -6,6 +6,8 @@ changes.
 
 ## Unreleased
 
+- **Usage ingestion (046 US2):** `ai-gent usage ingest` records bounded observations, normalizes inclusive/disjoint cache semantics, rejects contradictory counters and deduplicates request/turn/session contributions. Replay separates exclusive, shared and unattributed totals, preserving unknown counters and local assurance. Live collectors, protected authorization, receipts and task-completion enforcement remain pending.
+
 ### Added
 
 - **Task registration (046 US1):** `ai-gent usage register|segment|transition|replay` records scoped task/attempt/run identities, reported or unknown provider/model segments, and execution state in a private checksummed journal. Retries are idempotent and stale generations/conflicting identities are refused. Token collection, receipts and accepted-task enforcement remain pending.

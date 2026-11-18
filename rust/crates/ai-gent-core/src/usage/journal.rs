@@ -25,7 +25,7 @@ struct Frame {
     payload: Entry,
 }
 
-fn canonical<T: Serialize>(value: &T) -> Result<Vec<u8>> {
+pub(super) fn canonical<T: Serialize>(value: &T) -> Result<Vec<u8>> {
     fn emit(v: &serde_json::Value, out: &mut Vec<u8>) {
         match v {
             serde_json::Value::Object(m) => {
@@ -64,7 +64,7 @@ pub(super) fn hash(bytes: &[u8]) -> String {
     format!("sha256:{:x}", Sha256::digest(bytes))
 }
 
-fn check_path(root: &Path, path: &Path, directory: bool) -> Result<()> {
+pub(super) fn check_path(root: &Path, path: &Path, directory: bool) -> Result<()> {
     let relative = path.strip_prefix(root).map_err(|_| super::invalid())?;
     let mut current = root.to_path_buf();
     for part in relative.components() {
@@ -91,7 +91,7 @@ fn check_path(root: &Path, path: &Path, directory: bool) -> Result<()> {
     }
     Ok(())
 }
-fn options() -> OpenOptions {
+pub(super) fn options() -> OpenOptions {
     let mut o = OpenOptions::new();
     #[cfg(unix)]
     {
@@ -101,7 +101,7 @@ fn options() -> OpenOptions {
     }
     o
 }
-fn sync_dir(path: &Path) -> Result<()> {
+pub(super) fn sync_dir(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         File::open(path)
@@ -170,13 +170,13 @@ fn ignore_usage(root: &Path, directory: &Path) -> Result<()> {
     sync_dir(directory)
 }
 
-struct Store {
-    root: PathBuf,
-    dir: PathBuf,
-    log: PathBuf,
+pub(super) struct Store {
+    pub(super) root: PathBuf,
+    pub(super) dir: PathBuf,
+    pub(super) log: PathBuf,
 }
 impl Store {
-    fn open(root: &Path, create: bool) -> Result<Self> {
+    pub(super) fn open(root: &Path, create: bool) -> Result<Self> {
         let root = root.canonicalize().map_err(io_error)?;
         if !root.is_dir() {
             return Err(super::invalid());
@@ -194,7 +194,7 @@ impl Store {
         check_path(&root, &log, false)?;
         Ok(Self { root, dir, log })
     }
-    fn lock(&self, create: bool) -> Result<File> {
+    pub(super) fn lock(&self, create: bool) -> Result<File> {
         let path = self.dir.join("registrations.lock");
         check_path(&self.root, &path, false)?;
         let f = options()
@@ -222,7 +222,7 @@ impl Store {
             }
         }
     }
-    fn load(&self) -> Result<Ledger> {
+    pub(super) fn load(&self) -> Result<Ledger> {
         let f = match options().read(true).open(&self.log) {
             Ok(f) => f,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Ledger::default()),
@@ -302,10 +302,25 @@ impl Store {
         let Operation::Register(r) = &request.operation else {
             return Ok(String::new());
         };
+        let primary = self.fingerprint_task(&r.task)?;
+        if let Some(scope) = &r.execution_scope
+            && scope.kind != super::identity::Attribution::Exclusive
+        {
+            let mut fingerprints = vec![(r.task.clone(), primary)];
+            for task in &scope.beneficiaries {
+                if task != &r.task {
+                    fingerprints.push((task.clone(), self.fingerprint_task(task)?));
+                }
+            }
+            return Ok(hash(&canonical(&(scope, fingerprints))?));
+        }
+        Ok(primary)
+    }
+    fn fingerprint_task(&self, task: &super::identity::TaskKey) -> Result<String> {
         let path = self
             .root
             .join("specs")
-            .join(&r.task.feature_id)
+            .join(&task.feature_id)
             .join("tasks.md");
         check_path(&self.root, &path, false)?;
         let f = options().read(true).open(&path).map_err(|e| {
@@ -337,7 +352,7 @@ impl Store {
                 ["- [ ] ", "- [x] ", "- [X] "]
                     .into_iter()
                     .find_map(|prefix| s.strip_prefix(prefix))
-                    .filter(|s| s.split_whitespace().next() == Some(r.task.task_id.as_str()))
+                    .filter(|s| s.split_whitespace().next() == Some(task.task_id.as_str()))
                     .map(str::trim_end)
             })
             .collect();
@@ -369,16 +384,9 @@ pub(super) fn execute(root: &Path, request: &Request) -> Result<Run> {
         sync_dir(&store.dir)?;
         return Ok(result.clone());
     }
+    super::observations::check_request_id(&store, &state, request.request_id)?;
     let fingerprint = store.task_fingerprint(request)?;
     let result = state.apply(request, &fingerprint, None)?;
     store.append(state.sequence, request.clone(), result.clone())?;
     Ok(result)
-}
-pub(super) fn replay(root: &Path) -> Result<Ledger> {
-    let store = Store::open(root, false)?;
-    if !store.log.exists() {
-        return Ok(Ledger::default());
-    }
-    let _lock = store.lock(false)?;
-    store.load()
 }
