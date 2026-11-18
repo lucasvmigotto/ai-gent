@@ -105,41 +105,74 @@ fn validate_owners(events: &[&Observation]) -> Result<()> {
 }
 fn validate_group(group: &[&Observation]) -> Result<()> {
     let mut sequences = BTreeSet::new();
-    let mut providers = BTreeSet::new();
-    let mut models = BTreeSet::new();
     for event in group {
         if !sequences.insert(event.sequence) {
             return Err(conflict());
         }
-        if let Some(provider) = &event.identity.effective_provider {
-            providers.insert(provider);
-        }
-        if let Some(model) = &event.identity.effective_model {
-            models.insert(model);
-        }
     }
-    if providers.len() > 1 || models.len() > 1 {
-        return Err(conflict());
-    }
-    let mut maximum = [None; 5];
-    for event in group
-        .iter()
-        .filter(|event| event.source.scope == Scope::SessionCumulative)
-    {
-        for (index, value) in event.counters.values().into_iter().enumerate() {
-            if let Some(value) = value {
-                if maximum[index].is_some_and(|old| value < old) {
-                    return Err(coverage_error());
+    Ok(())
+}
+// Validate the whole segment before partitioning its independently namespaced sources.
+fn validate_identities(events: &[&Observation]) -> Result<()> {
+    let mut identities: BTreeMap<(Uuid, Uuid), [Option<&str>; 5]> = BTreeMap::new();
+    for event in events {
+        let known = identities
+            .entry((event.run_id, event.segment_id))
+            .or_default();
+        let identity = &event.identity;
+        for (prior, observed) in known.iter_mut().zip([
+            identity.effective_provider.as_deref(),
+            identity.effective_model.as_deref(),
+            identity.model_vendor.as_deref(),
+            identity.service_tier.as_deref(),
+            identity.provider_region.as_deref(),
+        ]) {
+            if let Some(value) = observed {
+                if prior.is_some_and(|old| old != value) {
+                    return Err(conflict());
                 }
-                maximum[index] = Some(value);
+                *prior = Some(value);
             }
         }
     }
     Ok(())
 }
+// Each snapshot replaces the previous covered interval, so compare against the
+// previous snapshot floor PLUS deltas since it, rather than their separate maxima.
+fn cumulative_floor(group: &[&Observation]) -> Result<[u64; 5]> {
+    let mut floor = [0; 5];
+    let mut interval = Vec::new();
+    let mut covered_requests = BTreeSet::new();
+    for event in group {
+        if event.source.scope != Scope::SessionCumulative {
+            if event.source.scope == Scope::TurnTotal
+                && covered_requests.contains(&event.source.request_id)
+            {
+                return Err(coverage_error());
+            }
+            interval.push(*event);
+            continue;
+        }
+        if event.source.request_id.is_some() {
+            return Err(coverage_error());
+        }
+        let lower = sum(&request_contributions(&interval)?)?.1.values();
+        for (index, value) in event.counters.values().into_iter().enumerate() {
+            let minimum = add(floor[index], lower[index].unwrap_or(0))?;
+            if value.is_some_and(|actual| actual < minimum) {
+                return Err(coverage_error());
+            }
+            floor[index] = value.unwrap_or(minimum);
+        }
+        covered_requests.extend(interval.iter().map(|event| event.source.request_id.clone()));
+        interval.clear();
+    }
+    Ok(floor)
+}
 fn select_group<'a>(group: &mut [&'a Observation]) -> Result<(Vec<&'a Observation>, [u64; 5])> {
     group.sort_by_key(|event| event.sequence);
     validate_group(group)?;
+    let floor = cumulative_floor(group)?;
     let mut active = Vec::new();
     let mut history = [0; 5];
     let cumulative: Vec<_> = group
@@ -152,24 +185,9 @@ fn select_group<'a>(group: &mut [&'a Observation]) -> Result<(Vec<&'a Observatio
         if base.source.request_id.is_some() {
             return Err(coverage_error());
         }
-        let earlier: Vec<_> = group
-            .iter()
-            .copied()
-            .filter(|e| e.sequence < base.sequence && e.source.scope != Scope::SessionCumulative)
-            .collect();
-        let selected = request_contributions(&earlier)?;
-        let lower = sum(&selected)?.1.values();
         for (index, value) in base.counters.values().into_iter().enumerate() {
-            if matches!((value,lower[index]),(Some(a),Some(b)) if a<b) {
-                return Err(coverage_error());
-            }
             if value.is_none() {
-                history[index] = cumulative
-                    .iter()
-                    .filter_map(|e| e.counters.values()[index])
-                    .max()
-                    .unwrap_or(0)
-                    .max(lower[index].unwrap_or(0));
+                history[index] = floor[index];
             }
         }
         active.push(base);
@@ -209,6 +227,7 @@ fn quality_name(quality: Quality) -> &'static str {
 pub(super) fn summarize(observations: &[Observation]) -> Result<Summary> {
     let unique = unique(observations)?;
     validate_owners(&unique)?;
+    validate_identities(&unique)?;
     let mut groups: BTreeMap<String, Vec<&Observation>> = BTreeMap::new();
     for event in &unique {
         if event.contribution == Contribution::Authoritative {
@@ -317,7 +336,11 @@ fn request_contributions<'a>(events: &[&'a Observation]) -> Result<Vec<&'a Obser
             }
             let (_, lower) = sum(&deltas)?;
             for (value, seen) in summary.counters.values().into_iter().zip(lower.values()) {
-                if matches!((value,seen),(Some(a),Some(b)) if a<b) {
+                if matches!((value,seen),(Some(a),Some(b)) if a<b)
+                    || (value.is_none() && seen.is_some_and(|known| known > 0))
+                {
+                    // A terminal replacement cannot erase a known delta bound.
+                    // Reject this ambiguous replacement rather than guessing a total.
                     return Err(coverage_error());
                 }
             }

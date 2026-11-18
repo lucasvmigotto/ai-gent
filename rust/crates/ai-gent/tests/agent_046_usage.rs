@@ -442,3 +442,140 @@ fn request_ids_are_unique_across_registration_and_usage_logs() {
     reused["request_id"] = "10000000-0000-4000-8000-000000000001".into();
     assert_eq!(run(root.path(), "ingest", Some(&reused)).0, 4);
 }
+
+#[test]
+fn cumulative_snapshot_cannot_erase_previous_snapshot_plus_later_delta() {
+    let (root, registered) = setup();
+    let first = event(&registered, 1, "session_cumulative", None);
+    assert_eq!(run(root.path(), "ingest", Some(&first)).0, 0);
+    let delta = event(&registered, 2, "request_delta", Some("request-2"));
+    assert_eq!(
+        run(root.path(), "ingest", Some(&delta)).1["result"]["summary"]["total_tokens"],
+        2400
+    );
+    let mut reset = event(&registered, 3, "session_cumulative", None);
+    reset["payload"]["raw_usage"]["input_tokens"] = 1500.into();
+    reset["payload"]["counters"]["input_total"] = 1500.into();
+    reset["payload"]["raw_usage"]["output_tokens"] = 300.into();
+    reset["payload"]["counters"]["output_total"] = 300.into();
+    let refused = run(root.path(), "ingest", Some(&reset));
+    assert_eq!(refused.0, 3, "{}", refused.1);
+    assert_eq!(
+        run(root.path(), "replay", None).1["result"]["usage"]["total_tokens"],
+        2400
+    );
+    reset["payload"]["raw_usage"]["input_tokens"] = 2000.into();
+    reset["payload"]["counters"]["input_total"] = 2000.into();
+    reset["payload"]["raw_usage"]["output_tokens"] = 400.into();
+    reset["payload"]["counters"]["output_total"] = 400.into();
+    reset["payload"]["raw_usage"]["cached_input_tokens"] = 800.into();
+    reset["payload"]["counters"]["cached_input"] = 800.into();
+    reset["payload"]["raw_usage"]["reasoning_output_tokens"] = 160.into();
+    reset["payload"]["counters"]["reasoning_output"] = 160.into();
+    assert_eq!(
+        run(root.path(), "ingest", Some(&reset)).1["result"]["summary"]["total_tokens"],
+        2400
+    );
+}
+
+#[test]
+fn unknown_snapshot_keeps_previous_snapshot_plus_delta_lower_bound() {
+    let (root, registered) = setup();
+    assert_eq!(
+        run(
+            root.path(),
+            "ingest",
+            Some(&event(&registered, 1, "session_cumulative", None))
+        )
+        .0,
+        0
+    );
+    assert_eq!(
+        run(
+            root.path(),
+            "ingest",
+            Some(&event(&registered, 2, "request_delta", Some("request-2")))
+        )
+        .0,
+        0
+    );
+    let mut unknown = event(&registered, 3, "session_cumulative", None);
+    unknown["payload"]["raw_usage"] = json!({});
+    unknown["payload"]["counters"] = json!({"input_total":null,"cached_input":null,"cache_creation_input":null,"output_total":null,"reasoning_output":null});
+    let result = run(root.path(), "ingest", Some(&unknown));
+    assert_eq!(result.0, 0, "{}", result.1);
+    assert!(result.1["result"]["summary"]["total_tokens"].is_null());
+    assert_eq!(
+        result.1["result"]["summary"]["known_total_lower_bound"],
+        2400
+    );
+}
+
+#[test]
+fn effective_identity_is_consistent_across_all_streams_in_a_segment() {
+    for field in [
+        "effective_model",
+        "effective_provider",
+        "model_vendor",
+        "service_tier",
+        "provider_region",
+    ] {
+        let (root, registered) = setup();
+        let mut first = event(&registered, 1, "turn_total", Some("request-1"));
+        if first["payload"]["identity"][field].is_null() {
+            first["payload"]["identity"][field] = "first-value".into();
+        }
+        assert_eq!(run(root.path(), "ingest", Some(&first)).0, 0);
+        let mut changed = event(&registered, 2, "turn_total", Some("request-2"));
+        changed["payload"]["source"]["namespace"] = "other-stream".into();
+        changed["payload"]["identity"][field] = "conflicting-value".into();
+        let denied = run(root.path(), "ingest", Some(&changed));
+        assert_eq!(denied.0, 4, "{field}: {}", denied.1);
+        assert_eq!(
+            run(root.path(), "replay", None).1["result"]["usage"]["total_tokens"],
+            1200
+        );
+    }
+}
+
+#[test]
+fn partial_terminal_cannot_erase_delta_bounds_before_a_cumulative_snapshot() {
+    let (root, registered) = setup();
+    assert_eq!(
+        run(
+            root.path(),
+            "ingest",
+            Some(&event(&registered, 1, "session_cumulative", None))
+        )
+        .0,
+        0
+    );
+    assert_eq!(
+        run(
+            root.path(),
+            "ingest",
+            Some(&event(&registered, 2, "request_delta", Some("request-2")))
+        )
+        .0,
+        0
+    );
+    let mut terminal = event(&registered, 3, "turn_total", Some("request-2"));
+    terminal["payload"]["raw_usage"]["input_tokens"] = Value::Null;
+    terminal["payload"]["counters"]["input_total"] = Value::Null;
+    let rejected = run(root.path(), "ingest", Some(&terminal));
+    assert_eq!(rejected.0, 3, "{}", rejected.1);
+    assert_eq!(
+        run(root.path(), "replay", None).1["result"]["usage"]["known_total_lower_bound"],
+        2400
+    );
+    let mut reset = event(&registered, 4, "session_cumulative", None);
+    reset["payload"]["raw_usage"]["input_tokens"] = 1500.into();
+    reset["payload"]["counters"]["input_total"] = 1500.into();
+    reset["payload"]["raw_usage"]["output_tokens"] = 400.into();
+    reset["payload"]["counters"]["output_total"] = 400.into();
+    assert_eq!(run(root.path(), "ingest", Some(&reset)).0, 3);
+    assert_eq!(
+        run(root.path(), "replay", None).1["result"]["usage"]["total_tokens"],
+        2400
+    );
+}
