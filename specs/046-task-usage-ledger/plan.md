@@ -1,7 +1,7 @@
 # Implementation Plan: Task identity and durable usage ledger
 
-**Branch**: `docs/codex-parity-plan` | **Date**: 2026-11-17 | **Spec**: [spec.md](spec.md)
-**Status**: Planned; specify → clarify → plan → tasks completed as planning artifacts, implement not started.
+**Branch**: `feat/task-usage-ledger` | **Date**: 2026-11-17 | **Spec**: [spec.md](spec.md)
+**Status**: In progress; US1 registration is implemented and tested. US2/US3, independent review and final qualification remain pending.
 
 ## Summary
 

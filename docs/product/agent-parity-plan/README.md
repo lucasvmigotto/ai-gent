@@ -1,6 +1,6 @@
 # Code-agent parity and required task accounting
 
-Status: complete implementation plan; runtime features 046–054 remain Planned. Prepared 2026-11-17 from develop 0a61fc4. The owner requests a lifecycle toolbox that works across code agents, equal Claude + Codex Tier 1, and mandatory task-level usage including multi-provider/model builder–reviewer work.
+Status: complete implementation plan; 046 registration is In progress; features 047–054 remain Planned. Prepared 2026-11-17 from develop 0a61fc4. The owner requests a lifecycle toolbox that works across code agents, equal Claude + Codex Tier 1, and mandatory task-level usage including multi-provider/model builder–reviewer work.
 
 Start with [roadmap](roadmap.md), [architecture](architecture.md), [measurement contract](measurement.md), [capabilities](capabilities.md) and [handoff](handoff.md). The machine-readable [program manifest](program.json) is planning input, not a second runtime agent registry.
 
@@ -40,6 +40,6 @@ TaskKey = repository UUID + feature slug + task ID. Attempt = one attempt at sat
 
 The old docs/product/brief.md and architecture.md primarily describe the docs site and pre-Rust runners. This supplement extends them using current Rust decisions/specs 032–045; it does not replace the broader brief/domain model. Global HTTP contracts remain N/A. The new constitution applies prospectively; old release/platform waivers are retained. [Migration](migration.md) lists explicit amendments and rollout boundaries.
 
-Each feature contains spec, clarification decisions, plan, research, data model, CLI contract, quickstart, Backend plan, QA strategy, phased tasks, quality checklist and analysis. Follow the installed Spec Kit skill files; no slash-command execution or live model evaluation is implied by these documents.
+The first 046 registration slice is described in [development evidence](../../../specs/046-task-usage-ledger/evidence/registration-slice.md). Each feature contains spec, clarification decisions, plan, research, data model, CLI contract, quickstart, Backend plan, QA strategy, phased tasks, quality checklist and analysis. Follow the installed Spec Kit skill files; no slash-command execution or live model evaluation is implied by these documents.
 
 Implementation details: [storage/policy contract](storage-and-policy.md); each feature also has `task-graph.json` for exact local execution dependencies.

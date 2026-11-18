@@ -43,6 +43,7 @@ fn real_main() -> Exit {
         Some(Command::Update(a)) => cmd::update::run(&a, cli.json),
         Some(Command::Guard(a)) => cmd::guard::run(&a, cli.json),
         Some(Command::Tokens(a)) => cmd::tokens::run(&a, cli.json),
+        Some(Command::Usage(a)) => cmd::usage::run(&a, cli.json),
         Some(Command::Repo(a)) => cmd::repo::run(&a, cli.json),
         Some(Command::Spec(a)) => cmd::spec::run(&a, cli.json),
         Some(Command::Delegate(a)) => cmd::delegate::run(&a, cli.json),

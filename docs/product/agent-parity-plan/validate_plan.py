@@ -74,7 +74,7 @@ def main():
     ids = [f['id'] for f in features]
     check(len(ids) == len(set(ids)) == 9, 'feature IDs must be unique and cover nine features')
     check(ids == list(range(46, 55)), 'reserved feature range changed; reconcile all references')
-    check(data['status'] == 'Planned', 'program falsely claims implementation')
+    check(data['status'] in ('Planned', 'In progress'), 'unsupported program status')
     visiting, visited = set(), set()
     def visit(ident):
         if ident in visiting:
@@ -93,7 +93,7 @@ def main():
         visited.add(ident)
     for ident in ids:
         visit(ident)
-    task_total = requirement_total = 0
+    task_total = requirement_total = completed_total = 0
     markdown = []
     for f in features:
         slug = f"{f['id']:03}-{f['slug']}"
@@ -118,13 +118,14 @@ def main():
         spec = (p/'spec.md').read_text()
         tasks = (p/'tasks.md').read_text()
         qa = (p/'qa.md').read_text()
-        check('**Status**: Planned' in spec, f'{slug}: status must remain Planned')
+        check(any('**Status**: '+status in spec for status in ('Planned', 'In progress')), f'{slug}: unsupported feature status')
         check(not re.search(r'NEEDS CLARIFICATION|\[TODO|\[TBD|ACTION REQUIRED', spec + tasks),
               f'{slug}: unresolved placeholder')
-        found = re.findall(r'^- \[ \] (T\d+) (.+)$', tasks, re.M)
+        found = re.findall(r'^- \[[ xX]\] (T\d+) (.+)$', tasks, re.M)
         check(len(found) == 22 and [x[0] for x in found] == [f'T{i:03}' for i in range(1,23)],
               f'{slug}: task sequence/count wrong')
-        check(not re.search(r'^- \[[xX]\] T\d+', tasks, re.M), f'{slug}: implementation task ticked')
+        if '**Status**: Planned' in spec:
+            check(not re.search(r'^- \[[xX]\] T\d+', tasks, re.M), f'{slug}: Planned feature has completed tasks')
         for tid, text in found:
             check('Executor:' in text and 'Reviewer:' in text and 'Effort:' in text,
                   f'{slug}/{tid}: missing role/effort')
@@ -141,6 +142,7 @@ def main():
         for sc in ('SC-001','SC-002','SC-003'):
             check(sc in qa and sc in tasks, f'{slug}: missing {sc} coverage')
         check('## Backend' in tasks and '## QA' in tasks, f'{slug}: missing layer tasks')
+        completed_total += len(re.findall(r'^- \[[xX]\] T\d+', tasks, re.M))
         task_total += len(found)
         requirement_total += len(frs)
         markdown.extend(p.rglob('*.md'))
@@ -176,7 +178,7 @@ def main():
         print('\n'.join('FAIL: '+error for error in ERRORS), file=sys.stderr)
         return 1
     print(f'Plan structural checks passed: {len(features)} features, 27 stories, '
-          f'{requirement_total} requirements, {task_total} unchecked tasks; DAG, links and schema examples valid.')
+          f'{requirement_total} requirements, {task_total} tasks ({completed_total} completed); DAG, links and schema examples valid.')
     print('This validates planning structure and schema subset only; no runtime, live host or billing claim.')
     return 0
 

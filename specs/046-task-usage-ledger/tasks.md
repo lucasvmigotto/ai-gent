@@ -1,19 +1,19 @@
 # Tasks: Task identity and durable usage ledger
 
 **Input**: spec.md, plan.md, research.md, data-model.md, contracts/cli.md, backend.md and qa.md.
-**Status**: all implementation work is Planned. Tests are required.
+**Status**: US1 implementation and its tests are complete; independent review, usage ingestion and final qualification remain open. Tests are required.
 **Roles**: executor builder, independent reviewer thinker; both roles can be Claude or Codex. Model/provider selection follows approved capabilities.
 **Scope**: `046-task-usage-ledger`; task IDs below are local to this feature, never globally unique alone.
 
 ## Phase 1: Setup
 
-- [ ] T001 Review `specs/046-task-usage-ledger/contracts/cli.md` against upstream dependencies; freeze operation/JSON compatibility and file ownership before coding. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T001 Review `specs/046-task-usage-ledger/contracts/cli.md` against upstream dependencies; freeze operation/JSON compatibility and file ownership before coding. Executor: builder · Reviewer: thinker · Effort: medium
 
 **Checkpoint**: dependency versions and ownership reservations recorded; no runtime change yet.
 
 ## Phase 2: Foundational
 
-- [ ] T002 Establish synthetic fixtures and shared validation helpers under `rust/crates/ai-gent/tests/fixtures/agent_046/`; include schema/identity/version rejection cases. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T002 Establish synthetic fixtures and shared validation helpers under `rust/crates/ai-gent/tests/fixtures/agent_046/`; include schema/identity/version rejection cases. Executor: builder · Reviewer: thinker · Effort: medium
 
 **Checkpoint**: malformed inputs fail for the intended reason; existing behavior remains unchanged.
 
@@ -22,8 +22,8 @@
 **Goal**: A coordinator registers a globally unambiguous task and execution scope before any model invocation.
 **Independent test**: `identity_and_segment_boundaries`; scenarios and required negative paths in qa.md.
 
-- [ ] T003 [US1] Define failing positive, negative and replay assertions for FR-001, FR-002, FR-003, SC-001, SC-002 and SC-003 in `rust/crates/ai-gent/tests/agent_046.rs`; record the expected failure before implementation. Executor: builder · Reviewer: thinker · Effort: medium
-- [ ] T004 [US1] Backend implementation — see US1 in ## Backend of `specs/046-task-usage-ledger/tasks.md`; close only after its concrete tasks and independent story test pass. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T003 [US1] Define failing positive, negative and replay assertions for FR-001, FR-002, FR-003, SC-001, SC-002 and SC-003 in `rust/crates/ai-gent/tests/agent_046.rs`; record the expected failure before implementation. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T004 [US1] Backend implementation — see US1 in ## Backend of `specs/046-task-usage-ledger/tasks.md`; close only after its concrete tasks and independent story test pass. Executor: builder · Reviewer: thinker · Effort: medium
 
 **Checkpoint**: story works independently against the foundation; prior story tests still pass.
 
@@ -60,9 +60,9 @@ Follow Setup → Foundational → US1 → US2 → US3 → Polish above. These ar
 
 ### US1: Register work before execution
 
-- [ ] T011 [US1] Add domain/contract tests for FR-001, FR-002, FR-003 to `rust/crates/ai-gent-core/src/usage/tests.rs` or existing module tests; assert authorization denials, invalid versions and idempotency. Executor: builder · Reviewer: thinker · Effort: medium
-- [ ] T012 [US1] Implement repository identity, TaskKey, attempt/run registration and immutable segment transitions in `rust/crates/ai-gent-core/src/usage/identity.rs` and adjacent domain types; satisfy FR-001, FR-002, FR-003. Executor: builder · Reviewer: thinker · Effort: high
-- [ ] T013 [US1] Wire the story's operations through `rust/crates/ai-gent/src/cli.rs` and `rust/crates/ai-gent/src/cmd/`; execute `rust/crates/ai-gent/tests/agent_046.rs` and legacy compatibility readers, recording positive/negative/replay results. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T011 [US1] Add domain/contract tests for FR-001, FR-002, FR-003 to `rust/crates/ai-gent-core/src/usage/tests.rs` or existing module tests; assert authorization denials, invalid versions and idempotency. Executor: builder · Reviewer: thinker · Effort: medium
+- [x] T012 [US1] Implement repository identity, TaskKey, attempt/run registration and immutable segment transitions in `rust/crates/ai-gent-core/src/usage/identity.rs` and adjacent domain types; satisfy FR-001, FR-002, FR-003. Executor: builder · Reviewer: thinker · Effort: high
+- [x] T013 [US1] Wire the story's operations through `rust/crates/ai-gent/src/cli.rs` and `rust/crates/ai-gent/src/cmd/`; execute `rust/crates/ai-gent/tests/agent_046.rs` and legacy compatibility readers, recording positive/negative/replay results. Executor: builder · Reviewer: thinker · Effort: medium
 
 **Checkpoint**: T011–T013 and the story acceptance test pass; then close its layer pointer.
 
@@ -99,3 +99,7 @@ Feature prerequisites: 032 (existing workspace). Local dependency graph: T001 �
 No task is marked [P]: these stories intentionally share a domain module, CLI wiring and evidence store. Parallelize across features only after dependencies and the program ownership matrix permit it; independent fixtures may be split after reserving distinct files. Ship US1 inert/opt-in, then add US2/US3, preserving old readers. Never run two agents against the same shared CLI/registry file simultaneously. Each branch is published with a sanitized handoff for the agent on the other machine.
 
 The exact local DAG is recorded in `task-graph.json`; it is planning metadata, not a claim that current delegate plan reads it. A build coordinator must translate it into the approved executable plan while preserving IDs and edges.
+
+## Development evidence — 2026-11-18
+
+Seven tasks completed in the first registration slice. See `evidence/registration-slice.md` for actual tests, trust limits and pending work. T010 independent review/convergence remains unchecked; 046 is In progress, not Implemented/Verified.

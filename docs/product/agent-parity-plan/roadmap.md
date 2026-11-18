@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-All features are Planned, with 27 stories, 81 functional requirements and 198 implementation tasks. No estimates of actual token use are invented. Numbering reserves 046–054 from the fetched develop baseline; recheck remote numbering before the first build branch because another agent may add specs.
+046 is In progress (registration slice); other features are Planned. The program contains 27 stories, 81 functional requirements and 198 implementation tasks. No estimates of actual token use are invented. Numbering reserves 046–054 from the fetched develop baseline; recheck remote numbering before the first build branch because another agent may add specs.
 
 ```mermaid
 flowchart TD

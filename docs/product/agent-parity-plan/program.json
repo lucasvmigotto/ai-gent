@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "Planned",
+  "status": "In progress",
   "date": "2026-11-17",
   "branch": "docs/codex-parity-plan",
   "base": "0a61fc4546491d6696fa46a1f2595958f4903ed0",
@@ -862,5 +862,6 @@
         ]
       ]
     }
-  ]
+  ],
+  "development_branch": "feat/task-usage-ledger"
 }

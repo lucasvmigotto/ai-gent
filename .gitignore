@@ -3,3 +3,6 @@ __pycache__/
 # laid by Claude Code for a loaded hooks module
 plugins/*/.claude-plugin/types/
 /bin/
+
+# Private task registration journal and future usage sources
+/.ai-gent/usage/

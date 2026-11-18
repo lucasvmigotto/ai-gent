@@ -1,8 +1,8 @@
 # Feature Specification: Task identity and durable usage ledger
 
-**Feature Branch**: `docs/codex-parity-plan`
+**Feature Branch**: `feat/task-usage-ledger`
 **Created**: 2026-11-17
-**Status**: Planned
+**Status**: In progress
 **Input**: Owner requests full code-agent parity planning, mandatory task usage, multi-model/provider builder–reviewer metrics, and equal Claude + Codex Tier 1 with portable Tiers 2/3.
 **Program**: [scope and decisions](../../docs/product/agent-parity-plan/README.md).
 **Dependencies**: existing Rust workspace (032).

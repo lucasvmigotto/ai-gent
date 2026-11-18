@@ -8,6 +8,8 @@ changes.
 
 ### Added
 
+- **Task registration (046 US1):** `ai-gent usage register|segment|transition|replay` records scoped task/attempt/run identities, reported or unknown provider/model segments, and execution state in a private checksummed journal. Retries are idempotent and stale generations/conflicting identities are refused. Token collection, receipts and accepted-task enforcement remain pending.
+
 - **`ai-gent repo board list|show|fields` (spec 045, slice 1: the reads):** GitHub Projects v2 over GraphQL and GitLab issue boards (label mode by default, work item Status mode opt-in and fixtures-only) through the existing request path, so the GraphQL read check classifies every board query as a read. One canonical model (`todo`, `doing`, `review`, `done`) on both platforms, a git-excluded `.ai-gent/board.yaml` read by a small hand-written parser that refuses anything outside its subset with the line number, cursor and page pagination capped by `--max-pages` (`truncated` is reported), and `--json`. `--write` on a read is a usage error. Azure DevOps, Jira, Forgejo and Bitbucket refuse with the plan. `set` and `add` come in the next slice.
 - Rust-owned parity fixtures (`rust/fixtures/repo/board-*.json`, `"owner": "rust"`) with scripted stub routes and per-run files; `scripts/test-parity-repo.py` leaves them alone.
 
