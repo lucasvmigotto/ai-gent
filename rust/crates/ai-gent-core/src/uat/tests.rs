@@ -504,3 +504,145 @@ fn a_removed_script_is_refused() {
             .any(|r| r.code == "script-removed")
     );
 }
+
+// render (T012)
+
+use super::render::{esc, page, render};
+
+fn html(edit: impl FnOnce(&mut Value)) -> String {
+    render(&roadmap(edit), &Context::default()).expect("clean roadmap renders")
+}
+
+#[test]
+fn render_refuses_a_roadmap_with_errors() {
+    let r = roadmap(|v| v["how_to"] = json!(""));
+    let errs = render(&r, &Context::default()).unwrap_err();
+    assert!(errs.iter().all(|f| f.severity == Severity::Error));
+    assert_eq!(errs[0].code, "missing-section");
+}
+
+#[test]
+fn render_warnings_do_not_refuse() {
+    let r = roadmap(|v| v["settings"] = json!({"doc_budget_bytes": 1000}));
+    assert!(render(&r, &Context::default()).is_ok());
+}
+
+#[test]
+fn escaping() {
+    assert_eq!(
+        esc("<a href=\"x\">&'"),
+        "&lt;a href=&quot;x&quot;&gt;&amp;&#39;"
+    );
+    let h = html(|v| v["title"] = json!("Orders <script>alert(1)</script> & more"));
+    assert!(!h.contains("<script>alert"));
+    assert!(h.contains("Orders &lt;script&gt;alert(1)&lt;/script&gt; &amp; more"));
+}
+
+#[test]
+fn text_that_looks_like_a_token_stays_text() {
+    let r = roadmap(|v| v["how_to"] = json!("Press OK. @@DATA@@ and @@BODY@@ are words here."));
+    let h = page(&r);
+    assert!(h.contains("@@DATA@@ and @@BODY@@ are words"));
+    assert_eq!(h.matches("id=\"uat-data\"").count(), 1);
+}
+
+#[test]
+fn data_island_cannot_close_the_script_and_keeps_accounts_out() {
+    let h = html(|v| v["scripts"][1]["steps"][0]["action"] = json!("Create an order."));
+    let start = h.find("id=\"uat-data\">").unwrap() + 14;
+    let island = &h[start..h[start..].find("</script>").unwrap() + start];
+    assert!(!island.contains('<') && !island.contains("ana@example.test"));
+    let parsed: Value = serde_json::from_str(island).unwrap();
+    assert_eq!(parsed["steps"].as_array().unwrap().len(), 5);
+    assert!(!h.contains("ana@example.test") && !h.contains("v2@example.test"));
+}
+
+#[test]
+fn every_active_step_row_has_its_data_attributes_and_controls() {
+    let h = html(|_| {});
+    for id in ["r0-1", "r0-2", "r1-1", "r1-2", "r2-1"] {
+        let row = format!("<tr data-step=\"{id}\" data-rev=\"1\" data-role=\"");
+        assert!(h.contains(&row), "{id}");
+        for ctl in [
+            format!("id=\"res-{id}-ok\""),
+            format!("id=\"res-{id}-nok\""),
+            format!("id=\"obs-{id}\""),
+            format!("id=\"links-{id}\""),
+            format!("id=\"imp-btn-{id}\""),
+            format!("id=\"imp-{id}\""),
+            format!("id=\"chips-{id}\""),
+        ] {
+            assert!(h.contains(&ctl), "{ctl}");
+        }
+    }
+    assert_eq!(h.matches("data-kind=\"").count(), 5);
+    assert!(
+        h.contains("data-kind=\"write-check\"") && h.contains("data-kind=\"role-confirmation\"")
+    );
+    assert!(h.contains("data-exclusive=\"true\"") && h.contains("data-exclusive=\"false\""));
+    assert!(h.contains("id=\"prop-role\"") && h.contains("id=\"prop-note\""));
+}
+
+#[test]
+fn retired_steps_are_not_rendered() {
+    let h = html(|v| {
+        v["scripts"][2]["steps"].as_array_mut().unwrap().push(json!({
+            "id": "r2-2", "order": 2, "rev": 2, "status": "retired", "kind": "normal", "who": "clerk",
+            "action": "Old step.", "expected": "Old result.", "claims": []
+        }));
+    });
+    assert!(!h.contains("data-step=\"r2-2\"") && h.contains("data-step=\"r2-1\""));
+}
+
+#[test]
+fn no_upload_control_with_attachments_off() {
+    let h = html(|_| {});
+    assert!(h.contains("name=\"uat-attachments\" content=\"off\""));
+    assert!(!h.contains("type=\"file\"") && !h.contains("id=\"ev-"));
+    assert!(h.contains("Describe the screen in words."));
+    let on = html(|v| v["settings"] = json!({"attachments": {"on": true, "budget_mb": 5}}));
+    assert!(on.contains("name=\"uat-attachments\" content=\"on\""));
+    assert!(on.contains("id=\"ev-r1-1\"") && on.contains("5 MB for the whole session"));
+    assert!(on.contains("Do not upload cookies, tokens, passwords or personal data."));
+}
+
+#[test]
+fn sections_come_in_the_order_of_fr_001() {
+    let h = html(|_| {});
+    let mut last = 0;
+    for id in [
+        "how-to",
+        "people",
+        "roster",
+        "rules",
+        "test-data",
+        "scripts",
+        "results",
+        "limitations",
+        "changelog",
+    ] {
+        let at = h
+            .find(&format!("<section id=\"{id}\""))
+            .unwrap_or_else(|| panic!("{id}"));
+        assert!(at > last, "{id} out of order");
+        last = at;
+    }
+}
+
+#[test]
+fn tokens_themes_and_safe_script() {
+    let h = html(|_| {});
+    assert!(
+        h.contains(":root:not([data-theme=\"light\"])") && h.contains(":root[data-theme=\"dark\"]")
+    );
+    assert!(h.contains("prefers-color-scheme:dark") && h.contains("prefers-reduced-motion"));
+    assert!(h.contains("role=\"status\"") && h.contains("id=\"notice\" role=\"alert\""));
+    assert!(h.contains("name=\"uat-version\" content=\"1\""));
+    assert!(!h.contains("innerHTML") && !h.contains("localStorage") && !h.contains("src=\"http"));
+    assert!(!h.contains("@@"));
+}
+
+#[test]
+fn page_golden_body() {
+    insta::assert_snapshot!(super::render::body(&roadmap(|_| {})));
+}

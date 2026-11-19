@@ -32,7 +32,7 @@ The binary cannot call the Artifact tools; the agent saves what `ArtifactData` r
 | `uat diff <old.json> <new.json>` | two versions | renumbered, removed or reused ids refused; revision bumps for changed steps; retired steps; appended steps; changelog entry draft; list of steps whose claims changed (for the review) | 0, 1 refused, 2 | 005, 009, 022 |
 | `uat preflight checklist <roadmap.json>` | validators, settings | the checklist part of `preflight.md` (`contracts/reports.md`): level needed, caveats, menu change, `pending` confirmations | 0, 1 action needed | 092, 097 |
 | `uat preflight verify <roadmap.json> --declared <capabilities.json> --read <level>=<snapshot.json>…` | the declaration published and one test-read snapshot per level | declaration compared with `data-model.md`; seen versus expected per collection and level; the proves / does-not-prove text; exit 1 on any mismatch | 0, 1 mismatch, 2 | 093 |
-| `uat digest <roadmap.json> <snapshot.json>… [--since <snapshot.json>…]` | roadmap and register snapshot pages | status report per `contracts/reports.md`, with the last real check from the snapshot's time; the "no news" line when nothing changed | 0 | 019-021, 075, 091, 095, 098, 099 |
+| `uat digest <roadmap.json> <snapshot.json>… [--since <snapshot.json>…] [--follow-up follow-up.json]` | roadmap and register snapshot pages | status report per `contracts/reports.md`, with the last real check from the snapshot's time; the "no news" line when nothing changed | 0 | 019-021, 075, 091, 095, 098, 099 |
 | `uat report <roadmap.json> <snapshot.json>… [--triage triage.md] [--decisions decisions.md] [--preflight preflight.md]` | the same plus the session records | `report.md` | 0 | 060, 079 |
 
 Code layout, following `delegate`, `spec` and `wt`:

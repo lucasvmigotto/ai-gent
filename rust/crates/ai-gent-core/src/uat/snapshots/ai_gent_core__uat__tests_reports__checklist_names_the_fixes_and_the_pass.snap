@@ -1,0 +1,11 @@
+---
+source: crates/ai-gent-core/src/uat/tests_reports.rs
+expression: checklist_text(&c)
+---
+Preflight checklist
+- Ana (Administrator): needs Contributor to save marks — In the sharing menu, change Ana from viewer to Contributor. — confirmation: pending
+- Validator 2 (Clerk): needs Contributor to save marks — Say which level Validator 2 will get; they need Contributor to save marks. — confirmation: pending
+  - Outside your organization: switching the page to link sharing can remove their write access.
+  - They may not be able to upload attachments; they keep text and links.
+- Rui (Clerk): needs Contributor to save marks — level as you said — confirmation: pending
+I cannot see anyone's sharing level; each line is your word until the person's own write check appears.

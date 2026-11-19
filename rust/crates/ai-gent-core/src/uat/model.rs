@@ -128,6 +128,11 @@ pub struct Validator {
     pub invite: String,
     /// The scripts the person is expected to run.
     pub expected_scripts: Vec<String>,
+    /// The person is outside the owner's organization (FR-092).
+    pub outside_org: bool,
+    /// The sharing level the owner says they will give: `viewer`, `commenter`, `contributor` or `editor`.
+    /// The agent cannot see anyone's level; this is the owner's word (FR-092).
+    pub planned_sharing: String,
 }
 
 /// An authorization or business rule under test, in plain words.

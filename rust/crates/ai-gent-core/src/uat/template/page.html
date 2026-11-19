@@ -1,0 +1,349 @@
+<title>@@TITLE@@</title>
+<meta name="uat-version" content="@@VERSION@@">
+<meta name="uat-attachments" content="@@ATTACH@@">
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--muted:#5b5b55;--line:#d9d8d0;--card:#fff;--accent:#2f5d8a;
+--ok-fg:#14532d;--ok-bg:#dcf5e3;--nok-fg:#7f1d1d;--nok-bg:#fde2e2;--stale-fg:#5b4500;--stale-bg:#fff1c2;
+--imp-fg:#1e3a6e;--imp-bg:#e1ebfb;--pend-fg:#4a2a73;--pend-bg:#eee3fb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161615;--fg:#ecebe6;--muted:#a9a8a0;--line:#3a3a36;--card:#1f1f1d;--accent:#8fb8e6;
+--ok-fg:#a8e8bd;--ok-bg:#16361f;--nok-fg:#f7b4b4;--nok-bg:#4a1c1c;--stale-fg:#f3dc8a;--stale-bg:#4a3c0c;
+--imp-fg:#b7cdf5;--imp-bg:#1c2c4d;--pend-fg:#d9c2f5;--pend-bg:#35224f}}
+:root[data-theme="dark"]{--bg:#161615;--fg:#ecebe6;--muted:#a9a8a0;--line:#3a3a36;--card:#1f1f1d;--accent:#8fb8e6;
+--ok-fg:#a8e8bd;--ok-bg:#16361f;--nok-fg:#f7b4b4;--nok-bg:#4a1c1c;--stale-fg:#f3dc8a;--stale-bg:#4a3c0c;
+--imp-fg:#b7cdf5;--imp-bg:#1c2c4d;--pend-fg:#d9c2f5;--pend-bg:#35224f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:.2em 0}h2{font-size:1.2rem;margin:1.6em 0 .5em}h3{font-size:1.05rem;margin:1.2em 0 .4em}
+a{color:var(--accent)}
+.meta,.muted{color:var(--muted);font-size:.9rem}
+nav ul{display:flex;flex-wrap:wrap;gap:.4rem 1rem;list-style:none;padding:0;margin:.6rem 0}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{padding:.55rem .7rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:.85rem;color:var(--muted)}tr:last-child td{border-bottom:0}
+.exp{margin:.35rem 0 0}.exp b{font-weight:600}
+.tag{display:inline-block;padding:.05rem .5rem;border-radius:999px;font-size:.8rem;margin:.1rem .2rem .1rem 0}
+.tag.ok{color:var(--ok-fg);background:var(--ok-bg)}.tag.nok{color:var(--nok-fg);background:var(--nok-bg)}
+.tag.stale{color:var(--stale-fg);background:var(--stale-bg)}.tag.imp{color:var(--imp-fg);background:var(--imp-bg)}
+.tag.pend{color:var(--pend-fg);background:var(--pend-bg)}
+button,select,input,textarea{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:.35rem .7rem}
+button{cursor:pointer;min-height:44px;min-width:44px}
+button[aria-pressed="true"].okb{background:var(--ok-bg);color:var(--ok-fg);border-color:var(--ok-fg)}
+button[aria-pressed="true"].nokb{background:var(--nok-bg);color:var(--nok-fg);border-color:var(--nok-fg)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+textarea,input[type=text]{width:100%;margin-top:.35rem}
+label{display:block;font-size:.85rem;color:var(--muted);margin-top:.5rem}
+[hidden]{display:none!important}
+body.ro .ctl{display:none!important}
+#status{min-height:1.4em;color:var(--muted);font-size:.9rem}
+#notice{position:fixed;left:16px;right:16px;bottom:16px;padding:.8rem 1rem;border-radius:8px;background:var(--nok-bg);color:var(--nok-fg);border:1px solid var(--nok-fg);z-index:9}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.6rem .9rem;margin:.5rem 0}
+ul.plain{padding-left:1.1rem;margin:.3rem 0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<main>
+<header>
+<h1>@@TITLE@@</h1>
+<p class="meta">Version <span id="version">@@VERSION@@</span> · @@ENV@@</p>
+<p id="status" role="status">Loading the shared results…</p>
+<p id="reload" class="tag stale" hidden>A newer version of this page was published. Reload to see it.</p>
+@@NAV@@
+</header>
+@@BODY@@
+</main>
+<div id="notice" role="alert" hidden></div>
+<script type="application/json" id="uat-data">@@DATA@@</script>
+<script>
+(function () {
+'use strict';
+var D = JSON.parse(document.getElementById('uat-data').textContent);
+var $ = function (id) { return document.getElementById(id); };
+var STEP = {}, ROLE = {};
+D.steps.forEach(function (s) { STEP[s.id] = s; });
+D.roles.forEach(function (r) { ROLE[r.key] = r; });
+var S = { db: null, user: null, assets: null, uid: null, owner: false, canWrite: true, locked: false,
+  own: { steps: {}, improvements: {} }, saved: null, marks: {}, roster: {}, proposals: {}, names: {},
+  writing: false, again: false, timers: {}, loaded: 0 };
+var COLLECTIONS = ['marks', 'roster', 'proposals', 'meta'];
+
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function clone(x) { return JSON.parse(JSON.stringify(x)); }
+function status(t) { $('status').textContent = t; }
+function notice(t) { var n = $('notice'); n.textContent = t; n.hidden = !t; }
+function who(uid) { return S.names[uid] || 'Validator'; }
+function roleLabel(k) { return ROLE[k] ? ROLE[k].label : 'role not assigned'; }
+function safeUrl(u) { try { var x = new URL(u); return x.protocol === 'https:' ? x.href : null; } catch (e) { return null; } }
+function fmt(at) { try { return new Date(at).toLocaleString(); } catch (e) { return ''; } }
+
+function readOnly(reason) { S.locked = true; document.body.classList.add('ro'); status(reason); }
+
+function current(doc, id) {
+  var m = doc && doc.steps && doc.steps[id];
+  return m && STEP[id] && m.rev >= STEP[id].rev ? m : null;
+}
+function markFor(doc, id) { return doc && doc.steps ? doc.steps[id] : null; }
+function result(id) {
+  var ok = false;
+  for (var u in S.marks) { var m = current(S.marks[u], id); if (m && m.r === 'NOK') return 'NOK'; if (m && m.r === 'OK') ok = true; }
+  return ok ? 'OK' : 'unmarked';
+}
+function assignedRole(uid) { return S.roster[uid] ? S.roster[uid].role : null; }
+function covered(id) {
+  for (var u in S.marks) { if (current(S.marks[u], id) && assignedRole(u) === STEP[id].role) return true; }
+  return false;
+}
+function markers(id) {
+  var out = [];
+  for (var u in S.marks) { if (markFor(S.marks[u], id)) out.push(u); }
+  return out;
+}
+
+function chip(uid, id) {
+  var m = markFor(S.marks[uid], id), st = m.rev < STEP[id].rev;
+  var c = el('span', 'tag ' + (m.r === 'OK' ? 'ok' : 'nok'), who(uid) + ': ' + m.r + (st ? ' (stale)' : ''));
+  c.title = [m.obs || '', (m.links || []).join(' '), fmt(m.at)].join(' ').trim();
+  return c;
+}
+function renderChips() {
+  D.steps.forEach(function (s) {
+    var box = $('chips-' + s.id); if (!box) return; box.textContent = '';
+    markers(s.id).forEach(function (u) { box.appendChild(chip(u, s.id)); });
+    var imp = $('imps-' + s.id); imp.textContent = '';
+    for (var u in S.marks) {
+      var i = S.marks[u].improvements && S.marks[u].improvements[s.id];
+      if (i && i.txt) imp.appendChild(el('div', 'tag imp', who(u) + ' suggests: ' + i.txt));
+    }
+  });
+}
+function renderPanels() {
+  var host = $('results-body'); host.textContent = '';
+  D.scripts.forEach(function (sc) {
+    var ids = D.steps.filter(function (s) { return s.script === sc.id; });
+    var n = { OK: 0, NOK: 0, unmarked: 0, stale: 0 }, who_ = {};
+    ids.forEach(function (s) {
+      n[result(s.id)]++;
+      for (var u in S.marks) {
+        var m = markFor(S.marks[u], s.id);
+        if (m) { who_[u] = 1; if (m.rev < s.rev) n.stale++; }
+      }
+    });
+    var p = el('div', 'panel');
+    p.appendChild(el('strong', '', sc.id.toUpperCase() + ' ' + sc.title));
+    p.appendChild(el('div', 'muted', ids.length + ' steps: ' + n.OK + ' OK, ' + n.NOK + ' NOK, ' + n.unmarked + ' unmarked, ' + n.stale + ' stale. Marked by ' + Object.keys(who_).length + '.'));
+    host.appendChild(p);
+  });
+  var cov = el('div', 'panel'); cov.appendChild(el('strong', '', 'Coverage by role'));
+  var per = {}, gaps = [];
+  D.steps.forEach(function (s) {
+    if (covered(s.id)) per[s.role] = (per[s.role] || 0) + 1;
+    else if (markers(s.id).length) gaps.push(s.id);
+  });
+  D.roles.forEach(function (r) { cov.appendChild(el('div', 'muted', r.label + ': ' + (per[r.key] || 0) + ' steps covered by this role')); });
+  if (gaps.length) cov.appendChild(el('div', 'tag stale', 'Not covered by the target role: ' + gaps.join(', ')));
+  host.appendChild(cov);
+  listOf('nok-list', function (m) { return m.r === 'NOK'; }, function (m) { return m.obs || 'observation missing'; });
+  var il = $('imp-list'); il.textContent = '';
+  for (var u in S.marks) {
+    var im = S.marks[u].improvements || {};
+    for (var id in im) { if (im[id].txt && STEP[id]) il.appendChild(el('li', '', id + ' · ' + who(u) + ': ' + im[id].txt)); }
+  }
+}
+function listOf(id, test, text) {
+  var ul = $(id); ul.textContent = '';
+  var rows = [];
+  for (var u in S.marks) {
+    var st = S.marks[u].steps || {};
+    for (var k in st) { if (STEP[k] && current(S.marks[u], k) && test(st[k])) rows.push({ u: u, k: k, m: st[k] }); }
+  }
+  rows.sort(function (a, b) { return String(b.m.at).localeCompare(String(a.m.at)); });
+  rows.forEach(function (r) { ul.appendChild(el('li', '', r.k + ' · ' + who(r.u) + ' · ' + fmt(r.m.at) + ': ' + text(r.m))); });
+}
+function renderRoster() {
+  var host = $('roster-body'); host.textContent = '';
+  var ids = {};
+  [S.marks, S.roster, S.proposals].forEach(function (c) { for (var u in c) ids[u] = 1; });
+  Object.keys(ids).forEach(function (u) {
+    var row = el('div', 'panel');
+    row.appendChild(el('strong', '', who(u)));
+    var role = assignedRole(u);
+    row.appendChild(el('span', 'tag ' + (role ? 'ok' : 'stale'), ' ' + roleLabel(role)));
+    var pr = S.proposals[u];
+    if (pr && pr.decision === 'pending') {
+      row.appendChild(el('span', 'tag pend', 'proposal pending'));
+      if (S.owner) {
+        row.appendChild(el('div', 'muted', 'Proposed ' + roleLabel(pr.role) + (pr.note ? ': ' + pr.note : '')));
+        row.appendChild(button('Approve', function () { decide(u, true); }));
+        row.appendChild(button('Reject', function () { decide(u, false); }));
+      }
+    }
+    if (S.owner) {
+      var sel = el('select'); sel.id = 'assign-' + u; sel.setAttribute('aria-label', 'Assign a role to ' + who(u));
+      sel.appendChild(el('option', '', 'role not assigned')).value = '';
+      D.roles.forEach(function (r) { var o = el('option', '', r.label); o.value = r.key; if (r.key === role) o.selected = true; sel.appendChild(o); });
+      sel.addEventListener('change', function () { assign(u, sel.value); });
+      row.appendChild(sel);
+    }
+    host.appendChild(row);
+  });
+}
+function button(text, fn) { var b = el('button', '', text); b.type = 'button'; b.addEventListener('click', fn); return b; }
+function renderAll() { renderChips(); renderPanels(); renderRoster(); syncControls(); }
+
+function ensureNames() {
+  if (!S.user) return;
+  var need = [];
+  [S.marks, S.roster, S.proposals].forEach(function (c) { for (var u in c) if (!S.names[u] && need.indexOf(u) < 0) need.push(u); });
+  if (!need.length) return;
+  S.user.profiles(need).then(function (ps) {
+    need.forEach(function (u) { S.names[u] = (ps[u] && ps[u].name) || 'Validator'; });
+    renderAll();
+  }, function () {});
+}
+
+function fail(e) {
+  var c = e && e.code;
+  if (c === 'invalid_argument' || c === 'not_granted') {
+    S.own = clone(S.saved || { steps: {}, improvements: {} });
+    S.locked = true; document.body.classList.add('ro');
+    notice('Your access is view-only, so this change was not saved. Ask the owner to share the page with you at a level that allows editing.');
+    syncControls();
+  } else if (c === 'quota_exceeded') {
+    notice('The shared results are full, so this change was not saved. Tell the owner.');
+  } else {
+    notice('The change could not be saved. Check your connection; your text is still on the page. It will be saved with your next change.');
+  }
+}
+function persist(path, data) {
+  return S.db.doc(path).set(data);
+}
+function saveOwn() {
+  if (S.locked || !S.db || !S.uid) return;
+  if (S.writing) { S.again = true; return; }
+  S.writing = true; S.dirty = false; notice('');
+  var snap = clone(S.own); snap.updated = new Date().toISOString();
+  status('Saving…');
+  persist('marks/' + S.uid, snap).then(function () {
+    S.saved = clone(S.own); status('Saved.');
+  }, fail).then(function () {
+    S.writing = false; if (S.again) { S.again = false; saveOwn(); }
+  });
+}
+function later(key, fn) { S.dirty = true; clearTimeout(S.timers[key]); S.timers[key] = setTimeout(fn, 600); }
+function setMark(id, r) {
+  var cur = S.own.steps[id];
+  if (cur && cur.r === r) { delete S.own.steps[id]; }
+  else { S.own.steps[id] = { r: r, obs: cur ? cur.obs : '', at: new Date().toISOString(), rev: STEP[id].rev, links: cur ? cur.links : [], ev: cur && cur.ev ? cur.ev : [] }; }
+  syncControls(); saveOwn();
+}
+function parseLinks(t) {
+  return t.split(/[\s,]+/).map(safeUrl).filter(Boolean).slice(0, 3).map(function (u) { return u.slice(0, 500); });
+}
+function syncControls() {
+  D.steps.forEach(function (s) {
+    var m = S.own.steps[s.id], ok = $('res-' + s.id + '-ok'); if (!ok) return;
+    var nok = $('res-' + s.id + '-nok'), obs = $('obs-' + s.id), box = $('nokbox-' + s.id), miss = $('miss-' + s.id);
+    ok.setAttribute('aria-pressed', String(!!m && m.r === 'OK'));
+    nok.setAttribute('aria-pressed', String(!!m && m.r === 'NOK'));
+    box.hidden = !(m && m.r === 'NOK');
+    if (m && document.activeElement !== obs) obs.value = m.obs || '';
+    if (m && document.activeElement !== $('links-' + s.id)) $('links-' + s.id).value = (m.links || []).join(' ');
+    miss.hidden = !(m && m.r === 'NOK' && !(m.obs || '').trim());
+    var imp = S.own.improvements[s.id], it = $('imp-' + s.id);
+    if (imp && document.activeElement !== it) { it.value = imp.txt; $('impbox-' + s.id).hidden = false; }
+    var evl = $('evl-' + s.id);
+    if (evl) { evl.textContent = ''; ((m && m.ev) || []).forEach(function (e) { var a = el('a', '', 'attachment'); a.href = '/_blob/' + e.asset_id; a.target = '_blank'; a.rel = 'noopener noreferrer'; evl.appendChild(a); evl.appendChild(document.createTextNode(' ')); }); }
+  });
+}
+function wire() {
+  D.steps.forEach(function (s) {
+    var id = s.id, ok = $('res-' + id + '-ok'); if (!ok) return;
+    ok.addEventListener('click', function () { setMark(id, 'OK'); });
+    $('res-' + id + '-nok').addEventListener('click', function () { setMark(id, 'NOK'); });
+    $('obs-' + id).addEventListener('input', function (e) {
+      var m = S.own.steps[id]; if (!m) return; m.obs = e.target.value.slice(0, 1500); m.at = new Date().toISOString(); syncControls(); later('m' + id, saveOwn);
+    });
+    $('links-' + id).addEventListener('input', function (e) {
+      var m = S.own.steps[id]; if (!m) return; m.links = parseLinks(e.target.value); later('m' + id, saveOwn);
+    });
+    $('imp-btn-' + id).addEventListener('click', function () { $('impbox-' + id).hidden = false; $('imp-' + id).focus(); });
+    $('imp-' + id).addEventListener('input', function (e) {
+      var t = e.target.value.slice(0, 1500);
+      if (t.trim()) S.own.improvements[id] = { txt: t, at: new Date().toISOString(), rev: STEP[id].rev }; else delete S.own.improvements[id];
+      later('i' + id, saveOwn);
+    });
+    var ev = $('ev-' + id);
+    if (ev) ev.addEventListener('change', function (e) { attach(id, e.target.files[0]); e.target.value = ''; });
+  });
+  var pb = $('prop-save');
+  if (pb) pb.addEventListener('click', propose);
+}
+function attach(id, file) {
+  if (!file || !S.assets) return;
+  S.assets.list().then(function (l) {
+    var budget = D.attachments.budget_mb * 1048576;
+    if (l.usage.bytes + file.size > budget) { notice('That file would go over the ' + D.attachments.budget_mb + ' MB budget for this session, so it was not added. Describe the screen in words instead.'); return; }
+    return S.assets.upload(file).then(function (r) {
+      var m = S.own.steps[id]; if (!m) return;
+      m.ev = (m.ev || []).concat([{ asset_id: r.id, at: new Date().toISOString() }]); syncControls(); saveOwn();
+    });
+  }).catch(function () { notice('The file could not be uploaded. Describe the screen in words instead.'); });
+}
+function propose() {
+  var role = $('prop-role').value, note = $('prop-note').value.slice(0, 500);
+  if (!role || !S.uid || S.locked) return;
+  persist('proposals/' + S.uid, { role: role, note: note, at: new Date().toISOString(), decision: 'pending' }).then(function () { status('Proposal sent to the owner.'); }, fail);
+}
+function assign(uid, role) {
+  if (!S.owner) return;
+  var v = S.roster[uid] ? S.roster[uid].validator : '';
+  persist('roster/' + uid, { validator: v || '', role: role, at: new Date().toISOString() }).catch(fail);
+}
+function decide(uid, yes) {
+  var pr = S.proposals[uid]; if (!pr || !S.owner) return;
+  var next = clone(pr); next.decision = yes ? 'approved' : 'rejected';
+  var chain = persist('proposals/' + uid, next);
+  if (yes) chain = chain.then(function () { return persist('roster/' + uid, { validator: S.roster[uid] ? S.roster[uid].validator : '', role: pr.role, at: new Date().toISOString() }); });
+  chain.catch(fail);
+}
+
+function listen(name) {
+  var timer = setTimeout(function () { if (!S.loaded) status('Still loading the shared results…'); }, 10000);
+  S.db.collection(name).onSnapshot(function (snap) {
+    clearTimeout(timer);
+    var map = {};
+    snap.docs.forEach(function (d) { map[d.id] = d.data() || {}; });
+    if (name === 'meta') {
+      var m = map.roadmap;
+      if (m && m.version > D.version) $('reload').hidden = false;
+    } else {
+      S[name] = map;
+      if (name === 'marks' && S.uid && map[S.uid] && !S.writing && !S.dirty) {
+        S.own = { steps: map[S.uid].steps || {}, improvements: map[S.uid].improvements || {} }; S.saved = clone(S.own);
+      }
+    }
+    S.loaded++; if (S.loaded >= COLLECTIONS.length) status('Live. Changes by others appear here.');
+    renderAll(); ensureNames();
+  }, function () { clearTimeout(timer); status('The shared results could not be read. The page shows the steps only.'); });
+}
+
+async function start() {
+  wire();
+  var claude = window.claude;
+  var db = claude && await claude.use('db'), user = claude && await claude.use('user');
+  if (!db) { readOnly('This page cannot reach the shared results here, so it is read-only. Open it in Claude while signed in to mark steps.'); return; }
+  S.db = db; S.user = user;
+  if (user) {
+    S.uid = await user.id(); S.owner = await user.isOwner();
+    var w = await user.can('data.write');
+    if (w === false) readOnly('You can view the results but not mark steps. Ask the owner for access that allows editing.');
+  }
+  if (!S.uid) readOnly('Sign in to mark steps. The results below are read-only.');
+  if (D.attachments.on && claude) S.assets = await claude.use('assets');
+  if (!S.assets) document.querySelectorAll('.ev').forEach(function (n) { n.hidden = true; });
+  if (!S.owner) document.querySelectorAll('.owner-only').forEach(function (n) { n.hidden = true; });
+  COLLECTIONS.forEach(listen);
+}
+start().catch(function () { readOnly('This page could not start the shared results, so it is read-only.'); });
+})();
+</script>

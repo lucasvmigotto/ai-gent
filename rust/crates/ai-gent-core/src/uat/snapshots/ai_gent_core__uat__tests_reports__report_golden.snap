@@ -1,0 +1,74 @@
+---
+source: crates/ai-gent-core/src/uat/tests_reports.rs
+expression: "report(&r, &s(two()), &rec)"
+---
+# Order approval acceptance test — consolidated report
+
+- Roadmap version: 1
+- Environment: Test environment (test)
+- Last real check: 2026-11-20 11:00
+- Validators by assigned role:
+  - Administrator: Ana
+  - Clerk: Validator 2
+
+## Results per script
+
+| Script | Steps | OK | NOK | Unmarked | Stale | Marked by |
+|---|---|---|---|---|---|---|
+| R0 Preparation | 2 | 2 | 0 | 0 | 0 | 2 |
+| R1 Create and approve an order | 2 | 1 | 1 | 0 | 0 | 2 |
+| R2 A clerk cannot approve | 1 | 1 | 0 | 0 | 0 | 1 |
+
+## Coverage by role
+
+| Role | Steps covered by the role | Steps targeting it |
+|---|---|---|
+| Administrator | 3 | 3 |
+| Clerk | 2 | 2 |
+
+Steps not covered by their role: none
+Steps marked only by people who left: none
+Accounts with no assigned role: none
+
+## NOKs by class
+
+### defect
+
+- r1-1 by Validator 2 (2026-11-20 10:40): "The order stays blank after saving." — status: open
+
+## Improvements
+
+- r1-1 by Validator 2: "Show a saved message."
+
+## Role proposals and decisions
+
+- Validator 2: proposed admin — pending ("I also approve orders.")
+
+## Stale marks and retired steps
+
+Stale marks on: none
+Retired steps: none
+
+## Write checks
+
+Validators with no write check: none
+
+## Triage log
+
+r1-1 · Validator 2: defect, reproduced.
+
+## Decision list
+
+- none yet
+
+## Preflight record
+
+Preflight passed.
+
+## Review record
+
+- version 1 by reviewer at 2026-11-19 12:10: clean (0 findings)
+
+## Changelog
+
+- version 1 (2026-11-19 12:00): First version.

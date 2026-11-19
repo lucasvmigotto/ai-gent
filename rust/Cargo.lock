@@ -55,6 +55,7 @@ dependencies = [
 name = "ai-gent-core"
 version = "0.1.1"
 dependencies = [
+ "insta",
  "libc",
  "regex",
  "rustix",

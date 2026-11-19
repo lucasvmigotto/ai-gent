@@ -134,6 +134,13 @@ fn sections(r: &Roadmap, o: &mut Out) {
     if r.version == 0 {
         o.err("bad-version", "version", "version starts at 1");
     }
+    if r.settings.attachments.on && r.settings.attachments.budget_mb == 0 {
+        o.err(
+            "attachments-no-budget",
+            "settings",
+            "attachments are on without a size budget for the session (FR-094)",
+        );
+    }
 }
 
 fn environment(r: &Roadmap, o: &mut Out) {

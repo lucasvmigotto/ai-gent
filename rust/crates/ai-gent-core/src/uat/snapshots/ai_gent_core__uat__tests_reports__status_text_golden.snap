@@ -1,0 +1,20 @@
+---
+source: crates/ai-gent-core/src/uat/tests_reports.rs
+expression: text(&st)
+---
+Last real check: 2026-11-20 11:00
+Checks are on request.
+
+Progress
+- R0 Preparation: 2/2 OK, 0 NOK, 0 unmarked, 0 stale
+- R1 Create and approve an order: 1/2 OK, 1 NOK, 0 unmarked, 0 stale
+- R2 A clerk cannot approve: 1/1 OK, 0 NOK, 0 unmarked, 0 stale
+
+New NOKs
+- r1-1 by Validator 2 at 2026-11-20 10:40: "The order stays blank after saving." — class: defect — suggested reply: "Thanks, we reproduced it."
+
+New improvements
+- r1-1 by Validator 2: "Show a saved message."
+
+Role proposals pending
+- Validator 2: assigned Clerk, proposes Administrator: "I also approve orders."

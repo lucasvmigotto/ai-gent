@@ -1,0 +1,50 @@
+---
+source: crates/ai-gent-core/src/uat/tests.rs
+expression: "super::render::body(&roadmap(|_| {}))"
+---
+<section id="how-to"><h2>How to use this page</h2>
+<p>Press OK when the result matches. Press NOK when it does not and write what you did, when, the message and the screen. Use Suggest improvement when it works but should change. Some steps need the record to yourself; they say so.</p>
+</section>
+<section id="people"><h2>Who is involved</h2>
+<h3>Roles</h3>
+<ul class="plain"><li>Administrator: approve orders</li><li>Clerk: create orders</li></ul>
+<h3>Validators</h3>
+<ul class="plain"><li>Ana — Administrator</li><li>Validator 2 — Clerk</li></ul>
+</section>
+<section id="roster"><h2>Roster</h2>
+<p class="muted">Who is placed in which role. Only roles the owner assigned count for coverage.</p>
+<div id="roster-body"></div></section>
+<section id="rules"><h2>Rules being tested</h2>
+<ul class="plain"><li>Only an administrator can approve an order.</li></ul>
+</section>
+<section id="test-data"><h2>Test data</h2>
+<ul class="plain"><li>R1 Create and approve an order: r1-20261119-order</li><li>R2 A clerk cannot approve: r2-20261119-order</li></ul>
+</section>
+<section id="scripts"><h2>Scripts</h2>
+<h3 id="r0">R0 Preparation</h3>
+<div class="scroll"><table class="steps"><thead><tr><th>#</th><th>Who</th><th>Action and expected result</th><th>Result</th></tr></thead><tbody>
+<tr data-step="r0-1" data-rev="1" data-role="admin" data-kind="write-check" data-exclusive="false"><td>r0-1</td><td>Administrator</td><td><p>Press OK on this step to prove you can save.</p><p class="exp"><b>Expected:</b> The mark stays after you reload the page.</p></td><td><div class="chips" id="chips-r0-1"></div><div class="ctl"><button type="button" class="okb" id="res-r0-1-ok" aria-pressed="false">OK</button> <button type="button" class="nokb" id="res-r0-1-nok" aria-pressed="false">NOK</button> <button type="button" id="imp-btn-r0-1">Suggest improvement</button></div><div class="ctl" id="nokbox-r0-1" hidden><label for="obs-r0-1">What happened, when, the message you saw and which screen. Describe the screen in words.</label><textarea id="obs-r0-1" rows="3" maxlength="1500"></textarea> <span class="tag nok" id="miss-r0-1" hidden>observation missing</span><label for="links-r0-1">Links (optional, up to 3, https only)</label><input type="text" id="links-r0-1" maxlength="1600"><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div class="ctl" id="impbox-r0-1" hidden><label for="imp-r0-1">Your suggestion</label><textarea id="imp-r0-1" rows="2" maxlength="1500"></textarea><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div id="imps-r0-1"></div></td></tr>
+<tr data-step="r0-2" data-rev="1" data-role="admin" data-kind="role-confirmation" data-exclusive="false"><td>r0-2</td><td>Administrator</td><td><p>Check the role listed next to your name.</p><p class="exp"><b>Expected:</b> Your role on the page is the one you hold at work.</p></td><td><div class="chips" id="chips-r0-2"></div><div class="ctl"><button type="button" class="okb" id="res-r0-2-ok" aria-pressed="false">OK</button> <button type="button" class="nokb" id="res-r0-2-nok" aria-pressed="false">NOK</button> <button type="button" id="imp-btn-r0-2">Suggest improvement</button></div><div class="ctl" id="nokbox-r0-2" hidden><label for="obs-r0-2">What happened, when, the message you saw and which screen. Describe the screen in words.</label><textarea id="obs-r0-2" rows="3" maxlength="1500"></textarea> <span class="tag nok" id="miss-r0-2" hidden>observation missing</span><label for="links-r0-2">Links (optional, up to 3, https only)</label><input type="text" id="links-r0-2" maxlength="1600"><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div class="ctl" id="impbox-r0-2" hidden><label for="imp-r0-2">Your suggestion</label><textarea id="imp-r0-2" rows="2" maxlength="1500"></textarea><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div id="imps-r0-2"></div><div class="ctl"><label for="prop-role">If your role is another one, propose it</label><select id="prop-role"><option value="">Keep my role</option><option value="admin">Administrator</option><option value="clerk">Clerk</option></select><label for="prop-note">Note for the owner (optional)</label><textarea id="prop-note" rows="2" maxlength="500"></textarea><button type="button" id="prop-save">Send proposal</button><p class="muted">The owner decides. Nothing changes until then.</p></div></td></tr>
+</tbody></table></div>
+<h3 id="r1">R1 Create and approve an order</h3>
+<div class="scroll"><table class="steps"><thead><tr><th>#</th><th>Who</th><th>Action and expected result</th><th>Result</th></tr></thead><tbody>
+<tr data-step="r1-1" data-rev="1" data-role="clerk" data-kind="normal" data-exclusive="true"><td>r1-1</td><td>Clerk</td><td><p>Create an order for the test customer.</p><p class="exp"><b>Expected:</b> The order appears in the list as waiting.</p><p><span class="tag stale">Nobody else touches this order until you have checked.</span> Test record: r1-20261119-order</p></td><td><div class="chips" id="chips-r1-1"></div><div class="ctl"><button type="button" class="okb" id="res-r1-1-ok" aria-pressed="false">OK</button> <button type="button" class="nokb" id="res-r1-1-nok" aria-pressed="false">NOK</button> <button type="button" id="imp-btn-r1-1">Suggest improvement</button></div><div class="ctl" id="nokbox-r1-1" hidden><label for="obs-r1-1">What happened, when, the message you saw and which screen. Describe the screen in words.</label><textarea id="obs-r1-1" rows="3" maxlength="1500"></textarea> <span class="tag nok" id="miss-r1-1" hidden>observation missing</span><label for="links-r1-1">Links (optional, up to 3, https only)</label><input type="text" id="links-r1-1" maxlength="1600"><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div class="ctl" id="impbox-r1-1" hidden><label for="imp-r1-1">Your suggestion</label><textarea id="imp-r1-1" rows="2" maxlength="1500"></textarea><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div id="imps-r1-1"></div></td></tr>
+<tr data-step="r1-2" data-rev="1" data-role="admin" data-kind="normal" data-exclusive="true"><td>r1-2</td><td>Administrator</td><td><p>Approve the order.</p><p class="exp"><b>Expected:</b> The order shows as approved.</p><p class="muted">Before you start: The order from the first step exists.</p></td><td><div class="chips" id="chips-r1-2"></div><div class="ctl"><button type="button" class="okb" id="res-r1-2-ok" aria-pressed="false">OK</button> <button type="button" class="nokb" id="res-r1-2-nok" aria-pressed="false">NOK</button> <button type="button" id="imp-btn-r1-2">Suggest improvement</button></div><div class="ctl" id="nokbox-r1-2" hidden><label for="obs-r1-2">What happened, when, the message you saw and which screen. Describe the screen in words.</label><textarea id="obs-r1-2" rows="3" maxlength="1500"></textarea> <span class="tag nok" id="miss-r1-2" hidden>observation missing</span><label for="links-r1-2">Links (optional, up to 3, https only)</label><input type="text" id="links-r1-2" maxlength="1600"><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div class="ctl" id="impbox-r1-2" hidden><label for="imp-r1-2">Your suggestion</label><textarea id="imp-r1-2" rows="2" maxlength="1500"></textarea><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div id="imps-r1-2"></div></td></tr>
+</tbody></table></div>
+<h3 id="r2">R2 A clerk cannot approve</h3>
+<div class="scroll"><table class="steps"><thead><tr><th>#</th><th>Who</th><th>Action and expected result</th><th>Result</th></tr></thead><tbody>
+<tr data-step="r2-1" data-rev="1" data-role="clerk" data-kind="normal" data-exclusive="false"><td>r2-1</td><td>Clerk</td><td><p>Try to approve the order.</p><p class="exp"><b>Expected:</b> The screen says you are not allowed and the order stays waiting.</p><p class="muted">Before you start: An order exists.</p></td><td><div class="chips" id="chips-r2-1"></div><div class="ctl"><button type="button" class="okb" id="res-r2-1-ok" aria-pressed="false">OK</button> <button type="button" class="nokb" id="res-r2-1-nok" aria-pressed="false">NOK</button> <button type="button" id="imp-btn-r2-1">Suggest improvement</button></div><div class="ctl" id="nokbox-r2-1" hidden><label for="obs-r2-1">What happened, when, the message you saw and which screen. Describe the screen in words.</label><textarea id="obs-r2-1" rows="3" maxlength="1500"></textarea> <span class="tag nok" id="miss-r2-1" hidden>observation missing</span><label for="links-r2-1">Links (optional, up to 3, https only)</label><input type="text" id="links-r2-1" maxlength="1600"><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div class="ctl" id="impbox-r2-1" hidden><label for="imp-r2-1">Your suggestion</label><textarea id="imp-r2-1" rows="2" maxlength="1500"></textarea><p class="muted">Do not paste passwords, tokens, cookies or personal data.</p></div><div id="imps-r2-1"></div></td></tr>
+</tbody></table></div>
+</section>
+<section id="results"><h2>Results</h2>
+<div id="results-body"></div>
+<h3>NOKs</h3>
+<ul class="plain" id="nok-list"></ul>
+<h3>Suggestions</h3>
+<ul class="plain" id="imp-list"></ul></section>
+<section id="limitations"><h2>Known limitations</h2>
+<p class="muted">None known.</p>
+</section>
+<section id="changelog"><h2>Changes</h2>
+<ul class="plain"><li>Version 1 — First version.</li></ul>
+</section>

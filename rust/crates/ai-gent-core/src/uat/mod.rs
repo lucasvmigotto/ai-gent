@@ -3,8 +3,12 @@
 //! The agent writes and judges; this module checks the roadmap source (`lint`) and compares two
 //! versions of it (`diff`). It reads files and writes nothing.
 pub mod diff;
+pub mod digest;
 pub mod lint;
 pub mod model;
+pub mod preflight;
+pub mod render;
+pub mod report;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -98,3 +102,5 @@ pub fn context_for(r: &model::Roadmap, root: &Path, budget: Option<u64>) -> lint
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_reports;

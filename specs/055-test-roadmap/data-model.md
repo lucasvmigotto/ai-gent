@@ -17,6 +17,8 @@ Evidence labels in `claims[].label`: `OBSERVED`, `INFERRED`, `ASSUMPTION` (as in
 
 Caps (FR-098): observation 1500 characters, improvement 1500, proposal note 500, links 3 per mark of 500 characters each. `lint` warns when `active steps × (1500 + 1500 + 3 × 500)` plus overhead exceeds the per-document budget the skill takes from the runtime contract.
 
+Source details fixed by the build (`rust/crates/ai-gent-core/src/uat/model.rs`): steps are nested in their script (`scripts[].steps[]`); a step has `seen_by` (the one role that can see the result, when it is not `who`), `rule` and `refused` (the rule it exercises, and that its target must be refused); a roadmap has `how_to`, `rules[]` (`key`, `text`, `authorization`), `known_limitations[]`, `not_testable[]` (mode B scenarios not testable by hand, with the reason) and `settings.doc_budget_bytes`; a validator has `outside_org` and `planned_sharing` (`viewer`, `commenter`, `contributor` or `editor`, the owner's word, never read by the agent).
+
 ## Register — Artifact `db`
 
 | Path | Document | Fields | Read | Write |
@@ -104,3 +106,20 @@ any ──(step text rewritten)──▶ stale ──(validator re-marks)──�
 none ──(validator proposes in R0)──▶ pending ──(owner approves)──▶ approved (roster updated by the owner)
                                      pending ──(owner rejects)──▶ rejected (roster unchanged)
 ```
+
+## Snapshot file — what the agent saves from `ArtifactData` for `digest`, `report` and `preflight verify`
+
+One file per page read; several files are merged (a later page wins per document).
+
+```
+{ "at": "<ISO-8601 UTC of the read>",
+  "marks":     { "<uid>": { "steps": {...}, "improvements": {...} } },
+  "roster":    { "<uid>": { "validator": "<key>", "role": "<role key>" } },
+  "proposals": { "<uid>": { "role", "note", "at", "decision" } },
+  "triage":    { "<step>~<uid>": { "class", "reply", "status" } },
+  "meta_version": <n>,
+  "names": { "<uid>": "<display name>" },      // resolved by the agent, for the owner's report only
+  "left":  [ "<uid>", ... ] }                  // accounts whose profile no longer resolves (FR-099)
+```
+
+A test-read file for `preflight verify --read <level>=<file>` is `{ "collections": { "<name>": { "readable": true, "docs": <n> } } }`; a collection the read did not return is absent. The declaration file is the `capabilities` object that was published.
