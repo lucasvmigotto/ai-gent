@@ -13,6 +13,7 @@ pub mod paths;
 pub mod repo;
 pub mod spec;
 pub mod tokens;
+pub mod uat;
 pub mod update;
 pub mod version;
 pub mod wt;

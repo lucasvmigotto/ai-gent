@@ -1,0 +1,44 @@
+{
+  "slug": "orders-demo",
+  "title": "Order approval acceptance test",
+  "version": 1,
+  "environment": {"name": "Test environment", "class": "test"},
+  "mode": "A",
+  "how_to": "Press OK when the result matches. Press NOK when it does not and write what you did, when, the message and the screen. Use Suggest improvement when it works but should change. Some steps need the record to yourself; they say so.",
+  "roles": [
+    {"key": "admin", "label": "Administrator", "can": ["approve orders"], "privilege": 2},
+    {"key": "clerk", "label": "Clerk", "can": ["create orders"], "privilege": 1}
+  ],
+  "validators": [
+    {"key": "v1", "label": "Ana", "assigned_role": "admin", "invite": "ana@example.test", "expected_scripts": ["r0", "r1", "r2"]},
+    {"key": "v2", "label": "Validator 2", "assigned_role": "clerk", "invite": "v2@example.test", "expected_scripts": ["r0", "r1", "r2"]}
+  ],
+  "rules": [
+    {"key": "approve", "text": "Only an administrator can approve an order.", "authorization": true}
+  ],
+  "scripts": [
+    {
+      "id": "r0", "title": "Preparation", "kind": "prep", "test_data": [], "exclusive": false, "cleanup_step": "",
+      "steps": [
+        {"id": "r0-1", "order": 1, "rev": 1, "status": "active", "kind": "write-check", "who": "admin", "action": "Press OK on this step to prove you can save.", "expected": "The mark stays after you reload the page.", "claims": []},
+        {"id": "r0-2", "order": 2, "rev": 1, "status": "active", "kind": "role-confirmation", "who": "admin", "action": "Check the role listed next to your name.", "expected": "Your role on the page is the one you hold at work.", "claims": []}
+      ]
+    },
+    {
+      "id": "r1", "title": "Create and approve an order", "kind": "flow", "test_data": ["r1-20261119-order"], "exclusive": true, "cleanup_step": "",
+      "steps": [
+        {"id": "r1-1", "order": 1, "rev": 1, "status": "active", "kind": "normal", "who": "clerk", "action": "Create an order for the test customer.", "expected": "The order appears in the list as waiting.", "exclusive_note": "Nobody else touches this order until you have checked.", "claims": [{"text": "A new order starts as waiting.", "label": "OBSERVED", "ref": "specs/010-orders/spec.md line 42"}]},
+        {"id": "r1-2", "order": 2, "rev": 1, "status": "active", "kind": "normal", "who": "admin", "action": "Approve the order.", "expected": "The order shows as approved.", "pre": "The order from the first step exists.", "rule": "approve", "claims": [{"text": "Approval is immediate.", "label": "INFERRED", "ref": "run the step and compare"}]}
+      ]
+    },
+    {
+      "id": "r2", "title": "A clerk cannot approve", "kind": "rule", "test_data": ["r2-20261119-order"], "exclusive": false, "cleanup_step": "",
+      "steps": [
+        {"id": "r2-1", "order": 1, "rev": 1, "status": "active", "kind": "normal", "who": "clerk", "action": "Try to approve the order.", "expected": "The screen says you are not allowed and the order stays waiting.", "pre": "An order exists.", "rule": "approve", "refused": true, "claims": [{"text": "Clerks have no approve button.", "label": "OBSERVED", "ref": "specs/010-orders/spec.md line 77"}]}
+      ]
+    }
+  ],
+  "known_limitations": [],
+  "changelog": [{"version": 1, "at": "2026-11-19T12:00:00Z", "summary": "First version.", "steps": []}],
+  "review": [{"version": 1, "by": "reviewer", "at": "2026-11-19T12:10:00Z", "result": "clean", "findings": []}]
+}

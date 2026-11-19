@@ -46,6 +46,7 @@ fn real_main() -> Exit {
         Some(Command::Repo(a)) => cmd::repo::run(&a, cli.json),
         Some(Command::Spec(a)) => cmd::spec::run(&a, cli.json),
         Some(Command::Delegate(a)) => cmd::delegate::run(&a, cli.json),
+        Some(Command::Uat(a)) => cmd::uat::run(&a, cli.json),
         Some(Command::Wt(a)) => cmd::wt::run(&a, cli.json),
         Some(Command::Autonomy(a)) => cmd::autonomy::run(&a, cli.json),
         None => {
