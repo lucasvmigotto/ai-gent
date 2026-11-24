@@ -169,6 +169,7 @@ pub(super) fn recover(root: &Path, input: Option<&[u8]>, dry_run: bool) -> Resul
         return Err(conflict());
     }
     super::receipts::check_request_id(&store, request.request_id)?;
+    super::transfer::check_request_id(&store, request.request_id)?;
     let manifest = Manifest {
         schema_version: 1,
         kind: "torn_tail_recovery".into(),

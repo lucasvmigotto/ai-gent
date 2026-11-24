@@ -247,6 +247,7 @@ pub(super) fn snapshot(root: &Path, input: &[u8]) -> Result<Value> {
         return Err(conflict());
     }
     super::recovery::check_request_id(&store, request.request_id)?;
+    super::transfer::check_request_id(&store, request.request_id)?;
     if receipts.len() >= MAX_RECEIPTS {
         return Err(limit());
     }

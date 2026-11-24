@@ -33,6 +33,19 @@ enum Action {
     Transition(Input),
     /// Verify and read durable registered state without creating a journal.
     Replay,
+    /// Export sanitized versioned evidence without changing the local ledger.
+    Export,
+    /// Validate or archive imported evidence separately from measured local usage.
+    Import(ImportInput),
+}
+#[derive(Debug, Args)]
+struct ImportInput {
+    /// Bounded import request file, or - for stdin.
+    #[arg(long, default_value = "-")]
+    input: PathBuf,
+    /// Validate without creating any files.
+    #[arg(long)]
+    dry_run: bool,
 }
 #[derive(Debug, Args)]
 struct Input {
@@ -87,10 +100,19 @@ pub fn run(args: &UsageArgs, json_output: bool) -> Exit {
         Action::Segment(_) => "segment",
         Action::Transition(_) => "transition",
         Action::Replay => "replay",
+        Action::Export => "export",
+        Action::Import(_) => "import",
     };
     let (code, value) = if args.protocol_version == 1 {
         let result = match &args.action {
             Action::Replay => usage::replay(&args.root),
+            Action::Export => usage::export(&args.root),
+            Action::Import(input) => match read(&Input {
+                input: input.input.clone(),
+            }) {
+                Ok(bytes) => usage::import(&args.root, &bytes, input.dry_run),
+                Err(_) => return failure(operation, json_output),
+            },
             Action::Snapshot(input) => match read(input) {
                 Ok(bytes) => usage::snapshot(&args.root, &bytes),
                 Err(_) => return failure(operation, json_output),
@@ -135,37 +157,47 @@ pub fn run(args: &UsageArgs, json_output: bool) -> Exit {
     if json_output {
         println!("{value}");
     } else if code == 0 {
-        if operation == "replay" {
-            println!(
-                "Registration journal: {} events",
-                value["result"]["sequence"]
-            );
-        } else if operation == "snapshot" {
-            println!("Local usage snapshot {}", value["result"]["receipt_digest"]);
-        } else if operation == "recover" {
-            println!(
-                "Usage recovery {}",
-                if value["result"]["dry_run"] == true {
-                    "plan (no changes)"
-                } else {
-                    "completed; original evidence retained"
-                }
-            );
-        } else if operation == "ingest" {
-            println!(
-                "Usage observation {} recorded (local, unclosed coverage)",
-                value["result"]["event_id"]
-            );
-        } else {
-            println!(
-                "Run {}: {} (usage missing)",
-                value["result"]["run_id"], value["result"]["state"]
-            );
-        }
+        render(operation, &value);
     } else {
         eprintln!("{}", value["error"]["message"]);
     }
     exit(code)
+}
+fn render(operation: &str, value: &serde_json::Value) {
+    if operation == "replay" {
+        println!(
+            "Registration journal: {} events",
+            value["result"]["sequence"]
+        );
+    } else if operation == "export" {
+        println!("{}", value["result"]["bundle"]);
+    } else if operation == "import" {
+        println!(
+            "Imported evidence {} (local totals unchanged; dry run {})",
+            value["result"]["bundle_digest"], value["result"]["dry_run"]
+        );
+    } else if operation == "snapshot" {
+        println!("Local usage snapshot {}", value["result"]["receipt_digest"]);
+    } else if operation == "recover" {
+        println!(
+            "Usage recovery {}",
+            if value["result"]["dry_run"] == true {
+                "plan (no changes)"
+            } else {
+                "completed; original evidence retained"
+            }
+        );
+    } else if operation == "ingest" {
+        println!(
+            "Usage observation {} recorded (local, unclosed coverage)",
+            value["result"]["event_id"]
+        );
+    } else {
+        println!(
+            "Run {}: {} (usage missing)",
+            value["result"]["run_id"], value["result"]["state"]
+        );
+    }
 }
 fn failure(operation: &str, json_output: bool) -> Exit {
     if json_output {

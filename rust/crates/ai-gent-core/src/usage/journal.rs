@@ -133,7 +133,7 @@ pub(super) fn directory(root: &Path, path: &Path) -> Result<()> {
     // Also flush on retry after a previous directory-sync failure.
     sync_dir(path.parent().ok_or_else(super::invalid)?)
 }
-fn ignore_usage(root: &Path, directory: &Path) -> Result<()> {
+pub(super) fn ignore_usage(root: &Path, directory: &Path) -> Result<()> {
     let path = directory.join(".gitignore");
     check_path(root, &path, false)?;
     match options().write(true).create_new(true).open(&path) {
@@ -375,6 +375,7 @@ pub(super) fn execute(root: &Path, request: &Request) -> Result<Run> {
     let mut state = store.load()?;
     super::receipts::verify_current(&store)?;
     super::receipts::check_request_id(&store, request.request_id)?;
+    super::transfer::check_request_id(&store, request.request_id)?;
     super::recovery::check_request_id(&store, request.request_id)?;
     if let Some((prior, result)) = state.requests.get(&request.request_id) {
         if prior != request {

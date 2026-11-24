@@ -7,6 +7,7 @@ mod normalize;
 mod observations;
 mod receipts;
 mod recovery;
+mod transfer;
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -144,3 +145,22 @@ pub fn snapshot(root: &Path, input: &[u8]) -> Result<Value> {
 pub fn recover(root: &Path, input: Option<&[u8]>, dry_run: bool) -> Result<Value> {
     recovery::recover(root, input, dry_run)
 }
+
+/// Export a sanitized portable evidence bundle from validated local journals.
+///
+/// # Errors
+/// Rejects corruption, missing local evidence, unsafe paths and bounded I/O failures.
+pub fn export(root: &Path) -> Result<Value> {
+    transfer::export(root)
+}
+
+/// Validate or archive portable evidence without contributing to local measured totals.
+///
+/// # Errors
+/// Rejects unsupported formats, contradictory evidence, conflicts, corruption and I/O failures.
+pub fn import(root: &Path, input: &[u8], dry_run: bool) -> Result<Value> {
+    transfer::import(root, input, dry_run)
+}
+
+#[cfg(all(test, unix))]
+mod process_crash_tests;

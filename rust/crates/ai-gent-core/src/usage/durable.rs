@@ -70,7 +70,7 @@ pub(super) fn publish(store: &Store, path: &Path, bytes: &[u8]) -> Result<()> {
 
 pub(super) fn append(file: &mut std::fs::File, bytes: &[u8]) -> Result<()> {
     #[cfg(test)]
-    if fault_is("append_partial") {
+    if fault_is("append_partial") || checkpoint_matches("append_partial") {
         file.write_all(&bytes[..bytes.len() / 2])
             .map_err(io_error)?;
         boundary("append_partial")?;
@@ -90,11 +90,14 @@ pub(super) fn append(file: &mut std::fs::File, bytes: &[u8]) -> Result<()> {
 )]
 pub(super) fn boundary(name: &'static str) -> Result<()> {
     #[cfg(test)]
-    if fault_is(name) {
-        FAULT.with(|fault| *fault.borrow_mut() = None);
-        return Err(io_error(std::io::Error::other(
-            "synthetic I/O boundary failure",
-        )));
+    {
+        wait_checkpoint(name)?;
+        if fault_is(name) {
+            FAULT.with(|fault| *fault.borrow_mut() = None);
+            return Err(io_error(std::io::Error::other(
+                "synthetic I/O boundary failure",
+            )));
+        }
     }
     let _ = name;
     Ok(())
@@ -115,4 +118,48 @@ pub(super) fn record_limit(bytes: &[u8]) -> Result<()> {
         return Err(limit());
     }
     Ok(())
+}
+
+// This control exists only in the unit-test binary, never in a runtime CLI.
+#[cfg(test)]
+thread_local! {
+    static CHECKPOINT: std::cell::RefCell<Option<(String, std::path::PathBuf)>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(all(test, unix))]
+pub(super) fn checkpoint_once(name: &str, marker: std::path::PathBuf) {
+    CHECKPOINT.with(|checkpoint| *checkpoint.borrow_mut() = Some((name.into(), marker)));
+}
+#[cfg(test)]
+fn checkpoint_matches(name: &str) -> bool {
+    CHECKPOINT.with(|checkpoint| {
+        checkpoint
+            .borrow()
+            .as_ref()
+            .is_some_and(|(expected, _)| expected == name)
+    })
+}
+#[cfg(test)]
+fn wait_checkpoint(name: &str) -> Result<()> {
+    let marker = CHECKPOINT.with(|checkpoint| {
+        checkpoint
+            .borrow()
+            .as_ref()
+            .filter(|(expected, _)| expected == name)
+            .map(|(_, marker)| marker.clone())
+    });
+    let Some(marker) = marker else {
+        return Ok(());
+    };
+    let mut file = std::fs::File::create_new(marker).map_err(io_error)?;
+    file.write_all(name.as_bytes()).map_err(io_error)?;
+    file.sync_all().map_err(io_error)?;
+    // Parent waits for this exact marker, then kills the actual child process.
+    // If its parent disappears, a bounded fallback prevents an orphan fixture.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    Err(io_error(std::io::Error::other(
+        "synthetic checkpoint parent disappeared",
+    )))
 }

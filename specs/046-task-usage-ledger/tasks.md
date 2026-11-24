@@ -108,3 +108,8 @@ Twelve tasks completed across registration and ingestion slices. See `evidence/i
 ## Bounded US3 progress — 2026-11-18
 
 Recovery and local immutable snapshots are implemented on `feat/usage-recovery`; see `evidence/recovery-slice.md` and `contracts/recovery-and-snapshots.md`. A fresh reviewer found and verified correction of a snapshot retry evidence-verification bypass. Thirteen CLI recovery tests and five new core fault suites pass. Keep T007/T008/T017/T018/T019 unchecked: bulk versioned import/dry-run, actual process-kill/power-loss coverage and target workload qualification are not complete. Test-only failure checkpoints do not establish real crash durability or qualify new operating-system/host cells. T010/T020–T022 also remain open.
+
+
+## Transfer and crash-test continuation — 2026-11-18
+
+`feat/usage-transfer` adds bounded, versioned export/import with read-only dry-run validation. Imported archives stay separate from measured local runs and are classified imported/local-unverified/unclosed. See `contracts/evidence-transfer.md` and `evidence/transfer-slice.md` for exact bounds and trust limits. Actual process-kill tests extend earlier synthetic failure checkpoints; power-loss behavior remains unqualified. The measured replay baseline and correction plan are in `evidence/scale-baseline.md`. The 100k/16-writer target remains unqualified: v1's 64 MiB journal cannot fit it, and segmentation/projections are still required. Keep complete US3/convergence/QA task flags open until all their criteria pass.

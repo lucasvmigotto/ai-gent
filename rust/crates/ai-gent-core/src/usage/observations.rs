@@ -227,6 +227,7 @@ pub(super) fn ingest(root: &Path, request: &IngestRequest) -> Result<Value> {
     let _lock = store.lock(false)?;
     let ledger = store.load()?;
     let mut records = read(&store, &ledger)?;
+    super::transfer::check_request_id(&store, request.request_id)?;
     super::receipts::verify_current(&store)?;
     super::receipts::check_request_id(&store, request.request_id)?;
     super::recovery::check_request_id(&store, request.request_id)?;
