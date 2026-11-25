@@ -4,7 +4,7 @@ use super::{Error, MAX_RECORD, Result, conflict, corrupt, io_error, limit};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -223,7 +223,7 @@ impl Store {
         }
     }
     pub(super) fn load(&self) -> Result<Ledger> {
-        let f = match options().read(true).open(&self.log) {
+        let mut f = match options().read(true).open(&self.log) {
             Ok(f) => f,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Ledger::default()),
             Err(e) => return Err(io_error(e)),
@@ -231,14 +231,11 @@ impl Store {
         if !f.metadata().map_err(io_error)?.is_file() {
             return Err(super::invalid());
         }
-        let mut bytes = Vec::new();
-        f.take(MAX_JOURNAL + 1)
-            .read_to_end(&mut bytes)
-            .map_err(io_error)?;
-        if bytes.len() as u64 > MAX_JOURNAL {
-            return Err(limit());
-        }
-        decode(&bytes)
+        super::frames::preflight(&mut f, MAX_JOURNAL)?;
+        decode_reader(
+            BufReader::with_capacity(64 * 1024, f.take(MAX_JOURNAL + 1)),
+            MAX_JOURNAL,
+        )
     }
     fn append(&self, sequence: u64, request: Request, result: Run) -> Result<()> {
         let payload = Entry { request, result };
@@ -341,14 +338,12 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Ledger> {
     if !bytes.is_empty() && bytes.last() != Some(&b'\n') {
         return Err(corrupt());
     }
+    decode_reader(std::io::Cursor::new(bytes), u64::MAX)
+}
+fn decode_reader(reader: impl BufRead, max: u64) -> Result<Ledger> {
     let mut state = Ledger::default();
-    if bytes.is_empty() {
-        return Ok(state);
-    }
-    for line in bytes[..bytes.len() - 1].split(|c| *c == b'\n') {
-        if line.len() > MAX_RECORD {
-            return Err(limit());
-        }
+    let mut frames = super::frames::Frames::with_limit(reader, max);
+    while let Some(line) = frames.next()? {
         let frame: Frame = serde_json::from_slice(line).map_err(|_| corrupt())?;
         if frame.schema_version != 1 || frame.sequence != state.sequence + 1 {
             return Err(corrupt());

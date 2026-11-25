@@ -14,7 +14,7 @@ Ingestion PR [#463](https://github.com/lucasvmigotto/ai-gent/pull/463) merged in
 
 ```sh
 git fetch origin
-git switch -c docs/usage-journal-segmentation --track origin/docs/usage-journal-segmentation
+git switch -c perf/usage-frame-reader --track origin/perf/usage-frame-reader
 python3 docs/product/agent-parity-plan/validate_plan.py
 ```
 
@@ -55,3 +55,6 @@ Backup fixture continuation: `test/backup-native-fixture` is stacked on publishe
 
 
 Latest planning continuation: `docs/usage-journal-segmentation` includes the native fixture commit `7ea2de2` and the reviewed **PROPOSED** storage-v2 contract (`specs/046-task-usage-ledger/contracts/segmented-journal-v2.md`) and ordered proof/implementation plan (`evidence/segmentation-implementation-plan.md` beside it). No v2 runtime is enabled. Before enabling writes, resolve manifest retention, integrity verification under five-second lock contention, disk-backed exact reduction, historical retry locators and platform replacement durability. Begin with characterization and bounded v1 frame decoding; preserve literal receipt prefixes and old-binary migration fencing. Full uninstrumented `scripts/check.sh --quiet` passed on this planning descendant on 2026-11-25, following the fixture commit’s earlier full pass; no new PR, remote CI, merge or completed task is implied.
+
+
+Bounded reader continuation: `perf/usage-frame-reader` implements the first v1 raw frame-reading slice on top of `3a57e23`. See `specs/046-task-usage-ledger/evidence/bounded-frame-reader-slice.md`. Registration/observation loads use bounded scans and frame decoding with both-pass size guards, preserving the legacy line boundary and validation ordering. No storage-v2 writes or format changes are enabled. Next characterize remaining whole-history allocations and resolve retention, disk-backed reducer/index and integrity/contention decisions before migration. Full uninstrumented `scripts/check.sh --quiet`, plan validation and diff checks passed on 2026-11-25. The evidence records scope and limits; verify the published branch tip before resuming. No PR or merge is claimed.

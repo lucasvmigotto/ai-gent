@@ -7,7 +7,7 @@ use super::{Error, MAX_RECORD, Result, conflict, corrupt, io_error, limit};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 const MAX_LOG: u64 = 64 * 1024 * 1024;
@@ -26,7 +26,7 @@ pub(super) fn path(store: &Store) -> PathBuf {
 pub(super) fn read(store: &Store, registration: &Ledger) -> Result<Vec<IngestRequest>> {
     let path = path(store);
     check_path(&store.root, &path, false)?;
-    let file = match options().read(true).open(&path) {
+    let mut file = match options().read(true).open(&path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => return Err(io_error(error)),
@@ -34,14 +34,12 @@ pub(super) fn read(store: &Store, registration: &Ledger) -> Result<Vec<IngestReq
     if !file.metadata().map_err(io_error)?.is_file() {
         return Err(corrupt());
     }
-    let mut bytes = Vec::new();
-    file.take(MAX_LOG + 1)
-        .read_to_end(&mut bytes)
-        .map_err(io_error)?;
-    if bytes.len() as u64 > MAX_LOG {
-        return Err(limit());
-    }
-    decode(&bytes, registration)
+    super::frames::preflight(&mut file, MAX_LOG)?;
+    decode_reader(
+        BufReader::with_capacity(64 * 1024, file.take(MAX_LOG + 1)),
+        registration,
+        MAX_LOG,
+    )
 }
 pub(super) fn decode(bytes: &[u8], registration: &Ledger) -> Result<Vec<IngestRequest>> {
     if bytes.is_empty() {
@@ -50,12 +48,17 @@ pub(super) fn decode(bytes: &[u8], registration: &Ledger) -> Result<Vec<IngestRe
     if bytes.last() != Some(&b'\n') {
         return Err(corrupt());
     }
+    decode_reader(std::io::Cursor::new(bytes), registration, u64::MAX)
+}
+fn decode_reader(
+    reader: impl BufRead,
+    registration: &Ledger,
+    max: u64,
+) -> Result<Vec<IngestRequest>> {
     let mut records = Vec::new();
     let mut ids = BTreeSet::new();
-    for line in bytes[..bytes.len() - 1].split(|byte| *byte == b'\n') {
-        if line.len() > MAX_RECORD {
-            return Err(limit());
-        }
+    let mut frames = super::frames::Frames::with_limit(reader, max);
+    while let Some(line) = frames.next()? {
         let frame: Frame = serde_json::from_slice(line).map_err(|_| corrupt())?;
         if frame.schema_version != 1 || frame.sequence != records.len() as u64 + 1 {
             return Err(corrupt());

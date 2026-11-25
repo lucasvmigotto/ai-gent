@@ -1,6 +1,7 @@
 //! Registered execution identities (046 US1). This module does not collect tokens or accept tasks.
 mod contributions;
 mod durable;
+mod frames;
 mod identity;
 mod journal;
 mod normalize;
