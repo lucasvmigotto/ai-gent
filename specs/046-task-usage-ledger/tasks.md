@@ -103,3 +103,18 @@ The exact local DAG is recorded in `task-graph.json`; it is planning metadata, n
 ## Development evidence — 2026-11-18
 
 Twelve tasks completed across registration and ingestion slices. See `evidence/ingestion-slice.md` for the ingestion contract, validation and remaining gaps. Seven tasks completed in the first registration slice. See `evidence/registration-slice.md` for actual tests, trust limits and pending work. T010 independent review/convergence remains unchecked; 046 is In progress, not Implemented/Verified.
+
+
+## Bounded US3 progress — 2026-11-18
+
+Recovery and local immutable snapshots are implemented on `feat/usage-recovery`; see `evidence/recovery-slice.md` and `contracts/recovery-and-snapshots.md`. A fresh reviewer found and verified correction of a snapshot retry evidence-verification bypass. Thirteen CLI recovery tests and five new core fault suites pass. Keep T007/T008/T017/T018/T019 unchecked: bulk versioned import/dry-run, actual process-kill/power-loss coverage and target workload qualification are not complete. Test-only failure checkpoints do not establish real crash durability or qualify new operating-system/host cells. T010/T020–T022 also remain open.
+
+
+## Transfer and crash-test continuation — 2026-11-18
+
+`feat/usage-transfer` adds bounded, versioned export/import with read-only dry-run validation. Imported archives stay separate from measured local runs and are classified imported/local-unverified/unclosed. See `contracts/evidence-transfer.md` and `evidence/transfer-slice.md` for exact bounds and trust limits. Actual process-kill tests extend earlier synthetic failure checkpoints; power-loss behavior remains unqualified. The measured replay baseline and correction plan are in `evidence/scale-baseline.md`. The 100k/16-writer target remains unqualified: v1's 64 MiB journal cannot fit it, and segmentation/projections are still required. Keep complete US3/convergence/QA task flags open until all their criteria pass.
+
+
+## Indexed replay continuation — 2026-11-24
+
+`perf/usage-ledger-indexes` removes redundant/quadratic contribution scans, reuses normalized quality within each summary, and verifies receipt raw prefixes in one incremental hash pass per journal. Compatibility cases pass before/after; see `evidence/indexed-replay-slice.md` for measured debug results, review, bounds and remaining work. This is a performance implementation slice, not completion of the projection/segmentation/load requirements in T018/T020–T022. Whole US3/convergence/QA flags remain open.

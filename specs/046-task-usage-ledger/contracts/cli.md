@@ -1,13 +1,14 @@
 # CLI Contract: Task identity and durable usage ledger
 
-Status: v1 design contract with partial implementation. Registration/segment/transition/replay are implemented as described in `registration.md`; ingest is implemented as described in `usage-ingestion.md`. Export, protected collector authorization, receipts and pagination remain design targets. Operation IDs below are stable boundary names; implementation maps them into existing `ai-gent delegate`, `tokens`, `doctor`, `spec` or new `usage` groups without two overlapping public commands.
+Status: v1 design contract with partial implementation. Registration/segment/transition/replay are implemented as described in `registration.md`; ingest is implemented as described in `usage-ingestion.md`. Local recovery/snapshots are implemented as described in `recovery-and-snapshots.md`; bounded export/import are described in `evidence-transfer.md`. Protected collector authorization, completion receipts and pagination remain design targets. Operation IDs below are stable boundary names; implementation maps them into existing `ai-gent delegate`, `tokens`, `doctor`, `spec` or new `usage` groups without two overlapping public commands.
 
 | Operation ID | Actor | Purpose |
 |---|---|---|
 | register | coordinator | Create immutable scope and return registration/run IDs |
 | ingest | collector | Append one bounded source observation idempotently |
 | replay | collector | Recover journal and rebuild disposable projection |
-| export | owner | Export sanitized normalized evidence with digests |
+| export | owner | Export bounded pseudonymized evidence with digests |
+| import | owner | Validate/dry-run or archive foreign evidence separately from local execution totals |
 
 ## Shared Request/Response Envelope
 

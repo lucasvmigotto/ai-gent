@@ -1,9 +1,14 @@
 //! Registered execution identities (046 US1). This module does not collect tokens or accept tasks.
 mod contributions;
+mod durable;
+mod frames;
 mod identity;
 mod journal;
 mod normalize;
 mod observations;
+mod receipts;
+mod recovery;
+mod transfer;
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -94,6 +99,8 @@ pub fn replay(root: &Path) -> Result<Value> {
 }
 
 #[cfg(test)]
+mod recovery_tests;
+#[cfg(test)]
 mod tests;
 
 /// Normalize and durably record a source observation for an existing execution scope.
@@ -121,3 +128,40 @@ pub fn ingest(root: &Path, input: &[u8]) -> Result<Value> {
     }
     observations::ingest(root, &request)
 }
+
+/// Publish an immutable local usage snapshot after flushing its journal evidence.
+///
+/// # Errors
+/// Rejects stale sequences/predecessors, conflicting requests, corruption and I/O failure.
+/// This snapshot never accepts a task or certifies a provider bill.
+pub fn snapshot(root: &Path, input: &[u8]) -> Result<Value> {
+    receipts::snapshot(root, input)
+}
+
+/// Plan or explicitly apply digest-pinned isolation of incomplete trailing journal frames.
+///
+/// # Errors
+/// Refuses interior corruption, changed evidence, missing registered prefixes and I/O failure.
+/// Dry runs create no files; apply preserves original damaged evidence before truncation.
+pub fn recover(root: &Path, input: Option<&[u8]>, dry_run: bool) -> Result<Value> {
+    recovery::recover(root, input, dry_run)
+}
+
+/// Export a sanitized portable evidence bundle from validated local journals.
+///
+/// # Errors
+/// Rejects corruption, missing local evidence, unsafe paths and bounded I/O failures.
+pub fn export(root: &Path) -> Result<Value> {
+    transfer::export(root)
+}
+
+/// Validate or archive portable evidence without contributing to local measured totals.
+///
+/// # Errors
+/// Rejects unsupported formats, contradictory evidence, conflicts, corruption and I/O failures.
+pub fn import(root: &Path, input: &[u8], dry_run: bool) -> Result<Value> {
+    transfer::import(root, input, dry_run)
+}
+
+#[cfg(all(test, unix))]
+mod process_crash_tests;

@@ -1,7 +1,7 @@
 # Implementation Plan: Task identity and durable usage ledger
 
 **Branch**: `feat/task-usage-ledger` | **Date**: 2026-11-17 | **Spec**: [spec.md](spec.md)
-**Status**: In progress; US1 registration is implemented and tested. US2/US3, independent review and final qualification remain pending.
+**Status**: In progress; US1 registration and US2 ingestion are implemented and tested. A bounded US3 recovery/snapshot slice is implemented; bounded portable export/import and process-kill tests are added by the continuation; segmented journals/projections, reference scale qualification, whole-feature independent convergence and final QA remain open.
 
 ## Summary
 

@@ -7,7 +7,7 @@ use super::{Error, MAX_RECORD, Result, conflict, corrupt, io_error, limit};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 const MAX_LOG: u64 = 64 * 1024 * 1024;
@@ -20,13 +20,13 @@ struct Frame {
     checksum: String,
     payload: IngestRequest,
 }
-fn path(store: &Store) -> PathBuf {
+pub(super) fn path(store: &Store) -> PathBuf {
     store.dir.join("observations.jsonl")
 }
-fn read(store: &Store, registration: &Ledger) -> Result<Vec<IngestRequest>> {
+pub(super) fn read(store: &Store, registration: &Ledger) -> Result<Vec<IngestRequest>> {
     let path = path(store);
     check_path(&store.root, &path, false)?;
-    let file = match options().read(true).open(&path) {
+    let mut file = match options().read(true).open(&path) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => return Err(io_error(error)),
@@ -34,25 +34,31 @@ fn read(store: &Store, registration: &Ledger) -> Result<Vec<IngestRequest>> {
     if !file.metadata().map_err(io_error)?.is_file() {
         return Err(corrupt());
     }
-    let mut bytes = Vec::new();
-    file.take(MAX_LOG + 1)
-        .read_to_end(&mut bytes)
-        .map_err(io_error)?;
-    if bytes.len() as u64 > MAX_LOG {
-        return Err(limit());
-    }
+    super::frames::preflight(&mut file, MAX_LOG)?;
+    decode_reader(
+        BufReader::with_capacity(64 * 1024, file.take(MAX_LOG + 1)),
+        registration,
+        MAX_LOG,
+    )
+}
+pub(super) fn decode(bytes: &[u8], registration: &Ledger) -> Result<Vec<IngestRequest>> {
     if bytes.is_empty() {
         return Ok(Vec::new());
     }
     if bytes.last() != Some(&b'\n') {
         return Err(corrupt());
     }
+    decode_reader(std::io::Cursor::new(bytes), registration, u64::MAX)
+}
+fn decode_reader(
+    reader: impl BufRead,
+    registration: &Ledger,
+    max: u64,
+) -> Result<Vec<IngestRequest>> {
     let mut records = Vec::new();
     let mut ids = BTreeSet::new();
-    for line in bytes[..bytes.len() - 1].split(|byte| *byte == b'\n') {
-        if line.len() > MAX_RECORD {
-            return Err(limit());
-        }
+    let mut frames = super::frames::Frames::with_limit(reader, max);
+    while let Some(line) = frames.next()? {
         let frame: Frame = serde_json::from_slice(line).map_err(|_| corrupt())?;
         if frame.schema_version != 1 || frame.sequence != records.len() as u64 + 1 {
             return Err(corrupt());
@@ -80,6 +86,7 @@ fn read(store: &Store, registration: &Ledger) -> Result<Vec<IngestRequest>> {
     summarize(&events(&records)).map_err(|_| corrupt())?;
     Ok(records)
 }
+
 fn events(records: &[IngestRequest]) -> Vec<Observation> {
     records
         .iter()
@@ -114,9 +121,8 @@ fn append(store: &Store, sequence: u64, request: &IngestRequest) -> Result<()> {
     if metadata.len() + bytes.len() as u64 > MAX_LOG {
         return Err(limit());
     }
-    file.write_all(&bytes)
-        .and_then(|()| file.sync_all())
-        .map_err(io_error)?;
+    super::durable::append(&mut file, &bytes)?;
+    super::durable::boundary("append_directory_sync")?;
     sync_dir(&store.dir)
 }
 pub(super) fn check_request_id(store: &Store, ledger: &Ledger, id: Uuid) -> Result<()> {
@@ -224,6 +230,10 @@ pub(super) fn ingest(root: &Path, request: &IngestRequest) -> Result<Value> {
     let _lock = store.lock(false)?;
     let ledger = store.load()?;
     let mut records = read(&store, &ledger)?;
+    super::transfer::check_request_id(&store, request.request_id)?;
+    super::receipts::verify_current(&store)?;
+    super::receipts::check_request_id(&store, request.request_id)?;
+    super::recovery::check_request_id(&store, request.request_id)?;
     if ledger.requests.contains_key(&request.request_id) {
         return Err(conflict());
     }
@@ -262,7 +272,10 @@ pub(super) fn replay(root: &Path) -> Result<Value> {
         let ledger = store.load()?;
         let records = read(&store, &ledger)?;
         // Assemble under the same lock used by registration and ingestion.
-        return replay_value(&ledger, &records);
+        super::receipts::verify_current(&store)?;
+        let mut value = replay_value(&ledger, &records)?;
+        value["result"]["receipt_head"] = json!(super::receipts::head(&store)?);
+        return Ok(value);
     } else {
         if path(&store).exists() {
             return Err(corrupt());
@@ -271,7 +284,7 @@ pub(super) fn replay(root: &Path) -> Result<Value> {
     };
     replay_value(&ledger, &records)
 }
-fn replay_value(ledger: &Ledger, records: &[IngestRequest]) -> Result<Value> {
+pub(super) fn replay_value(ledger: &Ledger, records: &[IngestRequest]) -> Result<Value> {
     Ok(
         json!({"schema_version":1,"operation":"replay","ok":true,"result":{
         "repository_id":ledger.repository_id,"sequence":ledger.sequence,

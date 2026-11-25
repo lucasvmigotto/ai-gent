@@ -84,3 +84,72 @@ fn registration() -> serde_json::Value {
         "agent_version":"fixture-1","config_digest":format!("sha256:{}","a".repeat(64))}}
     })
 }
+
+#[test]
+fn streamed_files_preserve_noncanonical_frame_and_legacy_line_boundary() {
+    let root = tempfile::tempdir().unwrap();
+    let feature = root.path().join("specs/046-task-usage-ledger");
+    std::fs::create_dir_all(&feature).unwrap();
+    std::fs::write(feature.join("tasks.md"), "- [ ] T001 Build\n").unwrap();
+    let request = registration();
+    execute(root.path(), "register", request.to_string().as_bytes()).unwrap();
+    let expected = replay(root.path()).unwrap();
+    let path = root
+        .path()
+        .join(".ai-gent/usage/journal/registrations.jsonl");
+    let value: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    // Whitespace is outside the canonical payload checksum, including legacy maximum padding.
+    let mut bytes = serde_json::to_vec(&value).unwrap();
+    bytes.resize(MAX_RECORD, b' ');
+    bytes.push(b'\n');
+    std::fs::write(&path, &bytes).unwrap();
+    assert_eq!(replay(root.path()).unwrap(), expected);
+    bytes.insert(bytes.len() - 1, b' ');
+    std::fs::write(&path, bytes).unwrap();
+    assert_eq!(replay(root.path()).unwrap_err().code, "limit_exceeded");
+}
+
+#[test]
+fn streamed_both_journals_preserve_whole_file_error_precedence() {
+    use std::io::{Seek, SeekFrom, Write};
+    for observations_log in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let store = journal::Store::open(root.path(), true).unwrap();
+        let path = if observations_log {
+            observations::path(&store)
+        } else {
+            store.log.clone()
+        };
+        let read_error = || {
+            if observations_log {
+                observations::read(&store, &identity::Ledger::default())
+                    .err()
+                    .unwrap()
+                    .code
+            } else {
+                store.load().err().unwrap().code
+            }
+        };
+        std::fs::write(&path, b"bad\nx").unwrap();
+        assert_eq!(read_error(), "evidence_corrupt");
+        let mut file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.set_len(64 * 1024 * 1024 + 1).unwrap();
+        file.seek(SeekFrom::End(-1)).unwrap();
+        file.write_all(b"\n").unwrap();
+        assert_eq!(read_error(), "limit_exceeded");
+        std::fs::write(&path, b"bad\n").unwrap();
+        assert_eq!(read_error(), "evidence_corrupt");
+        std::fs::write(&path, b"\n").unwrap();
+        assert_eq!(read_error(), "evidence_corrupt");
+        std::fs::write(&path, b"").unwrap();
+        if observations_log {
+            assert!(
+                observations::read(&store, &identity::Ledger::default())
+                    .unwrap()
+                    .is_empty()
+            );
+        } else {
+            assert_eq!(store.load().unwrap().sequence, 0);
+        }
+    }
+}

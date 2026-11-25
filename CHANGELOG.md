@@ -6,6 +6,14 @@ changes.
 
 ## Unreleased
 
+- **Bounded ledger frame reads:** registration and observation loads decode one bounded raw frame at a time while preserving v1 size, newline and validation behavior. Decoded history still remains in memory; storage-v2 and full-scale qualification remain pending.
+
+- **Ledger replay performance:** indexed contribution membership and cached normalized quality preserve ordering/counters while removing redundant scans. Receipt verification hashes covered journal bytes once across sorted/coalesced cutoffs without rewriting receipts. A matched 30k-event debug diagnostic improved from 17.18 s to 9.30 s; the reference 100k/16-writer target remains unqualified.
+
+- **Portable usage evidence (046 continuation):** versioned sanitized export and digest-pinned import/dry-run preserve per-run model/provider/role/scope metadata in a separate private archive. Imported evidence stays unverified and never changes current execution totals. A measured replay baseline records the remaining journal-capacity and scale gaps.
+
+- **Usage recovery and snapshots (046 US3 slice):** `usage recover` offers digest-pinned dry-run/apply for torn tails with durable quarantine; `usage snapshot` publishes immutable content-addressed local evidence with predecessor and journal-prefix validation. Snapshot retries refuse missing bound evidence. Bulk import, real crash/scale qualification and task-acceptance receipts remain pending.
+
 - **Usage ingestion (046 US2):** `ai-gent usage ingest` records bounded observations, normalizes inclusive/disjoint cache semantics, rejects contradictory counters and deduplicates request/turn/session contributions. Replay separates exclusive, shared and unattributed totals, preserving unknown counters and local assurance. Live collectors, protected authorization, receipts and task-completion enforcement remain pending.
 
 ### Added
