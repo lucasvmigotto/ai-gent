@@ -627,8 +627,8 @@ mod sqlite {
     }
 }
 
-/// The real exec against a stand-in "container engine" script: the deadline kills a hang, the size cap
-/// stops a flood, and a failure leaves no dump file. Unix only (the stand-in is a shell script).
+/// The real exec against a prebuilt stand-in container engine: the deadline kills a hang, the size
+/// cap stops a flood, and a failure leaves no dump file. Unix only for the private-file mode assertion.
 #[cfg(unix)]
 mod real_exec {
     use super::*;
@@ -637,11 +637,31 @@ mod real_exec {
     use std::os::unix::fs::PermissionsExt;
     use std::time::{Duration, Instant};
 
-    fn engine(dir: &Path, body: &str) -> ContainerExec {
-        let p = dir.join("fake-engine");
-        std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
-        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
-        ContainerExec::new(p, Env::real())
+    fn engine(mode: &str, path: Option<&Path>) -> ContainerExec {
+        // Resolve beside this test binary so custom target directories and profiles work too.
+        let exe = std::env::current_exe().unwrap();
+        let program = exe
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("examples")
+            .join(format!(
+                "backup_fake_engine{}",
+                std::env::consts::EXE_SUFFIX
+            ));
+        assert!(
+            program.exists(),
+            "{} (run cargo build -p ai-gent-dbrun --example backup_fake_engine before filtered tests; ordinary cargo test builds examples)",
+            program.display()
+        );
+        let mut env = Env::real();
+        env.set("AI_GENT_BACKUP_FAKE_MODE", mode);
+        env.remove("AI_GENT_BACKUP_FAKE_PATH");
+        if let Some(path) = path {
+            env.set("AI_GENT_BACKUP_FAKE_PATH", path.as_os_str());
+        }
+        ContainerExec::new(program, env)
     }
 
     fn spec<'a>(out: &'a Path, stdin: &'a [u8], timeout: Duration, cap: u64) -> ExecSpec<'a> {
@@ -662,13 +682,7 @@ mod real_exec {
     fn arguments_carry_no_password_and_stdin_reaches_the_tool() {
         let d = tempfile::tempdir().unwrap();
         let argfile = d.path().join("args");
-        let e = engine(
-            d.path(),
-            &format!(
-                "echo \"$@\" > {}; read -r line; echo \"got:$line\"",
-                argfile.display()
-            ),
-        );
+        let e = engine("echo", Some(&argfile));
         let out = d.path().join("dump");
         let r = e
             .run(&spec(
@@ -695,7 +709,7 @@ mod real_exec {
     #[test]
     fn a_hang_is_killed_at_the_deadline_and_leaves_no_file() {
         let d = tempfile::tempdir().unwrap();
-        let e = engine(d.path(), "sleep 30");
+        let e = engine("hang", None);
         let out = d.path().join("dump");
         let t0 = Instant::now();
         let r = e
@@ -709,7 +723,7 @@ mod real_exec {
     #[test]
     fn a_flood_past_the_cap_is_stopped_and_the_partial_file_removed() {
         let d = tempfile::tempdir().unwrap();
-        let e = engine(d.path(), "yes AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+        let e = engine("flood", None);
         let out = d.path().join("dump");
         let t0 = Instant::now();
         let r = e
@@ -725,10 +739,7 @@ mod real_exec {
         let d = tempfile::tempdir().unwrap();
         let ran = d.path().join("ran");
         // The stand-in would exit 0 on empty input, as a SQL client does.
-        let e = engine(
-            d.path(),
-            &format!("touch {}; cat > /dev/null", ran.display()),
-        );
+        let e = engine("mark", Some(&ran));
         let unused = d.path().join("unused");
         let mut s = spec(&unused, b"x\n", Duration::from_secs(5), 10);
         s.stdout_file = None;

@@ -49,3 +49,6 @@ Performance continuation: contribution membership/cutoff indexing and single-pas
 
 
 Current performance publication gate: two full checks failed in the unchanged database-backup fake-engine spawn fixture, despite isolated and workspace-selected target passes. The current work branch is reviewable but **must not be treated as full-gate green or merged** while that remains unresolved. See `specs/046-task-usage-ledger/evidence/indexed-replay-slice.md` for exact evidence and limits. No test policy was waived.
+
+
+Backup fixture continuation: `test/backup-native-fixture` is stacked on published performance commit `89c49c7`. It replaces freshly written executable shell stand-ins with a prebuilt Rust example, without production changes. See `specs/046-task-usage-ledger/evidence/backup-native-fixture.md` for test prerequisites and limits. The historical failure cause remains unknown; earlier failed checks remain recorded. Its full uninstrumented `scripts/check.sh --quiet` passed on 2026-11-25; this descendant is locally green. Earlier failures remain historical evidence, not a waived gate. No remote CI or merge is claimed.
