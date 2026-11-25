@@ -14,7 +14,7 @@ Ingestion PR [#463](https://github.com/lucasvmigotto/ai-gent/pull/463) merged in
 
 ```sh
 git fetch origin
-git switch -c perf/usage-ledger-indexes --track origin/perf/usage-ledger-indexes
+git switch -c docs/usage-journal-segmentation --track origin/docs/usage-journal-segmentation
 python3 docs/product/agent-parity-plan/validate_plan.py
 ```
 
@@ -48,7 +48,10 @@ Final continuation validation and publication are recorded in `specs/046-task-us
 Performance continuation: contribution membership/cutoff indexing and single-pass in-memory receipt-prefix hashing are implemented without journal/receipt format changes. Matched debug replay samples and compatibility/review evidence are in `specs/046-task-usage-ledger/evidence/indexed-replay-slice.md`. The 30k sample improved from 17.180 to 9.296 seconds; do not extrapolate a 100k/reference-runner qualification. Next: segmented journals preserving old raw prefixes, bounded-memory decode and disposable verified projections/indexes, including imported archive request guards. Repeated whole-history normalization/cloning across operations still remains. The producing-session response records the pushed commit and final gate.
 
 
-Current performance publication gate: two full checks failed in the unchanged database-backup fake-engine spawn fixture, despite isolated and workspace-selected target passes. The current work branch is reviewable but **must not be treated as full-gate green or merged** while that remains unresolved. See `specs/046-task-usage-ledger/evidence/indexed-replay-slice.md` for exact evidence and limits. No test policy was waived.
+Historical performance publication gate at `89c49c7`: two full checks failed in the unchanged database-backup fake-engine spawn fixture, despite isolated and workspace-selected target passes. That commit was published for review without a passing full gate. The subsequent fixture descendant and its separate validation are recorded below; do not erase or reinterpret these earlier failures. See `specs/046-task-usage-ledger/evidence/indexed-replay-slice.md` for exact evidence and limits. No test policy was waived.
 
 
 Backup fixture continuation: `test/backup-native-fixture` is stacked on published performance commit `89c49c7`. It replaces freshly written executable shell stand-ins with a prebuilt Rust example, without production changes. See `specs/046-task-usage-ledger/evidence/backup-native-fixture.md` for test prerequisites and limits. The historical failure cause remains unknown; earlier failed checks remain recorded. Its full uninstrumented `scripts/check.sh --quiet` passed on 2026-11-25; this descendant is locally green. Earlier failures remain historical evidence, not a waived gate. No remote CI or merge is claimed.
+
+
+Latest planning continuation: `docs/usage-journal-segmentation` includes the native fixture commit `7ea2de2` and the reviewed **PROPOSED** storage-v2 contract (`specs/046-task-usage-ledger/contracts/segmented-journal-v2.md`) and ordered proof/implementation plan (`evidence/segmentation-implementation-plan.md` beside it). No v2 runtime is enabled. Before enabling writes, resolve manifest retention, integrity verification under five-second lock contention, disk-backed exact reduction, historical retry locators and platform replacement durability. Begin with characterization and bounded v1 frame decoding; preserve literal receipt prefixes and old-binary migration fencing. Full uninstrumented `scripts/check.sh --quiet` passed on this planning descendant on 2026-11-25, following the fixture commit’s earlier full pass; no new PR, remote CI, merge or completed task is implied.
