@@ -1,5 +1,7 @@
 # Remote implementation handoff
 
+**Current integration — 2026-11-25:** PR [#464](https://github.com/lucasvmigotto/ai-gent/pull/464) merged the six recovery/transfer/performance/fixture/reader commits into `develop` at `67cd7e3f3ccd80e3ef32142e0bdb522febe559e7`. Exact-head CI passed all six Rust targets, packaging, repository checks and docs verification/e2e; no waiver or self-approval. The latest continuation is `feat/usage-segment-view`, a test-only metadata prototype described below. Earlier branch/gate records are historical.
+
 Prepared 2026-11-17. Planning branch: `docs/codex-parity-plan`, base `origin/develop` at 0a61fc4546491d6696fa46a1f2595958f4903ed0. Canonical remote: https://github.com/lucasvmigotto/ai-gent. Publication and exact plan commit are reported by the producing session; verify with `git ls-remote --heads origin docs/codex-parity-plan` rather than trusting a self-referential commit hash inside this file.
 
 ## User intent and standing constraints
@@ -14,7 +16,7 @@ Ingestion PR [#463](https://github.com/lucasvmigotto/ai-gent/pull/463) merged in
 
 ```sh
 git fetch origin
-git switch -c perf/usage-frame-reader --track origin/perf/usage-frame-reader
+git switch -c feat/usage-segment-view --track origin/feat/usage-segment-view
 python3 docs/product/agent-parity-plan/validate_plan.py
 ```
 
@@ -58,3 +60,6 @@ Latest planning continuation: `docs/usage-journal-segmentation` includes the nat
 
 
 Bounded reader continuation: `perf/usage-frame-reader` implements the first v1 raw frame-reading slice on top of `3a57e23`. See `specs/046-task-usage-ledger/evidence/bounded-frame-reader-slice.md`. Registration/observation loads use bounded scans and frame decoding with both-pass size guards, preserving the legacy line boundary and validation ordering. No storage-v2 writes or format changes are enabled. Next characterize remaining whole-history allocations and resolve retention, disk-backed reducer/index and integrity/contention decisions before migration. Full uninstrumented `scripts/check.sh --quiet`, plan validation and diff checks passed on 2026-11-25. The evidence records scope and limits; verify the published branch tip before resuming. No PR or merge is claimed.
+
+
+Segmented metadata continuation: `feat/usage-segment-view` contains a cfg(test)-only HEAD/manifest structural parser and adversarial tests, described in `specs/046-task-usage-ledger/evidence/segment-metadata-prototype.md`. Production behavior is unchanged. Next: source-byte/logical-stream validation and exact legacy receipt boundary tests, while resolving retention and disk-backed reduction decisions before writers/migration. PR #464 is merged at `67cd7e3`; post-merge Docs CI passed. This continuation starts directly from that develop merge, has 16 passing focused tests, clean pinned lint/format and a passing full uninstrumented repository check on 2026-11-25. See its evidence for scope and limits. No PR for this prototype has been opened.

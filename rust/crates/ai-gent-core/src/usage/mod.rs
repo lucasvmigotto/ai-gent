@@ -8,6 +8,8 @@ mod normalize;
 mod observations;
 mod receipts;
 mod recovery;
+#[cfg(test)]
+mod segmented;
 mod transfer;
 
 use serde::Serialize;
