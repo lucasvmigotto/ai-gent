@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Linux replay baseline using synthetic checksummed frames; no provider calls."""
 import json, hashlib, tempfile, pathlib, subprocess, time, copy, os
-import argparse, shutil
+import argparse, shutil, signal, sys
 parser=argparse.ArgumentParser(description="Synthetic replay-only diagnostic; not a capacity qualification")
 parser.add_argument('--repo',type=pathlib.Path,default=pathlib.Path(__file__).resolve().parents[4])
 parser.add_argument('--binary',type=pathlib.Path,required=True)
 parser.add_argument('--counts',type=int,nargs='+',default=[1000])
+parser.add_argument('--timeout-seconds',type=float,default=45)
 args=parser.parse_args()
+if sys.platform!='linux':
+ parser.error('this diagnostic records Linux RSS units and requires Linux process groups')
+if not 0<args.timeout_seconds<=180:
+ parser.error('timeout must be positive and at most 180 seconds')
 if any(count<1 or count>30000 for count in args.counts):
  parser.error('counts must be between 1 and 30000; the v1 journal is bounded')
 repo=args.repo.resolve()
@@ -14,6 +19,10 @@ binary=args.binary.resolve()
 sha=lambda b:'sha256:'+hashlib.sha256(b).hexdigest()
 canonical=lambda v:json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
 binary_hash=sha(binary.read_bytes())
+def stop_probe(process):
+ try: os.killpg(process.pid,signal.SIGKILL)
+ except ProcessLookupError: pass
+ process.communicate()
 with tempfile.TemporaryDirectory(prefix='usage-scale-probe-') as synthetic_root:
  root=pathlib.Path(synthetic_root)
  source_binary=binary
@@ -40,7 +49,27 @@ with tempfile.TemporaryDirectory(prefix='usage-scale-probe-') as synthetic_root:
     payload=canonical(request)
     output.write(canonical({'schema_version':1,'sequence':n,'payload_bytes':len(payload),'checksum':sha(payload),'payload':request})+b'\n')
   start=time.perf_counter()
-  result=subprocess.run(['python3','-c','import subprocess,resource,sys; p=subprocess.run(sys.argv[1:]); print("PROBE rss_kib="+str(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss),file=sys.stderr); sys.exit(p.returncode)',str(binary),'--json','usage','--root',str(root),'replay'],capture_output=True,text=True,timeout=45)
+  command=['python3','-c','import subprocess,resource,sys; p=subprocess.run(sys.argv[1:]); print("PROBE rss_kib="+str(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss),file=sys.stderr); sys.exit(p.returncode)',str(binary),'--json','usage','--root',str(root),'replay']
+  interrupted=[]
+  previous_handler=signal.signal(signal.SIGINT,lambda signum,frame:interrupted.append(True))
+  try:
+   # Defer SIGINT during Popen construction until the cleanup guard owns the
+   # detached child. Otherwise interruption between fork and __enter__ leaks it.
+   with subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True) as process:
+    try:
+     signal.signal(signal.SIGINT,previous_handler)
+     if interrupted: raise KeyboardInterrupt
+     stdout,stderr=process.communicate(timeout=args.timeout_seconds)
+    except subprocess.TimeoutExpired:
+     stop_probe(process)
+     print(json.dumps({'events':count,'status':'timeout','timeout_seconds':args.timeout_seconds}),flush=True)
+     raise SystemExit(124)
+    except BaseException:
+     stop_probe(process)
+     raise
+    result=subprocess.CompletedProcess(command,process.returncode,stdout,stderr)
+  finally:
+   signal.signal(signal.SIGINT,previous_handler)
   elapsed=time.perf_counter()-start
   value=json.loads(result.stdout)
   assert result.returncode==0,(result.returncode,result.stderr,value)

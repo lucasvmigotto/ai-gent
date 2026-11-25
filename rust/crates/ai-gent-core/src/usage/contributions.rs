@@ -25,19 +25,25 @@ pub(super) struct Summary {
     pub normalized_quality_counts: BTreeMap<String, usize>,
     pub counter_quality_counts: BTreeMap<String, usize>,
 }
-fn unique(observations: &[Observation]) -> Result<Vec<&Observation>> {
+struct ValidatedObservation<'a> {
+    event: &'a Observation,
+    quality: Quality,
+    counter_quality: Quality,
+}
+fn unique(observations: &[Observation]) -> Result<Vec<ValidatedObservation<'_>>> {
     let mut selected = Vec::new();
     let mut keys: BTreeMap<String, &Observation> = BTreeMap::new();
     let mut ids = BTreeMap::new();
     for event in observations {
-        event.normalize()?;
+        let normalized = event.normalize()?;
         if let Some(prior) = ids.insert(event.event_id, event) {
             if prior != event {
                 return Err(conflict());
             }
             continue;
         }
-        if let Some(prior) = keys.get(&event.source_key()) {
+        let source_key = event.source_key();
+        if let Some(prior) = keys.get(&source_key) {
             let mut expected = (*prior).clone();
             expected.event_id = event.event_id;
             expected.observed_at.clone_from(&event.observed_at);
@@ -46,8 +52,12 @@ fn unique(observations: &[Observation]) -> Result<Vec<&Observation>> {
             }
             continue;
         }
-        keys.insert(event.source_key(), event);
-        selected.push(event);
+        keys.insert(source_key, event);
+        selected.push(ValidatedObservation {
+            event,
+            quality: normalized.quality,
+            counter_quality: normalized.counter_quality,
+        });
     }
     Ok(selected)
 }
@@ -200,19 +210,8 @@ fn select_group<'a>(group: &mut [&'a Observation]) -> Result<(Vec<&'a Observatio
                 && base.is_none_or(|b| e.sequence > b.sequence)
         })
         .collect();
-    if let Some(base) = base {
-        for event in &later {
-            if event.source.scope == Scope::TurnTotal
-                && group.iter().any(|old| {
-                    old.sequence <= base.sequence
-                        && old.source.request_id == event.source.request_id
-                        && old.source.scope != Scope::SessionCumulative
-                })
-            {
-                return Err(coverage_error());
-            }
-        }
-    }
+    // cumulative_floor already rejects terminal requests spanning any earlier
+    // snapshot using its covered-request index, including the final cutoff.
     active.extend(request_contributions(&later)?);
     Ok((active, history))
 }
@@ -225,7 +224,11 @@ fn quality_name(quality: Quality) -> &'static str {
     }
 }
 pub(super) fn summarize(observations: &[Observation]) -> Result<Summary> {
-    let unique = unique(observations)?;
+    let normalized = unique(observations)?;
+    let unique: Vec<_> = normalized
+        .iter()
+        .map(|observation| observation.event)
+        .collect();
     validate_owners(&unique)?;
     validate_identities(&unique)?;
     let mut groups: BTreeMap<String, Vec<&Observation>> = BTreeMap::new();
@@ -256,23 +259,25 @@ pub(super) fn summarize(observations: &[Observation]) -> Result<Summary> {
         lower.output_total.unwrap_or(0),
     )?;
     let contributing_event_ids: Vec<_> = active.iter().map(|e| e.event_id).collect();
+    let contributing_ids: BTreeSet<_> = contributing_event_ids.iter().copied().collect();
     let noncontributing_event_ids = unique
         .iter()
-        .filter(|e| !contributing_event_ids.contains(&e.event_id))
+        .filter(|e| !contributing_ids.contains(&e.event_id))
         .map(|e| e.event_id)
         .collect();
     let mut declared_quality_counts = BTreeMap::new();
     let mut normalized_quality_counts = BTreeMap::new();
     let mut counter_quality_counts = BTreeMap::new();
-    for event in &unique {
+    for normalization in &normalized {
+        let event = normalization.event;
         *declared_quality_counts
             .entry(quality_name(event.quality).to_owned())
             .or_default() += 1;
         *normalized_quality_counts
-            .entry(quality_name(event.normalize()?.quality).to_owned())
+            .entry(quality_name(normalization.quality).to_owned())
             .or_default() += 1;
         *counter_quality_counts
-            .entry(quality_name(event.normalize()?.counter_quality).to_owned())
+            .entry(quality_name(normalization.counter_quality).to_owned())
             .or_default() += 1;
     }
     let partition = |kind| {

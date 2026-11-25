@@ -44,3 +44,8 @@ It uses only synthetic sources and deletes its own temporary repository on exit.
 5. Qualify a pinned release build on the declared runner: mixed cumulative/delta/unknown/shared/model-switch evidence, multiple receipt counts, 16 distinct writers, retries and faults. Record cold/warm replay, RSS, lock timeouts and throughput separately. A throughput optimization must not waive acknowledged-write or corruption guarantees.
 
 Segmentation/projections and real crash/load qualification remain open. This document does not close T008/T018/T020–T022 or qualify a host/provider cell.
+
+
+## Indexed replay continuation — 2026-11-24
+
+The first incremental performance slice is recorded in `indexed-replay-slice.md`: contribution membership/cutoff indexing and normalized quality reuse per summary, plus single-pass raw-prefix hashing for receipts. The matched 30k debug sample improved from 17.180 to 9.296 seconds with similar memory. Whole-history cloning/summary work across operations, archive scans, journal segmentation and verified projections remain open. Existing measurement limits and the unqualified 100k/16-writer target still apply. The Linux probe now supports a bounded `--timeout-seconds` and cleans its private process group on the tested timeout/SIGINT paths; it does not promise cleanup after an uncatchable parent kill.

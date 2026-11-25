@@ -309,6 +309,14 @@ fn unknown_semantics_preserve_raw_data_but_never_invent_a_total() {
     assert!(result.1["result"]["summary"]["total_tokens"].is_null());
     assert_eq!(result.1["result"]["normalized"]["known_semantics"], false);
     assert_eq!(result.1["result"]["normalized"]["quality"], "imported");
+    assert_eq!(
+        result.1["result"]["summary"]["normalized_quality_counts"],
+        json!({"imported":1})
+    );
+    assert_eq!(
+        result.1["result"]["summary"]["counter_quality_counts"],
+        json!({"missing":1})
+    );
     let log = std::fs::read_to_string(
         root.path()
             .join(".ai-gent/usage/journal/observations.jsonl"),
@@ -574,6 +582,66 @@ fn partial_terminal_cannot_erase_delta_bounds_before_a_cumulative_snapshot() {
     reset["payload"]["raw_usage"]["output_tokens"] = 400.into();
     reset["payload"]["counters"]["output_total"] = 400.into();
     assert_eq!(run(root.path(), "ingest", Some(&reset)).0, 3);
+    assert_eq!(
+        run(root.path(), "replay", None).1["result"]["usage"]["total_tokens"],
+        2400
+    );
+}
+
+#[test]
+fn contribution_order_and_quality_counts_survive_duplicate_source_aliases() {
+    let (root, registered) = setup();
+    let mut diagnostic = event(&registered, 9, "turn_total", Some("diagnostic"));
+    diagnostic["payload"]["contribution"] = "observation".into();
+    let delta = event(&registered, 3, "request_delta", Some("request-a"));
+    let terminal = event(&registered, 7, "turn_total", Some("request-a"));
+    for input in [&diagnostic, &delta, &terminal] {
+        let result = run(root.path(), "ingest", Some(input));
+        assert_eq!(result.0, 0, "{}", result.1);
+    }
+    let mut alias = terminal.clone();
+    alias["request_id"] = "40000000-0000-4000-8000-000000000020".into();
+    alias["payload"]["event_id"] = "30000000-0000-4000-8000-000000000020".into();
+    let duplicate = run(root.path(), "ingest", Some(&alias));
+    assert_eq!(duplicate.0, 0, "{}", duplicate.1);
+    assert_eq!(duplicate.1["result"]["duplicate"], true);
+    let replay = run(root.path(), "replay", None);
+    assert_eq!(replay.0, 0, "{}", replay.1);
+    let summary = &replay.1["result"]["usage"];
+    assert_eq!(
+        summary["contributing_event_ids"],
+        json!([terminal["payload"]["event_id"]])
+    );
+    assert_eq!(
+        summary["noncontributing_event_ids"],
+        json!([
+            diagnostic["payload"]["event_id"],
+            delta["payload"]["event_id"]
+        ])
+    );
+    assert_eq!(summary["observation_count"], 3);
+    assert_eq!(summary["total_tokens"], 1200);
+    for field in [
+        "declared_quality_counts",
+        "normalized_quality_counts",
+        "counter_quality_counts",
+    ] {
+        assert_eq!(summary[field], json!({"complete":3}));
+    }
+}
+
+#[test]
+fn terminal_request_crossing_cumulative_cutoff_is_refused_after_new_requests() {
+    let (root, registered) = setup();
+    let first = event(&registered, 1, "request_delta", Some("old-request"));
+    let cumulative = event(&registered, 2, "session_cumulative", None);
+    let later = event(&registered, 3, "turn_total", Some("new-request"));
+    for input in [&first, &cumulative, &later] {
+        let result = run(root.path(), "ingest", Some(input));
+        assert_eq!(result.0, 0, "{}", result.1);
+    }
+    let crossing = event(&registered, 4, "turn_total", Some("old-request"));
+    assert_eq!(run(root.path(), "ingest", Some(&crossing)).0, 3);
     assert_eq!(
         run(root.path(), "replay", None).1["result"]["usage"]["total_tokens"],
         2400

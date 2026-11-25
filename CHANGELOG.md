@@ -6,6 +6,8 @@ changes.
 
 ## Unreleased
 
+- **Ledger replay performance:** indexed contribution membership and cached normalized quality preserve ordering/counters while removing redundant scans. Receipt verification hashes covered journal bytes once across sorted/coalesced cutoffs without rewriting receipts. A matched 30k-event debug diagnostic improved from 17.18 s to 9.30 s; the reference 100k/16-writer target remains unqualified.
+
 - **Portable usage evidence (046 continuation):** versioned sanitized export and digest-pinned import/dry-run preserve per-run model/provider/role/scope metadata in a separate private archive. Imported evidence stays unverified and never changes current execution totals. A measured replay baseline records the remaining journal-capacity and scale gaps.
 
 - **Usage recovery and snapshots (046 US3 slice):** `usage recover` offers digest-pinned dry-run/apply for torn tails with durable quarantine; `usage snapshot` publishes immutable content-addressed local evidence with predecessor and journal-prefix validation. Snapshot retries refuse missing bound evidence. Bulk import, real crash/scale qualification and task-acceptance receipts remain pending.
